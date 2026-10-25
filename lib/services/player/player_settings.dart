@@ -252,6 +252,10 @@ abstract final class PlayerSettings {
       final dynamic platform = player.platform;
       if (platform == null) return;
 
+      // Prevent MPV from writing debrid / Torrentio HTTP stream data to disk.
+      // Memory buffering remains available and is bounded below.
+      await platform.setProperty('cache-on-disk', 'no');
+
       // 1. Audio Filter & Volume
       await platform.setProperty('af', 'scaletempo2=max-speed=8');
       await platform.setProperty('volume-max', '200');

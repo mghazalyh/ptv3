@@ -3,13 +3,14 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/my_list/my_list_item.dart';
-import '../simkl/simkl_service.dart';
+import 'simkl_hearts_cloud.dart';
 import 'trakt_cloud_library.dart';
 
 abstract final class MyListService {
   static const _storageKey = 'my_list_v1';
   static const int maxItems = 500;
   static final TraktCloudLibrary traktCloud = TraktCloudLibrary();
+  static final SimklHeartsCloud simklCloud = SimklHeartsCloud();
   static DateTime? _lastAutoRefresh;
 
   static final ValueNotifier<List<MyListItem>> items = ValueNotifier<List<MyListItem>>([]);
@@ -61,35 +62,13 @@ abstract final class MyListService {
   }
 
   static Future<void> syncWithSimkl() async {
-    try {
-      if (!await SimklService.instance.isAuthenticated()) return;
-      final lib = await SimklService.instance.fetchLibrarySnapshotOrNull();
-      if (lib == null) return;
-
-      final current = List<MyListItem>.from(items.value);
-      for (final bucket in ['movies', 'shows', 'anime']) {
-        final list = lib[bucket];
-        if (list is! List) continue;
-        for (final raw in list) {
-          if (raw is! Map<String, dynamic>) continue;
-          final status = raw['status'];
-          if (status == 'plantowatch' || status == 'watching') {
-            final item = MyListItem.fromSimklJson(raw);
-            final idx = current.indexWhere((i) => i.uniqueKey == item.uniqueKey || i.matches(item));
-            if (idx == -1) {
-              current.insert(0, item);
-            } else {
-              current[idx] = current[idx].mergeWith(item);
-            }
-          }
-        }
-      }
-      current.sort((a, b) => b.addedAt.compareTo(a.addedAt));
-      items.value = current.take(maxItems).toList();
-      await _persist();
-    } catch (e) {
-      debugPrint('MyListService: Simkl sync error: $e');
-    }
+    await simklCloud.reconcile(
+      readLocal: () => List<MyListItem>.from(items.value),
+      persistMerged: (merged) async {
+        items.value = merged.take(maxItems).toList();
+        await _persist();
+      },
+    );
   }
 
   static Future<void> _persist() async {
@@ -117,20 +96,15 @@ abstract final class MyListService {
 
     // Journal before sending to Trakt; failed/offline edits retry on refresh.
     unawaited(traktCloud.localChange(item, added: true));
-    unawaited(_syncSimklAdd(item));
+    unawaited(_syncSimklEdit(item, added: true));
   }
 
-  static Future<void> _syncSimklAdd(MyListItem item) async {
-    try {
-      if (await SimklService.instance.isAuthenticated()) {
-        await SimklService.instance.addToList(
-          item.imdbId ?? '', item.type, 'plantowatch',
-          tmdbId: item.tmdbId, simklId: item.simklId,
-        );
-      }
-    } catch (_) {
-      // Trakt journal and local saved titles are unaffected by Simkl failure.
-    }
+  static Future<void> _syncSimklEdit(MyListItem item,
+      {required bool added}) async {
+    await simklCloud.localChange(item, added: added);
+    // A forced refresh performs one activities-gated reconciliation, not
+    // a separate Simkl POST for each rapid heart tap.
+    unawaited(syncAll(force: true));
   }
 
   static void remove(MyListItem item) {
@@ -141,20 +115,7 @@ abstract final class MyListService {
     items.value = next;
     unawaited(_persist());
     unawaited(traktCloud.localChange(item, added: false));
-    unawaited(_syncSimklRemove(item));
-  }
-
-  static Future<void> _syncSimklRemove(MyListItem item) async {
-    try {
-      if (await SimklService.instance.isAuthenticated()) {
-        await SimklService.instance.addToList(
-          item.imdbId ?? '', item.type, 'dropped',
-          tmdbId: item.tmdbId, simklId: item.simklId,
-        );
-      }
-    } catch (_) {
-      // Keep offline library edits intact for Trakt reconciliation.
-    }
+    unawaited(_syncSimklEdit(item, added: false));
   }
 
   static void toggle(MyListItem item) {

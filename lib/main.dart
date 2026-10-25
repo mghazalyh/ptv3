@@ -28,6 +28,9 @@ import './services/music/qobuz_music_service.dart';
 import './services/my_list/my_list_service.dart';
 import './services/stream/torrent_stream_service.dart';
 import './services/player/player_settings.dart';
+import './services/player/floating_playback_service.dart';
+import './services/player/detached_playback_service.dart';
+import './pages/player/player_screen.dart';
 import './services/download/download_service.dart';
 import './services/cache/storage_cache_service.dart';
 import './services/config/env_service.dart';
@@ -38,7 +41,7 @@ import './widgets/updater/update_dialog.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-void main() async {
+void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -48,6 +51,27 @@ void main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await EnvService.initialize();
   await PlayerSettings.initialize();
+  final viewerRequest = await DetachedPlaybackRequest.takeFromArgs(args);
+  if (viewerRequest != null) {
+    // A separate OS window/engine with its own video, allowing true fullscreen
+    // on a secondary monitor while the first PlayTorrio process browses.
+    await Future.wait([
+      ContinueWatchingService.initialize(),
+      P2pSettingsService.initialize(),
+    ]);
+    await windowManager.setTitle(viewerRequest.title);
+    runApp(MaterialApp(
+      title: 'PlayTorrio — Second Monitor',
+      debugShowCheckedModeBanner: false,
+      home: PlayerScreen(
+        source: viewerRequest.toSource(),
+        title: viewerRequest.title,
+        initialPosition: viewerRequest.position,
+        onClose: () { windowManager.close(); },
+      ),
+    ));
+    return;
+  }
   await Future.wait([
     AddonManager.instance.initialize(),
     AppThemeService.initialize(),
@@ -146,6 +170,9 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
           theme: AppThemeService.createThemeData(palette),
           scrollBehavior: const MaterialScrollBehavior().copyWith(
             overscroll: false,
+          ),
+          builder: (context, child) => FloatingPlaybackHost(
+            child: child ?? const SizedBox.shrink(),
           ),
           home: const HomePage(),
         );

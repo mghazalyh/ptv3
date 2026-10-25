@@ -56,8 +56,10 @@ class TraktCloudLibrary {
   }
 
   static Future<void> _write(SharedPreferences prefs, String key,
-      List<MyListItem> values) => prefs.setString(key,
+      List<MyListItem> values) async {
+    await prefs.setString(key,
       jsonEncode(values.map((x) => x.toJson()).toList()));
+  }
 
   /// Serialize journal writes so fast add/remove actions are not overwritten.
   Future<void> _journal(MyListItem item, {required bool add,

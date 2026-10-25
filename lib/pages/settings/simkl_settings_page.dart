@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/simkl/simkl_service.dart';
+import '../../services/config/env_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 
@@ -16,6 +17,7 @@ class SimklSettingsPage extends StatefulWidget {
 class _SimklSettingsPageState extends State<SimklSettingsPage> {
   bool _isAuthed = false;
   bool _isLoading = true;
+  bool _hasClientId = false;
   String? _username;
 
   // PIN Flow Pairing
@@ -45,13 +47,58 @@ class _SimklSettingsPageState extends State<SimklSettingsPage> {
     if (mounted) {
       setState(() {
         _isAuthed = authed;
+        _hasClientId = EnvService.simklClientId.trim().isNotEmpty;
         _username = user;
         _isLoading = false;
       });
     }
   }
 
+  Future<void> _configureSimkl() async {
+    final controller = TextEditingController(text: EnvService.simklClientId);
+    if (!mounted) { controller.dispose(); return; }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Simkl Application ID'),
+        content: SizedBox(width: 440, child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Enter a Simkl API application Client ID on this PC. '
+              'It is not your password or personal access token. '
+              'This PIN integration currently uses Simkl AUTH V1.'),
+            const SizedBox(height: 12),
+            TextField(controller: controller, autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(
+                labelText: 'Simkl Client ID', border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            const SelectableText('Simkl developer settings: '
+              'https://simkl.com/settings/developer/',
+              style: TextStyle(fontSize: 12, color: Colors.white70)),
+          ],
+        )),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Save locally')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await EnvService.saveLocalSimklClientId(controller.text);
+      if (mounted) await _checkStatus();
+    }
+    controller.dispose();
+  }
+
   Future<void> _startPairing() async {
+    if (!_hasClientId) {
+      await _configureSimkl();
+      if (!_hasClientId) return;
+    }
     setState(() {
       _pairing = true;
       _userCode = null;
@@ -91,7 +138,7 @@ class _SimklSettingsPageState extends State<SimklSettingsPage> {
             _isAuthed = true;
           });
           _checkStatus();
-          MyListService.syncAll();
+          MyListService.syncAll(force: true);
           ContinueWatchingService.syncCloudSessions();
         }
       } else if (status == 'expired_token' || status == 'access_denied') {
@@ -144,6 +191,13 @@ class _SimklSettingsPageState extends State<SimklSettingsPage> {
           'Simkl Synchronization',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Configure Simkl Client ID on this PC',
+            icon: const Icon(Icons.key_outlined),
+            onPressed: _configureSimkl,
+          ),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -151,10 +205,23 @@ class _SimklSettingsPageState extends State<SimklSettingsPage> {
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             children: [
+              if (!_hasClientId) ...[
+                Card(
+                  color: const Color(0xFF252030),
+                  child: ListTile(
+                    leading: const Icon(Icons.key_rounded),
+                    title: const Text('Configure Simkl Client ID'),
+                    subtitle: const Text('Needed for pairing. Stored locally on this PC.'),
+                    onTap: _configureSimkl,
+                    trailing: const Icon(Icons.chevron_right),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               Padding(
                 padding: const EdgeInsets.only(bottom: 20),
                 child: Text(
-                  'Connect your Simkl account to synchronize Movies, TV Shows, and Anime watchlists, continue watching progress, and custom lists.',
+                  'Connect your Simkl account to synchronize Movies, TV Shows, and Anime watchlists, continue watching progress, and saved shows.',
                   style: TextStyle(
                     fontSize: 13.5,
                     color: Colors.white.withValues(alpha: 0.5),

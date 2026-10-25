@@ -18,6 +18,7 @@ import 'package:playtorrio/services/subtitles/subtitle_parser.dart';
 import '../../models/stream/stream_model.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/debrid/debrid_service.dart';
+import '../../services/p2p/p2p_settings_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
 import '../../services/theme/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
@@ -248,7 +249,12 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       final infoHash = _currentSource.infoHash;
       final isMagnetUrl = rawUrl != null && rawUrl.startsWith('magnet:');
-      final isTorrent = (infoHash != null && infoHash.isNotEmpty) || isMagnetUrl;
+      // Torrentio + TorBox returns direct HTTP links. Always prefer a usable
+      // direct URL over an optional infoHash, which is just source metadata.
+      final hasDirectHttpUrl = rawUrl != null &&
+          (rawUrl.startsWith('https://') || rawUrl.startsWith('http://'));
+      final isTorrent = !hasDirectHttpUrl &&
+          ((infoHash != null && infoHash.isNotEmpty) || isMagnetUrl);
 
       if (isTorrent) {
         String magnet;
@@ -290,6 +296,14 @@ class _PlayerScreenState extends State<PlayerScreen>
           streamUrl = debridFiles.first.downloadUrl;
           print('[PlayerScreen] Debrid resolved stream URL: $streamUrl');
         } else {
+          // Do not silently start local P2P when the user disabled the
+          // built-in source. This does not affect Torrentio/TorBox HTTP URLs.
+          if (!P2pSettingsService.isP2pEnabled.value) {
+            throw StateError(
+              'P2P is disabled. Choose a direct TorBox streaming link '
+              'or enable a debrid provider for magnet-only streams.',
+            );
+          }
           if (!mounted) return;
           setState(() => _statusMessage = 'Gathering metadata & peers...');
 
@@ -338,10 +352,10 @@ class _PlayerScreenState extends State<PlayerScreen>
           lowerClean.contains('/live/') ||
           lowerClean.contains('/hls/live');
 
-      final bool isTorrentStream = isTorrent ||
+      final bool isTorrentStream = !hasDirectHttpUrl && (isTorrent ||
           sanitizedUrlStr.contains(':8090') ||
           sanitizedUrlStr.contains('/stream?link=') ||
-          sanitizedUrlStr.contains('/stream?');
+          sanitizedUrlStr.contains('/stream?'));
 
       await PlayerSettings.applyPreOpenProperties(_player, isLive: isLive, isTorrent: isTorrentStream);
 

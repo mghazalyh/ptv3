@@ -5,10 +5,11 @@ on:
     branches:
       - ios15-storage-cleanup
       - ios15-advanced-discover
+      - ios15-similar-navigation
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   ios15:
@@ -77,13 +78,21 @@ jobs:
             lib/pages/player/watch_screen.dart \
             lib/services/metadata/tmdb_discover_service.dart \
             lib/pages/search/advanced_discover_page.dart \
-            lib/pages/search/search_page.dart
+            lib/pages/search/search_page.dart \
+            lib/pages/details/details_page.dart \
+            lib/utils/navigation/detail_navigation.dart
 
       - name: Test English-audio priority
         run: flutter test test/audio_language_priority_test.dart
 
       - name: Test TMDB Discover filters and year matching
         run: flutter test test/tmdb_advanced_discover_test.dart
+
+      - name: Test nested detail navigation retains the back stack
+        run: flutter test test/detail_navigation_stack_test.dart
+
+      - name: Test API pacing and cached Discover pages
+        run: flutter test test/tmdb_rate_limit_test.dart
 
       - name: Build unsigned release
         run: flutter build ios --release --no-codesign --dart-define-from-file=.env
@@ -121,3 +130,24 @@ jobs:
           name: PlayTorrio-iOS15-AdvancedDiscover-TrollStore
           path: build/ios/ipa/PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa
           if-no-files-found: error
+
+      # iPad-only navigation patch: do not run or publish a Windows build.
+      # Keep all existing Windows assets on this GitHub release intact.
+      - name: Publish latest direct TrollStore IPA without ZIP
+        if: github.ref == 'refs/heads/ios15-similar-navigation'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd build/ios/ipa
+          cp PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa PlayTorrio-iOS15-TrollStore.ipa
+          cp PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa PlayTorrio-iOS15-BreadcrumbNavigation-TrollStore.ipa
+          gh release upload ios15-advanced-discover-20261025 \
+            PlayTorrio-iOS15-TrollStore.ipa \
+            PlayTorrio-iOS15-BreadcrumbNavigation-TrollStore.ipa \
+            --repo "${{ github.repository }}" --clobber
+          gh release view ios15-advanced-discover-20261025 \
+            --repo "${{ github.repository }}" --json assets \
+            --jq '.assets[].name' | grep -Fx 'PlayTorrio-iOS15-BreadcrumbNavigation-TrollStore.ipa'
+          gh release view ios15-advanced-discover-20261025 \
+            --repo "${{ github.repository }}" --json assets \
+            --jq '.assets[].name' | grep -Fx 'PlayTorrio-iOS15-TrollStore.ipa'

@@ -13,6 +13,7 @@ import '../../models/movie/video.dart';
 import '../../models/movie/movie_detail.dart';
 
 import '../../models/stream/stream_model.dart';
+import '../../services/player/audio_language_priority.dart';
 import './player_screen.dart';
 import '../../services/stream/stream_service.dart';
 import '../../services/theme/glass_settings.dart';
@@ -196,13 +197,29 @@ class _WatchScreenState extends State<WatchScreen>
       }
     }
 
-    if (_selectedSizeFilter == 'largest') {
-      list.sort((a, b) => (b.sizeBytes ?? 0).compareTo(a.sizeBytes ?? 0));
-    } else if (_selectedSizeFilter == 'smallest') {
-      list.sort((a, b) => (a.sizeBytes ?? double.infinity).compareTo(b.sizeBytes ?? double.infinity));
-    } else {
-      list.sort((a, b) => b.qualityRank.compareTo(a.qualityRank));
+    // English audio metadata wins before size or quality for Torrentio.
+    // Language of the actual container is verified after playback starts.
+    final originalOrder = <StreamSource, int>{};
+    for (var i = 0; i < list.length; i++) {
+      originalOrder[list[i]] = i;
     }
+    list.sort((a, b) {
+      final preference = AudioLanguagePriority.torrentioAudioRank(a)
+          .compareTo(AudioLanguagePriority.torrentioAudioRank(b));
+      if (preference != 0) return preference;
+      final int secondary;
+      if (_selectedSizeFilter == 'largest') {
+        secondary = (b.sizeBytes ?? 0).compareTo(a.sizeBytes ?? 0);
+      } else if (_selectedSizeFilter == 'smallest') {
+        secondary = (a.sizeBytes ?? double.infinity)
+            .compareTo(b.sizeBytes ?? double.infinity);
+      } else {
+        secondary = b.qualityRank.compareTo(a.qualityRank);
+      }
+      return secondary != 0
+          ? secondary
+          : originalOrder[a]!.compareTo(originalOrder[b]!);
+    });
     return list;
   }
 
@@ -1530,6 +1547,14 @@ class _SourceCardState extends State<_SourceCard> {
       badges.add(_badge(s.quality!, badgeColor));
     }
 
+    if (s.addonName.toLowerCase().contains('torrentio')) {
+      final priority = AudioLanguagePriority.torrentioAudioRank(s);
+      if (priority == 0) {
+        badges.add(_badge('EN Audio', const Color(0xFF10B981)));
+      } else if (priority == 1) {
+        badges.add(_badge('Multi Audio', const Color(0xFF00E5FF)));
+      }
+    }
     if (s.isHDR) badges.add(_badge('HDR', const Color(0xFFFFD43B)));
     if (s.codec != null) badges.add(_badge(s.codec!, _C.textTertiary));
     if (s.fileSize != null) badges.add(_badge(s.fileSize!, _C.textTertiary));

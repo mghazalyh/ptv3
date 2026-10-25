@@ -41,7 +41,8 @@ class PlayerAudioMenu extends StatelessWidget {
   String _getLanguageEmoji(String? lang) {
     if (lang == null || lang.isEmpty) return '🔊';
     final l = lang.toLowerCase();
-    if (l.contains('en') || l.contains('eng')) return '🇺🇸';
+    if (l == 'en' || l == 'eng' || l == 'english' ||
+        l.startsWith('en-') || l.startsWith('eng-')) return '🇺🇸';
     if (l.contains('ar') || l.contains('ara')) return '🇸🇦';
     if (l.contains('es') || l.contains('spa')) return '🇪🇸';
     if (l.contains('fr') || l.contains('fre') || l.contains('fra')) return '🇫🇷';

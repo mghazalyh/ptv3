@@ -69,7 +69,14 @@ jobs:
             lib/pages/settings/settings_transfer_page.dart \
             lib/pages/settings/torbox_quick_settings_page.dart \
             lib/pages/settings/settings_page.dart \
-            lib/services/addon/addon_manager.dart
+            lib/services/addon/addon_manager.dart \
+            lib/services/player/audio_language_priority.dart \
+            lib/services/player/player_settings.dart \
+            lib/pages/player/player_screen.dart \
+            lib/pages/player/watch_screen.dart
+
+      - name: Test English-audio priority
+        run: flutter test test/audio_language_priority_test.dart
 
       - name: Build unsigned release
         run: flutter build ios --release --no-codesign --dart-define-from-file=.env
@@ -98,12 +105,12 @@ jobs:
           mkdir -p build/ios/ipa/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
           cd build/ios/ipa
-          zip -qry PlayTorrio-iOS15-TorBox-TrollStore.ipa Payload
-          test -s PlayTorrio-iOS15-TorBox-TrollStore.ipa
+          zip -qry PlayTorrio-iOS15-EnglishAudio-TrollStore.ipa Payload
+          test -s PlayTorrio-iOS15-EnglishAudio-TrollStore.ipa
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrio-iOS15-TorBox-TrollStore
-          path: build/ios/ipa/PlayTorrio-iOS15-TorBox-TrollStore.ipa
+          name: PlayTorrio-iOS15-EnglishAudio-TrollStore
+          path: build/ios/ipa/PlayTorrio-iOS15-EnglishAudio-TrollStore.ipa
           if-no-files-found: error

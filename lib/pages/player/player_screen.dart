@@ -24,6 +24,7 @@ import '../../services/theme/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
+import '../../services/player/audio_language_priority.dart';
 import '../../services/discord/discord_rpc_service.dart';
 
 import '../../widgets/player/player_glass.dart';
@@ -112,6 +113,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   BoxFit _videoFit = BoxFit.contain;
   List<PlayerAudioTrack> _audioTracks = [];
   int _selectedAudioTrackIndex = 0;
+  bool _audioManuallySelected = false;
+  bool _audioAutoSelectionPending = false;
+  bool _nativeAudioProbeRunning = false;
+  int _audioMediaEpoch = 0;
   double _audioDelaySec = 0.0;
   bool _showAudioHud = false;
   String _audioHudText = '';
@@ -223,6 +228,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _initStream() async {
+    final audioEpoch = ++_audioMediaEpoch;
+    _audioManuallySelected = false;
+    _audioAutoSelectionPending = false;
+    _audioTracks = [];
+    _selectedAudioTrackIndex = 0;
     String? streamUrl;
 
     print('[PlayerScreen] Initializing playback:');
@@ -244,6 +254,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         _setSubtitleScale(_subtitleScale);
         _applyVolume(_isMuted ? 0.0 : _volume);
         if (mounted) setState(() => _isLoading = false);
+        _updateMediaTracks(_player.state.tracks);
+        _scheduleAudioProbes(audioEpoch);
         return;
       }
 
@@ -395,6 +407,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       print('[PlayerScreen SUCCESS] Player opened media successfully for $streamUrl');
 
       _updateMediaTracks(_player.state.tracks);
+      _scheduleAudioProbes(audioEpoch);
 
       if (!mounted) return;
       setState(() {
@@ -402,6 +415,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       });
 
       _player.play();
+      _preferEnglishAudioTrack();
       _startHideControlsTimer();
 
       // Defer background services until after playback starts
@@ -478,7 +492,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (t.id == 'no' || t.id == 'auto') continue;
       final lang = t.language;
       final title = t.title ?? (lang != null ? lang.toUpperCase() : 'Track ${i + 1}');
-      final idx = int.tryParse(t.id) ?? (i + 1);
+      final idx = int.tryParse(t.id);
+      if (idx == null || idx <= 0) continue;
       audioTracks.add(PlayerAudioTrack(
         index: idx,
         title: title,
@@ -502,19 +517,154 @@ class _PlayerScreenState extends State<PlayerScreen>
       ));
     }
 
-    int activeIdx = _selectedAudioTrackIndex;
-    if (activeIdx == 0 && audioTracks.isNotEmpty) {
-      final activeAid = _player.state.track.audio.id;
-      activeIdx = int.tryParse(activeAid) ?? audioTracks.first.index;
-    }
-
-    setState(() {
-      _audioTracks = audioTracks;
-      _embeddedSubtitles = embeddedSubs;
-      if (_selectedAudioTrackIndex == 0 && audioTracks.isNotEmpty) {
-        _selectedAudioTrackIndex = activeIdx;
-      }
+    // media_kit's tracks stream may temporarily omit audio streams on iOS.
+    // Preserve the fuller MPV-native list until the next video is opened.
+    final bestTracks = audioTracks.length >= _audioTracks.length
+        ? audioTracks
+        : List<PlayerAudioTrack>.from(_audioTracks);
+    bestTracks.sort((a, b) {
+      final englishA = AudioLanguagePriority.isEnglish(
+          language: a.language, title: a.title) ? 0 : 1;
+      final englishB = AudioLanguagePriority.isEnglish(
+          language: b.language, title: b.title) ? 0 : 1;
+      return englishA.compareTo(englishB);
     });
+    final active = int.tryParse(_player.state.track.audio.id);
+    setState(() {
+      _audioTracks = bestTracks;
+      _embeddedSubtitles = embeddedSubs;
+      if (active != null && active > 0) _selectedAudioTrackIndex = active;
+    });
+    _preferEnglishAudioTrack();
+  }
+
+  void _preferEnglishAudioTrack() {
+    if (!mounted || _isLoading || _audioManuallySelected ||
+        _audioAutoSelectionPending) {
+      return;
+    }
+    final english = _audioTracks.where((track) =>
+        AudioLanguagePriority.isEnglish(
+          language: track.language, title: track.title,
+        )).firstOrNull;
+    if (english == null || english.index == _selectedAudioTrackIndex) return;
+    _audioAutoSelectionPending = true;
+    unawaited(_selectAudioTrack(english.index, manual: false).whenComplete(() {
+      _audioAutoSelectionPending = false;
+    }));
+  }
+
+  Future<void> _selectAudioTrack(int index, {required bool manual}) async {
+    if (manual) _audioManuallySelected = true;
+    final epoch = _audioMediaEpoch;
+    try {
+      final matching = _player.state.tracks.audio.where(
+        (track) => track.id == index.toString(),
+      ).firstOrNull;
+      final dynamic native = _player.platform;
+      var switched = false;
+      if (matching != null) {
+        try {
+          await _player.setAudioTrack(matching);
+          switched = true;
+        } catch (error) {
+          debugPrint('[PlayerAudio] media_kit switch failed, trying MPV: $error');
+        }
+      }
+      if (!switched) {
+        await native.setProperty('aid', index.toString());
+      } else {
+        // Verify selected MPV track where supported; correct stale wrapper
+        // state by setting MPV's actual numeric stream ID directly.
+        try {
+          final reported = await native.getProperty('aid');
+          final active = int.tryParse(reported?.toString() ?? '');
+          if (active != null && active != index) {
+            await native.setProperty('aid', index.toString());
+          }
+        } catch (error) {
+          debugPrint('[PlayerAudio] MPV verification unavailable: $error');
+        }
+      }
+      if (!mounted || epoch != _audioMediaEpoch) return;
+      setState(() => _selectedAudioTrackIndex = index);
+      debugPrint('[PlayerAudio] Audio track selected: $index (manual=$manual)');
+      if (manual) {
+        final selected = _audioTracks.where((t) => t.index == index).firstOrNull;
+        _showAudioHudToast(selected?.title ?? 'Audio track $index');
+      }
+    } catch (error, stack) {
+      debugPrint('[PlayerAudio] Cannot switch audio track $index: $error\\n$stack');
+      if (manual && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('This stream did not allow audio track switching.'),
+        ));
+      }
+    }
+  }
+
+  void _scheduleAudioProbes(int epoch) {
+    // Torrentio debrid streams can expose audio metadata after media open.
+    for (final delay in <Duration>[
+      const Duration(milliseconds: 600),
+      const Duration(seconds: 2),
+      const Duration(seconds: 5),
+    ]) {
+      Future.delayed(delay, () {
+        if (mounted && epoch == _audioMediaEpoch) {
+          unawaited(_refreshNativeAudioTracks(epoch));
+        }
+      });
+    }
+  }
+
+  Future<void> _refreshNativeAudioTracks(int epoch) async {
+    if (_nativeAudioProbeRunning || !mounted || epoch != _audioMediaEpoch) return;
+    _nativeAudioProbeRunning = true;
+    try {
+      final dynamic native = _player.platform;
+      final countValue = await native.getProperty('track-list/count');
+      final count = int.tryParse(countValue?.toString() ?? '') ?? 0;
+      if (count <= 0 || count > 120) return;
+      final found = <PlayerAudioTrack>[];
+      for (var i = 0; i < count; i++) {
+        final type = await native.getProperty('track-list/$i/type');
+        if (type?.toString() != 'audio') continue;
+        final id = await native.getProperty('track-list/$i/id');
+        final numericId = int.tryParse(id?.toString() ?? '');
+        if (numericId == null || numericId <= 0) continue;
+        final language = (await native.getProperty('track-list/$i/lang'))
+            ?.toString();
+        final title = (await native.getProperty('track-list/$i/title'))
+            ?.toString();
+        found.add(PlayerAudioTrack(
+          index: numericId,
+          title: title != null && title.trim().isNotEmpty
+              ? title : (language != null && language.isNotEmpty
+                  ? language.toUpperCase() : 'Audio track $numericId'),
+          language: language,
+        ));
+      }
+      if (!mounted || epoch != _audioMediaEpoch) return;
+      if (found.length > _audioTracks.length) {
+        found.sort((a, b) {
+          final ea = AudioLanguagePriority.isEnglish(
+            language: a.language, title: a.title) ? 0 : 1;
+          final eb = AudioLanguagePriority.isEnglish(
+            language: b.language, title: b.title) ? 0 : 1;
+          return ea.compareTo(eb);
+        });
+        setState(() => _audioTracks = found);
+        debugPrint('[PlayerAudio] MPV exposed ${found.length} audio tracks');
+      }
+      _preferEnglishAudioTrack();
+    } catch (error) {
+      // Older native player builds may not expose this method. Use the
+      // media_kit track stream and MPV alang preference as the fallback.
+      debugPrint('[PlayerAudio] Native track inspection unavailable: $error');
+    } finally {
+      _nativeAudioProbeRunning = false;
+    }
   }
 
   static String cleanMediaTitle(String raw) {
@@ -605,6 +755,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _toggleMenu(String menuName) {
+    if (menuName == 'audio') {
+      unawaited(_refreshNativeAudioTracks(_audioMediaEpoch));
+    }
     setState(() {
       if (_activeMenu == menuName) {
         _activeMenu = null;
@@ -1098,6 +1251,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   @override
   void dispose() {
+    _audioMediaEpoch++;
     for (final s in _subscriptions) {
       s.cancel();
     }
@@ -1608,18 +1762,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 selectedIndex: _selectedAudioTrackIndex,
                 delaySec: _audioDelaySec,
                 onTrackSelected: (idx) {
-                  setState(() => _selectedAudioTrackIndex = idx);
-                  try {
-                    final matching = _player.state.tracks.audio.firstWhere(
-                      (t) => t.id == idx.toString(),
-                      orElse: () => AudioTrack(idx.toString(), null, null),
-                    );
-                    _player.setAudioTrack(matching);
-                    final np = _player.platform as dynamic;
-                    np.setProperty('aid', idx.toString());
-                  } catch (_) {}
-                  final match = _audioTracks.where((t) => t.index == idx).firstOrNull;
-                  _showAudioHudToast(match?.title ?? 'Track $idx');
+                  unawaited(_selectAudioTrack(idx, manual: true));
                 },
                 onDelayChanged: (sec) {
                   setState(() => _audioDelaySec = sec);

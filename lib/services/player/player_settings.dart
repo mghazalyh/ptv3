@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'audio_language_priority.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
@@ -258,6 +259,15 @@ abstract final class PlayerSettings {
         await platform.setProperty('cache-on-disk', 'no');
       } catch (e) {
         debugPrint('[PlayerSettings] MPV disk-cache setting not available: $e');
+      }
+
+      // MPV chooses English automatically when a media file has multiple
+      // language-tagged audio streams. All other tracks remain selectable.
+      try {
+        await platform.setProperty(
+          'alang', AudioLanguagePriority.mpvPreferredLanguages);
+      } catch (e) {
+        debugPrint('[PlayerSettings] Cannot set preferred audio language: $e');
       }
 
       // 1. Audio Filter & Volume

@@ -15,7 +15,6 @@ import '../../models/movie/movie_detail.dart';
 
 import '../../models/stream/stream_model.dart';
 import '../../services/player/audio_language_priority.dart';
-import './player_screen.dart';
 import '../../services/stream/stream_service.dart';
 import '../../services/theme/glass_settings.dart';
 import '../../widgets/common/performance_liquid_lens.dart';

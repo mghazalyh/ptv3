@@ -70,7 +70,7 @@ void main() {
     var library = [localTitle(1)];
     final ok = await service.reconcile(
       readLocal: () => library,
-      persistMerged: (merged) async => library = merged,
+      persistMerged: (merged) async { library = merged; },
     );
     expect(ok, true);
     expect(library, hasLength(2));
@@ -84,7 +84,7 @@ void main() {
     var library = [localTitle(1)];
     final ok = await service.reconcile(
       readLocal: () => library,
-      persistMerged: (merged) async => library = merged,
+      persistMerged: (merged) async { library = merged; },
     );
     expect(ok, false);
     expect(library.single.imdbId, localTitle(1).imdbId);
@@ -99,7 +99,7 @@ void main() {
     Future<void> refresh() async {
       await service.reconcile(
         readLocal: () => library,
-        persistMerged: (merged) async => library = merged,
+        persistMerged: (merged) async { library = merged; },
       );
     }
     await refresh();
@@ -119,7 +119,7 @@ void main() {
     var library = <MyListItem>[];
     await service.reconcile(
       readLocal: () => library,
-      persistMerged: (merged) async => library = merged);
+      persistMerged: (merged) async { library = merged; });
     expect(library, isEmpty);
     expect(gateway.removed, contains(localTitle(1).imdbId));
   });
@@ -130,7 +130,7 @@ void main() {
     var library = [localTitle(1)];
     final success = await service.reconcile(
       readLocal: () => library,
-      persistMerged: (merged) async => library = merged);
+      persistMerged: (merged) async { library = merged; });
     expect(success, isFalse);
     expect(library, hasLength(1));
     expect(service.state.value, TraktSyncState.partial);
@@ -144,7 +144,7 @@ void main() {
     var library = [localTitle(1)];
     await service.reconcile(
       readLocal: () => library,
-      persistMerged: (merged) async => library = merged);
+      persistMerged: (merged) async { library = merged; });
     expect(gateway.uploaded, contains(localTitle(1).imdbId));
   });
 }

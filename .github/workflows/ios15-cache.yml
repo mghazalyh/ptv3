@@ -114,6 +114,7 @@ jobs:
       - name: Test shared player and cloud sync parity
         run: |
           flutter test test/floating_playback_test.dart
+          flutter test test/player_video_surface_test.dart
           flutter test test/trakt_merge_plan_test.dart
           flutter test test/trakt_cloud_library_test.dart
           flutter test test/simkl_hearts_cloud_test.dart

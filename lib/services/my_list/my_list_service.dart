@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/my_list/my_list_item.dart';
-import '../trakt/trakt_service.dart';
 import '../simkl/simkl_service.dart';
 import 'trakt_cloud_library.dart';
 

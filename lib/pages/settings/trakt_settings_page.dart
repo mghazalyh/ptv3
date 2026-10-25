@@ -92,7 +92,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
             _isAuthed = true;
           });
           _checkStatus();
-          MyListService.syncAll();
+          MyListService.syncAll(force: true);
           ContinueWatchingService.syncCloudSessions();
         }
       } else if (status == 'expired_token' || status == 'access_denied') {
@@ -367,7 +367,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                       const SnackBar(content: Text('Syncing with Trakt.tv...')),
                     );
                     await Future.wait([
-                      MyListService.syncAll(),
+                      MyListService.syncAll(force: true),
                       ContinueWatchingService.syncCloudSessions(),
                     ]);
                     if (context.mounted) {

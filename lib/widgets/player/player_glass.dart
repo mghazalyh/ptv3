@@ -3,6 +3,50 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 import '../../services/theme/glass_settings.dart';
 
+/// Keeps native video textures out of shader/backdrop capture passes.
+///
+/// media_kit renders video with a native texture. Capturing that texture for
+/// refractive glass can produce a large gray rectangle on Windows when the
+/// mouse enters a control or a tooltip animates. Do not composite/capture the
+/// video itself: paint the video and its controls in separate boundaries.
+/// Other app screens can continue using their chosen glass preset.
+class PlayerVideoSurface extends StatelessWidget {
+  const PlayerVideoSurface({
+    super.key,
+    required this.video,
+    required this.controls,
+  });
+
+  final Widget video;
+  final Widget controls;
+
+  @override
+  Widget build(BuildContext context) {
+    return PlayerVideoSurfaceScope(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(child: video),
+          RepaintBoundary(child: controls),
+        ],
+      ),
+    );
+  }
+}
+
+/// Player-only signal to draw ordinary opaque/translucent controls instead
+/// of LiquidGlassLens and BackdropFilter over a native video texture.
+class PlayerVideoSurfaceScope extends InheritedWidget {
+  const PlayerVideoSurfaceScope({super.key, required super.child});
+
+  static bool isActive(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<PlayerVideoSurfaceScope>() !=
+      null;
+
+  @override
+  bool updateShouldNotify(PlayerVideoSurfaceScope oldWidget) => false;
+}
+
 /// Design tokens and glass styling for the modern video player UI.
 class PlayerTheme {
   // Backgrounds & Surfaces
@@ -79,6 +123,16 @@ class PlayerGlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final content = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: backgroundColor ?? PlayerTheme.elevated,
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: border ?? Border.all(color: PlayerTheme.edge, width: 1),
+      ),
+      child: child,
+    );
+
     return Container(
       width: width,
       height: height,
@@ -88,18 +142,12 @@ class PlayerGlassCard extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            padding: padding,
-            decoration: BoxDecoration(
-              color: backgroundColor ?? PlayerTheme.elevated,
-              borderRadius: BorderRadius.circular(borderRadius),
-              border: border ?? Border.all(color: PlayerTheme.edge, width: 1),
-            ),
-            child: child,
-          ),
-        ),
+        child: PlayerVideoSurfaceScope.isActive(context)
+            ? content
+            : BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                child: content,
+              ),
       ),
     );
   }
@@ -149,7 +197,8 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
         return ValueListenableBuilder<int>(
           valueListenable: GlassSettings.styleRevision,
           builder: (context, _, __) {
-            final hoverScaleVal = glassEnabled ? GlassSettings.hoverScale.value : 1.0;
+            final useGlass = glassEnabled && !PlayerVideoSurfaceScope.isActive(context);
+            final hoverScaleVal = useGlass ? GlassSettings.hoverScale.value : 1.0;
             final effectiveScale = _hovered ? hoverScaleVal : 1.0;
 
             final bg = widget.active
@@ -192,7 +241,7 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
             );
 
             Widget buttonBody;
-            if (glassEnabled) {
+            if (useGlass) {
               final buttonStyle = GlassSettings.createButtonGlassStyle(
                 cornerRadius: widget.borderRadius.clamp(0, widget.size / 2),
                 customColor: widget.active

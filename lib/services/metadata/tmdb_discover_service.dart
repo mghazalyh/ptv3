@@ -188,13 +188,13 @@ class TmdbDiscoverService {
     if (value == null || value.trim().isEmpty) return _fallbackCooldown;
     final seconds = int.tryParse(value.trim());
     if (seconds != null) {
-      return Duration(seconds: seconds.clamp(1, 1800));
+      return Duration(seconds: seconds.clamp(1, 1800).toInt());
     }
     try {
       final date = HttpDate.parse(value.trim());
       final delta = date.difference(DateTime.now().toUtc());
       return delta.isNegative ? _fallbackCooldown
-          : Duration(seconds: delta.inSeconds.clamp(1, 1800));
+          : Duration(seconds: delta.inSeconds.clamp(1, 1800).toInt());
     } catch (_) {
       return _fallbackCooldown;
     }

@@ -25,6 +25,7 @@ import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
 import '../../services/player/audio_language_priority.dart';
+import '../../services/player/detached_playback_service.dart';
 import '../../services/discord/discord_rpc_service.dart';
 
 import '../../widgets/player/player_glass.dart';
@@ -56,6 +57,12 @@ class PlayerScreen extends StatefulWidget {
   final MovieDetail? detail;
   final Video? episode;
   final Duration? initialPosition;
+  final bool compact;
+  final VoidCallback? onMinimize;
+  final VoidCallback? onExpand;
+  final VoidCallback? onClose;
+  final GestureDragUpdateCallback? onMiniDrag;
+  final GestureDragEndCallback? onMiniDragEnd;
 
   const PlayerScreen({
     super.key,
@@ -66,6 +73,12 @@ class PlayerScreen extends StatefulWidget {
     this.detail,
     this.episode,
     this.initialPosition,
+    this.compact = false,
+    this.onMinimize,
+    this.onExpand,
+    this.onClose,
+    this.onMiniDrag,
+    this.onMiniDragEnd,
   });
 
   @override
@@ -84,6 +97,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   final ValueNotifier<Duration> _positionNotifier = ValueNotifier<Duration>(Duration.zero);
   final ValueNotifier<Duration?> _bufferNotifier = ValueNotifier<Duration?>(null);
 
+  String? _resolvedPlayableUrl;
+  Map<String, String> _resolvedHeaders = {};
+  bool _secondWindowPending = false;
   bool _isLoading = true;
   bool _isPlaying = false;
   Duration _position = Duration.zero;
@@ -227,6 +243,55 @@ class _PlayerScreenState extends State<PlayerScreen>
     ]);
   }
 
+  @override
+  void didUpdateWidget(covariant PlayerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.compact == widget.compact) return;
+    // iPad returns to a freely oriented Discover page in PiP mode.
+    if (widget.compact) {
+      SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    } else {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight,
+      ]);
+    }
+  }
+
+  Future<void> _openOnSecondMonitor() async {
+    final url = _resolvedPlayableUrl;
+    if (_secondWindowPending || url == null || !Platform.isWindows) return;
+    setState(() => _secondWindowPending = true);
+    final wasPlaying = _isPlaying;
+    try {
+      await _player.pause();
+      final ok = await DetachedPlaybackRequest.launch(
+        DetachedPlaybackRequest(
+          title: _currentTitle, url: url, position: _position,
+          headers: _resolvedHeaders,
+        ),
+      );
+      if (!ok) {
+        if (wasPlaying) await _player.play();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Cannot open this source in a second window. '
+              'Use an independent HTTP stream or a downloaded file.'),
+          ));
+        }
+      } else {
+        // The second process now owns playback, while the library browser in
+        // this process remains open for searching and adding more shows.
+        if (widget.onClose != null) {
+          widget.onClose!();
+        } else if (mounted) {
+          Navigator.pop(context);
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _secondWindowPending = false);
+    }
+  }
+
   Future<void> _initStream() async {
     final audioEpoch = ++_audioMediaEpoch;
     _audioManuallySelected = false;
@@ -234,6 +299,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     _audioTracks = [];
     _selectedAudioTrackIndex = 0;
     String? streamUrl;
+    _resolvedPlayableUrl = null;
+    _resolvedHeaders = {};
 
     print('[PlayerScreen] Initializing playback:');
     print('[PlayerScreen]   Title: $_currentTitle');
@@ -249,6 +316,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (rawUrl != null && (File(rawUrl).existsSync() || _currentSource.name == 'Downloaded')) {
         print('[PlayerScreen] Initializing offline local file playback: $rawUrl');
         await PlayerSettings.applyPreOpenProperties(_player);
+        _resolvedPlayableUrl = rawUrl;
+        _resolvedHeaders = {};
         await _player.open(Media(rawUrl), play: true);
         await PlayerSettings.applyPostOpenProperties(_player);
         _setSubtitleScale(_subtitleScale);
@@ -390,6 +459,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
       }
 
+      _resolvedPlayableUrl = cleanUri.toString();
+      _resolvedHeaders = isTorrentStream ? {} : Map<String, String>.from(playerHeaders);
       await _player.open(
         Media(
           cleanUri.toString(),
@@ -1533,6 +1604,34 @@ class _PlayerScreenState extends State<PlayerScreen>
             ),
           ),
 
+        if (widget.onMinimize != null || widget.onClose != null)
+          Positioned(
+            top: 92, right: 20,
+            child: SafeArea(
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (Platform.isWindows && widget.onMinimize != null)
+                  IconButton.filledTonal(
+                    tooltip: 'Open video in a separate window — move it to '
+                      'another monitor, then press F for fullscreen',
+                    onPressed: _secondWindowPending ? null : _openOnSecondMonitor,
+                    icon: const Icon(Icons.open_in_new_rounded),
+                  ),
+                if (widget.onMinimize != null)
+                  IconButton.filledTonal(
+                    tooltip: 'Keep playing while browsing (mini-player)',
+                    onPressed: widget.onMinimize,
+                    icon: const Icon(Icons.picture_in_picture_alt_rounded),
+                  ),
+                if (widget.onClose != null)
+                  IconButton.filledTonal(
+                    tooltip: 'Stop playback',
+                    onPressed: widget.onClose,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+              ]),
+            ),
+          ),
+
         // Top Header Bar
         Positioned(
           top: 0,
@@ -1577,8 +1676,14 @@ class _PlayerScreenState extends State<PlayerScreen>
                           : null,
                       isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
                       onBack: () {
-                        WindowService.instance.exitFullscreen();
-                        Navigator.pop(context);
+                        if (widget.onMinimize != null) {
+                          widget.onMinimize!();
+                        } else if (widget.onClose != null) {
+                          widget.onClose!();
+                        } else {
+                          WindowService.instance.exitFullscreen();
+                          Navigator.pop(context);
+                        }
                       },
                     );
                   },
@@ -2137,6 +2242,59 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Widget _buildPlayerBody() {
+    if (widget.compact) {
+      return Stack(fit: StackFit.expand, children: [
+        RepaintBoundary(child: _buildBackgroundStack()),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                colors: [Colors.black54, Colors.transparent, Colors.black45],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 0, left: 0, right: 0, height: 36,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanUpdate: widget.onMiniDrag,
+            onPanEnd: widget.onMiniDragEnd,
+            child: Row(children: [
+              const SizedBox(width: 8),
+              const Icon(Icons.drag_indicator_rounded,
+                color: Colors.white70, size: 19),
+              Expanded(child: Text(_currentTitle,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 11))),
+              IconButton(
+                tooltip: 'Expand video',
+                icon: const Icon(Icons.fullscreen_rounded, size: 21),
+                color: Colors.white, padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                onPressed: widget.onExpand,
+              ),
+              IconButton(
+                tooltip: 'Close video',
+                icon: const Icon(Icons.close, size: 19),
+                color: Colors.white, padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                onPressed: widget.onClose,
+              ),
+            ]),
+          ),
+        ),
+        Center(
+          child: IconButton.filledTonal(
+            tooltip: _isPlaying ? 'Pause video' : 'Resume video',
+            onPressed: _togglePlayPause,
+            icon: Icon(_isPlaying
+              ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 30),
+          ),
+        ),
+      ]);
+    }
     return ValueListenableBuilder<bool>(
       valueListenable: GlassSettings.enabled,
       builder: (context, enabled, _) {

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../models/my_list/my_list_item.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../services/my_list/trakt_cloud_library.dart';
+import '../../services/my_list/simkl_hearts_cloud.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../details/details_page.dart';
 import '../../models/movie/movie.dart';
@@ -286,6 +287,37 @@ class _MyListPageState extends State<MyListPage> {
           ),
           const SizedBox(width: 8),
 
+          ValueListenableBuilder<SimklHeartState>(
+            valueListenable: MyListService.simklCloud.state,
+            builder: (context, state, _) {
+              final working = state == SimklHeartState.syncing;
+              final label = switch (state) {
+                SimklHeartState.disconnected => 'Simkl offline',
+                SimklHeartState.syncing => 'Syncing Simkl...',
+                SimklHeartState.synced => 'Simkl hearts synced',
+                SimklHeartState.partial => 'Simkl: partial sync',
+                SimklHeartState.failed => 'Simkl sync failed',
+              };
+              final tone = state == SimklHeartState.synced
+                ? const Color(0xFF00ADFF)
+                : (state == SimklHeartState.failed ||
+                   state == SimklHeartState.partial)
+                  ? const Color(0xFFFFB74D) : Colors.white70;
+              return Row(mainAxisSize: MainAxisSize.min, children: [
+                if (working)
+                  SizedBox(width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(tone)))
+                else
+                  Icon(state == SimklHeartState.synced ?
+                    Icons.cloud_done_rounded : Icons.cloud_outlined,
+                    color: tone, size: 14),
+                const SizedBox(width: 5),
+                Text(label, style: TextStyle(color: tone, fontSize: 11)),
+                const SizedBox(width: 8),
+              ]);
+            },
+          ),
           // Trakt state reflects actual cloud connectivity and failure,
           // never labels disconnected or unsuccessful sync as "Cloud Synced".
           ValueListenableBuilder<TraktSyncState>(

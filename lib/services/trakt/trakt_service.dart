@@ -1034,6 +1034,63 @@ class TraktService {
     }
   }
 
+  /// Fetch the complete Trakt watchlist. Unlike fetchList(), null indicates
+  /// an API failure (including a broken pagination page). Never interpret a
+  /// failed request as an empty remote library when reconciling devices.
+  Future<List<dynamic>?> fetchWholeWatchlistOrNull(String contentType) async {
+    if (contentType != 'movies' && contentType != 'shows') return null;
+    final result = <dynamic>[];
+    var page = 1;
+    var lastPage = 1;
+    do {
+      final response = await _authenticatedGet(
+        '/sync/watchlist/$contentType?extended=full&page=$page&limit=100',
+      );
+      if (response == null || response.statusCode != 200) return null;
+      try {
+        final parsed = jsonDecode(response.body);
+        if (parsed is! List<dynamic>) return null;
+        result.addAll(parsed);
+        lastPage = _paginationPageCount(response);
+      } catch (_) {
+        return null;
+      }
+      // Bounded safety ceiling: never silently accept a truncated watchlist.
+      if (lastPage > 50) return null;
+      page++;
+    } while (page <= lastPage);
+    return result;
+  }
+
+  /// Upload a batch of watchlist entries via Trakt's native sync endpoint.
+  /// Requests contain only titles with a usable TMDB/IMDb/Trakt ID.
+  /// Failures remain pending locally and are retried on a later manual sync.
+  Future<bool> addManyToWatchlist(List<Map<String, dynamic>> movies,
+      List<Map<String, dynamic>> shows) async {
+    if (movies.isEmpty && shows.isEmpty) return true;
+    final response = await _authenticatedPost('/sync/watchlist', {
+      'movies': movies,
+      'shows': shows,
+    });
+    if (response == null || response.statusCode < 200 ||
+        response.statusCode >= 300) return false;
+    try {
+      final json = jsonDecode(response.body);
+      if (json is Map && json['not_found'] is Map) {
+        final missing = json['not_found'] as Map;
+        if ((missing['movies'] is List && (missing['movies'] as List).isNotEmpty) ||
+            (missing['shows'] is List && (missing['shows'] as List).isNotEmpty)) {
+          return false;
+        }
+      }
+    } catch (_) {
+      // A malformed response must not acknowledge pending cloud writes.
+      return false;
+    }
+    _invalidateLibraryCache();
+    return true;
+  }
+
   /// Fetch the user's custom lists.
   Future<List<Map<String, dynamic>>> fetchCustomLists() async {
     final response = await _authenticatedGet('/users/me/lists');

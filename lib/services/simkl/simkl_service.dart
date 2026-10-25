@@ -467,6 +467,32 @@ class SimklService {
     return data is Map<String, dynamic> ? data : null;
   }
 
+  /// Fresh activity gate: required before fetching the user's full library.
+  /// A failed request is null, not an empty library.
+  Future<Map<String, dynamic>?> fetchSyncActivitiesOrNull() async {
+    final token = await StorageService.getSimklAccessToken();
+    if (token == null || token.isEmpty || kSimklClientId.isEmpty) return null;
+    final result = await _getOrNull(
+      _apiUri('/sync/activities'),
+      headers: _apiHeaders(accessToken: token),
+      label: 'sync activities',
+    );
+    return result is Map<String, dynamic> ? result : null;
+  }
+
+  /// Authoritative, intentionally uncached watchlist for cloud heart syncing.
+  /// No extended=full needed: title, IDs, status and progress counts suffice.
+  Future<Map<String, dynamic>?> fetchHeartsSnapshotOrNull() async {
+    final token = await StorageService.getSimklAccessToken();
+    if (token == null || token.isEmpty || kSimklClientId.isEmpty) return null;
+    final result = await _getOrNull(
+      _apiUri('/sync/all-items'),
+      headers: _apiHeaders(accessToken: token),
+      label: 'sync hearts snapshot',
+    );
+    return result is Map<String, dynamic> ? result : null;
+  }
+
   /// The user's "watching" TV shows with Simkl's server-computed `next_to_watch`
   /// (via `next_watch_info=yes`) — powers the Continue Watching "up next"
   /// entries (the next episode of a show you're mid-way through but haven't
@@ -609,6 +635,62 @@ class SimklService {
     if (type == 'series' && imdbId.isNotEmpty) {
       EpisodeTrackerSnapshotRevision.invalidateTitle('simkl', imdbId);
     }
+    return true;
+  }
+
+  /// Small, rate-conscious write batches. A 201 can still contain not_found;
+  /// keep failed titles pending locally instead of declaring a false success.
+  Future<bool> addPlanToWatchBatch(
+    List<Map<String, dynamic>> movies,
+    List<Map<String, dynamic>> shows,
+  ) async {
+    if (movies.isEmpty && shows.isEmpty) return true;
+    final token = await StorageService.getSimklAccessToken();
+    if (token == null || token.isEmpty || kSimklClientId.isEmpty) return false;
+    final body = {
+      'movies': movies.map((x) => {'to': 'plantowatch', ...x}).toList(),
+      'shows': shows.map((x) => {'to': 'plantowatch', ...x}).toList(),
+    };
+    final result = await _postOrNull('/sync/add-to-list', body,
+      token: token, label: 'batch add Plan to Watch');
+    if (result is! Map<String, dynamic>) return false;
+    final errors = result['not_found'];
+    if (errors is Map) {
+      for (final category in ['movies', 'shows']) {
+        final missing = errors[category];
+        if (missing is List && missing.isNotEmpty) return false;
+      }
+    }
+    if (result['added'] is! Map) return false;
+    _invalidateLibraryCache();
+    return true;
+  }
+
+  /// WARNING: removing a whole title also deletes its Simkl history.
+  /// Callers must first inspect the full remote item and block this operation
+  /// for anything with prior watches. Never map unheart to Dropped.
+  Future<bool> removeUnwatchedPlanToWatch(
+    String imdbId, String type, {int? tmdbId, int? simklId},
+  ) async {
+    final token = await StorageService.getSimklAccessToken();
+    if (token == null || token.isEmpty || kSimklClientId.isEmpty) return false;
+    final ids = <String, dynamic>{};
+    if (imdbId.startsWith('tt')) ids['imdb'] = imdbId;
+    if (tmdbId != null) ids['tmdb'] = tmdbId;
+    if (simklId != null) ids['simkl'] = simklId;
+    if (ids.isEmpty) return false;
+    final key = _typeKey(type);
+    final result = await _postOrNull('/sync/history/remove', {
+      key: [{'ids': ids}],
+    }, token: token, label: 'remove unwatched Plan to Watch');
+    if (result is! Map<String, dynamic>) return false;
+    final notFound = result['not_found'];
+    if (notFound is Map && notFound[key] is List &&
+        (notFound[key] as List).isNotEmpty) return false;
+    final deleted = result['deleted'];
+    if (deleted is! Map || (deleted[key] is num &&
+        (deleted[key] as num) < 1)) return false;
+    _invalidateLibraryCache();
     return true;
   }
 

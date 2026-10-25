@@ -188,7 +188,7 @@ class TmdbDiscoverService {
     return DiscoverResults(
       titles,
       (response['page'] as num?)?.toInt() ?? filters.page,
-      ((response['total_pages'] as num?)?.toInt() ?? 1).clamp(1, 500),
+      ((response['total_pages'] as num?)?.toInt() ?? 1).clamp(1, 500).toInt(),
       (response['total_results'] as num?)?.toInt() ?? 0,
     );
   }

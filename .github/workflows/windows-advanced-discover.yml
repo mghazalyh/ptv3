@@ -8,6 +8,7 @@ on:
       - windows-simkl-hearts-sync
       - parity-floating-player-both
       - fix/windows-separate-player-controls
+      - fix/windows-player-actions-all-modes
   workflow_dispatch:
 
 permissions:
@@ -96,6 +97,14 @@ jobs:
           if ($details.Contains("Navigator.pushReplacement(")) { throw "Nested details navigation replaces route" }
           if (!$discover.Contains("controller: _discoverScroll")) { throw "Discover scrolling was not carried over" }
           if (!$discover.Contains("oldMaxExtent + 160.0")) { throw "Load More scroll offset change missing" }
+          $player = Get-Content "lib/pages/player/player_screen.dart" -Raw
+          $viewer = Get-Content "lib/main.dart" -Raw
+          $toolbar = Get-Content "lib/widgets/player/player_window_actions.dart" -Raw
+          if ($player.Contains("onSeparateWindow: widget.onMinimize != null")) { throw "Window actions must not be gated behind optional callbacks" }
+          if (!$player.Contains("onMinimize: _miniPlayerAction")) { throw "Mini action must be wired for every Windows player" }
+          if (!$player.Contains("onSeparateWindow: () => unawaited(_separateWindowAction())")) { throw "Separate action must be wired for every Windows player" }
+          if (!$viewer.Contains("detachedWindow: true")) { throw "Detached viewer window mode missing" }
+          if (!$toolbar.Contains("required this.onSeparateWindow") -or !$toolbar.Contains("required this.onMinimize")) { throw "All Windows toolbar actions must be mandatory" }
 
       - name: Build Windows executable
         shell: pwsh

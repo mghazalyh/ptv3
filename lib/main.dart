@@ -66,6 +66,7 @@ void main(List<String> args) async {
         source: viewerRequest.toSource(),
         title: viewerRequest.title,
         initialPosition: viewerRequest.position,
+        detachedWindow: true,
         onClose: () { windowManager.close(); },
       ),
     ));

@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:media_kit_video/media_kit_video.dart' as mk;
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -24,6 +25,7 @@ import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/detached_playback_service.dart';
+import '../../services/player/floating_playback_service.dart';
 import '../../services/discord/discord_rpc_service.dart';
 
 import '../../widgets/player/player_glass.dart';
@@ -57,6 +59,8 @@ class PlayerScreen extends StatefulWidget {
   final Video? episode;
   final Duration? initialPosition;
   final bool compact;
+  /// True only in the independent Windows process started by a handoff.
+  final bool detachedWindow;
   final VoidCallback? onMinimize;
   final VoidCallback? onExpand;
   final VoidCallback? onClose;
@@ -73,6 +77,7 @@ class PlayerScreen extends StatefulWidget {
     this.episode,
     this.initialPosition,
     this.compact = false,
+    this.detachedWindow = false,
     this.onMinimize,
     this.onExpand,
     this.onClose,
@@ -99,6 +104,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   String? _resolvedPlayableUrl;
   Map<String, String> _resolvedHeaders = {};
   bool _secondWindowPending = false;
+  bool _detachedMini = false;
+  bool _detachedWasFullscreen = false;
+  bool _detachedWasMaximized = false;
+  bool _draggingDetached = false;
+  Size? _detachedOriginalSize;
+  Offset? _detachedOriginalPosition;
   bool _isLoading = true;
   bool _isPlaying = false;
   Duration _position = Duration.zero;
@@ -274,6 +285,113 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (mounted) {
       unawaited(Navigator.of(context).maybePop());
     }
+  }
+
+  /// Every Windows playback route has working actions. In a detached process
+  /// the video already has its own native OS window, so this brings it out
+  /// of fullscreen instead of recursively spawning more player processes.
+  Future<void> _separateWindowAction() async {
+    if (!widget.detachedWindow) {
+      await _openOnSecondMonitor();
+      return;
+    }
+    try {
+      if (_detachedMini) {
+        await _restoreDetachedWindow();
+      } else {
+        if (await windowManager.isFullScreen()) {
+          await windowManager.setFullScreen(false);
+        }
+        if (await windowManager.isMaximized()) {
+          await windowManager.unmaximize();
+        }
+        await windowManager.setSize(const Size(1100, 700));
+        await windowManager.setAlwaysOnTop(false);
+      }
+      await windowManager.show();
+      await windowManager.focus();
+      debugPrint('[PlayerScreen] Detached player is now a movable Windows window');
+    } catch (error, stackTrace) {
+      debugPrint('[PlayerScreen] Cannot restore detached window: $error\n$stackTrace');
+      _showPlayerActionError('Cannot restore separate window: $error');
+    }
+  }
+
+  void _miniPlayerAction() {
+    if (widget.onMinimize != null) {
+      widget.onMinimize!();
+      return;
+    }
+    if (widget.detachedWindow) {
+      unawaited(_minimizeDetachedWindow());
+      return;
+    }
+    // Legacy routes without an app-level playback callback get promoted into
+    // the persistent player shell. Only pop the original route after creating
+    // the new session; the regular Watch, Search and Downloads entry points
+    // already use the host directly and preserve the same media_kit player.
+    if (!mounted || !Navigator.of(context).canPop()) {
+      _showPlayerActionError('Mini player is unavailable for this player window.');
+      return;
+    }
+    debugPrint('[PlayerScreen] Promoting legacy playback route to floating host');
+    FloatingPlaybackService.play(FloatingPlaybackSession(
+      source: _currentSource,
+      title: _currentTitle,
+      backdropUrl: widget.backdropUrl,
+      logoUrl: widget.logoUrl,
+      detail: widget.detail,
+      episode: _currentEpisode,
+      initialPosition: _position,
+    ));
+    FloatingPlaybackService.minimize();
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _minimizeDetachedWindow() async {
+    if (!widget.detachedWindow || _detachedMini || !mounted) return;
+    try {
+      _detachedWasFullscreen = await windowManager.isFullScreen();
+      _detachedWasMaximized = await windowManager.isMaximized();
+      _detachedOriginalSize = await windowManager.getSize();
+      _detachedOriginalPosition = await windowManager.getPosition();
+      if (_detachedWasFullscreen) await windowManager.setFullScreen(false);
+      if (_detachedWasMaximized) await windowManager.unmaximize();
+      await windowManager.setSize(const Size(480, 300));
+      await windowManager.setAlwaysOnTop(true);
+      await windowManager.show();
+      if (mounted) setState(() => _detachedMini = true);
+      debugPrint('[PlayerScreen] Independent player switched to mini window');
+    } catch (error, stackTrace) {
+      debugPrint('[PlayerScreen] Failed to minimize detached window: $error\n$stackTrace');
+      _showPlayerActionError('Cannot minimize separate player: $error');
+    }
+  }
+
+  Future<void> _restoreDetachedWindow() async {
+    if (!widget.detachedWindow || !_detachedMini) return;
+    try {
+      await windowManager.setAlwaysOnTop(false);
+      final size = _detachedOriginalSize;
+      final position = _detachedOriginalPosition;
+      if (size != null) await windowManager.setSize(size);
+      if (position != null) await windowManager.setPosition(position);
+      if (_detachedWasMaximized) await windowManager.maximize();
+      if (_detachedWasFullscreen) await windowManager.setFullScreen(true);
+      if (mounted) setState(() => _detachedMini = false);
+      debugPrint('[PlayerScreen] Restored separate Windows player');
+    } catch (error, stackTrace) {
+      debugPrint('[PlayerScreen] Failed to restore mini viewer: $error\n$stackTrace');
+      _showPlayerActionError('Cannot restore mini player: $error');
+    }
+  }
+
+  void _dragDetachedMini(DragUpdateDetails details) {
+    if (!widget.detachedWindow || !_detachedMini || _draggingDetached) return;
+    _draggingDetached = true;
+    unawaited(windowManager.startDragging().catchError((Object error) {
+      debugPrint('[PlayerScreen] Detached mini drag failed: $error');
+    }).whenComplete(() => _draggingDetached = false));
   }
 
   Future<void> _openOnSecondMonitor() async {
@@ -2067,10 +2185,9 @@ class _PlayerScreenState extends State<PlayerScreen>
               right: 20,
               child: PlayerWindowActions(
                 compact: MediaQuery.sizeOf(context).width < 880,
-                onSeparateWindow: widget.onMinimize != null
-                    ? _openOnSecondMonitor
-                    : null,
-                onMinimize: widget.onMinimize,
+                onSeparateWindow: () => unawaited(_separateWindowAction()),
+                onMinimize: _miniPlayerAction,
+                separateWindowActive: widget.detachedWindow,
                 onStop: _stopPlayerFromToolbar,
                 openingSeparateWindow: _secondWindowPending,
               ),
@@ -2260,7 +2377,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Widget _buildPlayerBody() {
-    if (widget.compact) {
+    if (widget.compact || _detachedMini) {
       return Stack(fit: StackFit.expand, children: [
         RepaintBoundary(child: _buildBackgroundStack()),
         Positioned.fill(
@@ -2277,7 +2394,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           top: 0, left: 0, right: 0, height: 36,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onPanUpdate: widget.onMiniDrag,
+            onPanUpdate: widget.onMiniDrag ?? (widget.detachedWindow ? _dragDetachedMini : null),
             onPanEnd: widget.onMiniDragEnd,
             child: Row(children: [
               const SizedBox(width: 8),
@@ -2291,14 +2408,15 @@ class _PlayerScreenState extends State<PlayerScreen>
                 icon: const Icon(Icons.fullscreen_rounded, size: 21),
                 color: Colors.white, padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
-                onPressed: widget.onExpand,
+                onPressed: widget.onExpand ??
+                    (widget.detachedWindow ? () => unawaited(_restoreDetachedWindow()) : null),
               ),
               IconButton(
                 tooltip: 'Close video',
                 icon: const Icon(Icons.close, size: 19),
                 color: Colors.white, padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
-                onPressed: widget.onClose,
+                onPressed: _stopPlayerFromToolbar,
               ),
             ]),
           ),

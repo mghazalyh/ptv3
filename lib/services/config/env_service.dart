@@ -21,7 +21,7 @@ class EnvService {
     // application credentials to be configured at runtime on each device.
     try {
       final prefs = await SharedPreferences.getInstance();
-      for (final key in ['TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET']) {
+      for (final key in ['TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET', 'SIMKL_CLIENT_ID']) {
         final value = prefs.getString('local_config_$key') ?? '';
         if (value.isNotEmpty) _env[key] = value;
       }
@@ -98,6 +98,20 @@ class EnvService {
         await prefs.setString('local_config_${entry.key}', entry.value);
         _env[entry.key] = entry.value;
       }
+    }
+  }
+
+  /// The public Simkl app client ID is not a user's access token.
+  /// Configuring this per installation avoids embedding a personal API
+  /// application in a public release; the PIN flow stores the user token.
+  static Future<void> saveLocalSimklClientId(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (id.trim().isEmpty) {
+      await prefs.remove('local_config_SIMKL_CLIENT_ID');
+      _env.remove('SIMKL_CLIENT_ID');
+    } else {
+      await prefs.setString('local_config_SIMKL_CLIENT_ID', id.trim());
+      _env['SIMKL_CLIENT_ID'] = id.trim();
     }
   }
 

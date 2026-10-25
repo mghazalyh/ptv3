@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/my_list/my_list_item.dart';
 import '../../services/my_list/my_list_service.dart';
+import '../../services/my_list/trakt_cloud_library.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../details/details_page.dart';
 import '../../models/movie/movie.dart';
@@ -19,6 +20,14 @@ class _MyListPageState extends State<MyListPage> {
   String _sortBy = 'recent'; // 'recent', 'title', 'year'
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) MyListService.syncAll();
+    });
+  }
 
   @override
   void dispose() {
@@ -277,55 +286,54 @@ class _MyListPageState extends State<MyListPage> {
           ),
           const SizedBox(width: 8),
 
-          // ── Cloud Sync Status & Refresh Button ──
-          ValueListenableBuilder<bool>(
-            valueListenable: MyListService.isSyncing,
-            builder: (context, isSyncing, _) {
+          // Trakt state reflects actual cloud connectivity and failure,
+          // never labels disconnected or unsuccessful sync as "Cloud Synced".
+          ValueListenableBuilder<TraktSyncState>(
+            valueListenable: MyListService.traktCloud.state,
+            builder: (context, state, _) {
+              final syncing = state == TraktSyncState.syncing;
+              final label = switch (state) {
+                TraktSyncState.disconnected => 'Trakt offline',
+                TraktSyncState.syncing => 'Syncing Trakt...',
+                TraktSyncState.synced => 'Trakt synced',
+                TraktSyncState.partial => 'Trakt: sync incomplete',
+                TraktSyncState.failed => 'Trakt sync failed',
+              };
+              final color = switch (state) {
+                TraktSyncState.synced => const Color(0xFF7C5CFF),
+                TraktSyncState.partial || TraktSyncState.failed =>
+                    const Color(0xFFFFB74D),
+                _ => Colors.white70,
+              };
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF7C5CFF).withValues(alpha: 0.15),
+                  color: color.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(0xFF7C5CFF).withValues(alpha: 0.3),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (syncing)
+                    SizedBox(width: 14, height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(color)))
+                  else
+                    Icon(state == TraktSyncState.synced
+                        ? Icons.cloud_done_rounded : Icons.cloud_outlined,
+                        color: color, size: 15),
+                  const SizedBox(width: 6),
+                  Text(label, style: TextStyle(color: color, fontSize: 11,
+                    fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 5),
+                  IconButton(
+                    tooltip: 'Refresh saved titles from Trakt and Simkl',
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                    icon: Icon(Icons.refresh_rounded, color: Colors.white70,
+                      size: 16),
+                    onPressed: syncing ? null :
+                        () => MyListService.syncAll(force: true),
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isSyncing)
-                      const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7C5CFF)),
-                        ),
-                      )
-                    else
-                      const Icon(Icons.cloud_done_rounded, color: Color(0xFF7C5CFF), size: 15),
-                    const SizedBox(width: 6),
-                    Text(
-                      isSyncing ? 'Syncing...' : 'Cloud Synced',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      constraints: const BoxConstraints(),
-                      padding: EdgeInsets.zero,
-                      icon: Icon(
-                        Icons.refresh_rounded,
-                        color: Colors.white.withValues(alpha: 0.7),
-                        size: 14,
-                      ),
-                      onPressed: isSyncing ? null : () => MyListService.syncAll(),
-                    ),
-                  ],
-                ),
+                ]),
               );
             },
           ),

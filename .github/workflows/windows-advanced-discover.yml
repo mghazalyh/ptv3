@@ -52,14 +52,21 @@ jobs:
           flutter analyze --no-pub --no-fatal-infos lib/services/metadata/tmdb_discover_service.dart lib/pages/search/advanced_discover_page.dart lib/pages/search/search_page.dart lib/services/cache/storage_cache_service.dart lib/services/config/settings_transfer_service.dart lib/pages/settings/torbox_quick_settings_page.dart lib/pages/settings/settings_transfer_page.dart lib/services/player/audio_language_priority.dart lib/pages/player/player_screen.dart lib/pages/player/watch_screen.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Inspect TorrServer Windows optional binary packaging
+      - name: Supply official verified TorrServer Windows binary
         shell: pwsh
         run: |
-          $plugin = "windows/flutter/ephemeral/.plugin_symlinks/torrserver_flutter/windows/CMakeLists.txt"
-          if (Test-Path $plugin) {
-            Write-Host "TorrServer plugin CMake binary requirements:"
-            Get-Content $plugin | Select-Object -First 180
+          $dir = Join-Path $env:RUNNER_TEMP "torrserver-official-windows"
+          New-Item -Force -ItemType Directory -Path $dir | Out-Null
+          $binary = Join-Path $dir "torrserver.exe"
+          $url = "https://github.com/YouROK/TorrServer/releases/download/MatriX.147.1/TorrServer-windows-amd64.exe"
+          Invoke-WebRequest -Uri $url -OutFile $binary -MaximumRedirection 8
+          if (!(Test-Path $binary)) { throw "Official TorrServer binary download failed" }
+          $sha = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne "e99ff2db56b3f43f66804ce0de6d199e3757dcc6062dba75974a462dad275a1c") {
+            throw "Official TorrServer Windows binary SHA256 verification failed"
           }
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value "TORRSERVER_FLUTTER_LOCAL_BINARIES=$dir"
+          Write-Host "Verified official Windows executable, staged for plugin packaging."
 
       - name: Build Windows executable
         shell: pwsh

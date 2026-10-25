@@ -371,7 +371,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     );
 
     if (resolved != null && mounted) {
-      Navigator.pushReplacement(
+      Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => DetailsPage(movie: resolved)),
       );
@@ -1397,7 +1397,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                         width: cardWidth,
                         child: _HoverButton(
                           onTap: () {
-                            Navigator.pushReplacement(
+                            Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => DetailsPage(movie: item)),
                             );

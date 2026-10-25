@@ -84,6 +84,17 @@ class TraktCloudLibrary {
     return task;
   }
 
+  Future<void> _rememberConfirmed(MyListItem item, {required bool added}) async {
+    final account = (await gateway.username())?.trim().toLowerCase();
+    if (account == null || account.isEmpty) return;
+    final key = '$_seenPrefix${Uri.encodeComponent(account)}';
+    final prefs = await SharedPreferences.getInstance();
+    final seen = _read(prefs, key);
+    seen.removeWhere((x) => x.matches(item));
+    if (added) seen.add(item);
+    await _write(prefs, key, seen);
+  }
+
   /// Save locally before trying to contact Trakt. Failed or offline writes
   /// remain in the journal and are retried during the next library refresh.
   Future<void> localChange(MyListItem item, {required bool added}) async {
@@ -93,6 +104,7 @@ class TraktCloudLibrary {
       final ok = added ? await gateway.add(item) : await gateway.remove(item);
       if (ok) {
         await _journal(item, add: added, acknowledge: true);
+        await _rememberConfirmed(item, added: added);
       } else {
         state.value = TraktSyncState.partial;
       }
@@ -131,6 +143,7 @@ class TraktCloudLibrary {
           remote.add(MyListItem.fromTraktJson(record));
         }
       }
+      await _writes; // Include any edits recorded while Trakt was fetching.
       final prefs = await SharedPreferences.getInstance();
       final account = (await gateway.username())?.trim().toLowerCase();
       // Do not apply deletion history if account identity is unavailable.

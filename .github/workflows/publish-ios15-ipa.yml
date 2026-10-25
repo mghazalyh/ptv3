@@ -1,0 +1,70 @@
+name: Publish Direct TrollStore IPA
+
+on:
+  push:
+    branches:
+      - ios15-advanced-discover
+    paths:
+      - .github/workflows/publish-ios15-ipa.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    name: Publish permanent direct IPA download
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download already-tested iPadOS 15 build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p ipa
+          gh run download 40171998092 \
+            --repo "${{ github.repository }}" \
+            --name PlayTorrio-iOS15-AdvancedDiscover-TrollStore \
+            --dir ipa
+          test -s ipa/PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa
+
+      - name: Verify IPA and name for direct install
+        run: |
+          mv ipa/PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa \
+            PlayTorrio-iOS15-Advanced-Discover-TrollStore.ipa
+          python3 - <<'PY'
+          import zipfile, plistlib, hashlib
+          path='PlayTorrio-iOS15-Advanced-Discover-TrollStore.ipa'
+          with zipfile.ZipFile(path) as z:
+              assert z.testzip() is None
+              info=plistlib.loads(z.read('Payload/Runner.app/Info.plist'))
+              assert info['MinimumOSVersion']=='15.0'
+              assert 2 in info['UIDeviceFamily']
+              assert info['CFBundleIdentifier']=='com.example.playtorrio'
+              assert 'Payload/Runner.app/_CodeSignature/CodeResources' in z.namelist()
+          with open(path,'rb') as f:
+              print('SHA-256:',hashlib.file_digest(f,'sha256').hexdigest())
+          PY
+
+      - name: Publish direct IPA as GitHub Release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ios15-advanced-discover-20261025 \
+            PlayTorrio-iOS15-Advanced-Discover-TrollStore.ipa \
+            --repo "${{ github.repository }}" \
+            --target ios15-advanced-discover \
+            --title 'PlayTorrio iPadOS 15 - Advanced Discover (TrollStore)' \
+            --notes 'Direct IPA download, no ZIP extraction. iPadOS 15 deployment target. Includes Advanced Discover, TorBox settings, English audio selection, JSON import/export and storage management. Update via TrollStore when the bundle identifier matches. API keys are entered within the app; none are included in this release.' \
+            --latest
+
+      - name: Verify asset published on release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view ios15-advanced-discover-20261025 \
+            --repo "${{ github.repository }}" --json assets \
+            --jq '.assets[].name' | grep -Fx \
+            'PlayTorrio-iOS15-Advanced-Discover-TrollStore.ipa'
+          echo 'Verified permanent GitHub Release asset:'
+          echo "https://github.com/${{ github.repository }}/releases/download/ios15-advanced-discover-20261025/PlayTorrio-iOS15-Advanced-Discover-TrollStore.ipa"

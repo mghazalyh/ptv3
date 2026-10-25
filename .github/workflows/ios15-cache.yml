@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ios15-storage-cleanup
+      - ios15-advanced-discover
   workflow_dispatch:
 
 permissions:
@@ -73,10 +74,16 @@ jobs:
             lib/services/player/audio_language_priority.dart \
             lib/services/player/player_settings.dart \
             lib/pages/player/player_screen.dart \
-            lib/pages/player/watch_screen.dart
+            lib/pages/player/watch_screen.dart \
+            lib/services/metadata/tmdb_discover_service.dart \
+            lib/pages/search/advanced_discover_page.dart \
+            lib/pages/search/search_page.dart
 
       - name: Test English-audio priority
         run: flutter test test/audio_language_priority_test.dart
+
+      - name: Test TMDB Discover filters and year matching
+        run: flutter test test/tmdb_advanced_discover_test.dart
 
       - name: Build unsigned release
         run: flutter build ios --release --no-codesign --dart-define-from-file=.env
@@ -105,12 +112,12 @@ jobs:
           mkdir -p build/ios/ipa/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
           cd build/ios/ipa
-          zip -qry PlayTorrio-iOS15-EnglishAudio-TrollStore.ipa Payload
-          test -s PlayTorrio-iOS15-EnglishAudio-TrollStore.ipa
+          zip -qry PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa Payload
+          test -s PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrio-iOS15-EnglishAudio-TrollStore
-          path: build/ios/ipa/PlayTorrio-iOS15-EnglishAudio-TrollStore.ipa
+          name: PlayTorrio-iOS15-AdvancedDiscover-TrollStore
+          path: build/ios/ipa/PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa
           if-no-files-found: error

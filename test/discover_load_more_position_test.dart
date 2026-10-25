@@ -46,8 +46,11 @@ void main() {
       expect(results, findsOneWidget);
       final scroll = tester.widget<ListView>(results).controller!;
       expect(scroll.hasClients, isTrue);
-      await tester.ensureVisible(find.text('Load More'));
+      // The outer ListView lazily builds off-screen children. Scroll the
+      // actual Discover controller to its footer before looking for the button.
+      scroll.jumpTo(scroll.position.maxScrollExtent);
       await tester.pumpAndSettle();
+      expect(find.text('Load More'), findsOneWidget);
       final oldOffset = scroll.offset;
       expect(oldOffset, greaterThan(0));
 

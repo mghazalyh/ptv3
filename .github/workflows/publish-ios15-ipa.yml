@@ -22,7 +22,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p ipa
-          gh run download 40171998092 \
+          gh run download 40174968871 \
             --repo "${{ github.repository }}" \
             --name PlayTorrio-iOS15-AdvancedDiscover-TrollStore \
             --dir ipa

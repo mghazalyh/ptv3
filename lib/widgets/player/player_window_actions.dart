@@ -10,15 +10,17 @@ class PlayerWindowActions extends StatelessWidget {
   const PlayerWindowActions({
     super.key,
     required this.onStop,
-    this.onSeparateWindow,
-    this.onMinimize,
+    required this.onSeparateWindow,
+    required this.onMinimize,
+    this.separateWindowActive = false,
     this.openingSeparateWindow = false,
     this.compact = false,
   });
 
   final VoidCallback onStop;
-  final VoidCallback? onSeparateWindow;
-  final VoidCallback? onMinimize;
+  final VoidCallback onSeparateWindow;
+  final VoidCallback onMinimize;
+  final bool separateWindowActive;
   final bool openingSeparateWindow;
   final bool compact;
 
@@ -35,7 +37,7 @@ class PlayerWindowActions extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (onSeparateWindow != null) ...[
+            ...[
               _action(
                 context: context,
                 key: const Key('player-separate-window'),
@@ -43,18 +45,22 @@ class PlayerWindowActions extends StatelessWidget {
                     ? Icons.hourglass_top_rounded
                     : Icons.open_in_new_rounded,
                 label: 'Separate window',
-                tooltip: 'Open a separate Windows player. Drag it to a second monitor and press F for fullscreen.',
+                tooltip: separateWindowActive
+                    ? 'This player is already separate. Click to exit fullscreen and move or resize the window.'
+                    : 'Open a separate Windows player. Drag it to a second monitor and press F for fullscreen.',
                 onPressed: openingSeparateWindow ? null : onSeparateWindow,
               ),
               const SizedBox(width: 4),
             ],
-            if (onMinimize != null) ...[
+            ...[
               _action(
                 context: context,
                 key: const Key('player-mini-player'),
                 icon: Icons.picture_in_picture_alt_rounded,
                 label: 'Mini player',
-                tooltip: 'Keep video playing while browsing PlayTorrio',
+                tooltip: separateWindowActive
+                    ? 'Shrink this independent player into an always-on-top mini window'
+                    : 'Keep video playing while browsing PlayTorrio',
                 onPressed: onMinimize,
               ),
               const SizedBox(width: 4),

@@ -17,6 +17,8 @@ import 'simkl_settings_page.dart';
 import 'updates_settings_page.dart';
 import 'about_settings_page.dart';
 import 'storage_settings_page.dart';
+import 'torbox_quick_settings_page.dart';
+import 'settings_transfer_page.dart';
 import '../../services/p2p/p2p_settings_service.dart';
 import '../../widgets/p2p/p2p_warning_dialog.dart';
 import '../../services/discord/discord_rpc_service.dart';
@@ -206,6 +208,26 @@ class _SettingsPageState extends State<SettingsPage> {
                 subtitle: 'Clear temporary video files and incomplete downloads',
                 onTap: () => _navigateTo(const StorageSettingsPage()),
               ),
+              const SizedBox(height: 12),
+
+              _SettingsCategoryTile(
+                icon: Icons.key_rounded,
+                iconColor: const Color(0xFF00E5FF),
+                title: 'TorBox API Key',
+                subtitle: 'Paste, save and verify your TorBox key',
+                onTap: () => _navigateTo(const TorBoxQuickSettingsPage()),
+              ),
+
+              const SizedBox(height: 12),
+
+              _SettingsCategoryTile(
+                icon: Icons.settings_backup_restore_rounded,
+                iconColor: const Color(0xFF10B981),
+                title: 'Import / Export Settings',
+                subtitle: 'Restore Torrentio addons and settings from JSON',
+                onTap: () => _navigateTo(const SettingsTransferPage()),
+              ),
+
               const SizedBox(height: 12),
 
               // 3. Debrid & Cloud Streaming

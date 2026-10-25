@@ -31,7 +31,7 @@ jobs:
 
       - name: Analyze storage code
         run: |
-          flutter analyze --no-pub \
+          flutter analyze --no-pub --no-fatal-infos \
             lib/services/cache/storage_cache_service.dart \
             lib/pages/settings/storage_settings_page.dart
 

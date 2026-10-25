@@ -96,9 +96,12 @@ void main() {
     final gateway = FakeTraktGateway()..movies = [cloudTitle(1)];
     final service = TraktCloudLibrary(gateway: gateway);
     var library = <MyListItem>[];
-    Future<void> refresh() async => service.reconcile(
-      readLocal: () => library,
-      persistMerged: (merged) async => library = merged);
+    Future<void> refresh() async {
+      await service.reconcile(
+        readLocal: () => library,
+        persistMerged: (merged) async => library = merged,
+      );
+    }
     await refresh();
     expect(library, hasLength(1));
     gateway.movies = [];

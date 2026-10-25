@@ -268,7 +268,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     title: 'Built-in P2P Torrent Source',
                     subtitle: isP2p
                         ? 'PlayTorrio torrent swarms (Knaben, TorrentGalaxy) active'
-                        : 'P2P disabled. Using only direct HTTP streaming (PlayTorrioHTTP)',
+                        : 'P2P disabled. Addons such as Torrentio are unaffected.',
                     badgeText: isP2p ? 'P2P Active' : 'HTTP Only',
                     badgeColor: isP2p ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
                     value: isP2p,
@@ -280,6 +280,31 @@ class _SettingsPageState extends State<SettingsPage> {
                         context: context,
                         builder: (context) => const P2pWarningDialog(),
                       );
+                    },
+                  );
+                },
+              ),
+
+              const SizedBox(height: 12),
+
+              // Built-in HTTP scrapers can be disabled while keeping
+              // Torrentio/TorBox addons fully functional.
+              ValueListenableBuilder<bool>(
+                valueListenable: P2pSettingsService.isHttpEnabled,
+                builder: (context, isHttpEnabled, _) {
+                  return _SettingsSwitchTile(
+                    icon: Icons.language_rounded,
+                    iconColor: isHttpEnabled
+                        ? const Color(0xFF00E5FF)
+                        : Colors.white54,
+                    title: 'Built-in HTTP Sources',
+                    subtitle: isHttpEnabled
+                        ? 'PlayTorrioHTTP scrapers enabled'
+                        : 'Disabled. Torrentio and other addons still work.',
+                    badgeText: isHttpEnabled ? 'Enabled' : 'Disabled',
+                    value: isHttpEnabled,
+                    onChanged: (value) async {
+                      await P2pSettingsService.setHttpEnabled(value);
                     },
                   );
                 },

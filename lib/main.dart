@@ -26,7 +26,6 @@ import './services/music/music_download_service.dart';
 import './services/music/music_settings.dart';
 import './services/music/qobuz_music_service.dart';
 import './services/my_list/my_list_service.dart';
-import './services/stream/torrent_stream_service.dart';
 import './services/player/player_settings.dart';
 import './services/player/floating_playback_service.dart';
 import './services/player/detached_playback_service.dart';

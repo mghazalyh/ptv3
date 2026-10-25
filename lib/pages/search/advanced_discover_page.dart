@@ -166,7 +166,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
           final advance = (position.viewportDimension * 0.38)
               .clamp(100.0, 260.0);
           final target = (previousOffset + advance)
-              .clamp(0.0, position.maxScrollExtent);
+              .clamp(0.0, position.maxScrollExtent).toDouble();
           _resultsScrollController.animateTo(
             target,
             duration: const Duration(milliseconds: 450),

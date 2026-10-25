@@ -59,7 +59,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(requests, 2);
-      expect(find.textContaining('Page 2/3'), findsOneWidget);
+      // The page counter is correctly off-screen after auto-scrolling into
+      // the new results. Inspect the grid delegate, not invisible text.
+      final grids = find.byType(GridView);
+      expect(grids, findsOneWidget);
+      final grid = tester.widget<GridView>(grids);
+      expect(grid.childrenDelegate.estimatedChildCount, 40);
       expect(scroll.offset, greaterThan(oldOffset),
         reason: 'Advance smoothly into new titles rather than staying stuck.');
       expect(scroll.offset, lessThan(scroll.position.maxScrollExtent),

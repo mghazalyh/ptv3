@@ -125,8 +125,10 @@ class SettingsTransferService {
 
       if (url.startsWith('builtin:')) {
         skippedBuiltIns++;
-        if (url.toLowerCase().contains('playtorrio') &&
-            !url.toLowerCase().contains('http') &&
+        final type = url.toLowerCase();
+        if (type.contains('playtorriohttp') && item['enabled'] is bool) {
+          await P2pSettingsService.setHttpEnabled(item['enabled'] as bool);
+        } else if (type.contains('playtorrio') &&
             item['enabled'] is bool) {
           await P2pSettingsService.setP2pEnabled(item['enabled'] as bool);
         }
@@ -205,6 +207,10 @@ class SettingsTransferService {
     if (p2pEnabled != null) {
       await P2pSettingsService.setP2pEnabled(p2pEnabled);
     }
+    final httpEnabled = config['httpEnabled'];
+    if (httpEnabled is bool) {
+      await P2pSettingsService.setHttpEnabled(httpEnabled);
+    }
 
     final provider = config['debridProvider'];
     if (provider is String && provider == 'TorBox') {
@@ -239,6 +245,7 @@ class SettingsTransferService {
           .map((addon) => addon.toJson())
           .toList(),
       'p2pEnabled': P2pSettingsService.isP2pEnabled.value,
+      'httpEnabled': P2pSettingsService.isHttpEnabled.value,
       'debridProvider': await debrid.getSelectedService(),
       'useDebridForStreams': await debrid.getUseDebridForStreams(),
       // Do not export TorBox or any other API credentials.

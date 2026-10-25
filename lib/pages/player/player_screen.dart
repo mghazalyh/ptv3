@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart' as mk;
 import 'package:wakelock_plus/wakelock_plus.dart';
-import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
 import 'package:playtorrio/models/movie/video.dart';
 import 'package:playtorrio/models/movie/movie_detail.dart';
@@ -20,7 +19,6 @@ import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/p2p/p2p_settings_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
-import '../../services/theme/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
@@ -318,7 +316,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         await PlayerSettings.applyPreOpenProperties(_player);
         _resolvedPlayableUrl = rawUrl;
         _resolvedHeaders = {};
-        await _player.open(Media(rawUrl), play: true);
+        await _player.open(
+          Media(rawUrl, start: widget.initialPosition), play: true);
         await PlayerSettings.applyPostOpenProperties(_player);
         _setSubtitleScale(_subtitleScale);
         _applyVolume(_isMuted ? 0.0 : _volume);
@@ -2295,29 +2294,13 @@ class _PlayerScreenState extends State<PlayerScreen>
         ),
       ]);
     }
-    return ValueListenableBuilder<bool>(
-      valueListenable: GlassSettings.enabled,
-      builder: (context, enabled, _) {
-        if (enabled) {
-          return LiquidGlassView(
-            realTimeCapture: _showControls && !_isLoading,
-            useSync: true,
-            pixelRatio: 0.85,
-            refreshRate: LiquidGlassRefreshRate.deviceRefreshRate,
-            regionCapture: true,
-            backgroundWidget: _buildBackgroundStack(),
-            child: _buildControlsOverlay(),
-          );
-        }
-
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            RepaintBoundary(child: _buildBackgroundStack()),
-            RepaintBoundary(child: _buildControlsOverlay()),
-          ],
-        );
-      },
+    // A native media_kit video texture cannot safely be the background of a
+    // real-time liquid-glass capture. On Windows, mouse hover and tooltip
+    // repaint events could turn most of the player into a gray rectangle.
+    // Keep video and controls in separate composited layers on every platform.
+    return PlayerVideoSurface(
+      video: _buildBackgroundStack(),
+      controls: _buildControlsOverlay(),
     );
   }
 }

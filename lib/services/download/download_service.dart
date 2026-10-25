@@ -567,7 +567,9 @@ class DownloadService {
       try {
         await TorrentStreamService().removeTorrent(task.infoHash!);
       } catch (_) {}
-    } else {
+    }
+    // P2P streams also write .part files; clear them on cancellation.
+    {
       final partFile = File('${task.targetFilePath}.part');
       if (await partFile.exists()) {
         try {

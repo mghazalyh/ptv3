@@ -10,6 +10,7 @@ import '../../services/metadata/bestsimilar_scraper.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../utils/navigation/route_transitions.dart';
+import '../../utils/navigation/detail_navigation.dart';
 import '../discover/discover_page.dart';
 import '../player/watch_screen.dart';
 // ---------------------------------------------------------------------------
@@ -50,11 +51,14 @@ class DetailsPage extends StatefulWidget {
   /// your addon's meta response includes one). Section just doesn't render
   /// if this is null/empty, so it's safe to leave unset for now.
   final List<Movie>? relatedItems;
+  /// Ancestor labels; kept with each route so back/crumbs retrace the exact path.
+  final List<String> navigationTrail;
 
   const DetailsPage({
     super.key,
     required this.movie,
     this.relatedItems,
+    this.navigationTrail = const [],
   });
 
   @override
@@ -103,6 +107,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   final ScrollController _seasonScrollController = ScrollController();
   final ScrollController _relatedScrollController = ScrollController();
   final ScrollController _similarScrollController = ScrollController();
+  final ScrollController _pageScrollController = ScrollController();
 
   bool _canScrollEpisodesLeft = false;
   bool _canScrollEpisodesRight = true;
@@ -151,6 +156,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     _seasonScrollController.dispose();
     _relatedScrollController.dispose();
     _similarScrollController.dispose();
+    _pageScrollController.dispose();
     super.dispose();
   }
 
@@ -371,10 +377,12 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     );
 
     if (resolved != null && mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => DetailsPage(movie: resolved)),
-      );
+      // Push rather than replace: the previous details page, its season and
+      // its scroll position remain alive when exploring recommendations.
+      DetailNavigation.push(context, (_) => DetailsPage(
+        movie: resolved,
+        navigationTrail: [...widget.navigationTrail, widget.movie.name],
+      ));
     }
   }
 
@@ -447,6 +455,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         if (bgUrl != null) _buildBackdrop(bgUrl, screenSize),
         Positioned.fill(
           child: SingleChildScrollView(
+            controller: _pageScrollController,
             physics: const BouncingScrollPhysics(),
             child: Center(
               child: ConstrainedBox(
@@ -560,6 +569,13 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
             ),
           ),
         ),
+        if (widget.navigationTrail.isNotEmpty)
+          Positioned(
+            top: isDesktop ? 72 : topInset + 63,
+            left: isDesktop ? _Space.xxl : _Space.md,
+            right: isDesktop ? _Space.xxl : _Space.md,
+            child: _buildBreadcrumbs(),
+          ),
         Positioned(
           top: isDesktop ? _Space.lg : (topInset + 10),
           left: isDesktop ? _Space.xxl : _Space.md,
@@ -579,6 +595,68 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
           ),
         ),
       ],
+    );
+  }
+
+  /// Tapping a breadcrumb pops one route per title instead of restarting the
+  /// search. Detail routes retain their own scroll controllers while covered.
+  void _returnToBreadcrumb(int ancestorIndex) {
+    var remaining = widget.navigationTrail.length - ancestorIndex;
+    final navigator = Navigator.of(context);
+    navigator.popUntil((route) {
+      if (remaining == 0) return true;
+      remaining--;
+      return false;
+    });
+  }
+
+  Widget _buildBreadcrumbs() {
+    final names = [...widget.navigationTrail, widget.movie.name];
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xDB0B0D12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 36),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            reverse: true,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < names.length; i++) ...[
+                  if (i > 0)
+                    const Icon(Icons.chevron_right_rounded,
+                      color: Colors.white38, size: 16),
+                  if (i == names.length - 1)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 9),
+                      child: Text(names[i],
+                        style: const TextStyle(color: Colors.white,
+                          fontWeight: FontWeight.w600, fontSize: 11)),
+                    )
+                  else
+                    InkWell(
+                      onTap: () => _returnToBreadcrumb(i),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 9),
+                        child: Text(names[i],
+                          style: const TextStyle(
+                            color: Colors.white70, fontSize: 11)),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1397,10 +1475,10 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                         width: cardWidth,
                         child: _HoverButton(
                           onTap: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (_) => DetailsPage(movie: item)),
-                            );
+                            DetailNavigation.push(context, (_) => DetailsPage(
+                              movie: item,
+                              navigationTrail: [...widget.navigationTrail, widget.movie.name],
+                            ));
                           },
                           scaleAmount: 1.05,
                           child: ClipRRect(

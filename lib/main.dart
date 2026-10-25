@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +29,7 @@ import './services/my_list/my_list_service.dart';
 import './services/stream/torrent_stream_service.dart';
 import './services/player/player_settings.dart';
 import './services/download/download_service.dart';
+import './services/cache/storage_cache_service.dart';
 import './services/config/env_service.dart';
 import './services/window/window_service.dart';
 import './services/p2p/p2p_settings_service.dart';
@@ -70,6 +72,7 @@ void main() async {
     DiscordRpcService.instance.initialize(),
   ]);
   runApp(const PlayTorrioApp());
+  unawaited(StorageCacheService.instance.pruneOldTemporaryCache());
 }
 
 class PlayTorrioApp extends StatefulWidget {

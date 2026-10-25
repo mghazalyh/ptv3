@@ -345,7 +345,8 @@ class _PlayerPlayPauseButtonState extends State<_PlayerPlayPauseButton> {
         return ValueListenableBuilder<int>(
           valueListenable: GlassSettings.styleRevision,
           builder: (context, _, __) {
-            final hoverScaleVal = glassEnabled ? GlassSettings.hoverScale.value : 1.0;
+            final useGlass = glassEnabled && !PlayerVideoSurfaceScope.isActive(context);
+            final hoverScaleVal = useGlass ? GlassSettings.hoverScale.value : 1.0;
             final effectiveScale = _hovered ? hoverScaleVal : 1.0;
 
             final iconWidget = Icon(
@@ -355,7 +356,7 @@ class _PlayerPlayPauseButtonState extends State<_PlayerPlayPauseButton> {
             );
 
             Widget body;
-            if (glassEnabled) {
+            if (useGlass) {
               final style = GlassSettings.createButtonGlassStyle(
                 cornerRadius: widget.size / 2,
                 customColor: _hovered ? const Color(0x45FFFFFF) : const Color(0x28FFFFFF),

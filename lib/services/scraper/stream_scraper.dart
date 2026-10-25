@@ -70,10 +70,10 @@ class ScraperManager {
     final controller = StreamController<StreamSource>();
 
     final p2pAllowed = P2pSettingsService.isP2pEnabled.value;
+    final httpAllowed = P2pSettingsService.isHttpEnabled.value;
     final activeScrapers = _scrapers.where((s) {
-      if (!p2pAllowed && s.name == 'PlayTorrio') {
-        return false;
-      }
+      if (!p2pAllowed && s.name == 'PlayTorrio') return false;
+      if (!httpAllowed && s.name == 'PlayTorrioHTTP') return false;
       return true;
     }).toList();
 

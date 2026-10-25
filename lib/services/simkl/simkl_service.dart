@@ -28,7 +28,7 @@ class SimklTitleStatus {
 }
 
 class _SimklPinAuthorization {
-  final ProfileAsyncAuthorization authorization;
+  final ProfileAsyncAuthorization? authorization;
   final DateTime expiresAt;
   final String? deviceCode;
 
@@ -349,7 +349,7 @@ class SimklService {
         final deviceCode = data['device_code'] as String?;
         if (code == null || code.isEmpty ||
             deviceCode == null || deviceCode.isEmpty) return null;
-        if (authorization != null) {
+        {
           _prunePinAuthorizations();
           _pinAuthorizations[code] = _SimklPinAuthorization(
             authorization: authorization,
@@ -430,7 +430,11 @@ class SimklService {
             StorageService.movieFinishedRevision.value++;
           }
           try {
-            await attempt.authorization.run(commit);
+            if (attempt.authorization == null) {
+              await commit();
+            } else {
+              await attempt.authorization!.run(commit);
+            }
           } on StateError {
             return 'access_denied';
           }

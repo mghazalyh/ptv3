@@ -795,7 +795,7 @@ class SimklService {
   /// Callers must first inspect the full remote item and block this operation
   /// for anything with prior watches. Never map unheart to Dropped.
   Future<bool> removeUnwatchedPlanToWatch(
-    String imdbId, String type, {int? tmdbId, int? simklId},
+    String imdbId, String type, {int? tmdbId, int? simklId}
   ) async {
     final token = await _validAccessToken();
     if (token == null || token.isEmpty || kSimklClientId.isEmpty) return false;

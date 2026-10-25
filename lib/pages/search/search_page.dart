@@ -8,6 +8,7 @@ import '../../services/addon/addon_manager.dart';
 import '../../widgets/movie/movie_slider_section.dart';
 import '../../widgets/search/magnet_files_view.dart';
 import '../player/player_screen.dart';
+import 'advanced_discover_page.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -43,6 +44,12 @@ class _SearchPageState extends State<SearchPage> {
       return false;
     }
     return true;
+  }
+
+  void _openDiscover() {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => const AdvancedDiscoverPage(),
+    ));
   }
 
   void _playDirectStream(String url) {
@@ -253,6 +260,13 @@ class _SearchPageState extends State<SearchPage> {
                       ),
                     ),
                   ),
+                  IconButton(
+                    tooltip: 'Discover by year, country and language',
+                    icon: const Icon(Icons.tune_rounded),
+                    color: const Color(0xFF00E5FF),
+                    onPressed: _openDiscover,
+                  ),
+                  const SizedBox(width: 8),
                 ],
               ),
             ),
@@ -323,6 +337,17 @@ class _SearchPageState extends State<SearchPage> {
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                     ),
+                  ),
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: _openDiscover,
+                    icon: const Icon(Icons.tune_rounded),
+                    label: const Text('Discover without typing'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Filter movies and TV by year, country or language',
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                 ],
               ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/trakt/trakt_service.dart';
+import '../../services/config/env_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 
@@ -16,6 +17,7 @@ class TraktSettingsPage extends StatefulWidget {
 class _TraktSettingsPageState extends State<TraktSettingsPage> {
   bool _isAuthed = false;
   bool _isLoading = true;
+  bool _hasClientCredentials = false;
   String? _username;
 
   // Device Code Pairing
@@ -45,13 +47,71 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
     if (mounted) {
       setState(() {
         _isAuthed = authed;
+        _hasClientCredentials = EnvService.traktClientId.isNotEmpty && EnvService.traktClientSecret.isNotEmpty;
         _username = user;
         _isLoading = false;
       });
     }
   }
 
+  Future<void> _configureTraktApplication() async {
+    final clientId = TextEditingController(text: EnvService.traktClientId);
+    final clientSecret = TextEditingController(text: EnvService.traktClientSecret);
+    if (!mounted) {
+      clientId.dispose();
+      clientSecret.dispose();
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Trakt Application Credentials'),
+        content: SizedBox(width: 460, child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Enter the client ID and client secret for your '
+              'Trakt API application. These are stored locally on this '
+              'device, not on GitHub or in the installer.'),
+            const SizedBox(height: 12),
+            TextField(controller: clientId, autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(
+                labelText: 'Trakt Client ID', border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            TextField(controller: clientSecret, obscureText: true,
+              autocorrect: false, enableSuggestions: false,
+              decoration: const InputDecoration(
+                labelText: 'Trakt Client Secret',
+                border: OutlineInputBorder())),
+            const SizedBox(height: 8),
+            const SelectableText('Create an API application at: '
+              'https://trakt.tv/oauth/applications',
+              style: TextStyle(fontSize: 12, color: Colors.white70)),
+          ],
+        )),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Save on this device')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await EnvService.saveLocalTraktApplication(
+        clientId.text, clientSecret.text);
+      if (mounted) await _checkStatus();
+    }
+    clientId.dispose();
+    clientSecret.dispose();
+  }
+
   Future<void> _startPairing() async {
+    if (!_hasClientCredentials) {
+      await _configureTraktApplication();
+      if (!_hasClientCredentials) return;
+    }
     setState(() {
       _pairing = true;
       _userCode = null;
@@ -145,6 +205,13 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
           'Trakt.tv Synchronization',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Configure local Trakt application credentials',
+            icon: const Icon(Icons.key_outlined),
+            onPressed: _configureTraktApplication,
+          ),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -163,6 +230,22 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                   ),
                 ),
               ),
+
+              if (!_hasClientCredentials) ...[
+                Card(
+                  color: const Color(0xFF252030),
+                  child: ListTile(
+                    leading: const Icon(Icons.key_rounded),
+                    title: const Text('Set up Trakt client credentials'),
+                    subtitle: const Text(
+                      'A Trakt application client ID and secret are needed '
+                      'before account pairing. They are saved only here.'),
+                    onTap: _configureTraktApplication,
+                    trailing: const Icon(Icons.chevron_right),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // Status Card
               Container(

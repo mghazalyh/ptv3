@@ -29,6 +29,37 @@ jobs:
           touch .env
           flutter pub get
 
+      - name: Restore iOS TorrServerKit framework
+        run: |
+          mkdir -p "$RUNNER_TEMP/torrserver-ios15"
+          curl --fail --show-error --location --retry 3 \
+            "https://github.com/MrSergo15/torrserver_flutter/releases/download/linux-macos-torrserver-fix-test/TorrServerKit.xcframework.zip" \
+            -o "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework.zip"
+          unzip -t "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework.zip" >/dev/null
+          unzip -q "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework.zip" \
+            -d "$RUNNER_TEMP/torrserver-ios15"
+          test -d "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework"
+          echo "TORRSERVER_FLUTTER_LOCAL_BINARIES=$RUNNER_TEMP/torrserver-ios15" >> "$GITHUB_ENV"
+
+      - name: Inspect native framework platforms
+        run: |
+          python3 - <<'PY'
+          import os
+          import plistlib
+          from pathlib import Path
+          root = Path(os.environ['TORRSERVER_FLUTTER_LOCAL_BINARIES']) / 'TorrServerKit.xcframework'
+          with (root / 'Info.plist').open('rb') as f:
+              info = plistlib.load(f)
+          print('Native framework slices:', info.get('AvailableLibraries'))
+          if not any(
+              entry.get('SupportedPlatform') == 'ios' and
+              'arm64' in entry.get('SupportedArchitectures', []) and
+              not entry.get('SupportedPlatformVariant')
+              for entry in info.get('AvailableLibraries', [])
+          ):
+              raise SystemExit('TorrServerKit is missing iOS arm64 device support')
+          PY
+
       - name: Analyze storage code
         run: |
           flutter analyze --no-pub --no-fatal-infos \

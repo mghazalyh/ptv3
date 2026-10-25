@@ -56,6 +56,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/floating_playback_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/player_video_surface_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/services/my_list_service_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/integration/my_list_flow_test.dart

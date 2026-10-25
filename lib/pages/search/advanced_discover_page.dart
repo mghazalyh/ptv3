@@ -39,6 +39,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
   final service = TmdbDiscoverService.instance;
   final fromController = TextEditingController();
   final toController = TextEditingController();
+  final ScrollController _resultsScrollController = ScrollController();
   DiscoverType type = DiscoverType.movie;
   String country = '', language = '', order = 'popularity.desc';
   List<DiscoverTitle> titles = [];
@@ -58,6 +59,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
     serial++;
     fromController.dispose();
     toController.dispose();
+    _resultsScrollController.dispose();
     super.dispose();
   }
 
@@ -115,6 +117,10 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
     }
     if (!reset && (page == 0 || page >= totalPages)) return;
     final request = ++serial;
+    // Remember the exact page boundary before adding more results. We scroll
+    // forward only a little afterwards, not to the far end of the new page.
+    final previousOffset = _resultsScrollController.hasClients
+        ? _resultsScrollController.offset : 0.0;
     setState(() {
       loading = true;
       error = null;
@@ -139,9 +145,10 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
       final response = await service.browse(filters);
       if (!mounted || request != serial) return;
       final known = <int>{...titles.map((item) => item.tmdbId)};
+      final incoming = response.titles
+          .where((item) => known.add(item.tmdbId)).toList();
       setState(() {
-        titles = [...titles,
-          ...response.titles.where((item) => known.add(item.tmdbId))];
+        titles = [...titles, ...incoming];
         page = response.page;
         totalPages = response.totalPages;
         totalResults = response.totalResults;
@@ -149,6 +156,24 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         appliedStart = filters.fromYear ?? filters.toYear;
         appliedEnd = filters.toYear ?? filters.fromYear;
       });
+      if (!reset && incoming.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || request != serial ||
+              !_resultsScrollController.hasClients) return;
+          final position = _resultsScrollController.position;
+          // Move into the first new rows while keeping the previous page
+          // partly visible for orientation. Never jump to the very bottom.
+          final advance = (position.viewportDimension * 0.38)
+              .clamp(100.0, 260.0);
+          final target = (previousOffset + advance)
+              .clamp(0.0, position.maxScrollExtent);
+          _resultsScrollController.animateTo(
+            target,
+            duration: const Duration(milliseconds: 450),
+            curve: Curves.easeOutCubic,
+          );
+        });
+      }
     } catch (e) {
       if (mounted && request == serial) {
         setState(() => error = e.toString().replaceFirst('FormatException: ', ''));
@@ -213,7 +238,10 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         return;
       }
       await Navigator.push(context, MaterialPageRoute<void>(
-          builder: (_) => DetailsPage(movie: movie)));
+          builder: (_) => DetailsPage(
+            movie: movie,
+            navigationTrail: const ['Discover'],
+          )));
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Cannot open title. Check your connection.')));
@@ -316,6 +344,8 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         )],
       ),
       body: SafeArea(child: ListView(
+        key: const PageStorageKey<String>('advanced-discover-results'),
+        controller: _resultsScrollController,
         padding: const EdgeInsets.all(16),
         children: [
           const Text('Browse without typing a title. Filter by year range, '
@@ -385,7 +415,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
             const SizedBox(height: 12),
             Text(error!, style: const TextStyle(color: Colors.orangeAccent)),
           ],
-          if (loading || openingId != null) ...[
+          if ((loading && !applied) || openingId != null) ...[
             const SizedBox(height: 12),
             const LinearProgressIndicator(),
           ],
@@ -407,6 +437,10 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
               ),
               itemBuilder: (_, i) => _card(titles[i]),
             ),
+            if (loading) ...[
+              const SizedBox(height: 12),
+              const Center(child: CircularProgressIndicator()),
+            ],
             if (page < totalPages)
               OutlinedButton.icon(
                 onPressed: loading ? null : () => _browse(reset: false),

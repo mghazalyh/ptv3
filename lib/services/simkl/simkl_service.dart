@@ -30,10 +30,12 @@ class SimklTitleStatus {
 class _SimklPinAuthorization {
   final ProfileAsyncAuthorization authorization;
   final DateTime expiresAt;
+  final String? deviceCode;
 
   const _SimklPinAuthorization({
     required this.authorization,
     required this.expiresAt,
+    this.deviceCode,
   });
 }
 
@@ -53,6 +55,48 @@ class SimklService {
   SimklService._internal();
 
   static SimklService get instance => _instance;
+  Future<bool>? _refreshInFlight;
+
+  Future<String?> _validAccessToken() async {
+    final token = await StorageService.getSimklAccessToken();
+    if (token == null || token.isEmpty) return null;
+    final refresh = await StorageService.getSimklRefreshToken();
+    final expiry = await StorageService.getSimklTokenExpiry();
+    if (refresh == null || refresh.isEmpty || expiry == null) return token;
+    if (DateTime.now().millisecondsSinceEpoch + 86400000 < expiry) {
+      return token;
+    }
+    _refreshInFlight ??= _refreshOAuth2();
+    final ok = await _refreshInFlight!;
+    _refreshInFlight = null;
+    return ok ? StorageService.getSimklAccessToken() : null;
+  }
+
+  Future<bool> _refreshOAuth2() async {
+    final refresh = await StorageService.getSimklRefreshToken();
+    if (refresh == null || refresh.isEmpty || kSimklClientId.isEmpty) return false;
+    try {
+      final response = await http.post(
+        Uri.parse('$kSimklApiBaseUrl/oauth2/token'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'grant_type': 'refresh_token',
+          'client_id': kSimklClientId,
+          'refresh_token': refresh,
+        },
+      ).timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) return false;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final access = data['access_token'] as String?;
+      if (access == null || access.isEmpty) return false;
+      await StorageService.saveSimklOAuth2Tokens(
+        access, data['refresh_token'] as String? ?? refresh,
+        data['expires_in'] as int? ?? 604800);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   // ── Library-status cache ────────────────────────────────────────────────────
   // A single `/sync/all-items/all/all` call already tags every item with its
@@ -150,7 +194,7 @@ class SimklService {
   /// `extended=full`: poster badges need only IDs and title status.
   Future<({Set<String> movies, Set<String> series})?>
   fetchCompletedTitleIds() async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     // Disconnected is a successful empty snapshot, not a transient failure.
     // This lets consumers clear badges belonging to the previous account while
     // still preserving their last snapshot when an authenticated request fails.
@@ -254,9 +298,9 @@ class SimklService {
   };
 
   /// Check if the user is authenticated (has a stored access token).
-  /// Simkl tokens don't expire, so unlike Trakt there's no refresh check.
+  /// AUTH V1 tokens are long-lived; AUTH V2 tokens refresh before expiry.
   Future<bool> isAuthenticated() async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     return token != null && token.isNotEmpty;
   }
 
@@ -288,6 +332,39 @@ class SimklService {
       final authorization = await ProfileAsyncAuthorization.capture(
         ProfileFeature.trackersAndDiscovery,
       );
+      if (kSimklClientId.trim().isEmpty) return null;
+      // New Simkl API applications use AUTH V2. Request write scope
+      // explicitly; without it the device token is read-only.
+      final v2Response = await http.post(
+        Uri.parse('$kSimklApiBaseUrl/oauth2/device'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'client_id': kSimklClientId,
+          'scope': 'media:read media:write',
+        },
+      ).timeout(const Duration(seconds: 10));
+      if (v2Response.statusCode == 200) {
+        final data = jsonDecode(v2Response.body) as Map<String, dynamic>;
+        final code = data['user_code'] as String?;
+        final deviceCode = data['device_code'] as String?;
+        if (code == null || code.isEmpty ||
+            deviceCode == null || deviceCode.isEmpty) return null;
+        if (authorization != null) {
+          _prunePinAuthorizations();
+          _pinAuthorizations[code] = _SimklPinAuthorization(
+            authorization: authorization,
+            expiresAt: DateTime.now().add(Duration(
+              seconds: (data['expires_in'] as int? ?? 900).clamp(1, 1800))),
+            deviceCode: deviceCode,
+          );
+        }
+        return {...data,
+          'verification_url': data['verification_uri_complete'] ??
+            data['verification_uri'] ?? 'https://simkl.com/pin'};
+      }
+      // A V1 client ID is not enabled for /oauth2/device. Keep existing
+      // users working with the old PIN flow during the migration window.
+      if (v2Response.statusCode != 401) return null;
       final uri = Uri.parse(
         kSimklPinUrl,
       ).replace(queryParameters: {'client_id': kSimklClientId});
@@ -327,6 +404,46 @@ class SimklService {
           (attempt == null || attempt.expiresAt.isBefore(DateTime.now()))) {
         _pinAuthorizations.remove(userCode);
         return 'access_denied';
+      }
+      if (attempt?.deviceCode != null) {
+        final response = await http.post(
+          Uri.parse('$kSimklApiBaseUrl/oauth2/token'),
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: {
+            'grant_type': 'urn:ietf:params:oauth:grant-type:device_code',
+            'client_id': kSimklClientId,
+            'device_code': attempt!.deviceCode!,
+          },
+        ).timeout(const Duration(seconds: 10));
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          final access = data['access_token'] as String?;
+          final refresh = data['refresh_token'] as String?;
+          final scope = data['scope'] as String? ?? '';
+          if (access == null || refresh == null ||
+              !scope.contains('media:write')) return 'error';
+          _pinAuthorizations.remove(userCode);
+          Future<void> commit() async {
+            await StorageService.saveSimklOAuth2Tokens(
+              access, refresh, data['expires_in'] as int? ?? 604800);
+            await _fetchAndStoreUsername(access);
+            StorageService.movieFinishedRevision.value++;
+          }
+          try {
+            await attempt.authorization.run(commit);
+          } on StateError {
+            return 'access_denied';
+          }
+          return null;
+        }
+        if (response.statusCode == 400) {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          final error = data['error'] as String? ?? '';
+          if (error == 'slow_down') return 'slow_down';
+          if (error == 'expired_token') return 'expired_token';
+          if (error == 'authorization_pending') return 'authorization_pending';
+        }
+        return 'error';
       }
       final uri = Uri.parse(
         simklPinPollUrl(userCode),
@@ -456,7 +573,7 @@ class SimklService {
     String type,
     String status,
   ) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return null;
     final uri = _apiUri('/sync/all-items/$type/$status', {'extended': 'full'});
     final data = await _getOrNull(
@@ -470,7 +587,7 @@ class SimklService {
   /// Fresh activity gate: required before fetching the user's full library.
   /// A failed request is null, not an empty library.
   Future<Map<String, dynamic>?> fetchSyncActivitiesOrNull() async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty || kSimklClientId.isEmpty) return null;
     final result = await _getOrNull(
       _apiUri('/sync/activities'),
@@ -483,7 +600,7 @@ class SimklService {
   /// Authoritative, intentionally uncached watchlist for cloud heart syncing.
   /// No extended=full needed: title, IDs, status and progress counts suffice.
   Future<Map<String, dynamic>?> fetchHeartsSnapshotOrNull() async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty || kSimklClientId.isEmpty) return null;
     final result = await _getOrNull(
       _apiUri('/sync/all-items'),
@@ -501,7 +618,7 @@ class SimklService {
   /// with the whole watched-episode list. Returns the raw `shows` list (empty
   /// when the list is genuinely empty), or null on failure / when disconnected.
   Future<List<dynamic>?> fetchUpNextShowsOrNull() async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return null;
     final uri = _apiUri('/sync/all-items/shows/watching', {
       'next_watch_info': 'yes',
@@ -520,7 +637,7 @@ class SimklService {
   /// `GET /sync/ratings/{type}/{rating}`. Sends the explicit 1–10 comma list
   /// (documented to work) rather than an unconfirmed range shorthand.
   Future<Map<String, dynamic>?> fetchRatingsOrNull(String type) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return null;
     final uri = _apiUri('/sync/ratings/$type/1,2,3,4,5,6,7,8,9,10', {
       'extended': 'full',
@@ -594,7 +711,7 @@ class SimklService {
     int? tmdbId,
     int? simklId,
   }) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return false;
     final typeKey = _typeKey(type);
     final ids = <String, dynamic>{};
@@ -645,7 +762,7 @@ class SimklService {
     List<Map<String, dynamic>> shows,
   ) async {
     if (movies.isEmpty && shows.isEmpty) return true;
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty || kSimklClientId.isEmpty) return false;
     final body = {
       'movies': movies.map((x) => {'to': 'plantowatch', ...x}).toList(),
@@ -672,7 +789,7 @@ class SimklService {
   Future<bool> removeUnwatchedPlanToWatch(
     String imdbId, String type, {int? tmdbId, int? simklId},
   ) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty || kSimklClientId.isEmpty) return false;
     final ids = <String, dynamic>{};
     if (imdbId.startsWith('tt')) ids['imdb'] = imdbId;
@@ -696,7 +813,7 @@ class SimklService {
 
   /// Rate a title 1–10 via `POST /sync/ratings`.
   Future<bool> rateItem(String imdbId, String type, int rating) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return false;
     final typeKey = _typeKey(type);
     final result = await _postOrNull(
@@ -719,7 +836,7 @@ class SimklService {
 
   /// Clear a title's rating via `POST /sync/ratings/remove`.
   Future<bool> removeRating(String imdbId, String type) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return false;
     final typeKey = _typeKey(type);
     final result = await _postOrNull(
@@ -742,7 +859,7 @@ class SimklService {
   /// Mark a whole title (movie, or every aired episode of a show) watched via
   /// `POST /sync/history`.
   Future<bool> markWatched(String imdbId, String type) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return false;
     final typeKey = _typeKey(type);
     final result = await _postOrNull(
@@ -768,7 +885,7 @@ class SimklService {
 
   /// Unmark a whole title via `POST /sync/history/remove`.
   Future<bool> markUnwatched(String imdbId, String type) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return false;
     final typeKey = _typeKey(type);
     final result = await _postOrNull(
@@ -799,7 +916,7 @@ class SimklService {
     int season,
     int episode,
   ) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return false;
     final result = await _postOrNull(
       '/sync/history',
@@ -821,7 +938,7 @@ class SimklService {
     int season,
     int episode,
   ) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return false;
     final result = await _postOrNull(
       '/sync/history/remove',
@@ -846,7 +963,7 @@ class SimklService {
     int episode,
     int rating,
   ) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return false;
     final result = await _postOrNull(
       '/sync/ratings',
@@ -954,7 +1071,7 @@ class SimklService {
     int? season,
     int? episode,
   }) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return false;
     final s = (season != null && season <= 0) ? null : season;
     final e = (episode != null && episode <= 0) ? null : episode;
@@ -1024,7 +1141,7 @@ class SimklService {
   }
 
   Future<List<dynamic>?> _loadEpisodePlaybackSessions() async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return null;
     final generation = _playbackCacheGeneration;
     final data = await _getOrNull(
@@ -1185,7 +1302,7 @@ class SimklService {
   }
 
   Future<List<dynamic>?> _loadMoviePlaybackSessions() async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return null;
     final generation = _playbackCacheGeneration;
     final data = await _getOrNull(
@@ -1245,7 +1362,7 @@ class SimklService {
   /// removed sessions. Returns true when every matching session was deleted (or
   /// there was nothing to delete). Never throws.
   Future<bool> deletePlaybackForImdb(String imdbId) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return false;
     // Independent GETs — fetch concurrently. A null list means the fetch failed.
     final lists = await Future.wait([
@@ -1294,7 +1411,7 @@ class SimklService {
     int season,
     int episode,
   ) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return false;
     final episodes = await _fetchEpisodePlaybackSessions();
     final ids = <int>{};
@@ -1359,7 +1476,7 @@ class SimklService {
   /// `POST /sync/watched?extended=episodes`. Empty set on failure — mirrors
   /// TraktService.fetchWatchedShowEpisodes's contract.
   Future<Set<String>> fetchWatchedShowEpisodes(String showImdbId) async {
-    final token = await StorageService.getSimklAccessToken();
+    final token = await _validAccessToken();
     if (token == null || token.isEmpty) return {};
     final result = await _postOrNull(
       '/sync/watched',

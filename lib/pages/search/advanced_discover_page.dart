@@ -414,6 +414,14 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
                 label: const Text('Load More'),
               ),
           ],
+          const SizedBox(height: 22),
+          const Text(
+            'Metadata and poster images from TMDB. This product uses '
+            'the TMDB API but is not endorsed or certified by TMDB.',
+            style: TextStyle(color: Colors.white38, fontSize: 11),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
         ],
       )),
     );

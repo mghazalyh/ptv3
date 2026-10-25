@@ -68,7 +68,6 @@ void main() async {
     MyListService.initialize(),
     P2pSettingsService.initialize(),
     DownloadService.instance.initialize(),
-    TorrentStreamService().start(),
     DiscordRpcService.instance.initialize(),
   ]);
   runApp(const PlayTorrioApp());

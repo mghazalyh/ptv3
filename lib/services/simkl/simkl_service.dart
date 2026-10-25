@@ -472,7 +472,11 @@ class SimklService {
             if (attempt == null) {
               await commit();
             } else {
-              await attempt.authorization.run(commit);
+              if (attempt.authorization == null) {
+                await commit();
+              } else {
+                await attempt.authorization!.run(commit);
+              }
             }
           } on StateError {
             return 'access_denied';

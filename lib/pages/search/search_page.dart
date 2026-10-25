@@ -7,7 +7,7 @@ import '../../models/stream/stream_model.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../widgets/movie/movie_slider_section.dart';
 import '../../widgets/search/magnet_files_view.dart';
-import '../player/player_screen.dart';
+import '../../services/player/floating_playback_service.dart';
 import 'advanced_discover_page.dart';
 
 class SearchPage extends StatefulWidget {
@@ -63,20 +63,17 @@ class _SearchPageState extends State<SearchPage> {
       }
     }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(
-          source: StreamSource(
-            name: 'Direct Stream',
-            title: title,
-            url: trimmed,
-            addonName: 'Direct Stream',
-          ),
-          title: title,
-        ),
+    // Route direct URLs through the same persistent player host used by
+    // addon streams, keeping Separate window and Mini player available.
+    FloatingPlaybackService.play(FloatingPlaybackSession(
+      source: StreamSource(
+        name: 'Direct Stream',
+        title: title,
+        url: trimmed,
+        addonName: 'Direct Stream',
       ),
-    );
+      title: title,
+    ));
   }
 
   @override

@@ -42,7 +42,7 @@ void main() {
       expect(find.textContaining('60 matches'), findsOneWidget);
       expect(find.textContaining('Page 1/3'), findsOneWidget);
 
-      final results = find.byKey(const Key('advanced-discover-results'));
+      final results = find.byKey(const PageStorageKey<String>('advanced-discover-results'));
       expect(results, findsOneWidget);
       final scroll = tester.widget<ListView>(results).controller!;
       expect(scroll.hasClients, isTrue);

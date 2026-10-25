@@ -52,6 +52,15 @@ jobs:
           flutter analyze --no-pub --no-fatal-infos lib/services/metadata/tmdb_discover_service.dart lib/pages/search/advanced_discover_page.dart lib/pages/search/search_page.dart lib/services/cache/storage_cache_service.dart lib/services/config/settings_transfer_service.dart lib/pages/settings/torbox_quick_settings_page.dart lib/pages/settings/settings_transfer_page.dart lib/services/player/audio_language_priority.dart lib/pages/player/player_screen.dart lib/pages/player/watch_screen.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Inspect TorrServer Windows optional binary packaging
+        shell: pwsh
+        run: |
+          $plugin = "windows/flutter/ephemeral/.plugin_symlinks/torrserver_flutter/windows/CMakeLists.txt"
+          if (Test-Path $plugin) {
+            Write-Host "TorrServer plugin CMake binary requirements:"
+            Get-Content $plugin | Select-Object -First 180
+          }
+
       - name: Build Windows executable
         shell: pwsh
         run: |

@@ -116,6 +116,24 @@ class AddonManager {
     return addon;
   }
 
+  /// Restore a complete addon from a settings backup without fetching its
+  /// manifest. Existing installations are updated; never clears other addons.
+  Future<void> upsertFromSettingsImport(InstalledAddon addon) async {
+    if (addon.baseUrl.trim().isEmpty || addon.manifest.id.trim().isEmpty) {
+      throw const FormatException('Backup addon needs baseUrl and manifest id.');
+    }
+    final index = _addons.indexWhere((existing) =>
+        existing.manifest.id == addon.manifest.id ||
+        existing.baseUrl == addon.baseUrl);
+    if (index >= 0) {
+      _addons[index] = addon;
+    } else {
+      _addons.add(addon);
+    }
+    MetadataService.clearCache();
+    await _save();
+  }
+
   Future<void> removeAddon(String addonId) async {
     _addons.removeWhere((a) => a.manifest.id == addonId);
     MetadataService.clearCache();

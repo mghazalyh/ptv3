@@ -91,6 +91,9 @@ jobs:
       - name: Test nested detail navigation retains the back stack
         run: flutter test test/detail_navigation_stack_test.dart
 
+      - name: Test Discover pagination scroll restoration
+        run: flutter test test/discover_load_more_position_test.dart
+
       - name: Test API pacing and cached Discover pages
         run: flutter test test/tmdb_rate_limit_test.dart
 

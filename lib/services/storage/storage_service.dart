@@ -9,6 +9,8 @@ class StorageService {
 
   static const _kSimklAccessToken = 'simkl_access_token';
   static const _kSimklUsername = 'simkl_username';
+  static const _kSimklRefresh = 'simkl_oauth2_refresh_token';
+  static const _kSimklExpiry = 'simkl_oauth2_expiry_ms';
 
   static final ValueNotifier<int> movieFinishedRevision = ValueNotifier<int>(0);
 
@@ -83,9 +85,30 @@ class StorageService {
     await prefs.setString(_kSimklUsername, username);
   }
 
+  static Future<String?> getSimklRefreshToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kSimklRefresh);
+  }
+
+  static Future<int?> getSimklTokenExpiry() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_kSimklExpiry);
+  }
+
+  static Future<void> saveSimklOAuth2Tokens(String access, String refresh,
+      int seconds) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kSimklAccessToken, access);
+    await prefs.setString(_kSimklRefresh, refresh);
+    await prefs.setInt(_kSimklExpiry, DateTime.now()
+      .add(Duration(seconds: seconds)).millisecondsSinceEpoch);
+  }
+
   static Future<void> clearSimklAuth() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kSimklAccessToken);
+    await prefs.remove(_kSimklRefresh);
+    await prefs.remove(_kSimklExpiry);
     await prefs.remove(_kSimklUsername);
   }
 }

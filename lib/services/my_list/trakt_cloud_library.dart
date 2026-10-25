@@ -157,6 +157,19 @@ class TraktCloudLibrary {
         local: readLocal(), remote: remote, previouslySeen: previous,
         pendingAdds: pendingAdds, pendingRemoves: pendingRemoves,
       );
+      // A successful complete cloud snapshot also acknowledges edits that
+      // already reached Trakt elsewhere or were already removed. Otherwise
+      // stale pending entries could re-upload a remotely deleted title.
+      for (final item in pendingAdds) {
+        if (remote.any((known) => known.matches(item))) {
+          await _journal(item, add: true, acknowledge: true);
+        }
+      }
+      for (final item in pendingRemoves) {
+        if (!remote.any((known) => known.matches(item))) {
+          await _journal(item, add: false, acknowledge: true);
+        }
+      }
       // Remote removals are only applied when the same account was previously
       // observed, while first sign-in uploads *local* saves, not vice versa.
       await persistMerged(plan.merged);

@@ -1,0 +1,68 @@
+name: PlayTorrio iOS 15 Cache Cleaner IPA
+
+on:
+  push:
+    branches:
+      - ios15-storage-cleanup
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios15:
+    name: Build unsigned IPA for iOS 15
+    runs-on: macos-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+
+      - name: Setup Flutter dependencies
+        run: |
+          touch .env
+          flutter pub get
+
+      - name: Analyze storage code
+        run: |
+          flutter analyze --no-pub \
+            lib/services/cache/storage_cache_service.dart \
+            lib/pages/settings/storage_settings_page.dart
+
+      - name: Build unsigned release
+        run: flutter build ios --release --no-codesign --dart-define-from-file=.env
+
+      - name: Verify minimum iOS 15
+        run: |
+          test -d build/ios/iphoneos/Runner.app
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          info = Path('build/ios/iphoneos/Runner.app/Info.plist')
+          with info.open('rb') as f:
+              version = plistlib.load(f).get('MinimumOSVersion', '')
+          print('App minimum iOS version:', version)
+          if not version or tuple(map(int, version.split('.'))) > (15, 0):
+              raise SystemExit('Build is not compatible with iOS 15')
+          PY
+
+      - name: Package IPA
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qry PlayTorrio-iOS15-CacheCleaner-unsigned.ipa Payload
+          test -s PlayTorrio-iOS15-CacheCleaner-unsigned.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayTorrio-iOS15-CacheCleaner-unsigned
+          path: build/ios/ipa/PlayTorrio-iOS15-CacheCleaner-unsigned.ipa
+          if-no-files-found: error

@@ -64,7 +64,12 @@ jobs:
         run: |
           flutter analyze --no-pub --no-fatal-infos \
             lib/services/cache/storage_cache_service.dart \
-            lib/pages/settings/storage_settings_page.dart
+            lib/pages/settings/storage_settings_page.dart \
+            lib/services/config/settings_transfer_service.dart \
+            lib/pages/settings/settings_transfer_page.dart \
+            lib/pages/settings/torbox_quick_settings_page.dart \
+            lib/pages/settings/settings_page.dart \
+            lib/services/addon/addon_manager.dart
 
       - name: Build unsigned release
         run: flutter build ios --release --no-codesign --dart-define-from-file=.env

@@ -97,23 +97,33 @@ void main() {
     expect(stopped, isTrue);
   });
 
-  testWidgets('Standalone secondary viewer shows functional stop control',
+  testWidgets('Standalone secondary viewer exposes all 3 functional controls',
       (tester) async {
     var stopped = false;
+    var madeMovable = false;
+    var miniWindow = false;
 
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: Center(
-          child: PlayerWindowActions(onStop: () => stopped = true),
+          child: PlayerWindowActions(
+            separateWindowActive: true,
+            onSeparateWindow: () => madeMovable = true,
+            onMinimize: () => miniWindow = true,
+            onStop: () => stopped = true,
+          ),
         ),
       ),
     ));
 
-    expect(find.byKey(const Key('player-separate-window')), findsNothing);
-    expect(find.byKey(const Key('player-mini-player')), findsNothing);
+    expect(find.byKey(const Key('player-separate-window')), findsOneWidget);
+    expect(find.byKey(const Key('player-mini-player')), findsOneWidget);
     expect(find.byKey(const Key('player-stop')), findsOneWidget);
-
+    await tester.tap(find.byKey(const Key('player-separate-window')));
+    await tester.tap(find.byKey(const Key('player-mini-player')));
     await tester.tap(find.byKey(const Key('player-stop')));
+    expect(madeMovable, isTrue);
+    expect(miniWindow, isTrue);
     expect(stopped, isTrue);
   });
 }

@@ -1,4 +1,4 @@
-name: PlayTorrio iOS 15 Cache Cleaner IPA
+name: PlayTorrio iOS 15 — Floating PiP and Sync Parity
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
       - ios15-storage-cleanup
       - ios15-advanced-discover
       - ios15-detail-navigation
+      - parity-floating-player-both
   workflow_dispatch:
 
 permissions:
@@ -79,7 +80,16 @@ jobs:
             lib/services/metadata/tmdb_discover_service.dart \
             lib/pages/search/advanced_discover_page.dart \
             lib/pages/search/search_page.dart \
-            lib/pages/details/details_page.dart
+            lib/pages/details/details_page.dart \
+            lib/main.dart \
+            lib/services/player/floating_playback_service.dart \
+            lib/services/player/detached_playback_service.dart \
+            lib/services/my_list/my_list_service.dart \
+            lib/services/my_list/simkl_hearts_cloud.dart \
+            lib/services/my_list/trakt_cloud_library.dart \
+            lib/services/simkl/simkl_service.dart \
+            lib/pages/my_list/my_list_page.dart \
+            lib/pages/settings/simkl_settings_page.dart
 
       - name: Test English-audio priority
         run: flutter test test/audio_language_priority_test.dart
@@ -100,6 +110,13 @@ jobs:
 
       - name: Test TMDB Discover filters and year matching
         run: flutter test test/tmdb_advanced_discover_test.dart
+
+      - name: Test shared player and cloud sync parity
+        run: |
+          flutter test test/floating_playback_test.dart
+          flutter test test/trakt_merge_plan_test.dart
+          flutter test test/trakt_cloud_library_test.dart
+          flutter test test/simkl_hearts_cloud_test.dart
 
       - name: Build unsigned release
         run: flutter build ios --release --no-codesign --dart-define-from-file=.env
@@ -134,12 +151,12 @@ jobs:
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrio-iOS15-AdvancedDiscover-TrollStore
+          name: PlayTorrio-iOS15-Floating-PiP-and-Sync
           path: build/ios/ipa/PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa
           if-no-files-found: error
 
       - name: Publish verified direct IPA for iPad only
-        if: github.ref_name == 'ios15-detail-navigation'
+        if: github.ref_name == 'ios15-detail-navigation' || github.ref_name == 'parity-floating-player-both'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

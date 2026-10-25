@@ -46,17 +46,29 @@ jobs:
               print('SHA-256:',hashlib.file_digest(f,'sha256').hexdigest())
           PY
 
+      - name: Prepare stable latest-download filename
+        run: |
+          cp PlayTorrio-iOS15-Advanced-Discover-TrollStore.ipa PlayTorrio-iOS15-TrollStore.ipa
+
       - name: Publish direct IPA as GitHub Release asset
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create ios15-advanced-discover-20261025 \
-            PlayTorrio-iOS15-Advanced-Discover-TrollStore.ipa \
-            --repo "${{ github.repository }}" \
-            --target ios15-advanced-discover \
-            --title 'PlayTorrio iPadOS 15 - Advanced Discover (TrollStore)' \
-            --notes 'Direct IPA download, no ZIP extraction. iPadOS 15 deployment target. Includes Advanced Discover, TorBox settings, English audio selection, JSON import/export and storage management. Update via TrollStore when the bundle identifier matches. API keys are entered within the app; none are included in this release.' \
-            --latest
+          if gh release view ios15-advanced-discover-20261025 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload ios15-advanced-discover-20261025 \
+              PlayTorrio-iOS15-Advanced-Discover-TrollStore.ipa \
+              PlayTorrio-iOS15-TrollStore.ipa \
+              --repo "${{ github.repository }}" --clobber
+          else
+            gh release create ios15-advanced-discover-20261025 \
+              PlayTorrio-iOS15-Advanced-Discover-TrollStore.ipa \
+              PlayTorrio-iOS15-TrollStore.ipa \
+              --repo "${{ github.repository }}" \
+              --target ios15-advanced-discover \
+              --title 'PlayTorrio iPadOS 15 - Advanced Discover (TrollStore)' \
+              --notes 'Direct IPA download, no ZIP extraction. iPadOS 15 deployment target. Includes Advanced Discover, TorBox settings, English audio selection, JSON import/export and storage management. Update via TrollStore when the bundle identifier matches. API keys are entered within the app; none are included in this release.' \
+              --latest
+          fi
 
       - name: Verify asset published on release
         env:
@@ -66,5 +78,9 @@ jobs:
             --repo "${{ github.repository }}" --json assets \
             --jq '.assets[].name' | grep -Fx \
             'PlayTorrio-iOS15-Advanced-Discover-TrollStore.ipa'
-          echo 'Verified permanent GitHub Release asset:'
+          gh release view ios15-advanced-discover-20261025 \
+            --repo "${{ github.repository }}" --json assets \
+            --jq '.assets[].name' | grep -Fx \
+            'PlayTorrio-iOS15-TrollStore.ipa'
+          echo 'Verified permanent GitHub Release assets:'
           echo "https://github.com/${{ github.repository }}/releases/download/ios15-advanced-discover-20261025/PlayTorrio-iOS15-Advanced-Discover-TrollStore.ipa"

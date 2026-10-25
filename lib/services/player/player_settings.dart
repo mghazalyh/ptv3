@@ -254,7 +254,11 @@ abstract final class PlayerSettings {
 
       // Prevent MPV from writing debrid / Torrentio HTTP stream data to disk.
       // Memory buffering remains available and is bounded below.
-      await platform.setProperty('cache-on-disk', 'no');
+      try {
+        await platform.setProperty('cache-on-disk', 'no');
+      } catch (e) {
+        debugPrint('[PlayerSettings] MPV disk-cache setting not available: $e');
+      }
 
       // 1. Audio Filter & Volume
       await platform.setProperty('af', 'scaletempo2=max-speed=8');

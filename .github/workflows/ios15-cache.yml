@@ -83,17 +83,22 @@ jobs:
               raise SystemExit('Build is not compatible with iOS 15')
           PY
 
+      - name: Ad hoc sign for TrollStore
+        run: |
+          codesign --force --deep --sign - --timestamp=none build/ios/iphoneos/Runner.app
+          codesign --verify --deep --strict --verbose=2 build/ios/iphoneos/Runner.app
+
       - name: Package IPA
         run: |
           mkdir -p build/ios/ipa/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
           cd build/ios/ipa
-          zip -qry PlayTorrio-iOS15-CacheCleaner-unsigned.ipa Payload
-          test -s PlayTorrio-iOS15-CacheCleaner-unsigned.ipa
+          zip -qry PlayTorrio-iOS15-TorBox-TrollStore.ipa Payload
+          test -s PlayTorrio-iOS15-TorBox-TrollStore.ipa
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrio-iOS15-CacheCleaner-unsigned
-          path: build/ios/ipa/PlayTorrio-iOS15-CacheCleaner-unsigned.ipa
+          name: PlayTorrio-iOS15-TorBox-TrollStore
+          path: build/ios/ipa/PlayTorrio-iOS15-TorBox-TrollStore.ipa
           if-no-files-found: error

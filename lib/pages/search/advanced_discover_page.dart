@@ -37,6 +37,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
     'vote_count.desc': 'Most reviewed',
   };
   final service = TmdbDiscoverService.instance;
+  final ScrollController _discoverScroll = ScrollController();
   final fromController = TextEditingController();
   final toController = TextEditingController();
   DiscoverType type = DiscoverType.movie;
@@ -56,6 +57,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
   @override
   void dispose() {
     serial++;
+    _discoverScroll.dispose();
     fromController.dispose();
     toController.dispose();
     super.dispose();
@@ -114,6 +116,14 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
       return;
     }
     if (!reset && (page == 0 || page >= totalPages)) return;
+    // Loading the next page should advance to the newly appended posters,
+    // never reset the list to the top. Retain the position if the user has
+    // scrolled away from the bottom during the request.
+    final oldMaxExtent = _discoverScroll.hasClients
+        ? _discoverScroll.position.maxScrollExtent : 0.0;
+    final nearEnd = _discoverScroll.hasClients &&
+        (_discoverScroll.position.maxScrollExtent -
+            _discoverScroll.offset) < 260;
     final request = ++serial;
     setState(() {
       loading = true;
@@ -149,6 +159,23 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         appliedStart = filters.fromYear ?? filters.toYear;
         appliedEnd = filters.toYear ?? filters.fromYear;
       });
+      if (!reset && nearEnd) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_discoverScroll.hasClients ||
+              request != serial) return;
+          final position = _discoverScroll.position;
+          // Scroll just past the old page boundary: new posters become
+          // visible, while the previous row stays nearby for orientation.
+          final destination = (oldMaxExtent + 160.0)
+              .clamp(0.0, position.maxScrollExtent)
+              .toDouble();
+          if (destination > position.pixels) {
+            _discoverScroll.animateTo(destination,
+              duration: const Duration(milliseconds: 360),
+              curve: Curves.easeOutCubic);
+          }
+        });
+      }
     } catch (e) {
       if (mounted && request == serial) {
         setState(() => error = e.toString().replaceFirst('FormatException: ', ''));
@@ -316,6 +343,8 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         )],
       ),
       body: SafeArea(child: ListView(
+        key: const PageStorageKey<String>('advanced-discover-scroll'),
+        controller: _discoverScroll,
         padding: const EdgeInsets.all(16),
         children: [
           const Text('Browse without typing a title. Filter by year range, '

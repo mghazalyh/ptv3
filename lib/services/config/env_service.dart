@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service that dynamically resolves configuration and API secrets.
 ///
@@ -15,6 +16,16 @@ class EnvService {
   static Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
+
+    // Desktop builds intentionally contain no OAuth secrets. Allow the Trakt
+    // application credentials to be configured at runtime on each device.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      for (final key in ['TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET']) {
+        final value = prefs.getString('local_config_$key') ?? '';
+        if (value.isNotEmpty) _env[key] = value;
+      }
+    } catch (_) {}
 
     // 1. Try reading from root filesystem .env (Desktop / Local dev)
     try {
@@ -69,6 +80,25 @@ class EnvService {
     } catch (_) {}
 
     return defaultValue;
+  }
+
+  /// Store OAuth *application* credentials only on the current device.
+  /// They are never added to GitHub source or a compiled installer.
+  static Future<void> saveLocalTraktApplication(String id, String secret) async {
+    final prefs = await SharedPreferences.getInstance();
+    final values = <String, String>{
+      'TRAKT_CLIENT_ID': id.trim(),
+      'TRAKT_CLIENT_SECRET': secret.trim(),
+    };
+    for (final entry in values.entries) {
+      if (entry.value.isEmpty) {
+        await prefs.remove('local_config_${entry.key}');
+        _env.remove(entry.key);
+      } else {
+        await prefs.setString('local_config_${entry.key}', entry.value);
+        _env[entry.key] = entry.value;
+      }
+    }
   }
 
   // Trakt Credentials (checks compile-time dart-define first, then runtime .env)

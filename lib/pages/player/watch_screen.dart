@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../services/player/floating_playback_service.dart';
 import 'package:flutter/services.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
@@ -1607,20 +1608,15 @@ class _SourceCardState extends State<_SourceCard> {
                 }
               }
 
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PlayerScreen(
-                    source: s,
-                    title: s.displayTitle,
-                    backdropUrl: widget.backdropUrl,
-                    logoUrl: widget.logoUrl,
-                    detail: widget.detail,
-                    episode: widget.episode,
-                    initialPosition: widget.initialPosition,
-                  ),
-                ),
-              );
+              FloatingPlaybackService.play(FloatingPlaybackSession(
+                source: s,
+                title: s.displayTitle,
+                backdropUrl: widget.backdropUrl,
+                logoUrl: widget.logoUrl,
+                detail: widget.detail,
+                episode: widget.episode,
+                initialPosition: widget.initialPosition,
+              ));
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),

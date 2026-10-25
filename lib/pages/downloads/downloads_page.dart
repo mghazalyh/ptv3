@@ -9,7 +9,7 @@ import '../../services/theme/app_theme_service.dart';
 import '../../services/download/download_service.dart';
 import '../../utils/platform/open_file_location_helper.dart';
 import '../../utils/download/download_path_helper.dart';
-import '../player/player_screen.dart';
+import '../../services/player/floating_playback_service.dart';
 
 class DownloadsPage extends StatefulWidget {
   const DownloadsPage({super.key});
@@ -62,17 +62,15 @@ class _DownloadsPageState extends State<DownloadsPage> with SingleTickerProvider
       );
     }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(
-          source: task.toLocalStreamSource(),
-          title: task.title,
-          detail: detail,
-          episode: episodeVideo,
-        ),
-      ),
-    );
+    // Always enter the persistent app-level player so Windows separate
+    // window and mini-player actions have a working session callback.
+    FloatingPlaybackService.play(FloatingPlaybackSession(
+      source: task.toLocalStreamSource(),
+      title: task.title,
+      backdropUrl: task.backdropUrl,
+      detail: detail,
+      episode: episodeVideo,
+    ));
   }
 
   void _confirmDelete(DownloadTask task) {

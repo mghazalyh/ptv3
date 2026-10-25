@@ -28,6 +28,7 @@ import '../../services/discord/discord_rpc_service.dart';
 
 import '../../widgets/player/player_glass.dart';
 import '../../widgets/player/player_top_bar.dart';
+import '../../widgets/player/player_window_actions.dart';
 import '../../widgets/player/player_transport.dart';
 import '../../widgets/player/player_speed_menu.dart';
 import '../../services/window/window_service.dart';
@@ -255,36 +256,64 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  void _showPlayerActionError(String message) {
+    debugPrint('[PlayerScreen] Separate window: $message');
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  void _stopPlayerFromToolbar() {
+    debugPrint('[PlayerScreen] Stop requested from persistent toolbar');
+    if (widget.onClose != null) {
+      widget.onClose!();
+      return;
+    }
+    unawaited(WindowService.instance.exitFullscreen());
+    if (mounted) {
+      unawaited(Navigator.of(context).maybePop());
+    }
+  }
+
   Future<void> _openOnSecondMonitor() async {
+    if (_secondWindowPending || !Platform.isWindows) return;
     final url = _resolvedPlayableUrl;
-    if (_secondWindowPending || url == null || !Platform.isWindows) return;
+    if (url == null || url.isEmpty) {
+      _showPlayerActionError('Playback is still preparing. Try Separate window when the video starts.');
+      return;
+    }
     setState(() => _secondWindowPending = true);
     final wasPlaying = _isPlaying;
     try {
       await _player.pause();
       final ok = await DetachedPlaybackRequest.launch(
         DetachedPlaybackRequest(
-          title: _currentTitle, url: url, position: _position,
+          title: _currentTitle,
+          url: url,
+          position: _position,
           headers: _resolvedHeaders,
         ),
       );
       if (!ok) {
         if (wasPlaying) await _player.play();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Cannot open this source in a second window. '
-              'Use an independent HTTP stream or a downloaded file.'),
-          ));
-        }
+        _showPlayerActionError(
+          'This stream cannot be handed to a separate player. '
+          'Use a direct HTTP link or a downloaded file rather than localhost torrent playback.',
+        );
       } else {
-        // The second process now owns playback, while the library browser in
-        // this process remains open for searching and adding more shows.
-        if (widget.onClose != null) {
-          widget.onClose!();
-        } else if (mounted) {
-          Navigator.pop(context);
-        }
+        // The independent Windows process now owns playback. Keep the main
+        // library window open, and close the original video session.
+        _stopPlayerFromToolbar();
       }
+    } catch (error, stackTrace) {
+      debugPrint('[PlayerScreen] Second player launch failed: $error\n$stackTrace');
+      try {
+        if (wasPlaying) await _player.play();
+      } catch (resumeError) {
+        debugPrint('[PlayerScreen] Failed to resume playback: $resumeError');
+      }
+      _showPlayerActionError('Unable to open the separate player: $error');
     } finally {
       if (mounted) setState(() => _secondWindowPending = false);
     }
@@ -1603,34 +1632,6 @@ class _PlayerScreenState extends State<PlayerScreen>
             ),
           ),
 
-        if (widget.onMinimize != null || widget.onClose != null)
-          Positioned(
-            top: 92, right: 20,
-            child: SafeArea(
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                if (Platform.isWindows && widget.onMinimize != null)
-                  IconButton.filledTonal(
-                    tooltip: 'Open video in a separate window — move it to '
-                      'another monitor, then press F for fullscreen',
-                    onPressed: _secondWindowPending ? null : _openOnSecondMonitor,
-                    icon: const Icon(Icons.open_in_new_rounded),
-                  ),
-                if (widget.onMinimize != null)
-                  IconButton.filledTonal(
-                    tooltip: 'Keep playing while browsing (mini-player)',
-                    onPressed: widget.onMinimize,
-                    icon: const Icon(Icons.picture_in_picture_alt_rounded),
-                  ),
-                if (widget.onClose != null)
-                  IconButton.filledTonal(
-                    tooltip: 'Stop playback',
-                    onPressed: widget.onClose,
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-              ]),
-            ),
-          ),
-
         // Top Header Bar
         Positioned(
           top: 0,
@@ -2054,6 +2055,24 @@ class _PlayerScreenState extends State<PlayerScreen>
             Positioned.fill(
               child: IgnorePointer(
                 child: _buildAudioHud(),
+              ),
+            ),
+
+          // Always-visible Windows playback management. Render this last,
+          // outside the fading header, video texture and modal/menu layers.
+          // It must not depend on _showControls or on a video hover event.
+          if (Platform.isWindows)
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + 88,
+              right: 20,
+              child: PlayerWindowActions(
+                compact: MediaQuery.sizeOf(context).width < 880,
+                onSeparateWindow: widget.onMinimize != null
+                    ? _openOnSecondMonitor
+                    : null,
+                onMinimize: widget.onMinimize,
+                onStop: _stopPlayerFromToolbar,
+                openingSeparateWindow: _secondWindowPending,
               ),
             ),
         ],

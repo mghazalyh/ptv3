@@ -5,10 +5,11 @@ on:
     branches:
       - ios15-storage-cleanup
       - ios15-advanced-discover
+      - ios15-detail-navigation
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   ios15:
@@ -77,10 +78,25 @@ jobs:
             lib/pages/player/watch_screen.dart \
             lib/services/metadata/tmdb_discover_service.dart \
             lib/pages/search/advanced_discover_page.dart \
-            lib/pages/search/search_page.dart
+            lib/pages/search/search_page.dart \
+            lib/pages/details/details_page.dart
 
       - name: Test English-audio priority
         run: flutter test test/audio_language_priority_test.dart
+
+      - name: Check nested details history and Discover scroll preservation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          details = Path('lib/pages/details/details_page.dart').read_text()
+          discover = Path('lib/pages/search/advanced_discover_page.dart').read_text()
+          assert 'Navigator.pushReplacement(' not in details, 'Details page replaces its history'
+          assert 'Navigator.push(' in details
+          assert 'controller: _discoverScroll' in discover
+          assert 'oldMaxExtent + 160.0' in discover
+          assert 'PageStorageKey' in discover
+          print('Nested details history and pagination behavior verified')
+          PY
 
       - name: Test TMDB Discover filters and year matching
         run: flutter test test/tmdb_advanced_discover_test.dart
@@ -121,3 +137,20 @@ jobs:
           name: PlayTorrio-iOS15-AdvancedDiscover-TrollStore
           path: build/ios/ipa/PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa
           if-no-files-found: error
+
+      - name: Publish verified direct IPA for iPad only
+        if: github.ref_name == 'ios15-detail-navigation'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd build/ios/ipa
+          test -s PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa
+          cp PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa PlayTorrio-iOS15-TrollStore.ipa
+          cp PlayTorrio-iOS15-AdvancedDiscover-TrollStore.ipa PlayTorrio-iOS15-Detail-Navigation-TrollStore.ipa
+          gh release upload ios15-advanced-discover-20261025 \
+            PlayTorrio-iOS15-TrollStore.ipa \
+            PlayTorrio-iOS15-Detail-Navigation-TrollStore.ipa \
+            --repo "${{ github.repository }}" --clobber
+          gh release view ios15-advanced-discover-20261025 \
+            --repo "${{ github.repository }}" --json assets \
+            --jq '.assets[].name' | grep -Fx 'PlayTorrio-iOS15-TrollStore.ipa'

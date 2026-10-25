@@ -16,6 +16,7 @@ import 'trakt_settings_page.dart';
 import 'simkl_settings_page.dart';
 import 'updates_settings_page.dart';
 import 'about_settings_page.dart';
+import 'storage_settings_page.dart';
 import '../../services/p2p/p2p_settings_service.dart';
 import '../../widgets/p2p/p2p_warning_dialog.dart';
 import '../../services/discord/discord_rpc_service.dart';
@@ -197,6 +198,15 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               ),
 
+
+              _SettingsCategoryTile(
+                icon: Icons.storage_rounded,
+                iconColor: const Color(0xFF00E5FF),
+                title: 'Storage & Cache',
+                subtitle: 'Clear temporary video files and incomplete downloads',
+                onTap: () => _navigateTo(const StorageSettingsPage()),
+              ),
+              const SizedBox(height: 12),
 
               // 3. Debrid & Cloud Streaming
               _SettingsCategoryTile(

@@ -43,12 +43,12 @@ void main() {
       expect(find.textContaining('Page 1/3'), findsOneWidget);
 
       final results = find.byKey(const Key('advanced-discover-results'));
-      final outerScrollable = find.descendant(
-        of: results, matching: find.byType(Scrollable)).first;
-      final scroll = tester.state<ScrollableState>(outerScrollable);
+      expect(results, findsOneWidget);
+      final scroll = tester.widget<ListView>(results).controller!;
+      expect(scroll.hasClients, isTrue);
       await tester.ensureVisible(find.text('Load More'));
       await tester.pumpAndSettle();
-      final oldOffset = scroll.position.pixels;
+      final oldOffset = scroll.offset;
       expect(oldOffset, greaterThan(0));
 
       await tester.tap(find.text('Load More'));
@@ -57,9 +57,9 @@ void main() {
 
       expect(requests, 2);
       expect(find.textContaining('Page 2/3'), findsOneWidget);
-      expect(scroll.position.pixels, greaterThan(oldOffset),
+      expect(scroll.offset, greaterThan(oldOffset),
         reason: 'Advance smoothly into new titles rather than staying stuck.');
-      expect(scroll.position.pixels, lessThan(scroll.position.maxScrollExtent),
+      expect(scroll.offset, lessThan(scroll.position.maxScrollExtent),
         reason: 'Do not jump to the far bottom and lose context.');
     } finally {
       await tester.pumpWidget(const SizedBox.shrink());

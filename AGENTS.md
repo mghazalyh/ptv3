@@ -23,6 +23,12 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
+## Immediate iOS delivery checkpoint (2026-10-27 SGT)
+
+- The latest publicly verified iOS 15 TrollStore IPA remains **v1.1.0 Build #90** (https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.0-b90/PlayTorrio-v1.1.0-build90-iOS15-TrollStore.ipa). v1.1.4 Build #121 passed Windows **17/17** (Actions artifact 12670718760), but iOS was **canceled before starting**. Telegram and paired publish were skipped.
+- **The canceled iOS job was rerun independently** via GitHub Actions; Build #121 attempt **2**, iOS job **121740141007**, initially queued. Do not label a new iOS IPA built or sent until an actual signed artifact and delivery exist. No iOS compile error was observed because macOS jobs did not run.
+- These are documentation-only updates [skip ci], not source changes. Keep handover and session notes updated on meaningful status changes without needlessly canceling queued builds.
+
 ## Active development checkpoint (2026-10-27 SGT)
 
 - **v1.1.4 candidate on `parity-floating-player-both`**: title-details **Similar Content** now shows Movie/Series/Title instead of genre, based on the same provider type evidence as Home. Individual BestSimilar autocomplete checks are capped and cached, no extra TMDB/TVDB requests. Click-through uses each item's own media type. Regression tests updated and already included in Windows+iOS workflow. Release/test status remains pending until CI proves it.

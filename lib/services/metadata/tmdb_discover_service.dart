@@ -357,7 +357,45 @@ class TmdbDiscoverService {
 
     int? id = tmdbId != null && tmdbId > 0 ? tmdbId : verifiedTvdbTmdbId;
     if (id == null && imdbId != null &&
-        RegExp(r'^tt\d+
+        RegExp(r'^tt\d+$').hasMatch(imdbId)) {
+      final found = await _request('find/$imdbId',
+          const {'external_source': 'imdb_id'}, key);
+      final tv = (found['tv_results'] as List<dynamic>?) ?? const [];
+      id = selectSeriesId(tv, title, startYear);
+    }
+    if (id == null) {
+      final results = await _request('search/tv', {
+        'query': title,
+        if (startYear != null) 'first_air_date_year': '$startYear',
+      }, key);
+      id = selectSeriesId(
+        results['results'] as List<dynamic>? ?? const [], title, startYear);
+    }
+    if (id == null) return const [];
+
+    final seen = <int>{id};
+    final rows = <DiscoverTitle>[];
+    void collect(Map<String, dynamic> response) {
+      final candidates = response['results'] as List<dynamic>? ?? const [];
+      for (final raw in candidates) {
+        if (raw is! Map<String, dynamic>) continue;
+        final candidate = DiscoverTitle.parse(raw, DiscoverType.series);
+        if (candidate.tmdbId <= 0 ||
+            candidate.title.trim().isEmpty ||
+            candidate.poster == null ||
+            !seen.add(candidate.tmdbId)) continue;
+        rows.add(candidate);
+        if (rows.length >= 18) break;
+      }
+    }
+
+    collect(await _request('tv/$id/recommendations', const {'page': '1'}, key));
+    if (rows.length < minimumResults) {
+      collect(await _request('tv/$id/similar', const {'page': '1'}, key));
+    }
+    return rows.take(18).toList();
+  }
+
   Future<Movie?> resolveMovie(DiscoverTitle title) async {
     final key = await readKey();
     if (key.isEmpty) return null;

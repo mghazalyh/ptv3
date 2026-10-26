@@ -23,7 +23,12 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## Active v1.1.5 TV recommendation implementation (2026-10-27)
+## Active CI repair for v1.1.5 (2026-10-27)
+
+- Initial Build #122 failed Windows tests during Dart load because scripted JS replacement truncated `RegExp(r'^tt\\d+$')` in the new `TmdbDiscoverService.relatedSeries` method; source repair reconstructed the whole method and preserved the intended behavior. **No v1.1.5 build success or release at this checkpoint**. Next check new paired CI and update living handover. Do not give fabricated binary links or mark a failed test as passing; latest paired release remains **v1.1.4 Build #121**.
+- Mandatory: include `handover.md` + `NEXT_SESSION.md` in the same work unit for all real edits, and docs-only mirror to main.
+
+## Historical v1.1.5 TV recommendation implementation (2026-10-27)
 
 - Details **Similar Content/Recommended Shows**: corrected first-year parsing; BestSimilar primary, limited/cached TMDB `recommendations` then `similar` fallback for series only on genuine miss; metadata can optionally come from TVDB v4 configured in **Settings → TVDB Series Metadata** using local secure key+optional subscriber PIN. No guessing unknown shows, no bulk library lookups, and no fabricated source similarity values. Native TVDB recommendations endpoint is not documented; TVDB enhances matching and genre order of real TMDB candidates, with attribution.
 - New and modified metadata services, UI, tests, paired workflow and version **1.1.5+15** in same work unit. **CI build and release pending verification**; last fully paired release at start v1.1.4 Build #121. Preserve embedded English subtitle preference and all non-floating playback. **Update handover.md and NEXT_SESSION.md for every future code/build/result change**.

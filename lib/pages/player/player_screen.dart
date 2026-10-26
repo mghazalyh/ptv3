@@ -50,6 +50,7 @@ import '../../widgets/player/text_sync_overlay.dart';
 import '../../models/download/download_task_model.dart';
 import '../../services/download/download_service.dart';
 import '../../utils/download/download_path_helper.dart';
+import '../../utils/navigation/media_details_navigation.dart';
 
 class PlayerScreen extends StatefulWidget {
   final StreamSource source;
@@ -1374,6 +1375,46 @@ class _PlayerScreenState extends State<PlayerScreen>
     });
   }
 
+  /// Open the show's actual information page from a resumed playback session.
+  /// Keep this player mounted: navigating back returns to the same episode
+  /// and position without having to fetch a torrent/stream again.
+  Future<void> _openShowDetails() async {
+    final detail = widget.detail;
+    if (detail == null || detail.id.trim().isEmpty || !mounted) return;
+    final wasPlaying = _player.state.playing;
+    final wasFullscreen = WindowService.instance.isFullscreen;
+    _savePlaybackProgress();
+    _hideTimer?.cancel();
+    if (wasPlaying) await _player.pause();
+    if (wasFullscreen) await WindowService.instance.exitFullscreen();
+    if (!mounted) return;
+
+    try {
+      await MediaDetailsNavigation.open(
+        context,
+        id: detail.id,
+        title: detail.name,
+        type: detail.type,
+        poster: detail.poster,
+        backdrop: detail.background ?? widget.backdropUrl,
+        year: detail.year,
+        addonName: _currentSource.addonName,
+        episode: _currentEpisode?.episode,
+      );
+    } finally {
+      if (mounted) {
+        if (wasFullscreen && !WindowService.instance.isFullscreen) {
+          await WindowService.instance.toggleFullscreen();
+        }
+        if (wasPlaying && !_isLoading) await _player.play();
+        if (mounted) {
+          setState(() => _showControls = true);
+          _startHideControlsTimer();
+        }
+      }
+    }
+  }
+
   void _savePlaybackProgress() {
     if (widget.detail == null) return;
 
@@ -1760,6 +1801,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                       subtitle: episodeSubtitle,
                       quality: _currentSource.name,
                       onDownload: (_isLoading || isOfflineFile) ? null : _handleDownloadMedia,
+                      onShowDetails: widget.detail?.id.isNotEmpty == true
+                          ? () => unawaited(_openShowDetails()) : null,
                       isDownloading: isDownloading,
                       onToggleEpisodes: (!_isLoading && _episodeCatalog.isNotEmpty)
                           ? _toggleEpisodesPanel

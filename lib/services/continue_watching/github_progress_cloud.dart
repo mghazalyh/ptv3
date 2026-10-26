@@ -108,7 +108,8 @@ class GitHubProgressCloud {
     if (!configured) return;
     final currentAccount = _accountKey;
     if (_account == currentAccount) return;
-    await _journalWrite;
+    // Called from the serialized journal writer as well; awaiting the
+    // journal here would deadlock playback updates.
     final prefs = await SharedPreferences.getInstance();
     _account = currentAccount;
     _pending.clear();

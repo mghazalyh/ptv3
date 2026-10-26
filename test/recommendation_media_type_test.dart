@@ -74,6 +74,29 @@ void main() {
     expect(BestSimilarScraper.parseAutocompleteSerial('unknown'), isNull);
   });
 
+  test('Similar Content uses per-item verified Movie or Series (not genre)', () {
+    final series = related(801, 'Limited Series', serial: false, year: 2022);
+    final movie = related(802, 'Feature Film', serial: false, year: 2021);
+    final unknown = related(803, 'Undetermined', serial: false, year: 2020);
+    expect(series.mediaType, 'unknown');
+    expect(movie.mediaType, 'unknown');
+    expect(unknown.mediaType, 'unknown');
+
+    series.autocompleteIsTv = BestSimilarScraper.classifyFromAutocomplete(
+        series, [hit(801, 'Limited Series', isTv: true, year: 2022)]);
+    movie.autocompleteIsTv = BestSimilarScraper.classifyFromAutocomplete(
+        movie, [hit(802, 'Feature Film', isTv: false, year: 2021)]);
+
+    expect(Movie.typeLabel(series.mediaType), 'Series');
+    expect(Movie.typeLabel(movie.mediaType), 'Movie');
+    expect(Movie.typeLabel(unknown.mediaType), 'Title');
+
+    final positiveTv = related(804, 'Explicit TV', serial: true);
+    expect(positiveTv.mediaType, 'series');
+    positiveTv.tmdbMediaType = 'movie';
+    expect(positiveTv.mediaType, 'movie');
+  });
+
   test('unverified recommendation is NOT automatically a Movie', () {
     final unknown = related(44, 'Mystery Title');
     expect(unknown.knownIsTv, isNull);

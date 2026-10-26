@@ -323,8 +323,7 @@ abstract final class HomePageSettings {
             !seen.add(key)) continue;
         movies.add(Movie(
           id: 'bestsimilar_${sim.id}',
-          type: sim.knownIsTv == null
-              ? 'unknown' : (sim.knownIsTv! ? 'series' : 'movie'),
+          type: sim.mediaType,
           name: sim.title,
           poster: sim.thumbUrl,
           year: sim.year?.toString(),

@@ -347,14 +347,32 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         slug: hit.slug,
       );
 
-      if (mounted) {
-        setState(() {
-          _similarItems = details?.similar ?? [];
-          _isFetchingSimilar = false;
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _updateSimilarScrollButtons();
-        });
+      final similar = details?.similar ?? <BSItem>[];
+      if (!mounted) return;
+      // Show posters immediately rather than awaiting format verification.
+      setState(() {
+        _similarItems = similar;
+        _isFetchingSimilar = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _updateSimilarScrollButtons();
+      });
+
+      if (similar.isNotEmpty) {
+        // No additional TMDB/TVDB requests. BestSimilar lookups are cached,
+        // capped at two concurrent requests and 18 items per detail page.
+        try {
+          await BestSimilarScraper.classifySimilar(
+            similar,
+            maxConcurrent: 2,
+            maxLookups: 18,
+          );
+          if (mounted && identical(_similarItems, similar)) {
+            setState(() {}); // Repaint verified Movie / Series labels.
+          }
+        } catch (error) {
+          debugPrint('[Similar] Media-type verification failed: $error');
+        }
       }
     } catch (e) {
       debugPrint('[Similar] fetch failed: $e');
@@ -365,7 +383,8 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   Future<void> _openSimilarItem(BSItem item) async {
     final resolved = await MetadataService.findMovieByTitle(
       title: item.title,
-      type: item.isTv ? 'series' : (_resolvedType ?? widget.movie.type),
+      // Never borrow the parent page's Movie/Series type.
+      type: item.mediaType == 'unknown' ? null : item.mediaType,
       year: item.year,
       preferredBaseUrl: _resolvedBaseUrl ?? widget.movie.addonBaseUrl,
     );
@@ -1630,11 +1649,12 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              // Year + genre
+                              // Year + actual media type, not genre.
+                              // Unverified results show neutral Title.
                               Text(
                                 [
                                   if (item.year != null) '${item.year}',
-                                  if (item.genre != null) item.genre!.split(',').first.trim(),
+                                  Movie.typeLabel(item.mediaType),
                                 ].join(' · '),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

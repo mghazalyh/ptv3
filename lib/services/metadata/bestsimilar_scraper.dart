@@ -83,8 +83,16 @@ class BSItem {
     return null;
   }
 
+  /// Shared canonical media type for Home and Details recommendations.
+  /// Never infer Movie from missing or unverified provider metadata.
+  String get mediaType {
+    final verified = knownIsTv;
+    if (verified == null) return 'unknown';
+    return verified ? 'series' : 'movie';
+  }
+
   // Compatibility for legacy detail cards. New recommendation labels use
-  // knownIsTv, never turning an unknown entry into a guessed movie.
+  // mediaType, never turning an unknown entry into a guessed movie.
   bool get isTv => knownIsTv == true;
 
   BSItem({
@@ -192,28 +200,47 @@ class BestSimilarScraper {
 
   /// Bounded background-friendly verification: no uncontrolled flood of
   /// requests and no claim that unverified items are movies.
-  static Future<void> classifySimilar(List<BSItem> items) async {
-    // Recheck even items marked "movie" by page HTML: some mixed
-    // recommendation pages incorrectly tag TV series as films.
-    final unknown = items.where((item) => item.tmdbMediaType == null).toList();
-    if (unknown.isEmpty) return;
+  static Future<void> classifySimilar(
+    List<BSItem> items, {
+    int maxConcurrent = 8,
+    int? maxLookups,
+  }) async {
+    // BestSimilar (not TMDB or TVDB) provides the serial classification.
+    // The provider-managed autocomplete cache reduces repeated lookups.
+    final candidates = items.where((item) => item.tmdbMediaType == null).toList();
+    if (candidates.isEmpty || maxLookups == 0) return;
+
+    final limit = maxLookups == null || maxLookups >= candidates.length
+        ? candidates.length
+        : (maxLookups < 0 ? 0 : maxLookups);
+    final selected = candidates.take(limit).toList();
+    if (selected.isEmpty) return;
+
+    final concurrency = maxConcurrent < 1
+        ? 1 : (maxConcurrent > 8 ? 8 : maxConcurrent);
+    final deadline = DateTime.now().add(const Duration(seconds: 16));
     var next = 0;
     Future<void> worker() async {
-      while (next < unknown.length) {
-        final item = unknown[next++];
+      while (next < selected.length && DateTime.now().isBefore(deadline)) {
+        final item = selected[next++];
         try {
           final hits = await autocomplete(item.title)
               .timeout(const Duration(seconds: 5));
           final verified = classifyFromAutocomplete(item, hits);
           if (verified != null) item.autocompleteIsTv = verified;
-        } catch (_) {
-          // Retain unknown rather than silently changing it to 'movie'.
+        } catch (error) {
+          debugPrint('[BestSimilar] Unverified media type for item ${item.id}: $error');
+          // Leave the item unknown rather than inventing Movie.
         }
       }
     }
     await Future.wait(List.generate(
-      unknown.length < 8 ? unknown.length : 8, (_) => worker(),
-    )).timeout(const Duration(seconds: 16), onTimeout: () => []);
+      selected.length < concurrency ? selected.length : concurrency,
+      (_) => worker(),
+    )).timeout(
+      const Duration(seconds: 16),
+      onTimeout: () => <void>[],
+    );
   }
 
   /// Hit the site's autocomplete endpoint. Returns parsed hits.

@@ -297,6 +297,105 @@ jobs:
           path: build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa
           if-no-files-found: error
 
+  telegram-ipa:
+    name: Post signed iOS 15 TrollStore IPA to Telegram
+    needs: [ios15]
+    if: github.ref == 'refs/heads/parity-floating-player-both' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-5348088326' }}
+      BUILD_SHA: ${{ github.sha }}
+      BUILD_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Download signed IPA from this workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: PlayTorrio-iOS15-TrollStore
+          path: packages/ios15
+
+      - name: Upload IPA to Telegram group or provide GitHub download link
+        shell: bash
+        timeout-minutes: 10
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import secrets
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          token = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+          chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+          if not token or not chat_id:
+              sys.exit('Telegram bot token or destination is not configured.')
+          ipa = Path('packages/ios15/PlayTorrio-iOS15-TrollStore.ipa')
+          if not ipa.is_file() or ipa.stat().st_size == 0:
+              sys.exit('Signed TrollStore IPA is missing.')
+          sha = os.environ['BUILD_SHA'][:12]
+          run_url = os.environ['BUILD_RUN_URL']
+          endpoint = 'https://api.telegram.org/bot' + token + '/'
+          caption = f'📦 PlayTorrio — TrollStore iOS 15\nBuild: {sha}\nSigned IPA from GitHub Actions\n{run_url}'
+
+          def send_message(message):
+              request = urllib.request.Request(
+                  endpoint + 'sendMessage',
+                  data=urllib.parse.urlencode({'chat_id': chat_id, 'text': message}).encode(),
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      result = json.load(response)
+              except urllib.error.HTTPError as error:
+                  sys.exit(f'Telegram message failed: HTTP {error.code}.')
+              except Exception as error:
+                  sys.exit(f'Telegram message failed: {type(error).__name__}.')
+              if not result.get('ok'):
+                  sys.exit('Telegram rejected the fallback message.')
+              print(f'Telegram link fallback sent: message {result["result"]["message_id"]}.')
+
+          if ipa.stat().st_size >= 50_000_000:
+              print('IPA is above the 50 MB Bot API upload threshold; sending workflow artifact link.')
+              send_message(caption + '\nIPA exceeds direct-upload limit: download it from the GitHub Actions artifacts.')
+              sys.exit(0)
+
+          boundary = 'PlayTorrio' + secrets.token_hex(14)
+          parts = bytearray()
+          for key, value in {'chat_id': chat_id, 'caption': caption}.items():
+              parts.extend(f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{value}\r\n'.encode())
+          parts.extend(
+              f'--{boundary}\r\n'
+              'Content-Disposition: form-data; name="document"; filename="PlayTorrio-iOS15-TrollStore.ipa"\r\n'
+              'Content-Type: application/octet-stream\r\n\r\n'.encode()
+          )
+          parts.extend(ipa.read_bytes())
+          parts.extend(f'\r\n--{boundary}--\r\n'.encode())
+          request = urllib.request.Request(
+              endpoint + 'sendDocument',
+              data=bytes(parts),
+              headers={'Content-Type': f'multipart/form-data; boundary={boundary}'},
+              method='POST',
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=240) as response:
+                  result = json.load(response)
+          except urllib.error.HTTPError as error:
+              if error.code in (400, 413):
+                  print(f'Telegram declined direct IPA attachment: HTTP {error.code}; sending the GitHub artifact link.')
+                  send_message(caption + '\nDirect attachment unavailable; download IPA from the linked GitHub Actions artifacts.')
+                  sys.exit(0)
+              sys.exit(f'Telegram document upload failed: HTTP {error.code}.')
+          except Exception as error:
+              sys.exit(f'Telegram document upload failed: {type(error).__name__}.')
+          if not result.get('ok'):
+              sys.exit('Telegram rejected the IPA document upload.')
+          print(f'IPA uploaded to Telegram as a document. Message ID: {result["result"]["message_id"]}')
+          PY
+
   publish-paired:
     name: Publish matched Windows and iOS 15 builds
     needs: [windows, ios15]

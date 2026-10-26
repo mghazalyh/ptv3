@@ -59,20 +59,20 @@ void main() {
         expect(MyListService.items.value[1].title, 'Older');
       });
 
-      test('enforces maxItems cap of 500', () {
-        for (int i = 0; i < 510; i++) {
+      test('enforces raised watchlist capacity', () {
+        for (int i = 0; i < MyListService.maxItems + 10; i++) {
           MyListService.add(_makeItem(imdbId: 'tt${i.toString().padLeft(7, '0')}'));
         }
-        expect(MyListService.items.value.length, 500);
+        expect(MyListService.items.value.length, MyListService.maxItems);
       });
 
       test('caps by removing oldest entries', () {
-        for (int i = 0; i < 500; i++) {
+        for (int i = 0; i < MyListService.maxItems; i++) {
           MyListService.add(_makeItem(imdbId: 'tt${i.toString().padLeft(7, '0')}'));
         }
         // Add one more - this pushes out the oldest (first added)
         MyListService.add(_makeItem(imdbId: 'ttnewest'));
-        expect(MyListService.items.value.length, 500);
+        expect(MyListService.items.value.length, MyListService.maxItems);
         expect(MyListService.items.value.any((i) => i.imdbId == 'ttnewest'), true);
       });
     });

@@ -86,6 +86,23 @@ class _CatalogPageState extends State<CatalogPage> {
   }
 
   Future<void> _loadItems({bool refresh = false}) async {
+    // Personalized home sections are already a complete, source-ranked
+    // recommendation set. Their IDs are NOT real Stremio catalogs. Asking
+    // Cinemeta for 'bestsimilar_list', 'trakt_recommendations', etc. would
+    // return unrelated results (or a generic fallback).
+    if (widget.section.isCurated) {
+      if (!mounted) return;
+      setState(() {
+        _items
+          ..clear()
+          ..addAll(widget.section.movies);
+        _isLoading = false;
+        _hasMore = false;
+        _error = null;
+      });
+      return;
+    }
+
     if (refresh) {
       setState(() {
         _items.clear();
@@ -197,6 +214,10 @@ class _CatalogPageState extends State<CatalogPage> {
     final topPadding = MediaQuery.of(context).padding.top;
     final sizing = MovieCardSizing.fromWidth(MediaQuery.sizeOf(context).width);
     final isDesktop = MediaQuery.sizeOf(context).width >= 800;
+    final visibleItems = widget.section.isCurated && _searchQuery.isNotEmpty
+        ? _items.where((item) => item.name.toLowerCase()
+            .contains(_searchQuery.toLowerCase())).toList()
+        : _items;
     
     // Calculate safe top padding for grid based on if genres are available
     final hasGenres = widget.section.catalog.genres.isNotEmpty && !_isSearching;
@@ -216,7 +237,7 @@ class _CatalogPageState extends State<CatalogPage> {
               error: _error,
               onRetry: () => _loadItems(refresh: true),
             )
-          else if (_items.isEmpty)
+          else if (visibleItems.isEmpty)
             const Center(
               child: Text(
                 'No items found',
@@ -239,14 +260,14 @@ class _CatalogPageState extends State<CatalogPage> {
                 crossAxisSpacing: sizing.spacing,
                 mainAxisSpacing: sizing.spacing,
               ),
-              itemCount: _items.length + (_hasMore ? 1 : 0),
+              itemCount: visibleItems.length + (_hasMore ? 1 : 0),
               itemBuilder: (context, index) {
-                if (index == _items.length) {
+                if (index == visibleItems.length) {
                   return const Center(
                     child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
                   );
                 }
-                return MovieCard(movie: _items[index]);
+                return MovieCard(movie: visibleItems[index]);
               },
             ),
 
@@ -325,7 +346,9 @@ class _CatalogPageState extends State<CatalogPage> {
                                   ),
                                 ),
                               ),
-                            if (!_isSearching && widget.section.catalog.supportsSearch)
+                            if (!_isSearching &&
+                                (widget.section.isCurated ||
+                                    widget.section.catalog.supportsSearch))
                               IconButton(
                                 icon: const Icon(Icons.search_rounded),
                                 color: Colors.white70,

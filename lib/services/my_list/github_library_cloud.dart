@@ -88,6 +88,10 @@ class GitHubLibraryCloud {
   String get _importKey => 'playtorrio_gh_imported:$repository:$branch';
   bool get configured => enabled.value && (_token?.isNotEmpty ?? false);
 
+  // Shared credentials for the private progress database in the same repo.
+  // Never log, upload, or embed this token in the database contents.
+  String? get progressAccessToken => configured ? _token : null;
+
   Future<void> initialize() async {
     if (_loaded) return;
     final prefs = await SharedPreferences.getInstance();

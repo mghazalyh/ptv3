@@ -1,4 +1,5 @@
-name: PlayTorrio Paired Windows and iOS 15 TrollStore Builds
+name: PlayTorrio v1.1.0 — Paired Windows and iOS 15 Builds
+run-name: PlayTorrio v1.1.0 · Build #${{ github.run_number }} · ${{ github.ref_name }}
 
 on:
   push:
@@ -74,7 +75,7 @@ jobs:
       - name: Analyze modified shared app screens and services
         shell: pwsh
         run: |
-          flutter analyze --no-pub --no-fatal-infos lib/services/metadata/tmdb_discover_service.dart lib/pages/search/advanced_discover_page.dart lib/pages/search/search_page.dart lib/services/cache/storage_cache_service.dart lib/services/config/settings_transfer_service.dart lib/pages/settings/torbox_quick_settings_page.dart lib/pages/settings/settings_transfer_page.dart lib/services/player/audio_language_priority.dart lib/services/player/playback_autoselection.dart lib/pages/player/player_screen.dart lib/pages/player/watch_screen.dart lib/pages/details/details_page.dart lib/services/my_list/my_list_service.dart lib/services/my_list/github_library_cloud.dart lib/services/continue_watching/github_progress_cloud.dart lib/services/continue_watching/continue_watching_service.dart lib/widgets/home/continue_watching_slider.dart lib/pages/settings/github_library_settings_page.dart lib/services/my_list/trakt_cloud_library.dart lib/services/my_list/trakt_merge_plan.dart lib/services/trakt/trakt_service.dart lib/pages/my_list/my_list_page.dart lib/pages/settings/trakt_settings_page.dart lib/pages/settings/simkl_settings_page.dart lib/services/simkl/simkl_service.dart lib/services/storage/storage_service.dart lib/services/config/env_service.dart lib/services/my_list/simkl_hearts_cloud.dart
+          flutter analyze --no-pub --no-fatal-infos lib/services/metadata/tmdb_discover_service.dart lib/pages/search/advanced_discover_page.dart lib/pages/search/search_page.dart lib/services/cache/storage_cache_service.dart lib/services/config/settings_transfer_service.dart lib/pages/settings/torbox_quick_settings_page.dart lib/pages/settings/settings_transfer_page.dart lib/services/player/audio_language_priority.dart lib/services/player/playback_autoselection.dart lib/widgets/player/player_transport.dart lib/services/config/build_identity.dart lib/pages/settings/about_settings_page.dart lib/pages/settings/updates_settings_page.dart lib/pages/player/player_screen.dart lib/pages/player/watch_screen.dart lib/pages/details/details_page.dart lib/services/my_list/my_list_service.dart lib/services/my_list/github_library_cloud.dart lib/services/continue_watching/github_progress_cloud.dart lib/services/continue_watching/continue_watching_service.dart lib/widgets/home/continue_watching_slider.dart lib/pages/settings/github_library_settings_page.dart lib/services/my_list/trakt_cloud_library.dart lib/services/my_list/trakt_merge_plan.dart lib/services/trakt/trakt_service.dart lib/pages/my_list/my_list_page.dart lib/pages/settings/trakt_settings_page.dart lib/pages/settings/simkl_settings_page.dart lib/services/simkl/simkl_service.dart lib/services/storage/storage_service.dart lib/services/config/env_service.dart lib/services/my_list/simkl_hearts_cloud.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Supply official verified TorrServer Windows binary
@@ -105,7 +106,7 @@ jobs:
       - name: Build Windows executable
         shell: pwsh
         run: |
-          flutter build windows --release --dart-define-from-file=.env
+          flutter build windows --release --build-name=1.1.0 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (!(Test-Path "build/windows/x64/runner/Release/playtorrio.exe")) {
             throw "Windows executable was not created"
@@ -132,7 +133,7 @@ jobs:
           }
           if (!(Test-Path $compiler)) { throw "Inno Setup compiler missing" }
           New-Item -Force -ItemType Directory -Path "installer/windows/Output" | Out-Null
-          & $compiler "/DMyAppVersion=1.0.8" "installer/windows/setup.iss"
+          & $compiler "/DMyAppVersion=1.1.0" "/DMyAppBuild=${{ github.run_number }}" "installer/windows/setup.iss"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item "installer/windows/Output/PlayTorrio-Windows-Setup.exe" "PlayTorrio-Windows-Setup.exe" -Force
           if (!(Test-Path "PlayTorrio-Windows-Setup.exe")) { throw "Installer missing" }
@@ -220,6 +221,10 @@ jobs:
             lib/services/addon/addon_manager.dart \
             lib/services/player/audio_language_priority.dart \
             lib/services/player/playback_autoselection.dart \
+            lib/widgets/player/player_transport.dart \
+            lib/services/config/build_identity.dart \
+            lib/pages/settings/about_settings_page.dart \
+            lib/pages/settings/updates_settings_page.dart \
             lib/services/player/player_settings.dart \
             lib/pages/player/player_screen.dart \
             lib/pages/player/watch_screen.dart \
@@ -258,7 +263,7 @@ jobs:
         run: flutter test test/tmdb_advanced_discover_test.dart
 
       - name: Build unsigned iOS 15 release
-        run: flutter build ios --release --no-codesign --build-number="${{ github.run_number }}" --dart-define-from-file=.env
+        run: flutter build ios --release --no-codesign --build-name=1.1.0 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
 
       - name: Verify minimum iOS 15
         run: |
@@ -445,19 +450,42 @@ jobs:
           echo "Matched Windows and iOS 15 packages for commit $GITHUB_SHA"
           sha256sum packages/windows/* packages/ios15/*
 
-      - name: Publish direct Windows downloads and TrollStore IPA together
+      - name: Publish uniquely versioned Windows and TrollStore releases
         env:
           GH_TOKEN: ${{ github.token }}
+          APP_VERSION: "1.1.0"
         run: |
-          gh release upload ios15-advanced-discover-20261025 \
-            packages/windows/PlayTorrio-Windows-Setup.exe \
-            packages/windows/PlayTorrio-Windows-x64-Portable.zip \
-            packages/ios15/PlayTorrio-iOS15-TrollStore.ipa \
-            --repo "${{ github.repository }}" --clobber
-          gh release view ios15-advanced-discover-20261025 \
-            --repo "${{ github.repository }}" --json assets \
-            --jq '.assets[].name' > /tmp/playtorrio-released-assets.txt
-          grep -Fx 'PlayTorrio-Windows-Setup.exe' /tmp/playtorrio-released-assets.txt
-          grep -Fx 'PlayTorrio-Windows-x64-Portable.zip' /tmp/playtorrio-released-assets.txt
-          grep -Fx 'PlayTorrio-iOS15-TrollStore.ipa' /tmp/playtorrio-released-assets.txt
-          echo "Published both platforms from $GITHUB_SHA"
+          set -euo pipefail
+          TAG="build-v${APP_VERSION}-b${GITHUB_RUN_NUMBER}"
+          BASENAME="PlayTorrio-v${APP_VERSION}-build${GITHUB_RUN_NUMBER}"
+          mkdir -p release
+          cp packages/windows/PlayTorrio-Windows-Setup.exe "release/${BASENAME}-Windows-Setup.exe"
+          cp packages/windows/PlayTorrio-Windows-x64-Portable.zip "release/${BASENAME}-Windows-x64-Portable.zip"
+          cp packages/ios15/PlayTorrio-iOS15-TrollStore.ipa "release/${BASENAME}-iOS15-TrollStore.ipa"
+          sha256sum release/PlayTorrio-* > release/SHA256SUMS.txt
+          NOTES="PlayTorrio v${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})
+
+          Source revision: ${GITHUB_SHA}
+          Windows installer, portable ZIP, and signed iOS 15 TrollStore IPA are built from the same commit.
+
+          What's new:
+          - Clearly labeled Next Episode button, including compact Windows windows.
+          - Recovery of the episode list for shows launched from Continue Watching.
+          - Installed version, build number, and source revision shown in Settings > About and App Updates.
+          - English subtitle/audio preferences and private GitHub My List and Continue Watching sync."
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "PlayTorrio v${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" --notes "$NOTES" --latest
+          else
+            gh release create "$TAG" release/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "PlayTorrio v${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" \
+              --notes "$NOTES" \
+              --latest
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json name,url,assets \
+            --jq '{name: .name, url: .url, assets: [.assets[].name]}'
+          echo "### Published PlayTorrio v${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"

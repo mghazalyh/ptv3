@@ -1,0 +1,91 @@
+name: Telegram Channel Test Message
+
+on:
+  push:
+    branches:
+      - parity-floating-player-both
+    paths:
+      - .github/workflows/telegram-channel-test.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  send-test:
+    name: Send a test post to the PlayTorrio Telegram channel
+    runs-on: ubuntu-latest
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+    steps:
+      - name: Send Telegram channel message
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          token = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+          if not token:
+              sys.exit('Missing GitHub Actions secret TELEGRAM_BOT_TOKEN. Add it under Settings > Secrets and variables > Actions.')
+
+          def telegram(method, params=None):
+              url = f'https://api.telegram.org/bot{token}/{method}'
+              body = urllib.parse.urlencode(params or {}).encode('utf-8')
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(url, data=body), timeout=20) as response:
+                      data = json.load(response)
+              except urllib.error.HTTPError as exc:
+                  sys.exit(f'Telegram {method} returned HTTP {exc.code}. Check bot configuration and channel permissions.')
+              except Exception as exc:
+                  sys.exit(f'Telegram {method} request failed ({type(exc).__name__}).')
+              if not data.get('ok'):
+                  sys.exit(f'Telegram {method} was unsuccessful. Verify bot permissions and your channel ID.')
+              return data['result']
+
+          channel_id = os.environ.get('TELEGRAM_CHANNEL_ID', '').strip()
+          if not channel_id:
+              # Newly added channel admins receive my_chat_member updates; bots
+              # also see channel_post updates when a channel owner posts a test.
+              # Never choose arbitrarily among multiple channels.
+              updates = telegram('getUpdates', {'limit': 100, 'timeout': 0})
+              candidates = set()
+              for update in updates:
+                  membership = update.get('my_chat_member') or {}
+                  chat = membership.get('chat') or {}
+                  new_member = membership.get('new_chat_member') or {}
+                  if chat.get('type') == 'channel' and new_member.get('status') == 'administrator':
+                      candidates.add(str(chat['id']))
+                  post_chat = (update.get('channel_post') or {}).get('chat') or {}
+                  if post_chat.get('type') == 'channel':
+                      candidates.add(str(post_chat['id']))
+
+              if len(candidates) != 1:
+                  if not candidates:
+                      sys.exit('The bot has no pending channel updates. Post a fresh message in the channel AFTER adding the bot as an admin, then rerun this workflow. Or set the TELEGRAM_CHANNEL_ID secret.')
+                  sys.exit('The bot has updates from multiple channels. Set TELEGRAM_CHANNEL_ID to your intended channel numeric ID to avoid posting to the wrong channel.')
+              channel_id = next(iter(candidates))
+              print(f'Discovered channel ID: {channel_id} (save this as the TELEGRAM_CHANNEL_ID GitHub Actions secret for future IPA delivery).')
+          else:
+              print('Using configured private channel ID.')
+
+          bot = telegram('getMe')
+          member = telegram('getChatMember', {'chat_id': channel_id, 'user_id': bot['id']})
+          if member.get('status') not in ('administrator', 'creator'):
+              sys.exit('The bot is not a channel administrator. Grant it the Post Messages permission.')
+          if member.get('status') == 'administrator' and not member.get('can_post_messages', False):
+              sys.exit('The bot is an administrator but cannot post messages. Enable Post Messages.')
+
+          sent = telegram('sendMessage', {
+              'chat_id': channel_id,
+              'text': '✅ PlayTorrio build bot test successful! Your iOS 15 TrollStore IPA delivery can be enabled. This message was sent securely by GitHub Actions.',
+              'disable_web_page_preview': 'true',
+          })
+          print(f'Test posted successfully! Telegram message ID: {sent["message_id"]}')
+          print(f'Channel ID: {channel_id}')
+          PY

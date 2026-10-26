@@ -23,7 +23,12 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## Active CI repair for v1.1.5 (2026-10-27)
+## Current v1.1.5 paired CI verification checkpoint
+
+- Build #123 failed test compilation because `tmdb_discover_service.dart` had a duplicated stale suffix and duplicate `_DiscoverCacheEntry`. Root-cause repair reconstructed it directly from last-good v1.1.4 TMDB service, adding only one `relatedSeries` and `selectSeriesId` block and verified all class/method occurrence counts. Source blob `70fa4f544731b14e6ab58568c8d57506982651c5`. Next paired CI tests/builds pending; **no new v1.1.5 release yet**.
+- Preserve mandatory handover updates and documentation-only main mirror.
+
+
 
 - Initial Build #122 failed Windows tests during Dart load because scripted JS replacement truncated `RegExp(r'^tt\\d+$')` in the new `TmdbDiscoverService.relatedSeries` method; source repair reconstructed the whole method and preserved the intended behavior. **No v1.1.5 build success or release at this checkpoint**. Next check new paired CI and update living handover. Do not give fabricated binary links or mark a failed test as passing; latest paired release remains **v1.1.4 Build #121**.
 - Mandatory: include `handover.md` + `NEXT_SESSION.md` in the same work unit for all real edits, and docs-only mirror to main.

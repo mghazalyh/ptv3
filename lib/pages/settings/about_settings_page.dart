@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../../services/config/build_identity.dart';
 
 class AboutSettingsPage extends StatelessWidget {
   const AboutSettingsPage({super.key});
@@ -68,15 +69,27 @@ class AboutSettingsPage extends StatelessWidget {
                     FutureBuilder<PackageInfo>(
                       future: PackageInfo.fromPlatform(),
                       builder: (context, snapshot) {
-                        final version = snapshot.hasData ? snapshot.data!.version : '1.0.8';
-                        return Text(
-                          'Version $version • Next-Gen Streaming Hub',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.white.withValues(alpha: 0.45),
-                            fontWeight: FontWeight.w500,
+                        final installed = snapshot.hasData
+                            ? BuildIdentity.versionLabel(snapshot.data!)
+                            : 'Version information unavailable';
+                        return Column(children: [
+                          SelectableText(
+                            'Installed: $installed',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        );
+                          const SizedBox(height: 5),
+                          SelectableText(
+                            BuildIdentity.sourceLabel,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.55),
+                            ),
+                          ),
+                        ]);
                       },
                     ),
                   ],

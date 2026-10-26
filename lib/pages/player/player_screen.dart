@@ -1412,6 +1412,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     _volumeHudTimer?.cancel();
     _audioHudTimer?.cancel();
     _savePlaybackProgress();
+    // Upload the last position on exit rather than waiting for the next
+    // one-minute progress batch. This is best effort when offline.
+    unawaited(ContinueWatchingService.syncGitHubProgress(force: true));
     WakelockPlus.disable();
     _hideTimer?.cancel();
     SystemChrome.setPreferredOrientations([

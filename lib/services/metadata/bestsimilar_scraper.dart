@@ -71,7 +71,10 @@ class BSItem {
     // An explicit autocomplete match is verified against the same item ID
     // (or unique title+year) and should override unreliable HTML flags.
     if (autocompleteIsTv != null) return autocompleteIsTv;
-    if (sourceIsTv != null) return sourceIsTv;
+    // Page-level "movie" tags are not reliable on mixed recommendations.
+    // Trust explicit positive TV flags; otherwise leave the type unresolved
+    // until autocomplete verifies the individual title.
+    if (sourceIsTv == true) return true;
     final s = slug.toLowerCase();
     if (s.contains('tv-series') || s.contains('tv-serial') ||
         s.contains('television-series')) return true;

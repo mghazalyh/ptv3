@@ -60,6 +60,8 @@ class ContinueWatchingService {
       ValueNotifier<List<ContinueWatchingItem>>([]);
 
   static Future<void> initialize() async {
+    GitHubProgressCloud.instance.flushPending =
+        () => syncGitHubProgress(force: true);
     try {
       final prefs = await SharedPreferences.getInstance();
       final rawJson = prefs.getString(_storageKey);

@@ -7,6 +7,7 @@ class PlayerTopBar extends StatelessWidget {
   final String? subtitle;
   final String? quality;
   final VoidCallback onBack;
+  final VoidCallback? onShowDetails;
   final VoidCallback? onToggleEpisodes;
   final bool isEpisodesActive;
   final VoidCallback? onScreenshot;
@@ -21,6 +22,7 @@ class PlayerTopBar extends StatelessWidget {
     this.subtitle,
     this.quality,
     required this.onBack,
+    this.onShowDetails,
     this.onToggleEpisodes,
     this.isEpisodesActive = false,
     this.onScreenshot,
@@ -144,6 +146,25 @@ class PlayerTopBar extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (onShowDetails != null) ...[
+                TextButton.icon(
+                  key: const ValueKey('player-show-details'),
+                  onPressed: onShowDetails,
+                  icon: const Icon(Icons.info_outline_rounded, size: 19),
+                  label: Text(MediaQuery.sizeOf(context).width < 650
+                      ? 'Details' : 'Show Details'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: const Color(0xCC41318B),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    textStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               if (onToggleEpisodes != null) ...[
                 Material(
                   color: Colors.transparent,

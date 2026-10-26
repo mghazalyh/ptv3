@@ -1,5 +1,5 @@
-name: PlayTorrio v1.1.2 — Paired Windows and iOS 15 Builds
-run-name: "PlayTorrio v1.1.2 · Build #${{ github.run_number }} · ${{ github.ref_name }}"
+name: PlayTorrio v1.1.3 — Paired Windows and iOS 15 Builds
+run-name: "PlayTorrio v1.1.3 · Build #${{ github.run_number }} · ${{ github.ref_name }}"
 
 on:
   push:
@@ -53,6 +53,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/tmdb_advanced_discover_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/recommendation_media_type_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/curated_recommendations_see_all_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/show_details_navigation_test.dart
@@ -79,7 +81,7 @@ jobs:
       - name: Analyze modified shared app screens and services
         shell: pwsh
         run: |
-          flutter analyze --no-pub --no-fatal-infos lib/services/metadata/tmdb_discover_service.dart lib/pages/search/advanced_discover_page.dart lib/pages/search/search_page.dart lib/services/cache/storage_cache_service.dart lib/services/config/settings_transfer_service.dart lib/pages/settings/torbox_quick_settings_page.dart lib/pages/settings/settings_transfer_page.dart lib/services/player/audio_language_priority.dart lib/services/player/playback_autoselection.dart lib/widgets/player/player_transport.dart lib/widgets/player/player_top_bar.dart lib/utils/navigation/media_details_navigation.dart lib/services/config/build_identity.dart lib/models/movie/movie_section.dart lib/pages/catalog/catalog_page.dart lib/services/home/home_page_settings.dart lib/widgets/movie/movie_slider_section.dart lib/services/updater/app_updater_service.dart lib/pages/settings/about_settings_page.dart lib/pages/settings/updates_settings_page.dart lib/pages/player/player_screen.dart lib/pages/player/watch_screen.dart lib/pages/details/details_page.dart lib/services/my_list/my_list_service.dart lib/services/my_list/github_library_cloud.dart lib/services/continue_watching/github_progress_cloud.dart lib/services/continue_watching/continue_watching_service.dart lib/widgets/home/continue_watching_slider.dart lib/pages/settings/github_library_settings_page.dart lib/services/my_list/trakt_cloud_library.dart lib/services/my_list/trakt_merge_plan.dart lib/services/trakt/trakt_service.dart lib/pages/my_list/my_list_page.dart lib/pages/settings/trakt_settings_page.dart lib/pages/settings/simkl_settings_page.dart lib/services/simkl/simkl_service.dart lib/services/storage/storage_service.dart lib/services/config/env_service.dart lib/services/my_list/simkl_hearts_cloud.dart
+          flutter analyze --no-pub --no-fatal-infos lib/services/metadata/tmdb_discover_service.dart lib/pages/search/advanced_discover_page.dart lib/pages/search/search_page.dart lib/services/cache/storage_cache_service.dart lib/services/config/settings_transfer_service.dart lib/pages/settings/torbox_quick_settings_page.dart lib/pages/settings/settings_transfer_page.dart lib/services/player/audio_language_priority.dart lib/services/player/playback_autoselection.dart lib/widgets/player/player_transport.dart lib/widgets/player/player_top_bar.dart lib/utils/navigation/media_details_navigation.dart lib/services/config/build_identity.dart lib/models/movie/movie.dart lib/services/metadata/bestsimilar_scraper.dart lib/services/metadata/metadata_service.dart lib/widgets/movie/movie_card.dart lib/models/movie/movie_section.dart lib/pages/catalog/catalog_page.dart lib/services/home/home_page_settings.dart lib/widgets/movie/movie_slider_section.dart lib/services/updater/app_updater_service.dart lib/pages/settings/about_settings_page.dart lib/pages/settings/updates_settings_page.dart lib/pages/player/player_screen.dart lib/pages/player/watch_screen.dart lib/pages/details/details_page.dart lib/services/my_list/my_list_service.dart lib/services/my_list/github_library_cloud.dart lib/services/continue_watching/github_progress_cloud.dart lib/services/continue_watching/continue_watching_service.dart lib/widgets/home/continue_watching_slider.dart lib/pages/settings/github_library_settings_page.dart lib/services/my_list/trakt_cloud_library.dart lib/services/my_list/trakt_merge_plan.dart lib/services/trakt/trakt_service.dart lib/pages/my_list/my_list_page.dart lib/pages/settings/trakt_settings_page.dart lib/pages/settings/simkl_settings_page.dart lib/services/simkl/simkl_service.dart lib/services/storage/storage_service.dart lib/services/config/env_service.dart lib/services/my_list/simkl_hearts_cloud.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Supply official verified TorrServer Windows binary
@@ -110,7 +112,7 @@ jobs:
       - name: Build Windows executable
         shell: pwsh
         run: |
-          flutter build windows --release --build-name=1.1.2 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
+          flutter build windows --release --build-name=1.1.3 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (!(Test-Path "build/windows/x64/runner/Release/playtorrio.exe")) {
             throw "Windows executable was not created"
@@ -137,7 +139,7 @@ jobs:
           }
           if (!(Test-Path $compiler)) { throw "Inno Setup compiler missing" }
           New-Item -Force -ItemType Directory -Path "installer/windows/Output" | Out-Null
-          & $compiler "/DMyAppVersion=1.1.2" "/DMyAppBuild=${{ github.run_number }}" "installer/windows/setup.iss"
+          & $compiler "/DMyAppVersion=1.1.3" "/DMyAppBuild=${{ github.run_number }}" "installer/windows/setup.iss"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item "installer/windows/Output/PlayTorrio-Windows-Setup.exe" "PlayTorrio-Windows-Setup.exe" -Force
           if (!(Test-Path "PlayTorrio-Windows-Setup.exe")) { throw "Installer missing" }
@@ -145,7 +147,7 @@ jobs:
       - name: Upload Windows packages
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrio-Windows-v1.1.2-build-${{ github.run_number }}
+          name: PlayTorrio-Windows-v1.1.3-build-${{ github.run_number }}
           path: |
             PlayTorrio-Windows-Setup.exe
             PlayTorrio-Windows-x64-Portable.zip
@@ -229,6 +231,10 @@ jobs:
             lib/widgets/player/player_top_bar.dart \
             lib/utils/navigation/media_details_navigation.dart \
             lib/services/config/build_identity.dart \
+            lib/models/movie/movie.dart \
+            lib/services/metadata/bestsimilar_scraper.dart \
+            lib/services/metadata/metadata_service.dart \
+            lib/widgets/movie/movie_card.dart \
             lib/models/movie/movie_section.dart \
             lib/pages/catalog/catalog_page.dart \
             lib/services/home/home_page_settings.dart \
@@ -249,6 +255,9 @@ jobs:
           flutter test test/github_progress_merge_test.dart
           flutter test test/github_library_merge_test.dart
           flutter test test/services/my_list_service_test.dart
+
+      - name: Test TV Series vs Movie recommendations on iOS
+        run: flutter test test/recommendation_media_type_test.dart
 
       - name: Test genuine See All recommendations on iOS
         run: flutter test test/curated_recommendations_see_all_test.dart
@@ -280,7 +289,7 @@ jobs:
         run: flutter test test/tmdb_advanced_discover_test.dart
 
       - name: Build unsigned iOS 15 release
-        run: flutter build ios --release --no-codesign --build-name=1.1.2 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
+        run: flutter build ios --release --no-codesign --build-name=1.1.3 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
 
       - name: Verify minimum iOS 15
         run: |
@@ -338,7 +347,7 @@ jobs:
       - name: Upload signed iOS 15 TrollStore IPA
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrio-iOS15-TrollStore-v1.1.2-build-${{ github.run_number }}
+          name: PlayTorrio-iOS15-TrollStore-v1.1.3-build-${{ github.run_number }}
           path: build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa
           if-no-files-found: error
 
@@ -358,7 +367,7 @@ jobs:
       - name: Download signed IPA from this workflow run
         uses: actions/download-artifact@v4
         with:
-          name: PlayTorrio-iOS15-TrollStore-v1.1.2-build-${{ github.run_number }}
+          name: PlayTorrio-iOS15-TrollStore-v1.1.3-build-${{ github.run_number }}
           path: packages/ios15
 
       - name: Upload IPA to Telegram group or provide GitHub download link
@@ -450,13 +459,13 @@ jobs:
       - name: Download Windows build from this workflow run
         uses: actions/download-artifact@v4
         with:
-          name: PlayTorrio-Windows-v1.1.2-build-${{ github.run_number }}
+          name: PlayTorrio-Windows-v1.1.3-build-${{ github.run_number }}
           path: packages/windows
 
       - name: Download TrollStore IPA from this workflow run
         uses: actions/download-artifact@v4
         with:
-          name: PlayTorrio-iOS15-TrollStore-v1.1.2-build-${{ github.run_number }}
+          name: PlayTorrio-iOS15-TrollStore-v1.1.3-build-${{ github.run_number }}
           path: packages/ios15
 
       - name: Verify both packages belong to this build
@@ -470,7 +479,7 @@ jobs:
       - name: Publish uniquely versioned Windows and TrollStore releases
         env:
           GH_TOKEN: ${{ github.token }}
-          APP_VERSION: "1.1.2"
+          APP_VERSION: "1.1.3"
         run: |
           set -euo pipefail
           TAG="build-v${APP_VERSION}-b${GITHUB_RUN_NUMBER}"
@@ -486,11 +495,11 @@ jobs:
           Windows installer, portable ZIP, and signed iOS 15 TrollStore IPA are built from the same commit.
 
           What's new:
-          - See All now opens the actual recommendations associated with each home-page row, not a generic catalog.
-          - My List and Continue Watching similarity rankings preserve all source results (no 24-title cutoff).
-          - Curated results can be searched locally without losing their recommendation context.
-          - Trakt recommendation and Simkl top-rated shelves no longer fetch fake Stremio catalog IDs.
-          - Show Details and Next Episode controls remain available; private GitHub syncing stays unchanged."
+          - Fix recommendations labeling TV series as Movie. Verify BestSimilar's actual serial flag; never guess unknown titles as movies.
+          - Normalize common TV/show media labels across home cards, posters, and metadata search.
+          - Preserve TV-series types even when a Stremio addon omits the type field in individual catalog entries.
+          - See All retains complete title-specific recommendations and local filtering.
+          - Show Details, Next Episode, private GitHub sync and Windows/iOS parity remain intact."
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "PlayTorrio v${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" --notes "$NOTES" --latest

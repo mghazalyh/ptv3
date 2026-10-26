@@ -23,7 +23,13 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## Current release checkpoint (2026-10-27 SGT) — v1.1.5 Build #125
+## Current v1.1.6 source fix — TVDB Settings entry missing on iOS (2026-10-27 SGT)
+
+- User reported no TVDB key UI in iOS v1.1.5 Build #125. Confirmed the TVDB credential form existed but **main Settings did not import or link to it**. v1.1.6 fixes `lib/pages/settings/settings_page.dart` with a visible **TVDB Series Metadata** tile below Addons routing to `TvdbSettingsPage`. Masked TVDB v4 key and optional subscriber PIN are securely saved only on-device.
+- Regression `test/tvdb_settings_navigation_test.dart` checks the Settings tile route and destination form. Added to Windows and iOS tests, analyzer checks main Settings. Bumped all app build/release identifiers to v1.1.6. No metadata provider logic or playback changes.
+- **No new v1.1.6 release verified until successful paired CI**. Last fully verified release v1.1.5 Build #125 with Telegram actual IPA document message #25. Preserve `handover.md` and `NEXT_SESSION.md` in same source commit; mirror docs only to divergent main, never merge its application code.
+
+## Historical release checkpoint (2026-10-27 SGT) — v1.1.5 Build #125
 
 - **v1.1.5 Build #125** is successfully paired and **published**: [workflow](https://github.com/mghazalyh/ptv3/actions/runs/40380065374) source commit `ec88c73da57efc00eb35e54c77a9cfef0a6d72e7`, Windows **17/17**, iOS15 **26 successful steps**, Telegram IPA **actual document message ID 25**, and 6 successful matched publication steps. [Release](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.5-b125) contains Windows portable ZIP, Setup EXE, iOS15 TrollStore IPA and SHA256SUMS. The Build #122–124 failures in older checkpoints are historical.
 - Similar Content on series has fixed multi-year premiere dates and optional BestSimilar→polite TMDB recommendations fallback; opt-in TVDB v4 metadata under Settings → TVDB Series Metadata with device-secure key and optional subscriber PIN. No fabricated matches, no bulk watchlist polling, preserve embedded-English-first subtitle and other playback requirements. **Real-device user validation is still pending.**

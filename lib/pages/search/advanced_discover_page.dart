@@ -38,6 +38,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
   };
   final service = TmdbDiscoverService.instance;
   final ScrollController _discoverScroll = ScrollController();
+  final titleController = TextEditingController();
   final fromController = TextEditingController();
   final toController = TextEditingController();
   DiscoverType type = DiscoverType.movie;
@@ -47,6 +48,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
   int? openingId, appliedStart, appliedEnd;
   bool loading = false, hasKey = false, applied = false;
   String? error;
+  DiscoverFilters? _appliedFilters;
 
   @override
   void initState() {
@@ -58,6 +60,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
   void dispose() {
     serial++;
     _discoverScroll.dispose();
+    titleController.dispose();
     fromController.dispose();
     toController.dispose();
     super.dispose();
@@ -75,6 +78,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         final l = prefs.getString('adv_discover_language') ?? '';
         country = countries.containsKey(c) ? c : '';
         language = languages.containsKey(l) ? l : '';
+        titleController.text = prefs.getString('adv_discover_query') ?? '';
         fromController.text = prefs.getString('adv_discover_from') ?? '';
         toController.text = prefs.getString('adv_discover_to') ?? '';
         final s = prefs.getString('adv_discover_sort') ?? '';
@@ -101,15 +105,20 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
     if (loading || !hasKey) return;
     DiscoverFilters filters;
     try {
-      filters = DiscoverFilters(
-        type: type,
-        fromYear: _year(fromController),
-        toYear: _year(toController),
-        country: country.isEmpty ? null : country,
-        originalLanguage: language.isEmpty ? null : language,
-        sort: order,
-        page: reset ? 1 : page + 1,
-      );
+      // Paging must continue the APPLIED search, even if the user has
+      // edited title or filters without pressing Search again.
+      filters = !reset && _appliedFilters != null
+        ? _appliedFilters!.withPage(page + 1)
+        : DiscoverFilters(
+            type: type,
+            titleQuery: titleController.text.trim(),
+            fromYear: _year(fromController),
+            toYear: _year(toController),
+            country: country.isEmpty ? null : country,
+            originalLanguage: language.isEmpty ? null : language,
+            sort: order,
+            page: 1,
+          );
       filters.toQuery();
     } catch (e) {
       setState(() => error = e.toString());
@@ -138,6 +147,8 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
     try {
       if (reset) {
         final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('adv_discover_query',
+            titleController.text.trim());
         await prefs.setString('adv_discover_type',
             type == DiscoverType.series ? 'series' : 'movie');
         await prefs.setString('adv_discover_country', country);
@@ -156,6 +167,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         totalPages = response.totalPages;
         totalResults = response.totalResults;
         applied = true;
+        _appliedFilters = filters;
         appliedStart = filters.fromYear ?? filters.toYear;
         appliedEnd = filters.toYear ?? filters.fromYear;
       });
@@ -347,8 +359,9 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         controller: _discoverScroll,
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Browse without typing a title. Filter by year range, '
-              'country and language.'),
+          const Text('Optionally enter a title, then combine it with your '
+              'year, country, language and sort filters. Leave the title '
+              'blank to browse everything.'),
           const SizedBox(height: 14),
           SegmentedButton<DiscoverType>(
             segments: const [
@@ -359,6 +372,26 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
             ],
             selected: {type},
             onSelectionChanged: (v) => setState(() => type = v.first),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: titleController,
+            textInputAction: TextInputAction.search,
+            autocorrect: false,
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              labelText: 'Movie or TV show title (optional)',
+              hintText: 'e.g. The Order',
+              prefixIcon: const Icon(Icons.search),
+              isDense: true,
+              suffixIcon: titleController.text.isEmpty ? null : IconButton(
+                tooltip: 'Clear title and browse with filters',
+                icon: const Icon(Icons.close),
+                onPressed: () => setState(() => titleController.clear()),
+              ),
+            ),
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _browse(reset: true),
           ),
           const SizedBox(height: 14),
           Row(children: [
@@ -391,7 +424,8 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
             onPressed: hasKey && !loading
                 ? () => _browse(reset: true) : null,
             icon: const Icon(Icons.tune),
-            label: const Text('Discover Titles'),
+            label: Text(titleController.text.trim().isEmpty
+                ? 'Discover Titles' : 'Search Titles & Apply Filters'),
           ),
           if (!hasKey) Card(child: ListTile(
             title: const Text('Add TMDB API key to get started'),
@@ -401,9 +435,17 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
           )),
           const SizedBox(height: 12),
           Text(type == DiscoverType.series
-              ? 'TV years use episodes airing during the selected range, '
-                'not the original premiere year. Older series returning '
-                'in 2026 can appear when TMDB lists those episodes.'
+              ? (titleController.text.trim().isNotEmpty &&
+                    (fromController.text.trim().isNotEmpty ||
+                     toController.text.trim().isNotEmpty) &&
+                    fromController.text.trim() != toController.text.trim()
+                ? 'With title text and a multi-year range, TV results use '
+                  'their premiere year. A single TV year includes episode '
+                  'airings; leave title blank for the original Discover '
+                  'episode-year range filters.'
+                : 'TV years use episodes airing during the selected range '
+                  'when browsing without a title. One-year title searches '
+                  'also include returning series.')
               : 'Movie years use TMDB primary release dates.',
             style: const TextStyle(color: Colors.white60, fontSize: 12)),
           const SizedBox(height: 5),
@@ -420,9 +462,14 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
           ],
           const SizedBox(height: 20),
           if (applied) ...[
-            Text(totalResults == 0
-                ? 'No matches; try different filters'
-                : '$totalResults matches · Page $page/$totalPages',
+            Text(_appliedFilters?.hasTitleQuery == true
+                ? (titles.isEmpty
+                    ? 'No matching titles on this search page'
+                    : '${titles.length} filtered titles shown · '
+                      'Search page $page/$totalPages')
+                : (totalResults == 0
+                    ? 'No matches; try different filters'
+                    : '$totalResults matches · Page $page/$totalPages'),
               style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             GridView.builder(

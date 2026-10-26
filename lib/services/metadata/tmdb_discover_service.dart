@@ -11,6 +11,7 @@ enum DiscoverType { movie, series }
 
 class DiscoverFilters {
   final DiscoverType type;
+  final String titleQuery;
   final int? fromYear;
   final int? toYear;
   final String? country;
@@ -19,6 +20,7 @@ class DiscoverFilters {
   final int page;
   const DiscoverFilters({
     this.type = DiscoverType.movie,
+    this.titleQuery = '',
     this.fromYear,
     this.toYear,
     this.country,
@@ -26,6 +28,21 @@ class DiscoverFilters {
     this.sort = 'popularity.desc',
     this.page = 1,
   });
+
+  /// A non-empty title uses TMDB's dedicated /search API rather than
+  /// adding an unsupported query parameter to the /discover endpoint.
+  bool get hasTitleQuery => titleQuery.trim().isNotEmpty;
+
+  DiscoverFilters withPage(int requestedPage) => DiscoverFilters(
+    type: type,
+    titleQuery: titleQuery,
+    fromYear: fromYear,
+    toYear: toYear,
+    country: country,
+    originalLanguage: originalLanguage,
+    sort: sort,
+    page: requestedPage,
+  );
 
   Map<String, String> toQuery() {
     final first = fromYear ?? toYear;
@@ -44,6 +61,21 @@ class DiscoverFilters {
         .contains(sort)) {
       throw const FormatException('Invalid sort order.');
     }
+    // TMDB search supports text and paging, but not discover-only
+    // sort/country/language filters. Enforce those on the returned rows.
+    // TV search's "year" includes episode-airing years (unlike first_air_date).
+    if (hasTitleQuery) {
+      return <String, String>{
+        'page': '$page',
+        'language': 'en-US',
+        'include_adult': 'false',
+        'query': titleQuery.trim(),
+        if (first != null && last == first)
+          if (type == DiscoverType.series) 'year': '$first'
+          else 'primary_release_year': '$first',
+      };
+    }
+
     final params = <String, String>{
       'page': '$page',
       'language': 'en-US',
@@ -72,7 +104,9 @@ class DiscoverFilters {
   }
 
   Uri buildUri() => Uri.https('api.themoviedb.org',
-      type == DiscoverType.series ? '/3/discover/tv' : '/3/discover/movie',
+      hasTitleQuery
+        ? (type == DiscoverType.series ? '/3/search/tv' : '/3/search/movie')
+        : (type == DiscoverType.series ? '/3/discover/tv' : '/3/discover/movie'),
       toQuery());
 }
 
@@ -241,7 +275,8 @@ class TmdbDiscoverService {
     final pending = _inFlight[id];
     if (pending != null) return pending;
 
-    final ttl = endpoint.startsWith('discover/')
+    final ttl = (endpoint.startsWith('discover/') ||
+        endpoint.startsWith('search/'))
         ? const Duration(minutes: 15) : const Duration(hours: 24);
     final request = _sendRequest(endpoint, params, storedKey);
     _inFlight[id] = request;
@@ -302,15 +337,120 @@ class TmdbDiscoverService {
     throw const FormatException('TMDB returned invalid data.');
   }
 
+  /// Search results contain the language and premiere date, and TV search
+  /// results also contain origin_country. For movies, origin country may
+  /// require an individual /movie/{id} metadata lookup (only if selected).
+  @visibleForTesting
+  static bool matchesTitleFilters(
+      Map<String, dynamic> item, DiscoverFilters filters,
+      {Map<String, dynamic>? movieDetails}) {
+    if (filters.originalLanguage != null &&
+        filters.originalLanguage!.isNotEmpty &&
+        item['original_language']?.toString() != filters.originalLanguage) {
+      return false;
+    }
+    if (filters.sort == 'vote_average.desc' &&
+        ((item['vote_count'] as num?)?.toInt() ?? 0) < 100) {
+      return false;
+    }
+
+    final first = filters.fromYear ?? filters.toYear;
+    final last = filters.toYear ?? filters.fromYear;
+    // With exactly one TV year, /search/tv?year= filters against premiere
+    // AND episode-airing dates. Never discard returning older series because
+    // their first_air_date precedes the year the user searched.
+    if (first != null && last != null &&
+        !(filters.type == DiscoverType.series && first == last)) {
+      final field = filters.type == DiscoverType.series
+          ? 'first_air_date' : 'release_date';
+      final date = item[field]?.toString() ?? '';
+      final year = date.length >= 4 ? int.tryParse(date.substring(0, 4)) : null;
+      if (year == null || year < first || year > last) return false;
+    }
+
+    final country = filters.country;
+    if (country != null && country.isNotEmpty) {
+      if (filters.type == DiscoverType.series) {
+        final origins = item['origin_country'];
+        if (origins is! List || !origins.contains(country)) return false;
+      } else {
+        final origins = item['origin_country'];
+        final details = movieDetails;
+        final direct = origins is List && origins.contains(country);
+        final detailOrigins = details?['origin_country'];
+        final verifiedOrigin = detailOrigins is List &&
+            detailOrigins.contains(country);
+        final production = details?['production_countries'];
+        final verifiedProduction = production is List &&
+            production.any((x) => x is Map && x['iso_3166_1'] == country);
+        if (!direct && !verifiedOrigin && !verifiedProduction) return false;
+      }
+    }
+    return true;
+  }
+
+  @visibleForTesting
+  static List<Map<String, dynamic>> sortSearchedTitles(
+      List<Map<String, dynamic>> items, String sort) {
+    final result = List<Map<String, dynamic>>.of(items);
+    final field = switch (sort) {
+      'vote_average.desc' => 'vote_average',
+      'vote_count.desc' => 'vote_count',
+      _ => 'popularity',
+    };
+    result.sort((a, b) {
+      final left = (a[field] as num?)?.toDouble() ?? 0;
+      final right = (b[field] as num?)?.toDouble() ?? 0;
+      final comparison = right.compareTo(left);
+      // Stable for equal scores, preserving TMDB's relative relevance.
+      return comparison;
+    });
+    return result;
+  }
+
   Future<DiscoverResults> browse(DiscoverFilters filters) async {
     final key = await readKey();
     if (key.isEmpty) {
       throw const FormatException('Enter your TMDB key in Discover settings.');
     }
+
     final type = filters.type == DiscoverType.movie ? 'movie' : 'tv';
-    final response = await _request('discover/$type', filters.toQuery(), key);
-    final rows = response['results'] as List<dynamic>? ?? [];
-    final titles = rows.whereType<Map<String, dynamic>>()
+    final endpoint = filters.hasTitleQuery ? 'search/$type' : 'discover/$type';
+    final response = await _request(endpoint, filters.toQuery(), key);
+    final allRows = (response['results'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>().toList();
+    List<Map<String, dynamic>> rows;
+    if (!filters.hasTitleQuery) {
+      rows = allRows;  // Existing server-filtered Discover remains untouched.
+    } else {
+      rows = [];
+      for (final item in allRows) {
+        // Skip country-only metadata requests for movies already excluded by
+        // language, premiere year, or minimum vote-count.
+        final preCountry = DiscoverFilters(
+          type: filters.type, titleQuery: filters.titleQuery,
+          fromYear: filters.fromYear, toYear: filters.toYear,
+          originalLanguage: filters.originalLanguage,
+          sort: filters.sort, page: filters.page,
+        );
+        if (!matchesTitleFilters(item, preCountry)) continue;
+        Map<String, dynamic>? details;
+        if (filters.type == DiscoverType.movie &&
+            filters.country != null && filters.country!.isNotEmpty &&
+            item['origin_country'] is! List) {
+          final id = (item['id'] as num?)?.toInt();
+          if (id == null || id <= 0) continue;
+          // Only paid-for by deliberate movie+country+text intersection.
+          // Maximum one paced/cached details lookup per search result (20).
+          details = await _request('movie/$id', const {}, key);
+        }
+        if (matchesTitleFilters(item, filters, movieDetails: details)) {
+          rows.add(item);
+        }
+      }
+      rows = sortSearchedTitles(rows, filters.sort);
+    }
+    final titles = rows
         .map((item) => DiscoverTitle.parse(item, filters.type))
         .where((item) => item.tmdbId > 0).toList();
     return DiscoverResults(

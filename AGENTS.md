@@ -23,7 +23,13 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## Current v1.1.6 source fix — TVDB Settings entry missing on iOS (2026-10-27 SGT)
+## CURRENT: v1.1.7 Advanced Discover optional text + filters (2026-10-27)
+
+- Source implements optional title text in Advanced Discover with existing Movie/TV choice, year, country, language, sort and paginated results. Blank title must **keep old `/discover` endpoint and exact old filtering**. Text routes to `/search/movie|tv`, filters locally, country for movies uses paced/cached per-item origin-country detail calls only on deliberate selection. TV single year uses search `year` (episode-aware); multi-year TV title uses premiere-year interval and UI must disclose the difference. No automatic network calls on typing; local TMDB key only.
+- UI source `lib/pages/search/advanced_discover_page.dart`, metadata `tmdb_discover_service.dart`, mock test `test/tmdb_text_filter_search_test.dart`, source UI test `test/advanced_discover_text_ui_test.dart` both included Windows/iOS CI. Version v1.1.7+17 and paired workflow version bumped, **CI/release not yet verified**. Latest fully paired published release was **v1.1.6 Build #126**, Windows 17/17, iOS27 steps, Telegram+GitHub matched assets and visible TVDB Settings tile; never confuse it with v1.1.7.
+- Keep all behavior for player, Continue Watching, recommendations, English embedded-first subtitles and credential privacy. Mandatory living `handover.md`, `NEXT_SESSION.md`, `AGENTS.md` updates with source/status; docs-only mirrors to divergent main [skip ci].
+
+## HISTORICAL: v1.1.6 TVDB Settings navigation fix (2026-10-27 SGT)
 
 - User reported no TVDB key UI in iOS v1.1.5 Build #125. Confirmed the TVDB credential form existed but **main Settings did not import or link to it**. v1.1.6 fixes `lib/pages/settings/settings_page.dart` with a visible **TVDB Series Metadata** tile below Addons routing to `TvdbSettingsPage`. Masked TVDB v4 key and optional subscriber PIN are securely saved only on-device.
 - Regression `test/tvdb_settings_navigation_test.dart` checks the Settings tile route and destination form. Added to Windows and iOS tests, analyzer checks main Settings. Bumped all app build/release identifiers to v1.1.6. No metadata provider logic or playback changes.

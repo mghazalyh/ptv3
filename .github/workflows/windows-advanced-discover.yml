@@ -1,5 +1,5 @@
-name: PlayTorrio v1.1.6 — Paired Windows and iOS 15 Builds
-run-name: "PlayTorrio v1.1.6 · Build #${{ github.run_number }} · ${{ github.ref_name }}"
+name: PlayTorrio v1.1.7 — Paired Windows and iOS 15 Builds
+run-name: "PlayTorrio v1.1.7 · Build #${{ github.run_number }} · ${{ github.ref_name }}"
 
 on:
   push:
@@ -54,6 +54,10 @@ jobs:
           flutter test test/similar_recommendations_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/tvdb_settings_navigation_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/tmdb_text_filter_search_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/advanced_discover_text_ui_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/tmdb_advanced_discover_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -116,7 +120,7 @@ jobs:
       - name: Build Windows executable
         shell: pwsh
         run: |
-          flutter build windows --release --build-name=1.1.6 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
+          flutter build windows --release --build-name=1.1.7 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (!(Test-Path "build/windows/x64/runner/Release/playtorrio.exe")) {
             throw "Windows executable was not created"
@@ -143,7 +147,7 @@ jobs:
           }
           if (!(Test-Path $compiler)) { throw "Inno Setup compiler missing" }
           New-Item -Force -ItemType Directory -Path "installer/windows/Output" | Out-Null
-          & $compiler "/DMyAppVersion=1.1.6" "/DMyAppBuild=${{ github.run_number }}" "installer/windows/setup.iss"
+          & $compiler "/DMyAppVersion=1.1.7" "/DMyAppBuild=${{ github.run_number }}" "installer/windows/setup.iss"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item "installer/windows/Output/PlayTorrio-Windows-Setup.exe" "PlayTorrio-Windows-Setup.exe" -Force
           if (!(Test-Path "PlayTorrio-Windows-Setup.exe")) { throw "Installer missing" }
@@ -151,7 +155,7 @@ jobs:
       - name: Upload Windows packages
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrio-Windows-v1.1.6-build-${{ github.run_number }}
+          name: PlayTorrio-Windows-v1.1.7-build-${{ github.run_number }}
           path: |
             PlayTorrio-Windows-Setup.exe
             PlayTorrio-Windows-x64-Portable.zip
@@ -269,6 +273,11 @@ jobs:
       - name: Verify TVDB key option is discoverable in iOS Settings
         run: flutter test test/tvdb_settings_navigation_test.dart
 
+      - name: Test optional movie and TV title search with combined filters
+        run: |
+          flutter test test/tmdb_text_filter_search_test.dart
+          flutter test test/advanced_discover_text_ui_test.dart
+
       - name: Test genuine See All recommendations on iOS
         run: flutter test test/curated_recommendations_see_all_test.dart
 
@@ -304,7 +313,7 @@ jobs:
           flutter test test/similar_recommendations_test.dart
 
       - name: Build unsigned iOS 15 release
-        run: flutter build ios --release --no-codesign --build-name=1.1.6 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
+        run: flutter build ios --release --no-codesign --build-name=1.1.7 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
 
       - name: Verify minimum iOS 15
         run: |
@@ -362,7 +371,7 @@ jobs:
       - name: Upload signed iOS 15 TrollStore IPA
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrio-iOS15-TrollStore-v1.1.6-build-${{ github.run_number }}
+          name: PlayTorrio-iOS15-TrollStore-v1.1.7-build-${{ github.run_number }}
           path: build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa
           if-no-files-found: error
 
@@ -382,7 +391,7 @@ jobs:
       - name: Download signed IPA from this workflow run
         uses: actions/download-artifact@v4
         with:
-          name: PlayTorrio-iOS15-TrollStore-v1.1.6-build-${{ github.run_number }}
+          name: PlayTorrio-iOS15-TrollStore-v1.1.7-build-${{ github.run_number }}
           path: packages/ios15
 
       - name: Upload IPA to Telegram group or provide GitHub download link
@@ -474,13 +483,13 @@ jobs:
       - name: Download Windows build from this workflow run
         uses: actions/download-artifact@v4
         with:
-          name: PlayTorrio-Windows-v1.1.6-build-${{ github.run_number }}
+          name: PlayTorrio-Windows-v1.1.7-build-${{ github.run_number }}
           path: packages/windows
 
       - name: Download TrollStore IPA from this workflow run
         uses: actions/download-artifact@v4
         with:
-          name: PlayTorrio-iOS15-TrollStore-v1.1.6-build-${{ github.run_number }}
+          name: PlayTorrio-iOS15-TrollStore-v1.1.7-build-${{ github.run_number }}
           path: packages/ios15
 
       - name: Verify both packages belong to this build
@@ -494,7 +503,7 @@ jobs:
       - name: Publish uniquely versioned Windows and TrollStore releases
         env:
           GH_TOKEN: ${{ github.token }}
-          APP_VERSION: "1.1.6"
+          APP_VERSION: "1.1.7"
         run: |
           set -euo pipefail
           TAG="build-v${APP_VERSION}-b${GITHUB_RUN_NUMBER}"

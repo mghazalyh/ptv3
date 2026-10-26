@@ -2,7 +2,15 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## IMMEDIATE TASK — v1.1.6 TVDB key missing in iOS Settings (2026-10-27)
+## CURRENT: v1.1.7 optional title + Discover filters (2026-10-27)
+
+User explicitly requested optional title text when **searching movies and TV shows using Advanced Discover** filters. Implemented in `lib/pages/search/advanced_discover_page.dart` (input under Movie/TV switch, press Search or Enter, clear text, persist key `adv_discover_query`, combined country, language, year and sort controls; protect pagination with `_appliedFilters.withPage`). In `lib/services/metadata/tmdb_discover_service.dart`, `DiscoverFilters.titleQuery` defaults empty; **blank text still uses original TMDB `/discover/movie|tv` unmodified**. Nonempty text calls TMDB `/search/movie|tv?query=...` with bounded/local filtering of country/language/year/rating sort. When movie+text+origin-country is selected, fetch individual movie metadata for verified production country only for up to 20 per provider page, using existing spacing/cache/429 cooldown; don't guess country from translated language. **TV single-year search** uses TMDB `year` (episode-year aware); TV multi-year+title uses premiere year and UI explains limitation. Page counts filtered locally vs raw server pages, sort applies within each page. No typing-triggered API traffic.
+
+**Tests:** New `test/tmdb_text_filter_search_test.dart` covers endpoint switch, query preservation, country+language+year, old-show/returning series exact-year, movie country metadata cache, 429, pagination; `test/advanced_discover_text_ui_test.dart` guards optional visible UI and saved query. Both added to Windows + iOS CI. Version v1.1.7+17 in pubspec/resource/installer/settings/workflow. All code changes still **pending new paired CI** and iOS/Windows artifacts, so do not claim v1.1.7 released until proven.
+
+**Last fully verified paired build is now v1.1.6 Build #126**, [workflow](https://github.com/mghazalyh/ptv3/actions/runs/40384914356) Windows **17/17**, iOS15 **27 successful steps**, Telegram job success, matched [GitHub release](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.6-b126) with ZIP/EXE/IPA. It already fixes the user's missing TVDB Settings key entry but **does not yet** include new title search. Maintain root handover+NEXT_SESSION+AGENTS on every implementation/test/release milestone; mirror docs only to main, never merge divergent main source.
+
+## HISTORICAL TASK — v1.1.6 TVDB key missing in iOS Settings (2026-10-27)
 
 User installed iOS **v1.1.5 Build #125** and could not locate TVDB API key entry. Verified from exact shipped source that `lib/pages/settings/tvdb_settings_page.dart` exists and has real secure key + optional PIN/save fields, but **`lib/pages/settings/settings_page.dart` lacks import and navigable TVDB Settings tile entirely**. Bug introduced when later version bump overwrote prior tile edit. This is reproducible in source, not an iOS preference toggle.
 

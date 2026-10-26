@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../../services/config/build_identity.dart';
 import '../../services/updater/app_updater_service.dart';
 import '../../widgets/updater/update_dialog.dart';
 
@@ -96,8 +97,8 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
               FutureBuilder<PackageInfo>(
                 future: PackageInfo.fromPlatform(),
                 builder: (context, snapshot) {
-                  final version = snapshot.hasData ? snapshot.data!.version : '1.0.8';
-                  final buildNumber = snapshot.hasData ? snapshot.data!.buildNumber : '9';
+                  final version = snapshot.hasData ? snapshot.data!.version : 'Unknown';
+                  final buildNumber = snapshot.hasData ? snapshot.data!.buildNumber : '?';
                   final appName = snapshot.hasData ? snapshot.data!.appName : 'PlayTorrio';
 
                   return Container(
@@ -141,11 +142,20 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  Text(
+                                  SelectableText(
                                     'Installed Version: v$version (Build $buildNumber)',
                                     style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  SelectableText(
+                                    BuildIdentity.sourceLabel,
+                                    style: const TextStyle(
                                       color: Colors.white54,
-                                      fontSize: 12.5,
+                                      fontSize: 11,
                                     ),
                                   ),
                                 ],

@@ -2,6 +2,14 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
+## Latest user-tested status — 2026-10-27
+
+- **User confirmation:** After receiving `PlayTorrio-v1.1.3-build120-Windows-x64-Portable.zip`, the user said **"everything works"**. This means **user-reported successful use of the Windows Build #120 portable package**, not proof of exhaustive feature testing or iOS validation.
+- **Exact source:** `05ebf6e263e1df9d4a47b8cb187b3cfa81c0ba7e` on `parity-floating-player-both`; Flutter semantic version **v1.1.3**.
+- **CI:** [Build #120](https://github.com/mghazalyh/ptv3/actions/runs/40361913589), Windows job **17/17 success**, Windows Actions artifact **PlayTorrio-Windows-v1.1.3-build-120**, artifact ID **12668423291**. The 63,805,807-byte portable ZIP extracted from it passed a ZIP integrity check. iOS job **canceled**, Telegram IPA and paired release jobs **skipped**, overall workflow **failure**. The most recent verified paired release remains **v1.1.0 Build 90**.
+- **Persistent user instruction:** For **every** meaningful future source, config, workflow, packaging, test, validation, release, or delivery change, update root `handover.md` in the same work unit, and keep `NEXT_SESSION.md` synchronized. Mirror docs to `main` without merging unrelated feature code. This entry is **documentation only [skip ci]**.
+- The older Build #115–119 failure records below describe historical incidents; the Windows regression blocker was repaired in Build #120. The remaining release blocker is the missing successful iOS 15 job.
+
 ## Latest takeover (2026-10-27)
 
 The earlier Build #117 was canceled. Build #119, workflow https://github.com/mghazalyh/ptv3/actions/runs/40360818728, reached the same Windows failure in the recommendation media-type test (Expected false / Actual null); iOS was queued when reviewed. This takeover fixes the **test expectation**, tests verified movie and wrongly flagged TV cases, and hardens the BestSimilar autocomplete parser against a missing `serial` accidentally becoming Movie. The prior application HEAD was `09568fc7cf327225883cdcf4711498e612e18e88`; inspect the HEAD following this fix and the newest workflow run before further edits. Changes are on `parity-floating-player-both`, with matching handover update. **No new paired IPA/Windows release is confirmed.** The authoritative last completed paired release remains v1.1.0 Build 90. The historical Build #117/#115 details below remain for forensic context; they are not the current step to repeat.

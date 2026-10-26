@@ -23,11 +23,11 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## Present delivery checkpoint (2026-10-26 UTC)
+## Present delivery checkpoint (2026-10-27 SGT)
 
-- Latest fully successful paired release: **v1.1.0 Build 90**, https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.0-b90, workflow https://github.com/mghazalyh/ptv3/actions/runs/40331619688 (Windows 17/17, iOS 22/22; Telegram document #17).
-- Latest implemented source version: **v1.1.1**, HEAD f0e095a7a99af3faf340f04774fd987651507dac, Show Details navigation.
-- Build #97: https://github.com/mghazalyh/ptv3/actions/runs/40336345197 — Windows 17/17 success; iOS runner canceled, Telegram/publish skipped, overall workflow failure. Windows Actions artifact **PlayTorrio-Windows-v1.1.1-build-97** exists, but **no verified v1.1.1 paired GitHub release or TrollStore IPA** at this checkpoint.
-- **Refresh these statuses every time you work; do not perpetuate stale historical values.**
+- Application source is **v1.1.3**, development branch `parity-floating-player-both`, verified application commit **`05ebf6e263e1df9d4a47b8cb187b3cfa81c0ba7e`**. Root `handover.md` is the operational source of truth and must be updated **for every meaningful change or test/delivery status update**, with `NEXT_SESSION.md` kept in sync.
+- **Windows Build #120**: [workflow](https://github.com/mghazalyh/ptv3/actions/runs/40361913589) completed Windows **17/17 steps successfully** and generated Windows Actions artifact **PlayTorrio-Windows-v1.1.3-build-120** (ID **12668423291**) with a portable ZIP and installer EXE. The extracted portable ZIP passed integrity testing. **The user reported that everything works with the downloaded Windows portable build**, a user confirmation rather than exhaustive independent device testing.
+- The **iOS 15 job was canceled** in Build #120; Telegram IPA and publish jobs were **skipped**, making the paired run **overall failure**. There is **no verified v1.1.3 paired GitHub release or iOS IPA**. The last fully successful paired release is [v1.1.0 Build #90](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.0-b90), with Windows 17/17, iOS 22/22 and Telegram document.
+- Preserve current behavior and prior requirements. All changes in this checkpoint are **documentation only [skip ci]**. Do not rebuild or reset working Windows source merely for documentation. Do not confuse Actions artifacts with release assets.
 
 See **handover.md** for full timeline, file map, run history, data contracts and known issues.

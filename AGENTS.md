@@ -23,7 +23,12 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## Current v1.1.5 paired CI verification checkpoint
+## Latest CI — v1.1.5 Build #124 analyzer warning repair (2026-10-27)
+
+- Windows Build #124 executed new and existing tests **successfully**, but analyzer failed on two `invalid_use_of_visible_for_testing_member` warnings because production `SimilarRecommendationsService` calls `TvdbSeriesService.normalizeTitle` marked test-only. Removed **only the annotation**, no behavior changes. Follow-on CI must still confirm analyzer/packaging/iOS/Telegram/release. **Do not advertise a v1.1.5 download until verified**. Latest fully released paired version remains **v1.1.4 Build #121**.
+- For every subsequent source or verification change, update root `handover.md` and `NEXT_SESSION.md` in same work unit; mirror documentation only to `main` with `[skip ci]`.
+
+## Historical v1.1.5 paired CI verification checkpoint
 
 - Build #123 failed test compilation because `tmdb_discover_service.dart` had a duplicated stale suffix and duplicate `_DiscoverCacheEntry`. Root-cause repair reconstructed it directly from last-good v1.1.4 TMDB service, adding only one `relatedSeries` and `selectSeriesId` block and verified all class/method occurrence counts. Source blob `70fa4f544731b14e6ab58568c8d57506982651c5`. Next paired CI tests/builds pending; **no new v1.1.5 release yet**.
 - Preserve mandatory handover updates and documentation-only main mirror.

@@ -215,7 +215,7 @@ class TvdbSeriesService {
     return decoded;
   }
 
-  @visibleForTesting
+  // Public utility shared by optional TVDB metadata and production recommendation cards.
   static String normalizeTitle(String value) =>
       value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
 

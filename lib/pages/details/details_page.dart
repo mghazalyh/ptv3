@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/movie/movie.dart';
 import '../../models/movie/video.dart';
@@ -8,6 +9,8 @@ import '../../models/movie/movie_detail.dart';
 import '../../models/my_list/my_list_item.dart';
 import '../../services/metadata/bestsimilar_scraper.dart';
 import '../../services/metadata/metadata_service.dart';
+import '../../services/metadata/similar_recommendations_service.dart';
+import '../../services/metadata/tmdb_discover_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../discover/discover_page.dart';
@@ -74,6 +77,8 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   // Similar content from BestSimilar
   List<BSItem> _similarItems = [];
   bool _isFetchingSimilar = false;
+  bool _similarFromTmdb = false;
+  int? _similarTvdbId;
 
   String? _resolvedType;
   String? _resolvedBaseUrl;
@@ -322,78 +327,56 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   }
 
   Future<void> _fetchSimilarContent() async {
-    if (_isFetchingSimilar) return;
+    if (_isFetchingSimilar || _detail == null) return;
     setState(() => _isFetchingSimilar = true);
 
     try {
-      final title = _detail?.name ?? widget.movie.name;
-      final yearStr = _detail?.year ?? widget.movie.year;
-      final year = yearStr != null ? int.tryParse(yearStr.replaceAll(RegExp(r'[^0-9]'), '')) : null;
-      final isTv = _isSeries;
-
-      final hit = await BestSimilarScraper.findBest(
-        title: title,
-        year: year,
-        isTv: isTv,
+      final result = await SimilarRecommendationsService.load(
+        detail: _detail!,
+        isSeries: _isSeries,
       );
-
-      if (hit == null || !mounted) {
-        if (mounted) setState(() => _isFetchingSimilar = false);
-        return;
-      }
-
-      final details = await BestSimilarScraper.fetchDetails(
-        id: hit.id,
-        slug: hit.slug,
-      );
-
-      final similar = details?.similar ?? <BSItem>[];
       if (!mounted) return;
-      // Show posters immediately rather than awaiting format verification.
       setState(() {
-        _similarItems = similar;
+        _similarItems = result.items;
+        _similarFromTmdb = result.fromTmdb;
+        _similarTvdbId = result.tvdbId;
         _isFetchingSimilar = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _updateSimilarScrollButtons();
       });
-
-      if (similar.isNotEmpty) {
-        // No additional TMDB/TVDB requests. BestSimilar lookups are cached,
-        // capped at two concurrent requests and 18 items per detail page.
-        try {
-          await BestSimilarScraper.classifySimilar(
-            similar,
-            maxConcurrent: 2,
-            maxLookups: 18,
-          );
-          if (mounted && identical(_similarItems, similar)) {
-            setState(() {}); // Repaint verified Movie / Series labels.
-          }
-        } catch (error) {
-          debugPrint('[Similar] Media-type verification failed: $error');
-        }
-      }
-    } catch (e) {
-      debugPrint('[Similar] fetch failed: $e');
+    } catch (error) {
+      debugPrint('[Similar] Related shows unavailable: ${error.runtimeType}');
       if (mounted) setState(() => _isFetchingSimilar = false);
     }
   }
 
   Future<void> _openSimilarItem(BSItem item) async {
-    final resolved = await MetadataService.findMovieByTitle(
-      title: item.title,
-      // Never borrow the parent page's Movie/Series type.
-      type: item.mediaType == 'unknown' ? null : item.mediaType,
-      year: item.year,
-      preferredBaseUrl: _resolvedBaseUrl ?? widget.movie.addonBaseUrl,
-    );
-
-    if (resolved != null && mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => DetailsPage(movie: resolved)),
+    Movie? resolved;
+    if (item.tmdbId != null && item.tmdbId! > 0) {
+      // TVDB/TMDB fallback cards already know their verified TV type. Resolve
+      // IMDb through TMDB for regular Stremio addon playback.
+      resolved = await TmdbDiscoverService.instance.resolveMovie(
+        DiscoverTitle(
+          tmdbId: item.tmdbId!,
+          title: item.title,
+          type: DiscoverType.series,
+          poster: item.thumbUrl,
+          premiereYear: item.year,
+          rating: item.rating ?? 0,
+        ),
       );
+    } else {
+      resolved = await MetadataService.findMovieByTitle(
+        title: item.title,
+        type: item.mediaType == 'unknown' ? null : item.mediaType,
+        year: item.year,
+        preferredBaseUrl: _resolvedBaseUrl ?? widget.movie.addonBaseUrl,
+      );
+    }
+    if (resolved != null && mounted) {
+      Navigator.push(context,
+        MaterialPageRoute(builder: (_) => DetailsPage(movie: resolved!)));
     }
   }
 
@@ -1512,7 +1495,30 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionHeader('Similar Content'),
+          _buildSectionHeader(_similarFromTmdb
+              ? 'Recommended Shows' : 'Similar Content'),
+          if (_similarFromTmdb)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Wrap(
+                spacing: 6,
+                children: [
+                  const Text('Suggestions via TMDB',
+                      style: TextStyle(color: Colors.white54, fontSize: 11)),
+                  if (_similarTvdbId != null)
+                    InkWell(
+                      onTap: () => launchUrl(
+                        Uri.parse('https://thetvdb.com/')),
+                      child: const Text('· Series metadata by TheTVDB',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          decoration: TextDecoration.underline,
+                          fontSize: 11,
+                        )),
+                    ),
+                ],
+              ),
+            ),
           SizedBox(
             height: cardHeight,
             child: Stack(

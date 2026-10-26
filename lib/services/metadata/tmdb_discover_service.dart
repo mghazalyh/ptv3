@@ -84,6 +84,7 @@ class DiscoverTitle {
   final int? premiereYear;
   final double rating;
   final String overview;
+  final List<int> genreIds;
 
   const DiscoverTitle({
     required this.tmdbId,
@@ -93,6 +94,7 @@ class DiscoverTitle {
     this.premiereYear,
     this.rating = 0,
     this.overview = '',
+    this.genreIds = const [],
   });
 
   factory DiscoverTitle.parse(Map<String, dynamic> json, DiscoverType type) {
@@ -110,6 +112,8 @@ class DiscoverTitle {
           ? null : 'https://image.tmdb.org/t/p/w342$posterPath',
       rating: (json['vote_average'] as num?)?.toDouble() ?? 0,
       overview: json['overview']?.toString() ?? '',
+      genreIds: (json['genre_ids'] as List<dynamic>? ?? const [])
+          .whereType<num>().map((n) => n.toInt()).toList(),
     );
   }
 }
@@ -315,6 +319,118 @@ class TmdbDiscoverService {
       ((response['total_pages'] as num?)?.toInt() ?? 1).clamp(1, 500).toInt(),
       (response['total_results'] as num?)?.toInt() ?? 0,
     );
+  }
+
+  /// Match the selected show without guessing on ambiguous same-name results.
+  /// Exact title and starting year are required when available.
+  @visibleForTesting
+  static int? selectSeriesId(
+      List<dynamic> results, String requestedTitle, int? startYear) {
+    String normalized(String s) =>
+        s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+    final wanted = normalized(requestedTitle);
+    for (final raw in results) {
+      if (raw is! Map) continue;
+      final id = (raw['id'] as num?)?.toInt();
+      final name = raw['name']?.toString() ?? '';
+      final date = raw['first_air_date']?.toString() ?? '';
+      final firstYear = date.length >= 4 ? int.tryParse(date.substring(0, 4)) : null;
+      if (id == null || id <= 0 || normalized(name) != wanted) continue;
+      if (startYear != null && firstYear != startYear) continue;
+      return id;
+    }
+    return null;
+  }
+
+  /// A bounded, user-initiated fallback when BestSimilar did not find shows.
+  /// Every request reuses the same TMDB spacing, caching and 429 cooldown.
+  Future<List<DiscoverTitle>> relatedSeries({
+    required String title,
+    int? startYear,
+    String? imdbId,
+    int? tmdbId,
+    int? verifiedTvdbTmdbId,
+    int minimumResults = 6,
+  }) async {
+    final key = await readKey();
+    if (key.trim().isEmpty) return const [];
+
+    int? id = tmdbId != null && tmdbId > 0 ? tmdbId : verifiedTvdbTmdbId;
+    if (id == null && imdbId != null &&
+        RegExp(r'^tt\d+
+  Future<Movie?> resolveMovie(DiscoverTitle title) async {
+    final key = await readKey();
+    if (key.isEmpty) return null;
+    try {
+      final type = title.type == DiscoverType.movie ? 'movie' : 'tv';
+      final response = await _request(
+        '$type/${title.tmdbId}/external_ids', const {}, key);
+      final imdbId = response['imdb_id']?.toString() ?? '';
+      if (RegExp(r'^tt\d+$').hasMatch(imdbId)) {
+        return Movie(
+          id: imdbId,
+          name: title.title,
+          poster: title.poster,
+          year: title.premiereYear?.toString(),
+          type: title.type == DiscoverType.movie ? 'movie' : 'series',
+          addonBaseUrl: 'https://v3-cinemeta.strem.io',
+          imdbRating: title.rating == 0 ? null :
+              title.rating.toStringAsFixed(1),
+        );
+      }
+    } catch (_) {
+      // Search by title when TMDB has no IMDb ID; do not expose API URLs.
+    }
+    return MetadataService.findMovieByTitle(
+      title: title.title,
+      type: title.type == DiscoverType.movie ? 'movie' : 'series',
+      year: title.premiereYear,
+    );
+  }
+}
+
+class _DiscoverCacheEntry {
+  final Map<String, dynamic> value;
+  final DateTime expires;
+  const _DiscoverCacheEntry(this.value, this.expires);
+}
+).hasMatch(imdbId)) {
+      final found = await _request('find/$imdbId',
+          const {'external_source': 'imdb_id'}, key);
+      final tv = (found['tv_results'] as List<dynamic>?) ?? const [];
+      id = selectSeriesId(tv, title, startYear);
+    }
+    if (id == null) {
+      final results = await _request('search/tv', {
+        'query': title,
+        if (startYear != null) 'first_air_date_year': '$startYear',
+      }, key);
+      id = selectSeriesId(
+        results['results'] as List<dynamic>? ?? const [], title, startYear);
+    }
+    if (id == null) return const [];
+
+    final seen = <int>{id};
+    final rows = <DiscoverTitle>[];
+    void collect(Map<String, dynamic> response) {
+      final candidates = response['results'] as List<dynamic>? ?? const [];
+      for (final raw in candidates) {
+        if (raw is! Map<String, dynamic>) continue;
+        final candidate = DiscoverTitle.parse(raw, DiscoverType.series);
+        if (candidate.tmdbId <= 0 ||
+            candidate.title.trim().isEmpty ||
+            candidate.poster == null ||
+            !seen.add(candidate.tmdbId)) continue;
+        rows.add(candidate);
+        if (rows.length >= 18) break;
+      }
+    }
+
+    collect(await _request('tv/$id/recommendations', const {'page': '1'}, key));
+    if (rows.length < minimumResults) {
+      collect(await _request('tv/$id/similar', const {'page': '1'}, key));
+    }
+    return rows.take(18).toList();
   }
 
   /// Convert a TMDB result to IMDb/Cinemeta for existing Torrentio playback.

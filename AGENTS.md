@@ -23,7 +23,12 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## TVDB+TMDB recommendation investigation (2026-10-27)
+## Active v1.1.5 TV recommendation implementation (2026-10-27)
+
+- Details **Similar Content/Recommended Shows**: corrected first-year parsing; BestSimilar primary, limited/cached TMDB `recommendations` then `similar` fallback for series only on genuine miss; metadata can optionally come from TVDB v4 configured in **Settings → TVDB Series Metadata** using local secure key+optional subscriber PIN. No guessing unknown shows, no bulk library lookups, and no fabricated source similarity values. Native TVDB recommendations endpoint is not documented; TVDB enhances matching and genre order of real TMDB candidates, with attribution.
+- New and modified metadata services, UI, tests, paired workflow and version **1.1.5+15** in same work unit. **CI build and release pending verification**; last fully paired release at start v1.1.4 Build #121. Preserve embedded English subtitle preference and all non-floating playback. **Update handover.md and NEXT_SESSION.md for every future code/build/result change**.
+
+## Historical TVDB+TMDB recommendation investigation (2026-10-27)
 
 - User favors adding optional TheTVDB support alongside TMDB. **Official TVDB v4 API documents metadata/people/genres/lists/search but not a dedicated per-series similarity/recommendations endpoint.** Assess relevance improvements using its metadata rather than inventing a native recommendation API; honor project licensing, optional subscriber PIN and required attribution. Never publish TVDB keys/bearer tokens or auto-query whole user libraries.
 - **No code or credentials changed:** this is research-only docs [skip ci]. Open known deterministic bug: year `2019–2020` incorrectly parsed as `20192020` in Similar Content matching. Next candidate enhancement is optional, bounded/cached TMDB dedicated recommendations fallback with possible TVDB metadata enrichment. Last paired release **v1.1.4 Build #121** remains verified. All future work must update `handover.md` and `NEXT_SESSION.md`.

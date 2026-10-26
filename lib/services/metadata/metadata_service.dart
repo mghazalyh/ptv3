@@ -83,7 +83,7 @@ class MetadataService {
     final metas = decoded['metas'] as List<dynamic>? ?? [];
 
     final result = metas
-        .map((item) => Movie.fromJson(item as Map<String, dynamic>, effectiveBaseUrl))
+        .map((item) => Movie.fromJson(item as Map<String, dynamic>, effectiveBaseUrl, fallbackType: type))
         .where((movie) => movie.id.isNotEmpty && movie.name.isNotEmpty)
         .toList();
 
@@ -123,7 +123,7 @@ class MetadataService {
       final metas = decoded['metas'] as List<dynamic>? ?? [];
       
       final result = metas
-          .map((item) => Movie.fromJson(item as Map<String, dynamic>, effectiveBaseUrl))
+          .map((item) => Movie.fromJson(item as Map<String, dynamic>, effectiveBaseUrl, fallbackType: type))
           .where((movie) => movie.id.isNotEmpty && movie.name.isNotEmpty)
           .toList();
           

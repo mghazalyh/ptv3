@@ -1,4 +1,4 @@
-name: Relay initial PlayTorrio PS4 prototype PKG to Telegram
+name: Relay PlayTorrio PS4 redesigned UI preview PKG to Telegram
 
 on:
   push:
@@ -24,14 +24,14 @@ jobs:
         run: |
           set -euo pipefail
           : "${TELEGRAM_BOT_TOKEN:?Missing the existing bot secret in ptv3}"
-          url='https://github.com/mghazalyh/playtorrio-ps4/releases/download/ps4-prototype-0.1.0/PlayTorrio-PS4-GoldHEN-10.01-EXPERIMENTAL.pkg'
+          url='https://github.com/mghazalyh/playtorrio-ps4/releases/download/ps4-ui-preview-0.2.0/PlayTorrio-PS4-GoldHEN-10.01-EXPERIMENTAL.pkg'
           curl --fail --location --retry 3 --silent --show-error "$url" -o prototype.pkg
           test -s prototype.pkg
           test "$(head -c 4 prototype.pkg | od -An -tx1 | tr -d ' \n')" = 7f434e54
           response="$(curl --fail --silent --show-error --max-time 240 --retry 2 \
             -F "chat_id=$TELEGRAM_CHAT_ID" \
             -F "document=@prototype.pkg;filename=PlayTorrio-PS4-GoldHEN-10.01-EXPERIMENTAL.pkg" \
-            -F "caption=🎮 PlayTorrio PS4 GoldHEN 10.01 experimental prototype. Native dashboard/settings import only. ⚠️ Not a working Torrentio/TorBox streaming player yet. https://github.com/mghazalyh/playtorrio-ps4/releases/tag/ps4-prototype-0.1.0" \
+            -F "caption=🎮 PlayTorrio PS4 v0.2 UI preview (GoldHEN 10.01). Redesigned TV layout, proper font and USB settings import. ⚠️ Video playback/TorBox and GitHub live sync are NOT implemented yet. https://github.com/mghazalyh/playtorrio-ps4/releases/tag/ps4-ui-preview-0.2.0" \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument")"
           RESULT="$response" python3 - <<'PY'
           import os,json,sys

@@ -4,15 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/continue_watching/continue_watching_item.dart';
-import '../../models/movie/movie.dart';
-import '../../models/anime/anime_media.dart';
-import '../../pages/details/details_page.dart';
-import '../../pages/anime/anime_details_page.dart';
-import '../../pages/anime_arabic/anime_arabic_details_page.dart';
-import '../../services/anime_arabic/anime_arabic_service.dart';
-import '../../utils/navigation/route_transitions.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
+import '../../utils/navigation/media_details_navigation.dart';
 import '../common/slider_arrow.dart';
 
 class ContinueWatchingSlider extends StatefulWidget {
@@ -128,7 +122,7 @@ class _ContinueWatchingSliderState extends State<ContinueWatchingSlider> {
             : screenWidth > 600
                 ? 240.0
                 : 200.0;
-        final cardHeight = cardWidth * 0.62 + 60.0;
+        final cardHeight = cardWidth * 0.62 + 88.0;
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 28),
@@ -284,71 +278,20 @@ class _ContinueWatchingCardState extends State<_ContinueWatchingCard> {
 
   void _openDetails(BuildContext context) {
     final item = widget.item;
-    if (item.id.startsWith('arabic_anime:') || item.addonName == 'ArabicAnime') {
-      final slug = item.id.replaceAll('arabic_anime:', '');
-      final card = ArabicAnimeCard(
-        slug: slug,
-        title: item.title,
-        cover: item.posterUrl ?? item.backdropUrl,
-      );
-
-      Navigator.push(
-        context,
-        CinematicSlideRoute(
-          page: AnimeArabicDetailsPage(
-            anime: card,
-            initialEpisodeNumber: item.episode,
-          ),
-        ),
-      );
-      return;
-    }
-
-    if (item.type == 'anime' || item.id.startsWith('anilist:')) {
-      final anilistId = int.tryParse(item.id.replaceAll('anilist:', '')) ?? 0;
-      final anime = AnimeMedia(
-        id: anilistId,
-        titleEnglish: item.title,
-        titleRomaji: item.title,
-        titleNative: '',
-        titleUserPreferred: item.title,
-        coverImageLarge: item.posterUrl ?? '',
-        coverImageExtraLarge: item.posterUrl ?? '',
-        bannerImage: item.backdropUrl ?? '',
-        description: '',
-        seasonYear: int.tryParse(item.year ?? '') ?? 0,
-        averageScore: 0,
-        genres: const [],
-        format: 'TV',
-        status: 'RELEASING',
-        totalEpisodes: 0,
-      );
-
-      Navigator.push(
-        context,
-        CinematicSlideRoute(page: AnimeDetailsPage(anime: anime)),
-      );
-    } else {
-      final movie = Movie(
-        id: item.id,
-        name: item.title,
-        poster: item.posterUrl ?? item.backdropUrl,
-        year: item.year,
-        type: item.type,
-        addonBaseUrl: '',
-      );
-
-      final box = context.findRenderObject() as RenderBox?;
-      final offset = box?.localToGlobal(box.size.center(Offset.zero));
-
-      Navigator.push(
-        context,
-        LiquidRevealRoute(
-          page: DetailsPage(movie: movie),
-          tapPosition: offset,
-        ),
-      );
-    }
+    final box = context.findRenderObject() as RenderBox?;
+    final tapPosition = box?.localToGlobal(box.size.center(Offset.zero));
+    MediaDetailsNavigation.open(
+      context,
+      id: item.id,
+      title: item.title,
+      type: item.type,
+      poster: item.posterUrl,
+      backdrop: item.backdropUrl,
+      year: item.year,
+      addonName: item.addonName,
+      episode: item.episode,
+      tapPosition: tapPosition,
+    );
   }
 
   @override
@@ -631,6 +574,23 @@ class _ContinueWatchingCardState extends State<_ContinueWatchingCard> {
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
                           color: Colors.white.withValues(alpha: 0.55),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          key: ValueKey('continue-watching-details-${item.id}'),
+                          onPressed: () => _openDetails(context),
+                          icon: const Icon(Icons.info_outline_rounded, size: 16),
+                          label: const Text('Show Details'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            minimumSize: const Size(0, 30),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
                         ),
                       ),
                     ],

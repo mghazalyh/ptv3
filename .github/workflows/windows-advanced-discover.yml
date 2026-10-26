@@ -1,11 +1,11 @@
-name: PlayTorrio Windows — Simkl Hearts Sync
+name: PlayTorrio Paired Windows and iOS 15 TrollStore Builds
 
 on:
   push:
     branches:
-      - ios15-advanced-discover
-      - windows-trakt-sync-navigation
-      - windows-simkl-hearts-sync
+      - '**'
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -22,6 +22,13 @@ jobs:
     steps:
       - name: Checkout shared iOS and Windows source
         uses: actions/checkout@v4
+
+      - name: Verify Windows checkout matches the triggering commit
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $env:GITHUB_SHA) { throw "Windows checkout SHA differs from workflow SHA" }
+          Write-Host "Windows build commit: $actual"
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -133,12 +140,202 @@ jobs:
             PlayTorrio-Windows-x64-Portable.zip
           if-no-files-found: error
 
-      - name: Publish direct Windows EXE and portable ZIP
-        shell: pwsh
+  ios15:
+    name: iOS 15 — build and sign TrollStore IPA
+    runs-on: macos-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Verify iOS checkout matches the triggering commit
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "iOS 15 build commit: $GITHUB_SHA"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+
+      - name: Setup Flutter dependencies
+        run: |
+          touch .env
+          flutter pub get
+
+      - name: Restore iOS TorrServerKit framework
+        run: |
+          mkdir -p "$RUNNER_TEMP/torrserver-ios15"
+          curl --fail --show-error --location --retry 3 \
+            "https://github.com/MrSergo15/torrserver_flutter/releases/download/linux-macos-torrserver-fix-test/TorrServerKit.xcframework.zip" \
+            -o "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework.zip"
+          unzip -t "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework.zip" >/dev/null
+          unzip -q "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework.zip" \
+            -d "$RUNNER_TEMP/torrserver-ios15"
+          test -d "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework"
+          echo "TORRSERVER_FLUTTER_LOCAL_BINARIES=$RUNNER_TEMP/torrserver-ios15" >> "$GITHUB_ENV"
+
+      - name: Inspect native framework platforms
+        run: |
+          python3 - <<'PY'
+          import os
+          import plistlib
+          from pathlib import Path
+          root = Path(os.environ['TORRSERVER_FLUTTER_LOCAL_BINARIES']) / 'TorrServerKit.xcframework'
+          with (root / 'Info.plist').open('rb') as f:
+              info = plistlib.load(f)
+          print('Native framework slices:', info.get('AvailableLibraries'))
+          if not any(
+              entry.get('SupportedPlatform') == 'ios' and
+              'arm64' in entry.get('SupportedArchitectures', []) and
+              not entry.get('SupportedPlatformVariant')
+              for entry in info.get('AvailableLibraries', [])
+          ):
+              raise SystemExit('TorrServerKit is missing iOS arm64 device support')
+          PY
+
+      - name: Analyze storage code
+        run: |
+          flutter analyze --no-pub --no-fatal-infos \
+            lib/services/cache/storage_cache_service.dart \
+            lib/pages/settings/storage_settings_page.dart \
+            lib/services/config/settings_transfer_service.dart \
+            lib/pages/settings/settings_transfer_page.dart \
+            lib/pages/settings/torbox_quick_settings_page.dart \
+            lib/pages/settings/settings_page.dart \
+            lib/services/addon/addon_manager.dart \
+            lib/services/player/audio_language_priority.dart \
+            lib/services/player/player_settings.dart \
+            lib/pages/player/player_screen.dart \
+            lib/pages/player/watch_screen.dart \
+            lib/services/metadata/tmdb_discover_service.dart \
+            lib/pages/search/advanced_discover_page.dart \
+            lib/pages/search/search_page.dart \
+            lib/pages/details/details_page.dart
+
+      - name: Test English-audio priority
+        run: flutter test test/audio_language_priority_test.dart
+
+      - name: Check nested details history and Discover scroll preservation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          details = Path('lib/pages/details/details_page.dart').read_text()
+          discover = Path('lib/pages/search/advanced_discover_page.dart').read_text()
+          assert 'Navigator.pushReplacement(' not in details, 'Details page replaces its history'
+          assert 'Navigator.push(' in details
+          assert 'controller: _discoverScroll' in discover
+          assert 'oldMaxExtent + 160.0' in discover
+          assert 'PageStorageKey' in discover
+          print('Nested details history and pagination behavior verified')
+          PY
+
+      - name: Test TMDB Discover filters and year matching
+        run: flutter test test/tmdb_advanced_discover_test.dart
+
+      - name: Build unsigned iOS 15 release
+        run: flutter build ios --release --no-codesign --build-number="${{ github.run_number }}" --dart-define-from-file=.env
+
+      - name: Verify minimum iOS 15
+        run: |
+          test -d build/ios/iphoneos/Runner.app
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          info = Path('build/ios/iphoneos/Runner.app/Info.plist')
+          with info.open('rb') as f:
+              version = plistlib.load(f).get('MinimumOSVersion', '')
+          print('App minimum iOS version:', version)
+          if not version or tuple(map(int, version.split('.'))) > (15, 0):
+              raise SystemExit('Build is not compatible with iOS 15')
+          PY
+
+      - name: Ad hoc sign for TrollStore
+        run: |
+          codesign --force --deep --sign - --timestamp=none build/ios/iphoneos/Runner.app
+          codesign --verify --deep --strict --verbose=2 build/ios/iphoneos/Runner.app
+
+      - name: Package IPA
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qry PlayTorrio-iOS15-TrollStore.ipa Payload
+          test -s PlayTorrio-iOS15-TrollStore.ipa
+
+      - name: Verify TrollStore IPA archive and app signing
+        run: |
+          python3 - <<'PY'
+          import hashlib, plistlib, zipfile
+          from pathlib import Path
+          ipa = Path('build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa')
+          if not ipa.is_file() or ipa.stat().st_size == 0:
+              raise SystemExit('Missing IPA archive')
+          with zipfile.ZipFile(ipa) as archive:
+              if archive.testzip() is not None:
+                  raise SystemExit('IPA archive is corrupt')
+              names = archive.namelist()
+              info = plistlib.loads(archive.read('Payload/Runner.app/Info.plist'))
+              minimum = tuple(map(int, info['MinimumOSVersion'].split('.')))
+              if minimum > (15, 0):
+                  raise SystemExit(f'IPA requires iOS {minimum}, not compatible with iOS 15.0')
+              if 2 not in info['UIDeviceFamily']:
+                  raise SystemExit('IPA does not support iPad')
+              if 'Payload/Runner.app/_CodeSignature/CodeResources' not in names:
+                  raise SystemExit('Missing ad hoc code signature in packaged IPA')
+              print('IPA bundle:', info['CFBundleIdentifier'])
+              print('Minimum iOS:', info['MinimumOSVersion'])
+              print('iOS build number:', info['CFBundleVersion'])
+          print('SHA256:', hashlib.sha256(ipa.read_bytes()).hexdigest())
+          PY
+
+      - name: Upload signed iOS 15 TrollStore IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayTorrio-iOS15-TrollStore
+          path: build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa
+          if-no-files-found: error
+
+  publish-paired:
+    name: Publish matched Windows and iOS 15 builds
+    needs: [windows, ios15]
+    if: github.ref == 'refs/heads/parity-floating-player-both'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows build from this workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: PlayTorrio-Windows-Simkl-HeartsSync
+          path: packages/windows
+
+      - name: Download TrollStore IPA from this workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: PlayTorrio-iOS15-TrollStore
+          path: packages/ios15
+
+      - name: Verify both packages belong to this build
+        run: |
+          test -s packages/windows/PlayTorrio-Windows-Setup.exe
+          test -s packages/windows/PlayTorrio-Windows-x64-Portable.zip
+          test -s packages/ios15/PlayTorrio-iOS15-TrollStore.ipa
+          echo "Matched Windows and iOS 15 packages for commit $GITHUB_SHA"
+          sha256sum packages/windows/* packages/ios15/*
+
+      - name: Publish direct Windows downloads and TrollStore IPA together
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload ios15-advanced-discover-20261025 PlayTorrio-Windows-Setup.exe PlayTorrio-Windows-x64-Portable.zip --repo "${{ github.repository }}" --clobber
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $names = gh release view ios15-advanced-discover-20261025 --repo "${{ github.repository }}" --json assets --jq ".assets[].name"
-          if ($names -notcontains "PlayTorrio-Windows-Setup.exe") { throw "Missing published installer" }
+          gh release upload ios15-advanced-discover-20261025 \
+            packages/windows/PlayTorrio-Windows-Setup.exe \
+            packages/windows/PlayTorrio-Windows-x64-Portable.zip \
+            packages/ios15/PlayTorrio-iOS15-TrollStore.ipa \
+            --repo "${{ github.repository }}" --clobber
+          gh release view ios15-advanced-discover-20261025 \
+            --repo "${{ github.repository }}" --json assets \
+            --jq '.assets[].name' > /tmp/playtorrio-released-assets.txt
+          grep -Fx 'PlayTorrio-Windows-Setup.exe' /tmp/playtorrio-released-assets.txt
+          grep -Fx 'PlayTorrio-Windows-x64-Portable.zip' /tmp/playtorrio-released-assets.txt
+          grep -Fx 'PlayTorrio-iOS15-TrollStore.ipa' /tmp/playtorrio-released-assets.txt
+          echo "Published both platforms from $GITHUB_SHA"

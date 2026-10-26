@@ -330,13 +330,16 @@ jobs:
             PlayTorrio-macOS-intel.dmg
             PlayTorrio-macOS-intel.zip
 
-  # ─── iOS Build (Sideloadable IPA — no-codesign) ───────────────────────────
+  # ─── iOS 15 Build (TrollStore ad hoc-signed IPA) ──────────────────────────
   ios:
-    name: iOS (IPA)
+    name: iOS 15 (TrollStore IPA)
     runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Verify build revision
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -359,27 +362,73 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build iOS Release (No Codesign)
-        run: flutter build ios --release --no-codesign --dart-define-from-file=.env
-
-      - name: Package as IPA
+      - name: Restore required TorrServerKit native framework
         run: |
-          cd build/ios/iphoneos
-          mkdir -p Payload
-          cp -R Runner.app Payload/
-          zip -ry ../../../PlayTorrio-iOS.ipa Payload
+          mkdir -p "$RUNNER_TEMP/torrserver-ios15"
+          curl --fail --show-error --location --retry 3 \
+            "https://github.com/MrSergo15/torrserver_flutter/releases/download/linux-macos-torrserver-fix-test/TorrServerKit.xcframework.zip" \
+            -o "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework.zip"
+          unzip -t "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework.zip" >/dev/null
+          unzip -q "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework.zip" -d "$RUNNER_TEMP/torrserver-ios15"
+          test -d "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework"
+          echo "TORRSERVER_FLUTTER_LOCAL_BINARIES=$RUNNER_TEMP/torrserver-ios15" >> "$GITHUB_ENV"
 
-      - name: Upload iOS Artifacts
+      - name: Build iOS 15 release for TrollStore
+        run: flutter build ios --release --no-codesign --build-number="${{ github.run_number }}" --dart-define-from-file=.env
+
+      - name: Verify device app and iOS 15 support
+        run: |
+          test -d build/ios/iphoneos/Runner.app
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          info = plistlib.loads(Path('build/ios/iphoneos/Runner.app/Info.plist').read_bytes())
+          version = tuple(map(int, info.get('MinimumOSVersion', '999').split('.')))
+          if version > (15, 0):
+              raise SystemExit(f'App minimum iOS version {version} exceeds iOS 15')
+          if 2 not in info.get('UIDeviceFamily', []):
+              raise SystemExit('iPad device support missing')
+          print('Validated iOS 15 compatibility and iPad support')
+          PY
+
+      - name: Ad hoc code-sign for TrollStore
+        run: |
+          codesign --force --deep --sign - --timestamp=none build/ios/iphoneos/Runner.app
+          codesign --verify --deep --strict --verbose=2 build/ios/iphoneos/Runner.app
+
+      - name: Package and verify direct TrollStore IPA
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qry PlayTorrio-iOS15-TrollStore.ipa Payload
+          python3 - <<'PY'
+          import hashlib, zipfile
+          from pathlib import Path
+          ipa = Path('PlayTorrio-iOS15-TrollStore.ipa')
+          if not ipa.is_file() or ipa.stat().st_size == 0:
+              raise SystemExit('TrollStore IPA was not created')
+          with zipfile.ZipFile(ipa) as z:
+              if z.testzip() is not None:
+                  raise SystemExit('Corrupted IPA')
+              if 'Payload/Runner.app/_CodeSignature/CodeResources' not in z.namelist():
+                  raise SystemExit('Missing ad hoc IPA code signature')
+          print('TrollStore IPA SHA256:', hashlib.sha256(ipa.read_bytes()).hexdigest())
+          PY
+          cp PlayTorrio-iOS15-TrollStore.ipa ../../../PlayTorrio-iOS15-TrollStore.ipa
+
+      - name: Upload TrollStore IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrioV3-iOS
-          path: PlayTorrio-iOS.ipa
+          name: PlayTorrioV3-iOS15-TrollStore
+          path: PlayTorrio-iOS15-TrollStore.ipa
+          if-no-files-found: error
 
   # ─── Create / Publish GitHub Release ─────────────────────────────────────
   release:
     name: Publish GitHub Release
     needs: [windows, linux-x64, macos-arm64, macos-intel, ios]
-    if: always() && startsWith(github.ref, 'refs/tags/v')
+    if: success() && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write

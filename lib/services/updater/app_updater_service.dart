@@ -54,9 +54,17 @@ class AppUpdaterService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final tag = data['tag_name']?.toString() ?? '';
-        // Match build-v1.1.0-b86 and traditional v1.1.0 release tags.
+        // Accept GitHub tags build-v1.1.0-b86 and v1.1.0.
         final releaseMatch = RegExp(
-          r'^(?:build-)?v?(\d+\.\d+\.\d+)(?:-b(\d+))?
+          r'^(?:build-)?v?(\d+\.\d+\.\d+)(?:-b(\d+))?',
+          caseSensitive: false,
+        ).firstMatch(tag);
+        if (releaseMatch == null || releaseMatch.group(0) != tag) return null;
+        final latestVersion = releaseMatch.group(1)!;
+        final latestBuild = int.tryParse(releaseMatch.group(2) ?? '');
+        final currentBuild = int.tryParse(packageInfo.buildNumber);
+        final displayVersion = latestBuild == null
+            ? latestVersion : '$latestVersion (Build $latestBuild)';
         final releaseNotes =
             data['body'] as String? ?? 'No release notes available';
         final publishedAt = DateTime.parse(data['published_at']);

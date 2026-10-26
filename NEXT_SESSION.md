@@ -2,7 +2,11 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## Latest: Similar Content empty on The Order, proposal only (2026-10-27)
+## TVDB+TMDB recommendation strategy clarified — 2026-10-27
+
+User wants TVDB considered alongside TMDB and has a TVDB key. Verified TheTVDB's official v4 API documentation: `POST /login` with key and optional subscriber PIN issues a bearer token (one-month validity), and endpoints exist for series details, lists, genres, people and search, but **no documented per-series recommendations/similar endpoint**. Thus TVDB could enhance series matching, genre/people/list-based ranking or enrich TMDB/BestSimilar candidates, but no proof it directly serves better similar-show lists. Project licensing/user PIN and TVDB attribution rules apply. Future integration should be opt-in, device-local encrypted/secure key handling, bounded/cached/rate-limited with no secrets in repo or CI, and measured against TMDB's true `/tv/{id}/recommendations` and `/tv/{id}/similar` endpoints. Fix deterministic start-year bug (`2019–2020` incorrectly becomes `20192020`) first. **No implementation or TVDB calls were made in this turn.** Latest fully paired release is v1.1.4 Build #121. Keep handover tradition.
+
+## Historical: Similar Content empty on The Order, proposal only (2026-10-27)
 
 User screenshot of **The Order (2019–2020)**: episodes render correctly, but **Similar Content** is absent below the last episode row. Investigation found that `_fetchSimilarContent()` in `lib/pages/details/details_page.dart` removes all non-digits from `yearStr`, converting a range `2019–2020` into integer `20192020`. `BestSimilarScraper.findBest` then heavily penalizes year disagreement and can discard the genuine same-title show. This is a **specific, deterministic parsing bug and plausible root cause**, not confirmation of live BestSimilar provider coverage. Section deliberately disappears on empty `_similarItems`.
 

@@ -23,7 +23,12 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## Current diagnosis and release status (2026-10-27 SGT)
+## TVDB+TMDB recommendation investigation (2026-10-27)
+
+- User favors adding optional TheTVDB support alongside TMDB. **Official TVDB v4 API documents metadata/people/genres/lists/search but not a dedicated per-series similarity/recommendations endpoint.** Assess relevance improvements using its metadata rather than inventing a native recommendation API; honor project licensing, optional subscriber PIN and required attribution. Never publish TVDB keys/bearer tokens or auto-query whole user libraries.
+- **No code or credentials changed:** this is research-only docs [skip ci]. Open known deterministic bug: year `2019–2020` incorrectly parsed as `20192020` in Similar Content matching. Next candidate enhancement is optional, bounded/cached TMDB dedicated recommendations fallback with possible TVDB metadata enrichment. Last paired release **v1.1.4 Build #121** remains verified. All future work must update `handover.md` and `NEXT_SESSION.md`.
+
+## Previous diagnosis and release status (2026-10-27 SGT)
 
 - **v1.1.4 Build #121** is a fully completed paired Windows x64/iOS 15 TrollStore release, published at https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.4-b121; Telegram signed IPA uploaded as a document (message ID 24). Previous "iOS queued" entries are historical.
 - **Open recommendation issue:** `The Order (2019–2020)` has no Similar Content row; `_fetchSimilarContent()` merges digits in the release range to `20192020`, likely blocking exact BestSimilar matching. The user asked for suggestions; **no implementation yet**. Recommended first-year regex helper/tests; then conservative optional TMDB fallback using existing authenticated, paced/cached Discover service only if BestSimilar empty. No new TVDB credentials, fabricated matches or unlimited scraping.

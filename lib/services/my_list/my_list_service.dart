@@ -9,7 +9,6 @@ import 'trakt_cloud_library.dart';
 
 abstract final class MyListService {
   static const _storageKey = 'my_list_v1';
-  static const int maxItems = 2500;
   static final TraktCloudLibrary traktCloud = TraktCloudLibrary();
   static final SimklHeartsCloud simklCloud = SimklHeartsCloud();
   static DateTime? _lastAutoRefresh;
@@ -71,7 +70,7 @@ abstract final class MyListService {
     await traktCloud.reconcile(
       readLocal: () => List<MyListItem>.from(items.value),
       persistMerged: (merged) async {
-        final visible = merged.take(maxItems).toList();
+        final visible = merged;
         items.value = visible;
         await _persist();
       },
@@ -82,7 +81,7 @@ abstract final class MyListService {
     await simklCloud.reconcile(
       readLocal: () => List<MyListItem>.from(items.value),
       persistMerged: (merged) async {
-        items.value = merged.take(maxItems).toList();
+        items.value = merged;
         await _persist();
       },
     );
@@ -103,10 +102,6 @@ abstract final class MyListService {
 
     final newList = <MyListItem>[...items.value, item];
     newList.sort((a, b) => b.addedAt.compareTo(a.addedAt));
-
-    if (newList.length > maxItems) {
-      newList.removeRange(maxItems, newList.length);
-    }
 
     items.value = newList;
     unawaited(_persist());

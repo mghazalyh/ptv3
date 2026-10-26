@@ -1,4 +1,4 @@
-name: Telegram Channel Test Message
+name: Telegram Group or Channel Test Message
 
 on:
   push:
@@ -13,13 +13,13 @@ permissions:
 
 jobs:
   send-test:
-    name: Send a test post to the PlayTorrio Telegram channel
+    name: Send a test post to the PlayTorrio Telegram chat
     runs-on: ubuntu-latest
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
     steps:
-      - name: Send Telegram channel message
+      - name: Send Telegram test message
         shell: bash
         run: |
           python3 - <<'PY'
@@ -48,44 +48,58 @@ jobs:
                   sys.exit(f'Telegram {method} was unsuccessful. Verify bot permissions and your channel ID.')
               return data['result']
 
-          channel_id = os.environ.get('TELEGRAM_CHANNEL_ID', '').strip()
-          if not channel_id:
-              # Newly added channel admins receive my_chat_member updates; bots
-              # also see channel_post updates when a channel owner posts a test.
-              # Never choose arbitrarily among multiple channels.
+          # TELEGRAM_CHANNEL_ID also works for private groups and supergroups;
+          # the historical name is preserved to avoid changing existing secrets.
+          chat_id = os.environ.get('TELEGRAM_CHANNEL_ID', '').strip()
+          bot = telegram('getMe')
+          bot_username = '@' + bot['username'].casefold()
+
+          if not chat_id:
               updates = telegram('getUpdates', {'limit': 100, 'timeout': 0})
-              candidates = set()
+              membership_candidates = set()
+              mentioned_candidates = set()
+              message_candidates = set()
               for update in updates:
                   membership = update.get('my_chat_member') or {}
                   chat = membership.get('chat') or {}
                   new_member = membership.get('new_chat_member') or {}
-                  if chat.get('type') == 'channel' and new_member.get('status') == 'administrator':
-                      candidates.add(str(chat['id']))
-                  post_chat = (update.get('channel_post') or {}).get('chat') or {}
-                  if post_chat.get('type') == 'channel':
-                      candidates.add(str(post_chat['id']))
-
+                  if chat.get('type') in ('group', 'supergroup', 'channel') and new_member.get('status') in ('administrator', 'creator', 'member'):
+                      membership_candidates.add(str(chat['id']))
+                  for category in ('message', 'channel_post', 'edited_message', 'edited_channel_post'):
+                      entry = update.get(category) or {}
+                      chat = entry.get('chat') or {}
+                      if chat.get('type') not in ('group', 'supergroup', 'channel'):
+                          continue
+                      candidate = str(chat['id'])
+                      message_candidates.add(candidate)
+                      if bot_username in (entry.get('text') or '').casefold() or bot_username in (entry.get('caption') or '').casefold():
+                          mentioned_candidates.add(candidate)
+              # The explicit @bot mention in the user's group takes priority.
+              # If there is no mention, accept exactly one chat among observed
+              # messages or membership changes, never an arbitrary target.
+              candidates = mentioned_candidates or message_candidates or membership_candidates
+              if len(candidates) == 0:
+                  sys.exit('No Telegram group/channel updates found. Send /start@' + bot['username'] + ' in the TARGET GROUP, or mention @' + bot['username'] + ' in a NEW message, then rerun.')
               if len(candidates) != 1:
-                  if not candidates:
-                      sys.exit('The bot has no pending channel updates. Post a fresh message in the channel AFTER adding the bot as an admin, then rerun this workflow. Or set the TELEGRAM_CHANNEL_ID secret.')
-                  sys.exit('The bot has updates from multiple channels. Set TELEGRAM_CHANNEL_ID to your intended channel numeric ID to avoid posting to the wrong channel.')
-              channel_id = next(iter(candidates))
-              print(f'Discovered channel ID: {channel_id} (save this as the TELEGRAM_CHANNEL_ID GitHub Actions secret for future IPA delivery).')
+                  sys.exit('The bot sees multiple Telegram chats. Set GitHub Actions secret TELEGRAM_CHANNEL_ID to the intended numeric chat ID before sending.')
+              chat_id = next(iter(candidates))
+              print(f'Discovered Telegram chat ID: {chat_id}. Save this as TELEGRAM_CHANNEL_ID for automatic IPA delivery.')
           else:
-              print('Using configured private channel ID.')
+              print('Using configured private Telegram chat ID.')
 
-          bot = telegram('getMe')
-          member = telegram('getChatMember', {'chat_id': channel_id, 'user_id': bot['id']})
+          chat = telegram('getChat', {'chat_id': chat_id})
+          chat_type = chat.get('type')
+          print(f'Telegram destination type: {chat_type}')
+          member = telegram('getChatMember', {'chat_id': chat_id, 'user_id': bot['id']})
           if member.get('status') not in ('administrator', 'creator'):
-              sys.exit('The bot is not a channel administrator. Grant it the Post Messages permission.')
-          if member.get('status') == 'administrator' and not member.get('can_post_messages', False):
-              sys.exit('The bot is an administrator but cannot post messages. Enable Post Messages.')
-
+              sys.exit('The bot is not an administrator in the selected Telegram group/channel.')
+          if chat_type == 'channel' and member.get('status') == 'administrator' and not member.get('can_post_messages', False):
+              sys.exit('The bot is a channel administrator but cannot post messages. Enable Post Messages.')
           sent = telegram('sendMessage', {
-              'chat_id': channel_id,
+              'chat_id': chat_id,
               'text': '✅ PlayTorrio build bot test successful! Your iOS 15 TrollStore IPA delivery can be enabled. This message was sent securely by GitHub Actions.',
               'disable_web_page_preview': 'true',
           })
           print(f'Test posted successfully! Telegram message ID: {sent["message_id"]}')
-          print(f'Channel ID: {channel_id}')
+          print(f'Telegram chat ID: {chat_id}')
           PY

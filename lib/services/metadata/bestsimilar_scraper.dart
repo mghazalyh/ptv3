@@ -61,13 +61,26 @@ class BSItem {
   int? tmdbId;
   String? tmdbMediaType;      // 'movie' | 'tv'
 
-  bool get isTv {
+  // HTML can omit media type entirely; missing TV hints != film.
+  final bool? sourceIsTv;
+  bool? autocompleteIsTv;
+
+  bool? get knownIsTv {
     if (tmdbMediaType == 'tv') return true;
-    if (slug.contains('serial') || slug.contains('tv-series') || slug.contains('series')) return true;
-    final dur = (duration ?? '').toLowerCase();
-    if (dur.contains('eps') || dur.contains('episode') || dur.contains('serial') || dur.contains('season')) return true;
-    return false;
+    if (tmdbMediaType == 'movie') return false;
+    if (sourceIsTv != null) return sourceIsTv;
+    if (autocompleteIsTv != null) return autocompleteIsTv;
+    final s = slug.toLowerCase();
+    if (s.contains('tv-series') || s.contains('tv-serial') ||
+        s.contains('television-series')) return true;
+    final d = (duration ?? '').toLowerCase();
+    if (RegExp(r'\b(episodes?|seasons?|eps)\b').hasMatch(d)) return true;
+    return null;
   }
+
+  // Compatibility for legacy detail cards. New recommendation labels use
+  // knownIsTv, never turning an unknown entry into a guessed movie.
+  bool get isTv => knownIsTv == true;
 
   BSItem({
     required this.id,
@@ -87,6 +100,7 @@ class BSItem {
     required this.audienceTags,
     required this.timeTags,
     required this.placeTags,
+    this.sourceIsTv,
   });
 
   String get displayTitle =>
@@ -144,6 +158,45 @@ class BestSimilarScraper {
   // Tiny LRU-ish caches.
   static final Map<String, List<BSAutocompleteHit>> _autocompleteCache = {};
   static final Map<int, BSDetails> _detailsCache = {};
+
+  /// The autocomplete response has an explicit serial (TV) flag.
+  /// Match by provider item ID; fallback requires exact title + year.
+  static bool? classifyFromAutocomplete(BSItem item, List<BSAutocompleteHit> hits) {
+    for (final hit in hits) {
+      if (hit.id == item.id) return hit.isTv;
+    }
+    if (item.year == null) return null;
+    String normalize(String name) => name.toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+    final matches = hits.where((h) =>
+        h.year == item.year &&
+        normalize(h.title) == normalize(item.title)).toList();
+    return matches.length == 1 ? matches.single.isTv : null;
+  }
+
+  /// Bounded background-friendly verification: no uncontrolled flood of
+  /// requests and no claim that unverified items are movies.
+  static Future<void> classifySimilar(List<BSItem> items) async {
+    final unknown = items.where((item) => item.knownIsTv == null).toList();
+    if (unknown.isEmpty) return;
+    var next = 0;
+    Future<void> worker() async {
+      while (next < unknown.length) {
+        final item = unknown[next++];
+        try {
+          final hits = await autocomplete(item.title)
+              .timeout(const Duration(seconds: 5));
+          final verified = classifyFromAutocomplete(item, hits);
+          if (verified != null) item.autocompleteIsTv = verified;
+        } catch (_) {
+          // Retain unknown rather than silently changing it to 'movie'.
+        }
+      }
+    }
+    await Future.wait(List.generate(
+      unknown.length < 8 ? unknown.length : 8, (_) => worker(),
+    )).timeout(const Duration(seconds: 16), onTimeout: () => []);
+  }
 
   /// Hit the site's autocomplete endpoint. Returns parsed hits.
   static Future<List<BSAutocompleteHit>> autocomplete(String term) async {
@@ -464,6 +517,23 @@ BSDetails? _parseDetailsHtml(_ParseInput input) {
           }
         }
 
+        // BestSimilar uses .item-movie for both TV and films: use explicit
+        // node flags, not the CSS class, to determine the actual media type.
+        bool? sourceIsTv;
+        final serial = node.attributes['data-serial'] ??
+            node.attributes['data-is-serial'];
+        if (serial == '1' || serial == 'true') sourceIsTv = true;
+        if (serial == '0' || serial == 'false') sourceIsTv = false;
+        if (sourceIsTv == null) {
+          final format = (node.attributes['data-type'] ??
+              node.attributes['data-media-type'] ?? '').toLowerCase();
+          if (['tv', 'series', 'tv-series', 'show'].contains(format)) {
+            sourceIsTv = true;
+          } else if (['movie', 'film'].contains(format)) {
+            sourceIsTv = false;
+          }
+        }
+
         items.add(BSItem(
           id: dataId,
           slug: slug,
@@ -484,6 +554,7 @@ BSDetails? _parseDetailsHtml(_ParseInput input) {
           audienceTags: tagMap['audience'] ?? const [],
           timeTags: tagMap['time'] ?? const [],
           placeTags: tagMap['place'] ?? const [],
+          sourceIsTv: sourceIsTv,
         ));
       }
     }

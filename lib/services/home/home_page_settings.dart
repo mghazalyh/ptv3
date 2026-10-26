@@ -293,6 +293,11 @@ abstract final class HomePageSettings {
 
       if (details == null || details.similar.isEmpty) return null;
 
+      // Verify individual results via BestSimilar's explicit 'serial' flag.
+      // The HTML .item-movie class is shared by series and films and is NOT
+      // media-type evidence. Unknown entries remain neutral, never 'Movie'.
+      await BestSimilarScraper.classifySimilar(details.similar);
+
       // Safety Guard: If source title is live-action, don't allow anime details
       final isAnimeSource = type == 'anime' || sourceTitle.toLowerCase().contains('anime');
       final isAnimeMatched = (details.genre?.toLowerCase().contains('animation') == true ||
@@ -318,7 +323,8 @@ abstract final class HomePageSettings {
             !seen.add(key)) continue;
         movies.add(Movie(
           id: 'bestsimilar_${sim.id}',
-          type: sim.isTv ? 'series' : 'movie',
+          type: sim.knownIsTv == null
+              ? 'unknown' : (sim.knownIsTv! ? 'series' : 'movie'),
           name: sim.title,
           poster: sim.thumbUrl,
           year: sim.year?.toString(),
@@ -458,7 +464,7 @@ abstract final class HomePageSettings {
       for (final item in res.items) {
         movies.add(Movie(
           id: item.id,
-          type: item.type,
+          type: Movie.canonicalType(item.type),
           name: item.name,
           poster: item.poster,
           year: item.year,
@@ -511,7 +517,7 @@ abstract final class HomePageSettings {
       for (final item in res.items) {
         movies.add(Movie(
           id: item.id,
-          type: item.type,
+          type: Movie.canonicalType(item.type),
           name: item.name,
           poster: item.poster,
           year: item.year,

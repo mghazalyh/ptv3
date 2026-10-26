@@ -2,7 +2,11 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## Build #122 failed; regression compilation fixed (2026-10-27)
+## Build #123 also failed; source fully reconstructed (2026-10-27)
+
+[Build #123](https://github.com/mghazalyh/ptv3/actions/runs/40377939376) failed Windows test compilation: `tmdb_discover_service.dart` was still followed by a duplicated suffix (duplicate `_DiscoverCacheEntry`, syntax errors lines 435 onward). Fixed by fetching **last-good v1.1.4** TMDB service from `b04508d...`, reapplying only genreIds field and one verified exact-ID/relatedSeries method block with safe source slicing. Sanity checks: 436 lines, one class `_DiscoverCacheEntry`, one `resolveMovie`, one `relatedSeries`, one `selectSeriesId`, two valid intentionally separate IMDb regex checks. Blob `70fa4f544731b14e6ab58568c8d57506982651c5`. Feature/UI/Settings/test files are unchanged from v1.1.5 commit; next fresh paired CI still must prove Windows/iOS and actual assets, Telegram and release. **Do not claim v1.1.5 shipped.** Latest verified release v1.1.4 Build #121.
+
+
 
 The first CI run for new v1.1.5 feature, https://github.com/mghazalyh/ptv3/actions/runs/40377189935, failed Windows tests before they executed because `lib/services/metadata/tmdb_discover_service.dart:360` contained a truncated raw RegExp ending `RegExp(r'^tt\\d+` with no closing literal. A scripted JS string replace interpreted `$'` in the replacement as a special replacement sequence. **Reconstructed the entire `relatedSeries` method using safe source slicing** (complete `RegExp(r'^tt\\d+$').hasMatch(imdbId)`, TMDB search/recommendations/similar, intact `resolveMovie`). No v1.1.5 release exists yet. Verify the replacement workflow tests, Windows/iOS analysis, artifacts, actual Telegram IPA and paired release before sharing downloads; only v1.1.4 Build #121 is an actual verified release. Keep handover updates in every subsequent CI-fix commit.
 

@@ -2,7 +2,11 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## Build #123 also failed; source fully reconstructed (2026-10-27)
+## LATEST v1.1.5 build checkpoint — Windows Build #124 tests passed, analyzer fixed (2026-10-27)
+
+Windows [Build #124](https://github.com/mghazalyh/ptv3/actions/runs/40378709198), source `8e4408d74a6453ec168e0dd244bcce5dbea7aeda`: **new Similar Recommendations tests and other Windows test stage succeeded**, proving the TMDB method reconstruction compiles. Next analyzer step **failed with exactly two warnings**: `invalid_use_of_visible_for_testing_member` at `similar_recommendations_service.dart:33` and `:41` because it legitimately calls public utility `TvdbSeriesService.normalizeTitle` marked `@visibleForTesting`. Removed only that inappropriate annotation in `lib/services/metadata/tvdb_series_service.dart`. No functional/API/provider behavior changes. New paired CI pending after this source+docs commit; no v1.1.5 ZIP/IPA release yet. As of latest check, iOS job had never started in Build #124. Last fully verified paired release: **v1.1.4 Build #121**, including Telegram IPA document. Maintain mandatory root `handover.md` updates for any subsequent CI repair, and mirror docs only to main.
+
+## HISTORICAL Build #123 source reconstruction (2026-10-27)
 
 [Build #123](https://github.com/mghazalyh/ptv3/actions/runs/40377939376) failed Windows test compilation: `tmdb_discover_service.dart` was still followed by a duplicated suffix (duplicate `_DiscoverCacheEntry`, syntax errors lines 435 onward). Fixed by fetching **last-good v1.1.4** TMDB service from `b04508d...`, reapplying only genreIds field and one verified exact-ID/relatedSeries method block with safe source slicing. Sanity checks: 436 lines, one class `_DiscoverCacheEntry`, one `resolveMovie`, one `relatedSeries`, one `selectSeriesId`, two valid intentionally separate IMDb regex checks. Blob `70fa4f544731b14e6ab58568c8d57506982651c5`. Feature/UI/Settings/test files are unchanged from v1.1.5 commit; next fresh paired CI still must prove Windows/iOS and actual assets, Telegram and release. **Do not claim v1.1.5 shipped.** Latest verified release v1.1.4 Build #121.
 

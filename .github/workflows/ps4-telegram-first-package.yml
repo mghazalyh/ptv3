@@ -1,9 +1,6 @@
 name: Relay PlayTorrio PS4 v1.0 settings fix to Telegram
 
 on:
-  push:
-    branches: [parity-floating-player-both]
-    paths: [.github/workflows/ps4-telegram-first-package.yml]
   workflow_dispatch:
 
 permissions:

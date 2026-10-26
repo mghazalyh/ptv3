@@ -2,7 +2,11 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## Urgent iOS checkpoint (2026-10-27)
+## Latest iOS Build #121 progress (2026-10-27)
+
+GitHub Actions [v1.1.4 Build #121 attempt 2](https://github.com/mghazalyh/ptv3/actions/runs/40367298917): the separately rerun **iOS 15 job 121740141007 started** after previously queuing. **Seven iOS steps passed** (runner setup, checkout, commit consistency, Flutter setup, dependency setup, TorrServerKit framework restoration and inspection); **storage analysis was in progress**. No failed iOS steps seen; iOS tests, actual build, minimum-version validation, ad-hoc signing, IPA package/upload, Telegram and publish remained unfinished. The canceled original attempt never had a runner or build output, so no evidence of iOS compilation bugs at that point. Windows 17/17 remains passed with artifact 12670718760. **No newer verified IPA than v1.1.0 Build #90** at this checkpoint. This documentation-only [skip ci] commit must not interrupt the active workflow. Refresh statuses before answering future questions.
+
+## Historical urgent iOS checkpoint (2026-10-27)
 
 User requested newest installable iOS IPA and diagnosis for canceled newer iOS jobs. **Only verified published iOS IPA is v1.1.0 Build #90**, https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.0-b90/PlayTorrio-v1.1.0-build90-iOS15-TrollStore.ipa. **v1.1.4 Build #121** https://github.com/mghazalyh/ptv3/actions/runs/40367298917 completed Windows 17/17 (artifact 12670718760) but its iOS job was canceled before running, so Telegram and paired publish skipped. **Triggered rerun of canceled iOS job only**: workflow #121 attempt 2, new iOS job 121740141007 was queued at the latest check, no signed IPA artifact. No confirmed iOS code failure because macOS build never started. Check new job status/artifacts before claiming any new iOS delivery. The latest source code commit before docs is `b04508d652d618ca7b7eb3a9759816a2010ce9f0` (v1.1.4). Documentation-only [skip ci] checkpoint. Continue mandatory living handover updates and preserve Windows success.
 

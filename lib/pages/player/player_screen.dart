@@ -26,6 +26,7 @@ import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/playback_autoselection.dart';
+import '../../services/metadata/metadata_service.dart';
 import '../../services/stream/stream_service.dart';
 import '../../services/discord/discord_rpc_service.dart';
 
@@ -138,6 +139,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _subtitleManuallySelected = false;
   bool _subtitleAutoPending = false;
   bool _nextEpisodeBusy = false;
+  List<Video> _episodeCatalog = const [];
+  bool _episodeCatalogComplete = false;
   int _lastAutoplayEpoch = -1;
 
   // Skip Segments State (IntroDB)
@@ -162,6 +165,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     _currentSource = widget.source;
     _currentEpisode = widget.episode;
     _currentTitle = widget.title;
+    _episodeCatalog = widget.detail?.videos ?? const <Video>[];
+    if (_currentEpisode != null && _episodeCatalog.length < 4) {
+      unawaited(_fetchEpisodeCatalog());
+    }
 
     WakelockPlus.enable();
     _logoAnimController = AnimationController(
@@ -1140,8 +1147,34 @@ class _PlayerScreenState extends State<PlayerScreen>
     });
   }
 
-  Video? get _nextEpisode => PlaybackAutoselection.nextEpisode(
-      widget.detail?.videos ?? const <Video>[], _currentEpisode);
+  /// Continue Watching often passes minimal show metadata without videos.
+  /// Fetch Cinemeta's full episode catalog to provide reliable next-season
+  /// transitions; retain a numbered fallback if metadata is unavailable.
+  Future<void> _fetchEpisodeCatalog() async {
+    final detail = widget.detail;
+    if (detail == null || !detail.id.startsWith('tt') ||
+        _currentEpisode == null) return;
+    try {
+      final meta = await MetadataService.fetchMeta(
+        baseUrl: 'https://v3-cinemeta.strem.io',
+        type: 'series',
+        imdbId: detail.id,
+      ).timeout(const Duration(seconds: 8));
+      if (!mounted || meta == null || meta.videos.isEmpty) return;
+      setState(() {
+        _episodeCatalog = meta.videos;
+        _episodeCatalogComplete = true;
+      });
+    } catch (error) {
+      debugPrint('[PlayerAutoplay] Episode catalog unavailable: $error');
+    }
+  }
+
+  Video? get _nextEpisode => PlaybackAutoselection.nextEpisodeCandidate(
+      knownEpisodes: _episodeCatalog,
+      current: _currentEpisode,
+      showId: widget.detail?.id ?? '',
+      catalogComplete: _episodeCatalogComplete);
 
   Future<void> _goToNextEpisode() async {
     final next = _nextEpisode;
@@ -1728,7 +1761,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       quality: _currentSource.name,
                       onDownload: (_isLoading || isOfflineFile) ? null : _handleDownloadMedia,
                       isDownloading: isDownloading,
-                      onToggleEpisodes: (!_isLoading && widget.detail?.videos.isNotEmpty == true)
+                      onToggleEpisodes: (!_isLoading && _episodeCatalog.isNotEmpty)
                           ? _toggleEpisodesPanel
                           : null,
                       isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
@@ -1783,10 +1816,12 @@ class _PlayerScreenState extends State<PlayerScreen>
                           isAudioActive: _selectedAudioTrackIndex > 0,
                           isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
                           hasNextEpisode: _nextEpisode != null,
+                          nextEpisodeLabel: _nextEpisode == null
+                              ? null : 'S${_nextEpisode!.season}E${_nextEpisode!.episode}',
                           onNextEpisode: _nextEpisode != null && !_nextEpisodeBusy
                               ? () => unawaited(_goToNextEpisode()) : null,
                           isFullscreen: isFs,
-                          onToggleEpisodes: (widget.detail?.videos.isNotEmpty == true)
+                          onToggleEpisodes: (_episodeCatalog.isNotEmpty)
                               ? _toggleEpisodesPanel
                               : null,
                           onPlayPause: () {
@@ -2013,7 +2048,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             ),
 
           // In-Player Episodes Side Panel
-          if (_showEpisodesPanel && widget.detail?.videos.isNotEmpty == true && !_isLoading)
+          if (_showEpisodesPanel && _episodeCatalog.isNotEmpty && !_isLoading)
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -2023,7 +2058,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   child: GestureDetector(
                     onTap: () {},
                     child: PlayerEpisodesPanel(
-                      videos: widget.detail!.videos,
+                      videos: _episodeCatalog,
                       currentEpisode: _currentEpisode,
                       onEpisodeSelected: _onEpisodeChosen,
                       onClose: () => setState(() => _showEpisodesPanel = false),

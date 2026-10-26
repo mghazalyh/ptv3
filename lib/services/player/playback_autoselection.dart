@@ -64,6 +64,32 @@ abstract final class PlaybackAutoselection {
     return upcoming.firstOrNull;
   }
 
+  /// An episode list can be missing when a show was opened from Continue
+  /// Watching or an addon returned only stream details. Keep the Next Episode
+  /// action available while a richer catalog lookup is pending/unavailable.
+  /// This is a candidate only; a source must actually be found before play.
+  static Video? nextEpisodeCandidate({
+    required List<Video> knownEpisodes,
+    required Video? current,
+    required String showId,
+    bool catalogComplete = false,
+  }) {
+    final listed = nextEpisode(knownEpisodes, current);
+    if (listed != null) return listed;
+    if (current?.season == null || current?.episode == null ||
+        showId.isEmpty || catalogComplete) {
+      return null;
+    }
+    final season = current!.season!;
+    final number = current.episode! + 1;
+    return Video(
+      id: '$showId:$season:$number',
+      title: 'Episode $number',
+      season: season,
+      episode: number,
+    );
+  }
+
   static StreamSource? preferredSource(
       List<StreamSource> candidates, StreamSource previous) {
     if (candidates.isEmpty) return null;

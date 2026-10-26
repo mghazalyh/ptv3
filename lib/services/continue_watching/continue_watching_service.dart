@@ -320,6 +320,10 @@ class ContinueWatchingService {
       activeItems.value = trimmed;
     });
 
+    // Queue latest progress before any asynchronous local writes, so a
+    // player-exit sync always includes this final position.
+    GitHubProgressCloud.instance.save(newItem, removed: isFinished);
+
     // Persist to SharedPreferences
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -329,8 +333,6 @@ class ContinueWatchingService {
       debugPrint('[ContinueWatchingService] Failed to persist session: $e');
     }
 
-    // Queue GitHub progress asynchronously; never block playback.
-    GitHubProgressCloud.instance.save(newItem, removed: isFinished);
     // Legacy scrobbling stays separate from the private GitHub progress.
     if (!GitHubLibraryCloud.instance.configured) _syncCloudPlayback(
       detail: detail,
@@ -432,6 +434,8 @@ class ContinueWatchingService {
       activeItems.value = current;
     });
 
+    // Tombstone first, before any asynchronous local storage I/O.
+    GitHubProgressCloud.instance.save(item, removed: true);
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonList = current.map((e) => e.toJson()).toList();
@@ -439,9 +443,6 @@ class ContinueWatchingService {
     } catch (e) {
       debugPrint('[ContinueWatchingService] Failed to remove session: $e');
     }
-
-    // Persist a GitHub tombstone so other devices remove the card too.
-    GitHubProgressCloud.instance.save(item, removed: true);
     if (GitHubLibraryCloud.instance.configured) {
       unawaited(syncGitHubProgress(force: true));
     } else {

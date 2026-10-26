@@ -4,14 +4,17 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/my_list/my_list_item.dart';
 import 'simkl_hearts_cloud.dart';
+import 'github_library_cloud.dart';
 import 'trakt_cloud_library.dart';
 
 abstract final class MyListService {
   static const _storageKey = 'my_list_v1';
-  static const int maxItems = 500;
+  static const int maxItems = 2500;
   static final TraktCloudLibrary traktCloud = TraktCloudLibrary();
   static final SimklHeartsCloud simklCloud = SimklHeartsCloud();
   static DateTime? _lastAutoRefresh;
+  static Timer? _syncDebounce;
+  static GitHubLibraryCloud get githubCloud => GitHubLibraryCloud.instance;
 
   static final ValueNotifier<List<MyListItem>> items = ValueNotifier<List<MyListItem>>([]);
   static final ValueNotifier<bool> isSyncing = ValueNotifier<bool>(false);
@@ -29,25 +32,39 @@ abstract final class MyListService {
         items.value = [];
       }
     }
-    syncAll();
+    await githubCloud.initialize();
+    unawaited(syncAll());
   }
 
-  /// Automatic refresh on startup and opening My List is intentionally
-  /// throttled; the refresh button can force another sync at any time.
+  /// My List is owned by GitHub sync only. Trakt and Simkl remain available
+  /// for their separate playback/history features but cannot overwrite it.
   static Future<void> syncAll({bool force = false}) async {
-    if (isSyncing.value) return;
+    if (!githubCloud.configured || isSyncing.value) return;
     if (!force && _lastAutoRefresh != null &&
         DateTime.now().difference(_lastAutoRefresh!) <
-            const Duration(seconds: 90)) return;
+            const Duration(seconds: 60)) return;
     _lastAutoRefresh = DateTime.now();
     isSyncing.value = true;
     try {
-      await syncWithTrakt();
-      // Serialize both cloud providers: avoid concurrent writes to My List.
-      await syncWithSimkl();
+      await githubCloud.sync(
+        readLocal: () => List<MyListItem>.from(items.value),
+        persistMerged: (merged) async {
+          items.value = merged;
+          await _persist();
+        },
+      );
     } finally {
       isSyncing.value = false;
     }
+  }
+
+  static void _queueGitHubEdit(MyListItem item, {required bool added}) {
+    githubCloud.recordEdit(item, added: added);
+    if (!githubCloud.configured) return;
+    _syncDebounce?.cancel();
+    _syncDebounce = Timer(const Duration(seconds: 5), () {
+      unawaited(syncAll(force: true));
+    });
   }
 
   static Future<void> syncWithTrakt() async {
@@ -94,17 +111,7 @@ abstract final class MyListService {
     items.value = newList;
     unawaited(_persist());
 
-    // Journal before sending to Trakt; failed/offline edits retry on refresh.
-    unawaited(traktCloud.localChange(item, added: true));
-    unawaited(_syncSimklEdit(item, added: true));
-  }
-
-  static Future<void> _syncSimklEdit(MyListItem item,
-      {required bool added}) async {
-    await simklCloud.localChange(item, added: added);
-    // A forced refresh performs one activities-gated reconciliation, not
-    // a separate Simkl POST for each rapid heart tap.
-    unawaited(syncAll(force: true));
+    _queueGitHubEdit(item, added: true);
   }
 
   static void remove(MyListItem item) {
@@ -114,8 +121,7 @@ abstract final class MyListService {
     if (next.length == current.length) return;
     items.value = next;
     unawaited(_persist());
-    unawaited(traktCloud.localChange(item, added: false));
-    unawaited(_syncSimklEdit(item, added: false));
+    _queueGitHubEdit(item, added: false);
   }
 
   static void toggle(MyListItem item) {

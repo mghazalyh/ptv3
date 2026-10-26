@@ -2,7 +2,19 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## CURRENT v1.1.8 — actor credits + rich Similar Content and Torriodb vault design (2026-10-27)
+## LATEST USER REQUIREMENT — single Torriodb connection restores everything (2026-10-27)
+
+**User clarified that `mghazalyh/torriodb` is their PRIVATE GitHub database**, and the desired product behavior is ONE GitHub Library connection (repo `mghazalyh/torriodb`, branch `main`, same fine-grained access token on all devices), then complete cross-device restore of **My List/watchlist, progress, completed/watched history, liked/favorited titles, portable preferences, addon settings and all eligible provider API keys** including TMDB/TVDB/TorBox etc. Weekly rotating keys should be updated once to sync other devices. This is a **target feature, NOT currently implemented** beyond existing watchlist/progress.
+
+Verified via authorized GitHub API: Torriodb `private=true`, default branch `main`, contains `playtorrio/watchlist-v1.json` and `playtorrio/continue-watching-v1.json` **only**. Current library GitHub Settings connection uploads/downloads those two; likes/hearts have separate Simkl semantics and completed (>90%) Continue Watching entries are purged/excluded. Additional versioned structured likes and completed-history are needed; don't conflate saved list with watched or liked. Config prefs and provider credentials currently local. Default app repo `mghazalyh/ptv3` is PUBLIC; never write API keys there.
+
+**Design updated:** Full [`docs/torriodb_key_vault_plan.md`](docs/torriodb_key_vault_plan.md) now documents one-form bootstrap, private repo validation, separate verified/encrypted settings/credential files, secure-storage local caching, data allow-lists and optimistic SHA/concurrent merge. To avoid a SECOND encryption password while preserving local AES-GCM/HKDF encryption, derive vault key from **the same repo-scoped high-entropy PAT** supplied in the GitHub connection, random salt and repo identity. **Device must reuse the identical PAT**; different tokens for same GitHub account cannot decrypt old vault, and rotating PAT needs unlocked old-device rekey or optional independent recovery. PAT compromise can decrypt vault—this is not a separate security factor. Credentials stay local until safe code + tests verified.
+
+**Latest shipped v1.1.8 Build #128 now fully successful**: [workflow](https://github.com/mghazalyh/ptv3/actions/runs/40393028750) Windows 17 steps, iOS15 29 steps, matched [release](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.8-b128) Windows ZIP/EXE and iOS IPA, Telegram actual IPA document message **28**. It contains cast filmographies and similar metadata, **not** complete Torriodb settings/credentials sync. No source or new cloud record changed in this requirement checkpoint, docs-only [skip ci].
+
+**NEXT:** Implement/test private-repo proof, crypto, remote CAS and rollback on new-device restore, secrets/media-provider callbacks; distinct likes and complete watched history; compatible prefs/addons; automatic credential refresh. Do not proclaim one-step restore until it works on Windows/iOS. Mandatory handover/NEXT_SESSION/AGENTS and docs-only main mirror.
+
+## HISTORICAL v1.1.8 implementation — actor credits + rich Similar Content (2026-10-27)
 
 User requests: (1) tapping Cast should show **actor's real filmography**, not title search with actor name; (2) similar cards should show origin country, network/studio and original language **before tapping**; (3) prepare safe private Torriodb-based central key rotation; (4) confirm Torrentio English-dub sources outrank non-English.
 

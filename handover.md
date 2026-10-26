@@ -1,3 +1,9 @@
+## 2026-10-27 — Recommendation cards incorrectly labeled Movie
+
+User reports that home recommendations label series as Movie. The BestSimilar scraper previously accepted `data-serial=0` / `data-type=movie` from mixed recommendation HTML as definitive film evidence, and its autocomplete verification only ran for entries whose `knownIsTv` was null. This could lock a series into `movie` and make the card label wrong.
+
+Fixed in `lib/services/metadata/bestsimilar_scraper.dart`: autocomplete checks all recommendations without verified TMDB type, not only unknown entries; an exact-ID or unique title+year autocomplete match overrides HTML hints; negative HTML movie flags are no longer proof of film status. If a title cannot be verified, its type remains `unknown` (card label `Title`) rather than being incorrectly called `Movie`. This preserves verified movie/series distinctions and avoids fake certainty. The similarity scraper uses bounded parallel autocomplete requests. **Validation:** code committed, paired workflow result not yet confirmed. Previous v1.1.2 Build #104 Windows succeeded; iOS was queued at prior checkpoint. Do not claim new packages until a fresh paired build completes.
+
 # PlayTorrio — comprehensive project handover
 
 > **Canonical living handover.** Established 2026-10-26 (UTC) from the full working session, repository source and GitHub Actions/release state. This is deliberately detailed so development can be resumed after a context reset.  

@@ -2,7 +2,15 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## LATEST VERIFIED RELEASE — v1.1.5 Build #125 (2026-10-27 SGT)
+## IMMEDIATE TASK — v1.1.6 TVDB key missing in iOS Settings (2026-10-27)
+
+User installed iOS **v1.1.5 Build #125** and could not locate TVDB API key entry. Verified from exact shipped source that `lib/pages/settings/tvdb_settings_page.dart` exists and has real secure key + optional PIN/save fields, but **`lib/pages/settings/settings_page.dart` lacks import and navigable TVDB Settings tile entirely**. Bug introduced when later version bump overwrote prior tile edit. This is reproducible in source, not an iOS preference toggle.
+
+**Fix coded for v1.1.6:** Main Settings now imports `tvdb_settings_page.dart` and exposes **TVDB Series Metadata** immediately beneath **Addons**, opening `TvdbSettingsPage` with key/PIN. No credentials hard-coded or changed; `FlutterSecureStorage` intact. Added `test/tvdb_settings_navigation_test.dart` guarding import, clickable Settings tile and destination form, included on Windows/iOS CI, Windows analyze includes `settings_page.dart`. Bumped semantic package **1.1.6+16**, Windows resource, Inno setup, Settings fallback 1.1.6 / 16, and paired workflow/release naming 1.1.6. Playback/recommendation ranking/metadata API behavior unchanged.
+
+**NOT YET RELEASED:** New paired Windows/iOS15 CI pending. Do not provide nonexistent v1.1.6 binaries until GitHub run, test/analyzer, ZIP/EXE/IPA, Telegram document and matched GitHub release are verified. Latest already published [**v1.1.5 Build #125**](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.5-b125) succeeded Windows 17/17, iOS 26, Telegram IPA message #25. Source fix should ship as a separate paired release. Continue handover update discipline, documentation-only mirror to main, no merge of its application branch.
+
+## HISTORICAL VERIFIED RELEASE — v1.1.5 Build #125 (2026-10-27 SGT)
 
 [**Release v1.1.5 Build #125**](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.5-b125) is **fully paired and published**, no longer "pending". [Workflow run 40380065374](https://github.com/mghazalyh/ptv3/actions/runs/40380065374) from application commit **`ec88c73da57efc00eb35e54c77a9cfef0a6d72e7`** finished **overall success**, with Windows **17/17 steps**, iOS 15 TrollStore **26 successful steps**, Telegram actual signed IPA **document message ID 25**, publish **6 steps** all successful. CI artifacts Windows ID **12678388563**, iOS ID **12677857665**; release assets Windows portable ZIP, Windows Setup EXE, iOS15 IPA and SHA256SUMS are real:
 - [Portable ZIP](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.5-b125/PlayTorrio-v1.1.5-build125-Windows-x64-Portable.zip)

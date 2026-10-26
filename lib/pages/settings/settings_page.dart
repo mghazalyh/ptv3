@@ -12,6 +12,7 @@ import '../../services/simkl/simkl_service.dart';
 import 'appearance_settings_page.dart';
 import 'debrid_settings_page.dart';
 import 'addons_settings_page.dart';
+import 'tvdb_settings_page.dart';
 import 'trakt_settings_page.dart';
 import 'github_library_settings_page.dart';
 import 'simkl_settings_page.dart';
@@ -56,8 +57,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final pkg = await PackageInfo.fromPlatform().catchError((_) => PackageInfo(
           appName: 'PlayTorrio',
           packageName: 'com.playtorrio',
-          version: '1.1.5',
-          buildNumber: '13',
+          version: '1.1.6',
+          buildNumber: '16',
         ));
 
     if (mounted) {
@@ -257,6 +258,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 badgeText: '$addonCount Installed',
                 badgeColor: const Color(0xFF10B981),
                 onTap: () => _navigateTo(const AddonsSettingsPage()),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Visible on iOS and Windows: optional series metadata key.
+              _SettingsCategoryTile(
+                icon: Icons.auto_awesome_rounded,
+                iconColor: const Color(0xFF8B5CF6),
+                title: 'TVDB Series Metadata',
+                subtitle: 'Optional TVDB API key for related shows',
+                onTap: () => _navigateTo(const TvdbSettingsPage()),
               ),
 
               const SizedBox(height: 12),

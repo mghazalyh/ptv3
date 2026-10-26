@@ -41,7 +41,16 @@ jobs:
                   with urllib.request.urlopen(urllib.request.Request(url, data=body), timeout=20) as response:
                       data = json.load(response)
               except urllib.error.HTTPError as exc:
-                  sys.exit(f'Telegram {method} returned HTTP {exc.code}. Check bot configuration and channel permissions.')
+                  try:
+                      error = json.loads(exc.read().decode('utf-8', errors='replace'))
+                      reason = error.get('description', 'No reason supplied')
+                      new_chat = (error.get('parameters') or {}).get('migrate_to_chat_id')
+                  except Exception:
+                      reason, new_chat = 'Response could not be decoded', None
+                  # Only show Telegram's public diagnostic, never the API URL or token.
+                  if new_chat:
+                      sys.exit(f'Telegram {method} HTTP {exc.code}: {reason}. New chat ID: {new_chat}')
+                  sys.exit(f'Telegram {method} HTTP {exc.code}: {reason}')
               except Exception as exc:
                   sys.exit(f'Telegram {method} request failed ({type(exc).__name__}).')
               if not data.get('ok'):

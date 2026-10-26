@@ -23,7 +23,14 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## CURRENT VERIFIED RELEASE — v1.1.7 Build #127 (2026-10-27 SGT)
+## CURRENT IMPLEMENTATION — v1.1.8 cast credits / Similar cards / Torriodb key vault prep (2026-10-27 SGT)
+
+- Details Cast chip should open **`PersonCreditsPage`**, which uses authenticated TMDB `/search/person` and `/person/{id}/combined_credits` (not title search), supporting actor identity choice and movie/series credits. Recommendation cards show bounded TMDB-backed **country origin, original production language, network/studio** metadata or "Not listed", never fabricate English audio availability. First six only, paced/cached, no TMDB key means no optional calls. Preserve existing type, similarity score and subtitle/player rules.
+- `docs/torriodb_key_vault_plan.md` is **security preparation, not an implementation or permission to store raw API keys**. Confirm actual repo private status, authenticated encryption and device-only unlock before implementing any central key sync. Default `mghazalyh/ptv3` repo is public, so never put secrets there. Keep user credentials local for now.
+- Confirmed Torrentio sorting already prioritizes explicitly English-audio/dub tagged sources before multi-audio, unknown or foreign audio, preserving non-English sources. Do not confuse English subs with dub or overclaim filenames as proof.
+- Source version 1.1.8+18 and Windows/iOS CI tests pending. Last verified paired release **v1.1.7 Build #127**. Update `handover.md`, `NEXT_SESSION.md`, `AGENTS.md` in every meaningful work unit; docs-only mirror to main with [skip ci], no source merges.
+
+## HISTORICAL VERIFIED RELEASE — v1.1.7 Build #127 (2026-10-27 SGT)
 
 - Paired GitHub Actions [Build #127](https://github.com/mghazalyh/ptv3/actions/runs/40388302974) from source commit `16a4143fd085973b9f103e1faa05b4ec95ad3269` succeeded: Windows **17/17**, iOS15 **28 successful steps**, Telegram actual IPA **document message 27**, published matched [v1.1.7 Build #127](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.7-b127) with real ZIP/EXE/IPA/checksums. The prior v1.1.6 is historical; v1.1.7 includes TVDB settings UI plus new title+filters.
 - New Advanced Discover optional text input is explicitly user-requested and tested: blank title retains existing `/discover` query and year filters; typed text uses `/search/movie|tv`, local year/country/language/sort intersection, Movie origin-country details only when explicitly selected, and prior applied filter paging. One TV year may match episode dates; multi-year TV title range uses premiere year with UI caveat. No per-keystroke network calls; existing TMDB rate pacing, caching, cooldown and API credentials unchanged.

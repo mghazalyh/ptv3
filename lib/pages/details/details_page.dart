@@ -14,6 +14,7 @@ import '../../services/metadata/tmdb_discover_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../discover/discover_page.dart';
+import 'person_credits_page.dart';
 import '../player/watch_screen.dart';
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -345,6 +346,10 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _updateSimilarScrollButtons();
       });
+      // Show cards immediately, then fill missing origin/language/network on
+      // at most the first six. UI does not block on extra metadata calls.
+      await SimilarRecommendationsService.enrichVisibleCards(result.items);
+      if (mounted && identical(_similarItems, result.items)) setState(() {});
     } catch (error) {
       debugPrint('[Similar] Related shows unavailable: ${error.runtimeType}');
       if (mounted) setState(() => _isFetchingSimilar = false);
@@ -360,7 +365,8 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         DiscoverTitle(
           tmdbId: item.tmdbId!,
           title: item.title,
-          type: DiscoverType.series,
+          type: item.mediaType == 'movie'
+              ? DiscoverType.movie : DiscoverType.series,
           poster: item.thumbUrl,
           premiereYear: item.year,
           rating: item.rating ?? 0,
@@ -1099,7 +1105,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                                     Navigator.push(
                                       context,
                                       LiquidRevealRoute(
-                                        page: DiscoverPage(query: name, isGenre: false),
+                                        page: PersonCreditsPage(actorName: name),
                                         tapPosition: lastTap,
                                       ),
                                     );
@@ -1486,7 +1492,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   Widget _buildSimilarRow() {
     final isDesktop = _isDesktop();
     final cardWidth = isDesktop ? 160.0 : 130.0;
-    final cardHeight = cardWidth * 1.5 + 64; // poster + text area
+    final cardHeight = cardWidth * 1.5 + 132; // poster + rich metadata
     final fadeWidth = isDesktop ? 60.0 : 40.0;
 
     return MouseRegion(
@@ -1655,8 +1661,8 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              // Year + actual media type, not genre.
-                              // Unverified results show neutral Title.
+                              // Year + verified media type, then metadata
+                              // visible BEFORE opening a recommendation.
                               Text(
                                 [
                                   if (item.year != null) '${item.year}',
@@ -1665,9 +1671,35 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 12,
+                                  color: Colors.white70,
+                                  fontSize: 11,
                                 ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Origin: ${item.country?.isNotEmpty == true
+                                    ? item.country : 'Not listed'}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.white60, fontSize: 10),
+                              ),
+                              Text(
+                                'Original: ${SimilarRecommendationsService.displayLanguage(
+                                    item.originalLanguage)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.white60, fontSize: 10),
+                              ),
+                              Text(
+                                '${item.mediaType == 'movie' ? 'Studio' : 'Network'}: '
+                                '${item.network?.isNotEmpty == true
+                                    ? item.network : 'Not listed'}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.white60, fontSize: 10),
                               ),
                             ],
                           ),

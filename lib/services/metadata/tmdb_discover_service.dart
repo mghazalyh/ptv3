@@ -110,6 +110,30 @@ class DiscoverFilters {
       toQuery());
 }
 
+/// A real TMDB person, not a movie title containing an actor's name.
+class TmdbPerson {
+  final int id;
+  final String name;
+  final String? photo;
+  final String department;
+  const TmdbPerson({
+    required this.id,
+    required this.name,
+    this.photo,
+    this.department = '',
+  });
+
+  factory TmdbPerson.parse(Map<String, dynamic> row) {
+    final path = row['profile_path']?.toString() ?? '';
+    return TmdbPerson(
+      id: (row['id'] as num?)?.toInt() ?? 0,
+      name: row['name']?.toString() ?? '',
+      photo: path.isEmpty ? null : 'https://image.tmdb.org/t/p/w185$path',
+      department: row['known_for_department']?.toString() ?? '',
+    );
+  }
+}
+
 class DiscoverTitle {
   final int tmdbId;
   final String title;
@@ -119,6 +143,8 @@ class DiscoverTitle {
   final double rating;
   final String overview;
   final List<int> genreIds;
+  final List<String> originCountries;
+  final String? originalLanguage;
 
   const DiscoverTitle({
     required this.tmdbId,
@@ -129,6 +155,8 @@ class DiscoverTitle {
     this.rating = 0,
     this.overview = '',
     this.genreIds = const [],
+    this.originCountries = const [],
+    this.originalLanguage,
   });
 
   factory DiscoverTitle.parse(Map<String, dynamic> json, DiscoverType type) {
@@ -148,6 +176,9 @@ class DiscoverTitle {
       overview: json['overview']?.toString() ?? '',
       genreIds: (json['genre_ids'] as List<dynamic>? ?? const [])
           .whereType<num>().map((n) => n.toInt()).toList(),
+      originCountries: (json['origin_country'] as List<dynamic>? ?? const [])
+          .map((x) => x.toString()).toList(),
+      originalLanguage: json['original_language']?.toString(),
     );
   }
 }
@@ -459,6 +490,104 @@ class TmdbDiscoverService {
       ((response['total_pages'] as num?)?.toInt() ?? 1).clamp(1, 500).toInt(),
       (response['total_results'] as num?)?.toInt() ?? 0,
     );
+  }
+
+  /// Resolve a clicked actor/actress to TMDB PERSON records (never a
+  /// title search); show multiple choices when names are ambiguous.
+  Future<List<TmdbPerson>> searchPeople(String name) async {
+    if (name.trim().isEmpty) return const [];
+    final key = await readKey();
+    if (key.isEmpty) {
+      throw const FormatException('Configure your TMDB key in Discover first.');
+    }
+    final response = await _request('search/person', {
+      'query': name.trim(), 'page': '1', 'include_adult': 'false',
+    }, key);
+    final rows = (response['results'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(TmdbPerson.parse)
+        .where((p) => p.id > 0 && p.name.isNotEmpty)
+        .toList();
+    final normalizedName = name.trim().toLowerCase();
+    rows.sort((a, b) {
+      final aExact = a.name.toLowerCase() == normalizedName ? 0 : 1;
+      final bExact = b.name.toLowerCase() == normalizedName ? 0 : 1;
+      return aExact.compareTo(bExact);
+    });
+    return rows.take(10).toList();
+  }
+
+  /// TMDB combined_credits includes credited MOVIES and TV series, sorted
+  /// by recency rather than title hits or actors with similar names.
+  Future<List<DiscoverTitle>> personCombinedCredits(int personId) async {
+    if (personId <= 0) return const [];
+    final key = await readKey();
+    if (key.isEmpty) {
+      throw const FormatException('Configure your TMDB key in Discover first.');
+    }
+    final data = await _request('person/$personId/combined_credits',
+        const {'language': 'en-US'}, key);
+    final rows = <DiscoverTitle>[];
+    final seen = <String>{};
+    for (final raw in (data['cast'] as List<dynamic>? ?? const [])) {
+      if (raw is! Map<String, dynamic> || raw['adult'] == true) continue;
+      final medium = raw['media_type']?.toString();
+      if (medium != 'movie' && medium != 'tv') continue;
+      final item = DiscoverTitle.parse(raw,
+          medium == 'tv' ? DiscoverType.series : DiscoverType.movie);
+      final key = '$medium:${item.tmdbId}';
+      if (item.tmdbId <= 0 || !seen.add(key)) continue;
+      rows.add(item);
+    }
+    rows.sort((a, b) {
+      final dateOrder = (b.premiereYear ?? 0).compareTo(a.premiereYear ?? 0);
+      return dateOrder != 0 ? dateOrder : b.rating.compareTo(a.rating);
+    });
+    return rows.take(120).toList();
+  }
+
+  /// Card-level metadata. Only called for a tiny, visible group of similar
+  /// titles; uses the existing paced/429-safe/24h cached TMDB requests.
+  Future<Map<String, dynamic>> similarCardDetails({
+    required String title,
+    required int? year,
+    required String mediaType,
+    int? tmdbId,
+  }) async {
+    final key = await readKey();
+    if (key.isEmpty) return const {};
+    final type = mediaType == 'series' ? 'tv' :
+        mediaType == 'movie' ? 'movie' : null;
+    if (type == null) return const {};
+    int? id = tmdbId;
+    if (id == null || id <= 0) {
+      final search = await _request('search/$type', {
+        'query': title,
+        if (year != null)
+          if (type == 'tv') 'first_air_date_year': '$year'
+          else 'primary_release_year': '$year',
+        'page': '1',
+      }, key);
+      final items = search['results'] as List<dynamic>? ?? const [];
+      final normalized = title.toLowerCase().replaceAll(
+          RegExp(r'[^a-z0-9]+'), ' ').trim();
+      for (final candidate in items) {
+        if (candidate is! Map<String, dynamic>) continue;
+        final candidateTitle = (type == 'tv' ? candidate['name'] :
+            candidate['title'])?.toString() ?? '';
+        if (candidateTitle.toLowerCase().replaceAll(
+            RegExp(r'[^a-z0-9]+'), ' ').trim() != normalized) continue;
+        final date = (type == 'tv' ? candidate['first_air_date'] :
+            candidate['release_date'])?.toString() ?? '';
+        final firstYear = date.length >= 4
+            ? int.tryParse(date.substring(0, 4)) : null;
+        if (year != null && firstYear != year) continue;
+        id = (candidate['id'] as num?)?.toInt();
+        break;
+      }
+    }
+    if (id == null || id <= 0) return const {};
+    return _request('$type/$id', const {}, key);
   }
 
   /// Match the selected show without guessing on ambiguous same-name results.

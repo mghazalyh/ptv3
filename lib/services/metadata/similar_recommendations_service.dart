@@ -49,7 +49,8 @@ abstract final class SimilarRecommendationsService {
         thumbUrl: title.poster!,
         similarityPercent: null,
         genre: null,
-        country: null,
+        country: title.originCountries.isEmpty
+            ? null : title.originCountries.join(', '),
         duration: null,
         story: title.overview,
         styleTags: const [],
@@ -61,10 +62,77 @@ abstract final class SimilarRecommendationsService {
       );
       item.tmdbId = title.tmdbId;
       item.tmdbMediaType = 'tv';
+      item.originalLanguage = title.originalLanguage;
       result.add(item);
       if (result.length >= 18) break;
     }
     return result;
+  }
+
+  /// Enhance only the first handful of displayed recommendations. This
+  /// runs after the initial cards appear; never scan entire lists or library.
+  /// Metadata is cache-backed and all HTTP requests go through TMDB's
+  /// existing pacing and 429 cooldown. Never fabricate language or networks.
+  static Future<void> enrichVisibleCards(
+      List<BSItem> cards, {int maxCards = 6}) async {
+    final tmdb = TmdbDiscoverService.instance;
+    if ((await tmdb.readKey()).trim().isEmpty) return;
+    final cap = maxCards.clamp(0, 6);
+    for (final card in cards.take(cap)) {
+      try {
+        final details = await tmdb.similarCardDetails(
+          title: card.title, year: card.year,
+          mediaType: card.mediaType, tmdbId: card.tmdbId,
+        );
+        if (details.isEmpty) continue;
+        final origins = details['origin_country'];
+        final productions = details['production_countries'];
+        if (origins is List && origins.isNotEmpty) {
+          card.country = origins.map((e) => e.toString()).join(', ');
+        } else if (productions is List && productions.isNotEmpty) {
+          card.country = productions.whereType<Map>()
+              .map((e) => e['iso_3166_1']?.toString() ?? '')
+              .where((e) => e.isNotEmpty).take(3).join(', ');
+        }
+        card.originalLanguage =
+            details['original_language']?.toString() ?? card.originalLanguage;
+        if (card.mediaType == 'series') {
+          final networks = details['networks'];
+          if (networks is List && networks.isNotEmpty) {
+            card.network = networks.whereType<Map>()
+                .map((e) => e['name']?.toString() ?? '')
+                .where((e) => e.isNotEmpty).take(2).join(', ');
+          }
+        } else if (card.mediaType == 'movie') {
+          final studios = details['production_companies'];
+          if (studios is List && studios.isNotEmpty) {
+            card.network = studios.whereType<Map>()
+                .map((e) => e['name']?.toString() ?? '')
+                .where((e) => e.isNotEmpty).take(2).join(', ');
+          }
+        }
+      } catch (_) {
+        // Continue displaying existing BestSimilar country metadata. A 429
+        // inhibits new TMDB requests in _paceRequest; avoid attempting the
+        // remaining lookups once a provider request failed.
+        break;
+      }
+    }
+  }
+
+  /// Labels refer to ORIGINAL production language, not available dubs.
+  static String displayLanguage(String? code) {
+    const known = {
+      'en': 'English', 'ko': 'Korean', 'ja': 'Japanese',
+      'zh': 'Chinese', 'fr': 'French', 'de': 'German',
+      'es': 'Spanish', 'hi': 'Hindi', 'ta': 'Tamil',
+      'te': 'Telugu', 'th': 'Thai', 'tr': 'Turkish',
+      'ar': 'Arabic', 'pt': 'Portuguese', 'id': 'Indonesian',
+      'it': 'Italian', 'ru': 'Russian', 'tl': 'Filipino',
+    };
+    final s = code?.trim().toLowerCase() ?? '';
+    if (s.isEmpty) return 'Not listed';
+    return known[s] ?? s.toUpperCase();
   }
 
   static Future<SimilarRecommendationsResult> load({

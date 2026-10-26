@@ -46,7 +46,9 @@ class BSItem {
   final String thumbUrl;      // bestsimilar absolute URL
   final int? similarityPercent;
   final String? genre;
-  final String? country;
+  String? country;
+  String? originalLanguage;
+  String? network;
   final String? duration;
   final String? story;
   final List<String> styleTags;

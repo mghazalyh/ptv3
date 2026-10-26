@@ -482,6 +482,7 @@ abstract final class HomePageSettings {
           supportsSkip: false,
         ),
         movies: movies,
+        isCurated: true,
       );
 
       _cachedTraktSection = section;
@@ -534,6 +535,7 @@ abstract final class HomePageSettings {
           supportsSkip: false,
         ),
         movies: movies,
+        isCurated: true,
       );
 
       _cachedSimklSection = section;

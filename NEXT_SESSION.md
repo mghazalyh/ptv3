@@ -2,7 +2,20 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## LATEST SHIPPED — v1.1.7 Build #127 optional Advanced Discover title+filters
+## CURRENT v1.1.8 — actor credits + rich Similar Content and Torriodb vault design (2026-10-27)
+
+User requests: (1) tapping Cast should show **actor's real filmography**, not title search with actor name; (2) similar cards should show origin country, network/studio and original language **before tapping**; (3) prepare safe private Torriodb-based central key rotation; (4) confirm Torrentio English-dub sources outrank non-English.
+
+**Source implemented, NOT yet validated by CI:**
+- `DetailsPage` cast row now navigates to new `PersonCreditsPage(actorName)` with person identity picker (when multiple matches), using `TmdbDiscoverService.searchPeople` (`/search/person`) + `personCombinedCredits` (`/person/id/combined_credits`) to show credited movies+series. Clicking one resolves IMDb/Stremio details. Doesn't search for movies titled as the actor.
+- Similar cards show **Origin**, **Original** language (clearly not dub availability), and TV **Network** or Movie **Studio**. `DiscoverTitle` parses TMDB original_language/origin_country. `BSItem` has optional metadata fields; `SimilarRecommendationsService.enrichVisibleCards` fetches detail metadata for at most first six visible cards, with source-verified title and year match if BestSimilar, existing TMDB 700 ms pacing/caching/429 cooldown. Immediate card list is displayed before enrichment. No extra requests when TMDB key unset, "Not listed" if unknown. Year/format/score and playback preserved.
+- New tests `test/person_filmography_test.dart`, `test/similar_card_metadata_test.dart`, `test/cast_similar_navigation_ui_test.dart`, added to paired Windows/iOS workflows; analyze includes person screen. Version **1.1.8+18** in pubspec/resource/installer/Settings/workflow.
+- `docs/torriodb_key_vault_plan.md`: prep **only**; no API keys migrated or uploaded, require private repo verification and encrypted authenticated ciphertext + independent local unlock, least-privilege PAT, conflict handling, audit, opt-in rotations. Existing default GitHubLibraryCloud repo is **PUBLIC ptv3**; do not store plaintext keys on it or presume user private Torriodb is configured. Implement secure vault in subsequent work unit after verification.
+- **Confirmed Torrentio English priority:** `WatchScreen._filteredSources` sorts Torrentio by `AudioLanguagePriority.torrentioAudioRank`: explicit English 0, dual/multi 1, unknown 2, explicit foreign 3. English subtitle mentions deliberately excluded from audio rating. Streams for non-English originals aren't suppressed; English-dub-tagged ones appear first. Actual audio track chosen later by MPV and verification; cannot promise unlabeled torrents are English. No change made to playback source ranking.
+
+**Latest verified release** remains [v1.1.7 Build #127](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.7-b127), Windows 17/17 and iOS28/28, actual Telegram IPA document #27, paired ZIP/EXE/IPA. **New v1.1.8 needs paired CI/Telegram/GitHub release verification before sharing downloads.** Mandatory update to `handover.md`/`NEXT_SESSION.md`/`AGENTS.md` in every source/release change. Docs mirrored only to divergent main.
+
+## HISTORICAL SHIPPED — v1.1.7 Build #127 optional Advanced Discover title+filters
 
 **v1.1.7 Build #127 is fully successful and published.** [Run #127](https://github.com/mghazalyh/ptv3/actions/runs/40388302974) from application commit **`16a4143fd085973b9f103e1faa05b4ec95ad3269`** finished Windows **17/17**, iOS 15 TrollStore **28 success steps**, Telegram IPA **real document** message ID **27**, matched GitHub publish **6/6**. Verified [release](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.7-b127) contains actual assets:
 - [Windows portable ZIP](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.7-b127/PlayTorrio-v1.1.7-build127-Windows-x64-Portable.zip)

@@ -5,7 +5,10 @@
 
 #define MyAppName      "PlayTorrio"
 #ifndef MyAppVersion
-#define MyAppVersion   "1.0.8"
+#define MyAppVersion   "1.1.0"
+#endif
+#ifndef MyAppBuild
+#define MyAppBuild     "10"
 #endif
 #define MyAppPublisher "ayman708-UX"
 #define MyAppExeName   "playtorrio.exe"
@@ -15,6 +18,8 @@
 AppId={{9B8C7D6E-5F4E-3D2C-1B0A-9F8E7D6C5B4A}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+AppVerName={#MyAppName} v{#MyAppVersion} (Build {#MyAppBuild})
+VersionInfoVersion={#MyAppVersion}.{#MyAppBuild}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}

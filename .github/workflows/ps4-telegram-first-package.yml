@@ -1,0 +1,42 @@
+name: Relay initial PlayTorrio PS4 prototype PKG to Telegram
+
+on:
+  push:
+    branches:
+      - parity-floating-player-both
+    paths:
+      - .github/workflows/ps4-telegram-first-package.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: "-1003938575195"
+    steps:
+      - name: Download verified experimental PS4 package and send to Telegram
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${TELEGRAM_BOT_TOKEN:?Missing the existing bot secret in ptv3}"
+          url='https://github.com/mghazalyh/playtorrio-ps4/releases/download/ps4-prototype-0.1.0/PlayTorrio-PS4-GoldHEN-10.01-EXPERIMENTAL.pkg'
+          curl --fail --location --retry 3 --silent --show-error "$url" -o prototype.pkg
+          test -s prototype.pkg
+          test "$(head -c 4 prototype.pkg | od -An -tx1 | tr -d ' \n')" = 7f434e54
+          response="$(curl --fail --silent --show-error --max-time 240 --retry 2 \
+            -F "chat_id=$TELEGRAM_CHAT_ID" \
+            -F "document=@prototype.pkg;filename=PlayTorrio-PS4-GoldHEN-10.01-EXPERIMENTAL.pkg" \
+            -F "caption=🎮 PlayTorrio PS4 GoldHEN 10.01 experimental prototype. Native dashboard/settings import only. ⚠️ Not a working Torrentio/TorBox streaming player yet. https://github.com/mghazalyh/playtorrio-ps4/releases/tag/ps4-prototype-0.1.0" \
+            "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument")"
+          RESULT="$response" python3 - <<'PY'
+          import os,json,sys
+          data=json.loads(os.environ['RESULT'])
+          if not data.get('ok'):
+              sys.exit('Telegram rejected PS4 experimental package.')
+          print('Sent experimental PS4 PKG as actual document; Telegram message ID:',data['result']['message_id'])
+          PY

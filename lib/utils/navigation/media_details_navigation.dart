@@ -31,7 +31,7 @@ abstract final class MediaDetailsNavigation {
         title: title,
         cover: poster ?? backdrop,
       );
-      await Navigator.push<void>(
+      await Navigator.push(
         context,
         CinematicSlideRoute(
           page: AnimeArabicDetailsPage(
@@ -62,7 +62,7 @@ abstract final class MediaDetailsNavigation {
         status: 'RELEASING',
         totalEpisodes: 0,
       );
-      await Navigator.push<void>(
+      await Navigator.push(
         context,
         CinematicSlideRoute(page: AnimeDetailsPage(anime: anime)),
       );
@@ -79,7 +79,7 @@ abstract final class MediaDetailsNavigation {
       // seasons and episodes by IMDb ID where metadata is available.
       addonBaseUrl: 'https://v3-cinemeta.strem.io',
     );
-    await Navigator.push<void>(
+    await Navigator.push(
       context,
       LiquidRevealRoute(
         page: DetailsPage(movie: movie),

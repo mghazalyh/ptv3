@@ -415,7 +415,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         Media(
           cleanUri.toString(),
           httpHeaders: isTorrentStream ? null : playerHeaders,
-          start: widget.initialPosition,
+          start: identical(_currentEpisode, widget.episode)
+              ? widget.initialPosition : null,
         ),
         play: true,
       );
@@ -1139,16 +1140,94 @@ class _PlayerScreenState extends State<PlayerScreen>
     });
   }
 
+  Video? get _nextEpisode => PlaybackAutoselection.nextEpisode(
+      widget.detail?.videos ?? const <Video>[], _currentEpisode);
+
+  Future<void> _goToNextEpisode() async {
+    final next = _nextEpisode;
+    if (next == null || _nextEpisodeBusy || !mounted) return;
+    final epoch = _audioMediaEpoch;
+    setState(() {
+      _nextEpisodeBusy = true;
+      _statusMessage = 'Finding next episode S${next.season}E${next.episode}...';
+      _showControls = true;
+    });
+    try {
+      final detail = widget.detail;
+      final type = detail?.type ?? 'series';
+      final id = next.id.isNotEmpty
+          ? next.id
+          : '${detail?.id ?? ''}:${next.season ?? 1}:${next.episode ?? 1}';
+      final title = detail?.name ?? widget.title;
+      final year = int.tryParse(detail?.year ?? '');
+      final cached = _cachedSourcesByEpisode[
+        '${next.season ?? 1}:${next.episode ?? 1}'] ?? next.streams;
+      StreamSource? found = PlaybackAutoselection.preferredSource(
+          cached, _currentSource);
+      if (found == null) {
+        try {
+          // Continue with the previously used addon (Torrentio/TorBox etc).
+          found = await StreamService.fetchStreamsForTargetAddon(
+            targetAddonName: _currentSource.addonName,
+            type: type,
+            id: id,
+            title: title,
+            year: year,
+            season: next.season,
+            episode: next.episode,
+          ).where((s) => (s.url?.isNotEmpty ?? false) ||
+              (s.infoHash?.isNotEmpty ?? false))
+              .first.timeout(const Duration(seconds: 11));
+        } catch (error) {
+          debugPrint('[PlayerAutoplay] Preferred addon had no stream: $error');
+        }
+      }
+      if (found == null) {
+        try {
+          // When the previous source is unavailable, use the first playable
+          // provider result rather than interrupting the binge session.
+          found = await StreamService.fetchStreams(
+            type: type,
+            id: id,
+            title: title,
+            year: year,
+            season: next.season,
+            episode: next.episode,
+          ).where((s) => (s.url?.isNotEmpty ?? false) ||
+              (s.infoHash?.isNotEmpty ?? false))
+              .first.timeout(const Duration(seconds: 13));
+        } catch (error) {
+          debugPrint('[PlayerAutoplay] General source lookup failed: $error');
+        }
+      }
+      if (!mounted || epoch != _audioMediaEpoch) return;
+      if (found != null) {
+        debugPrint('[PlayerAutoplay] Continuing S${next.season}E${next.episode} via ${found.addonName}');
+        await _switchStream(found, next);
+      } else {
+        // Never silently stop on an empty scrape: offer manual sources.
+        setState(() {
+          _showSourcesPanel = true;
+          _showEpisodesPanel = false;
+          _sourcesEpisode = next;
+          _sourcesErrorMessage = 'No automatic source found. Choose a source for the next episode.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _nextEpisodeBusy = false);
+    }
+  }
+
   void _playNewSource(StreamSource newSource, Video episode) {
     setState(() {
       _showSourcesPanel = false;
       _showEpisodesPanel = false;
       _sourcesErrorMessage = null;
     });
-    _switchStream(newSource, episode);
+    unawaited(_switchStream(newSource, episode));
   }
 
-  void _switchStream(StreamSource newSource, Video newEpisode) async {
+  Future<void> _switchStream(StreamSource newSource, Video newEpisode) async {
     _progressSaveTimer?.cancel();
     _savePlaybackProgress();
 
@@ -1180,7 +1259,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Cleanup previous torrent engine if was P2P
     TorrentStreamService().cleanup();
 
-    _initStream();
+    await _initStream();
   }
 
   void _fetchSkipSegments() async {
@@ -1700,6 +1779,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                           isSubSyncActive: _selectedEmbeddedSubtitleIndex == null && (_showSubSyncBar || _subtitleDelayMs != 0),
                           isAudioActive: _selectedAudioTrackIndex > 0,
                           isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
+                          hasNextEpisode: _nextEpisode != null,
+                          onNextEpisode: _nextEpisode != null && !_nextEpisodeBusy
+                              ? () => unawaited(_goToNextEpisode()) : null,
                           isFullscreen: isFs,
                           onToggleEpisodes: (widget.detail?.videos.isNotEmpty == true)
                               ? _toggleEpisodesPanel

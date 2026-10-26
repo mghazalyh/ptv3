@@ -38,6 +38,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _useDebrid = false;
   String _debridProvider = 'None';
   String? _appVersion;
+  String? _appBuild;
   bool _traktConnected = false;
   bool _simklConnected = false;
 
@@ -55,8 +56,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final pkg = await PackageInfo.fromPlatform().catchError((_) => PackageInfo(
           appName: 'PlayTorrio',
           packageName: 'com.playtorrio',
-          version: '1.0.8',
-          buildNumber: '9',
+          version: '1.1.0',
+          buildNumber: '10',
         ));
 
     if (mounted) {
@@ -64,6 +65,7 @@ class _SettingsPageState extends State<SettingsPage> {
         _useDebrid = useDebrid;
         _debridProvider = provider;
         _appVersion = pkg.version;
+        _appBuild = pkg.buildNumber;
         _traktConnected = traktAuth;
         _simklConnected = simklAuth;
       });
@@ -379,7 +381,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 iconColor: const Color(0xFFF59E0B),
                 title: 'App Updates',
                 subtitle: 'Check for latest software versions and patches',
-                badgeText: _appVersion != null ? 'v$_appVersion' : 'Check',
+                badgeText: _appVersion != null ? 'v$_appVersion · B${_appBuild ?? "?"}' : 'Check',
                 badgeColor: const Color(0xFFF59E0B),
                 onTap: () => _navigateTo(const UpdatesSettingsPage()),
               ),

@@ -1,11 +1,6 @@
 name: Relay PlayTorrio PS4 v0.7 UI fix to Telegram
 
 on:
-  push:
-    branches:
-      - parity-floating-player-both
-    paths:
-      - .github/workflows/ps4-telegram-first-package.yml
   workflow_dispatch:
 
 permissions:
@@ -39,6 +34,7 @@ jobs:
           if not data.get('ok'):
               sys.exit('Telegram rejected PS4 experimental package.')
           print('Sent experimental PS4 PKG as actual document; Telegram message ID:',data['result']['message_id'])
+          PY
 
       - name: Also send emulator-ready extracted application
         shell: bash
@@ -58,5 +54,3 @@ jobs:
             -F "caption=PlayTorrio PS4 v0.7 — extracted for shadPS4. Unzip BREW20346, then File > Open/Add Elf Folder. Please send a screenshot to verify antialiased fonts." \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument" >/dev/null
           echo 'Emulator ZIP delivered to Telegram.'
-
-          PY

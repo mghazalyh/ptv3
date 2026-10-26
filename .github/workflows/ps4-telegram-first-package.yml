@@ -1,9 +1,6 @@
 name: Relay PlayTorrio PS4 v1.1 live TMDB TV catalog to Telegram
 
 on:
-  push:
-    branches: [parity-floating-player-both]
-    paths: [.github/workflows/ps4-telegram-first-package.yml]
   workflow_dispatch:
 
 permissions:

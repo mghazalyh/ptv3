@@ -64,7 +64,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/github_progress_merge_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          flutter test test/github_progress_merge_test.dart
           flutter test test/github_library_merge_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/services/my_list_service_test.dart
@@ -229,8 +228,9 @@ jobs:
             lib/pages/search/search_page.dart \
             lib/pages/details/details_page.dart
 
-      - name: Test GitHub library sync and local watchlist
+      - name: Test GitHub library and cross-device playback progress
         run: |
+          flutter test test/github_progress_merge_test.dart
           flutter test test/github_library_merge_test.dart
           flutter test test/services/my_list_service_test.dart
 

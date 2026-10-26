@@ -1,0 +1,43 @@
+# NEXT SESSION — PlayTorrio (2026-10-27, Singapore)
+
+This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
+
+## Source, credentials and current version
+- Source: https://github.com/mghazalyh/ptv3; branch parity-floating-player-both. Latest observed head b2965ba85f2123be6b7e6ccc0c3602e82a9f33c2. Concurrent work has modified the unrelated PS4 Telegram workflow, so never reset or overwrite unreviewed commits. Main is divergent: mirror documentation only, do not merge main application code.
+- Implemented source version 1.1.3+13; the installed build number comes from the GitHub Actions run number, embedded with the source Git revision. Workflow: .github/workflows/windows-advanced-discover.yml.
+- Private watchlist + Continue Watching GitHub JSON is mghazalyh/torriodb/main, files playtorrio/watchlist-v1.json and playtorrio/continue-watching-v1.json. Devices authenticate independently with Contents read/write tokens stored securely. Do NOT reveal tokens, Telegram credentials/IDs, private watchlist names, viewing activity, stream URLs, or source headers.
+- Last fully verified Windows plus iOS15 TrollStore plus Telegram-document plus versioned GitHub release: v1.1.0 Build 90, https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.0-b90; workflow https://github.com/mghazalyh/ptv3/actions/runs/40331619688, Windows 17/17, iOS 22/22 and actual IPA document message #17.
+- The user-facing v1.1.1 Show Details, v1.1.2 related See All and v1.1.3 correct Series/Movie/Title classification exist in source, but a newer fully paired Windows+iOS release has NOT been confirmed.
+
+## Most recent paired CI at handoff
+- Build #117 https://github.com/mghazalyh/ptv3/actions/runs/40358102815, source b2965ba85f2123be6b7e6ccc0c3602e82a9f33c2: Windows in progress (Flutter setup) and iOS queued at verification. Final status UNKNOWN — fetch latest before acting.
+- Build #116 https://github.com/mghazalyh/ptv3/actions/runs/40357960371: canceled by another push. Build #115 https://github.com/mghazalyh/ptv3/actions/runs/40357258712: canceled; Windows had a real failing regression test, iOS canceled; no paired release/IPA.
+- Build #113 https://github.com/mghazalyh/ptv3/actions/runs/40349780283: Windows 17/17 passed, Actions artifact PlayTorrio-Windows-v1.1.3-build-113 (ID 12663885841). iOS canceled, publishing and Telegram skipped, overall failure. It predates the last media-type safety change; do not call it the current fully shipped version.
+- Older v1.1.2 Build #104 Windows 17/17 passed but iOS canceled; all later versions remain unverified as a matched published release.
+
+## P0 — concrete failure: inaccurate Movie/Series regression expectations
+- Failure in Build #115 Windows job 121693645217, step Test API politeness, TV season discovery, and English audio. File test/recommendation_media_type_test.dart, first test, line 43: Expected false, Actual null, for a movie item constructed as sourceIsTv=false (Tinker Tailor Soldier Spy). Six other media-type tests passed.
+- Code in lib/services/metadata/bestsimilar_scraper.dart was intentionally updated because BestSimilar may falsely tag series as movies in mixed .item-movie HTML; a negative HTML source flag is not always reliable movie evidence. Verified TMDB movie type or exact provider ID / unique exact title+year autocomplete result with isTv=false SHOULD still classify Movie; confirmed TV should classify Series; genuinely unverified should display neutral Title. Do NOT blindly revert sourceIsTv=false -> Movie, or the user issue returns.
+- First inspect Build #117 latest logs. If the test still fails, reconcile the test and confidence policy: unverified source negative flag should remain unknown; add explicit verified-movie and misleading-HTML-but-verified-series regressions, run flutter test test/recommendation_media_type_test.dart and flutter analyze on modified files. Check bounded autocomplete timeout/network failure behavior and type priority (TMDB, matched autocomplete, positive episodic evidence, unknown).
+- Related source: lib/services/home/home_page_settings.dart, lib/models/movie/movie.dart (canonicalType and typeLabel), lib/widgets/movie/movie_card.dart, lib/services/metadata/metadata_service.dart. Check cards and See All grid both show correct categories.
+
+## P0 — release from ONE successfully built commit
+1. Finish corrections and handover.md in a single final commit on parity-floating-player-both. The workflow uses cancel-in-progress: true; incremental unrelated pushes may cancel an iOS macOS runner or expensive Windows compilation.
+2. Verify Windows targeted tests (recommendation media type, curated See All, Show Details, English/subtitles, Github sync, next episode), static analysis, Windows x64 portable ZIP and Inno Setup installer.
+3. Verify macOS iOS 15 runner actually starts, Flutter test/analyze succeed, iPadOS 15 minimum and ad-hoc TrollStore IPA signatures are validated. A queued/canceled iOS job is NOT success; retry a failed/canceled job if appropriate using connected GitHub workflow tools. Never replace the signed TrollStore IPA with unsigned output.
+4. Verify the paired publish job creates distinct build-vVERSION-bRUNNUMBER release with Windows installer EXE, portable ZIP, IPA and SHA256SUMS from the SAME commit. Check actual asset links, not predicted URLs. Read Telegram job logs to distinguish actual sendDocument IPA upload from a fallback message/link. Only report success after all required jobs are completed successfully.
+5. Update handover.md with full run/job IDs, step counts, Git SHA, release assets/Telegram outcome and real-device testing limits; mirror docs to main with a documentation-only [skip ci] commit when suitable.
+
+## P1 — user experience to validate on Windows and iPad
+- Home row Because you have Slow Horses on your list -> See All must retain the exact BestSimilar ranked titles. Do not fetch a fake Cinemeta catalog ID or show generic popular items. All provider items (not a first-24 cutoff), local curated search, correct Show/Film/Title labels; Trakt recommendations and Simkl Top Rated retain their own source results. Files: lib/models/movie/movie_section.dart, lib/services/home/home_page_settings.dart, lib/pages/catalog/catalog_page.dart, test/curated_recommendations_see_all_test.dart.
+- Continue Watching has always-visible Show Details and player top-bar Show Details; opening synopsis/cast/episodes should pause and resume same stream+position on Back. Tests: test/show_details_navigation_test.dart. Show Details was implemented with v1.1.1 but never verified in matched iOS/Windows release.
+- Next Episode visible on compact Windows, preferred same addon when possible, English-first audio and automatic English subtitles when available, no floating-player/PiP behavior. Tests: test/playback_autoselection_test.dart and test/audio_language_priority_test.dart.
+- Two physical devices: test GitHub My List and Continue Watching cross-device sync, progress/season/episode/removals/tombstones/offline edits, without leaking stream credentials. Only merge-model tests have been recorded as passing so far.
+
+## Further context and communication
+- Read root handover.md sections 1-8 for the full user session history: repo/branch rationale, original Telegram supergroup migration, paired Windows/iOS CI, English audio/subtitle work, Next Episode, GitHub-owned private JSON replacing Trakt/Simkl My List, removal of 500-item cap, cross-device Continue Watching progress, version identity, Show Details, source-ranked See All, media type classification, known caveats, prior releases.
+- An earlier request for feature parity (features, not direct code copying) with an outside mghazaly ptv repository remains uncompleted; verify repo identity/access first.
+- User prefers autonomous changes and exact visible release reporting: version/build heading, where feature is in UI, verified Windows/iOS step counts, direct actual downloads, Telegram IPA document message and clear limits about device testing. Do not repeat unnecessary credential warnings or ask for already settled choices.
+- EVERY update: keep handover.md current in the same work unit, and the NEXT_SESSION.md checkpoint refreshed. Mirror docs to main without mixing divergent app code.
+
+**This handoff is documentation only; it does not itself fix Build #115 or publish any new app package.**

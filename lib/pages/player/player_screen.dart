@@ -750,12 +750,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     try {
       int? searchYear;
       if (widget.detail?.year != null && widget.detail!.year!.isNotEmpty) {
-        final yMatch = RegExp(r'\\b(19\\d\\d|20\\d\\d)\\b').firstMatch(widget.detail!.year!);
+        final yMatch = RegExp(r'\b(19\d\d|20\d\d)\b').firstMatch(widget.detail!.year!);
         if (yMatch != null) searchYear = int.tryParse(yMatch.group(1)!);
       }
       final rawName = widget.detail?.name ?? widget.title;
       if (searchYear == null) {
-        final yMatch = RegExp(r'\\b(19\\d\\d|20\\d\\d)\\b').firstMatch(rawName);
+        final yMatch = RegExp(r'\b(19\d\d|20\d\d)\b').firstMatch(rawName);
         if (yMatch != null) searchYear = int.tryParse(yMatch.group(1)!);
       }
       final showName = cleanMediaTitle(rawName);

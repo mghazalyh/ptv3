@@ -3,6 +3,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/my_list/github_library_cloud.dart';
 import '../../services/my_list/my_list_service.dart';
+import '../../services/continue_watching/continue_watching_service.dart';
+import '../../services/continue_watching/github_progress_cloud.dart';
 
 class GitHubLibrarySettingsPage extends StatefulWidget {
   const GitHubLibrarySettingsPage({super.key});
@@ -52,6 +54,7 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
       );
       _key.clear();
       await MyListService.syncAll(force: true);
+      await ContinueWatchingService.syncGitHubProgress(force: true);
       if (!mounted) return;
       final state = GitHubLibraryCloud.instance.state.value;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -109,9 +112,9 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
                     ),
                     const SizedBox(height: 10),
                     const Text(
-                      'Your movies and TV library lives in one small JSON file. '
-                      'Edits work offline and are uploaded when sync succeeds. '
-                      'Trakt and Simkl will no longer change My List.',
+                      'Your movies, TV watchlist and Continue Watching progress '
+                      'sync through two private JSON files. '
+                      'Edits work offline and resume across your devices.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white70, height: 1.5),
                     ),
@@ -135,6 +138,18 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
                                 : 'Local-only library'),
                             subtitle: Text(message),
                           ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ValueListenableBuilder<String>(
+                      valueListenable: GitHubProgressCloud.instance.status,
+                      builder: (context, message, _) => Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.play_circle_outline_rounded,
+                              color: Color(0xFF9C7BFF)),
+                          title: const Text('Continue Watching progress'),
+                          subtitle: Text(message),
                         ),
                       ),
                     ),

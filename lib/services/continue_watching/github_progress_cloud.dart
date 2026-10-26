@@ -94,6 +94,7 @@ class GitHubProgressCloud {
   Future<void> _journalWrite = Future<void>.value();
   Future<void>? _activeSync;
   Timer? _uploadTimer;
+  Future<void> Function()? flushPending;
   String _account = '';
   bool _imported = false;
   DateTime? _lastDownload;
@@ -149,10 +150,10 @@ class GitHubProgressCloud {
     // Do NOT reset the timer on each playback tick.
     _uploadTimer ??= Timer(const Duration(seconds: 60), () {
       _uploadTimer = null;
-      unawaited(sync(
-        readLocal: () => const <ContinueWatchingItem>[],
-        persist: (_) async {},
-      ));
+      // Use the owner service for a full sync: it supplies the complete local
+      // import and updates the visible Continue Watching shelf.
+      final flush = flushPending;
+      if (flush != null) unawaited(flush());
     });
   }
 

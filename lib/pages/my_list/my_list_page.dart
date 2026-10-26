@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -21,17 +22,23 @@ class _MyListPageState extends State<MyListPage> {
   String _sortBy = 'recent'; // 'recent', 'title', 'year'
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  Timer? _libraryRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) MyListService.syncAll();
+      if (mounted) unawaited(MyListService.syncAll());
+    });
+    // Keep multiple open devices in sync without requiring manual refresh.
+    _libraryRefreshTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+      if (mounted) unawaited(MyListService.syncAll(force: true));
     });
   }
 
   @override
   void dispose() {
+    _libraryRefreshTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }

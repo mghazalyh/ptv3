@@ -1,5 +1,5 @@
 name: PlayTorrio v1.1.0 — Paired Windows and iOS 15 Builds
-run-name: PlayTorrio v1.1.0 · Build #${{ github.run_number }} · ${{ github.ref_name }}
+run-name: "PlayTorrio v1.1.0 · Build #${{ github.run_number }} · ${{ github.ref_name }}"
 
 on:
   push:

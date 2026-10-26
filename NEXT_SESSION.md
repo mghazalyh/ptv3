@@ -2,7 +2,16 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## LATEST v1.1.5 build checkpoint — Windows Build #124 tests passed, analyzer fixed (2026-10-27)
+## LATEST VERIFIED RELEASE — v1.1.5 Build #125 (2026-10-27 SGT)
+
+[**Release v1.1.5 Build #125**](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.5-b125) is **fully paired and published**, no longer "pending". [Workflow run 40380065374](https://github.com/mghazalyh/ptv3/actions/runs/40380065374) from application commit **`ec88c73da57efc00eb35e54c77a9cfef0a6d72e7`** finished **overall success**, with Windows **17/17 steps**, iOS 15 TrollStore **26 successful steps**, Telegram actual signed IPA **document message ID 25**, publish **6 steps** all successful. CI artifacts Windows ID **12678388563**, iOS ID **12677857665**; release assets Windows portable ZIP, Windows Setup EXE, iOS15 IPA and SHA256SUMS are real:
+- [Portable ZIP](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.5-b125/PlayTorrio-v1.1.5-build125-Windows-x64-Portable.zip)
+- [TrollStore IPA](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.5-b125/PlayTorrio-v1.1.5-build125-iOS15-TrollStore.ipa)
+- [Windows Setup EXE](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.5-b125/PlayTorrio-v1.1.5-build125-Windows-Setup.exe)
+
+**Feature:** Favorite series Details page now handles year ranges (The Order 2019–2020), BestSimilar first, conservative TMDB recommendations+similar fallback, optional TVDB key/PIN in secure device storage under Settings → TVDB Series Metadata, verified TV-card labels and real recommendations only. Embedded English subtitle first and all existing playback behavior preserved. **CI green does not prove physical Windows/iOS UI outcome**; user feedback on actual "Recommended Shows" still needs collecting. No keys in GitHub source or docs. This is documentation-only [skip ci], with docs mirrored to `main` and no app rebuild.
+
+## HISTORICAL checkpoint — Build #124 analyzer warning repair (2026-10-27)
 
 Windows [Build #124](https://github.com/mghazalyh/ptv3/actions/runs/40378709198), source `8e4408d74a6453ec168e0dd244bcce5dbea7aeda`: **new Similar Recommendations tests and other Windows test stage succeeded**, proving the TMDB method reconstruction compiles. Next analyzer step **failed with exactly two warnings**: `invalid_use_of_visible_for_testing_member` at `similar_recommendations_service.dart:33` and `:41` because it legitimately calls public utility `TvdbSeriesService.normalizeTitle` marked `@visibleForTesting`. Removed only that inappropriate annotation in `lib/services/metadata/tvdb_series_service.dart`. No functional/API/provider behavior changes. New paired CI pending after this source+docs commit; no v1.1.5 ZIP/IPA release yet. As of latest check, iOS job had never started in Build #124. Last fully verified paired release: **v1.1.4 Build #121**, including Telegram IPA document. Maintain mandatory root `handover.md` updates for any subsequent CI repair, and mirror docs only to main.
 

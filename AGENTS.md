@@ -23,7 +23,13 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## Latest CI — v1.1.5 Build #124 analyzer warning repair (2026-10-27)
+## Current release checkpoint (2026-10-27 SGT) — v1.1.5 Build #125
+
+- **v1.1.5 Build #125** is successfully paired and **published**: [workflow](https://github.com/mghazalyh/ptv3/actions/runs/40380065374) source commit `ec88c73da57efc00eb35e54c77a9cfef0a6d72e7`, Windows **17/17**, iOS15 **26 successful steps**, Telegram IPA **actual document message ID 25**, and 6 successful matched publication steps. [Release](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.5-b125) contains Windows portable ZIP, Setup EXE, iOS15 TrollStore IPA and SHA256SUMS. The Build #122–124 failures in older checkpoints are historical.
+- Similar Content on series has fixed multi-year premiere dates and optional BestSimilar→polite TMDB recommendations fallback; opt-in TVDB v4 metadata under Settings → TVDB Series Metadata with device-secure key and optional subscriber PIN. No fabricated matches, no bulk watchlist polling, preserve embedded-English-first subtitle and other playback requirements. **Real-device user validation is still pending.**
+- Documentation-only [skip ci] update after release. Every meaningful update must maintain `handover.md`, `NEXT_SESSION.md` and `AGENTS.md`. Mirror docs to `main` only without merging divergent feature code.
+
+## Historical CI — v1.1.5 Build #124 analyzer warning repair (2026-10-27)
 
 - Windows Build #124 executed new and existing tests **successfully**, but analyzer failed on two `invalid_use_of_visible_for_testing_member` warnings because production `SimilarRecommendationsService` calls `TvdbSeriesService.normalizeTitle` marked test-only. Removed **only the annotation**, no behavior changes. Follow-on CI must still confirm analyzer/packaging/iOS/Telegram/release. **Do not advertise a v1.1.5 download until verified**. Latest fully released paired version remains **v1.1.4 Build #121**.
 - For every subsequent source or verification change, update root `handover.md` and `NEXT_SESSION.md` in same work unit; mirror documentation only to `main` with `[skip ci]`.

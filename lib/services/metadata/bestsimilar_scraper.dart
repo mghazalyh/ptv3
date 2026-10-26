@@ -68,8 +68,10 @@ class BSItem {
   bool? get knownIsTv {
     if (tmdbMediaType == 'tv') return true;
     if (tmdbMediaType == 'movie') return false;
-    if (sourceIsTv != null) return sourceIsTv;
+    // An explicit autocomplete match is verified against the same item ID
+    // (or unique title+year) and should override unreliable HTML flags.
     if (autocompleteIsTv != null) return autocompleteIsTv;
+    if (sourceIsTv != null) return sourceIsTv;
     final s = slug.toLowerCase();
     if (s.contains('tv-series') || s.contains('tv-serial') ||
         s.contains('television-series')) return true;
@@ -177,7 +179,9 @@ class BestSimilarScraper {
   /// Bounded background-friendly verification: no uncontrolled flood of
   /// requests and no claim that unverified items are movies.
   static Future<void> classifySimilar(List<BSItem> items) async {
-    final unknown = items.where((item) => item.knownIsTv == null).toList();
+    // Recheck even items marked "movie" by page HTML: some mixed
+    // recommendation pages incorrectly tag TV series as films.
+    final unknown = items.where((item) => item.tmdbMediaType == null).toList();
     if (unknown.isEmpty) return;
     var next = 0;
     Future<void> worker() async {

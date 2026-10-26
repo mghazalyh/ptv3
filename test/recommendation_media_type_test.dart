@@ -34,13 +34,44 @@ BSAutocompleteHit hit(int id, String title, {required bool isTv, int? year}) {
 }
 
 void main() {
-  test('TV recommendations are series even though BestSimilar calls every entry item-movie', () {
+  test('HTML TV markers identify series but unverified HTML film markers stay neutral', () {
     final jackRyan = related(14, 'Tom Clancy\'s Jack Ryan', serial: true);
     final berlin = related(15, 'Berlin Station', serial: true);
     final film = related(16, 'Tinker Tailor Soldier Spy', serial: false);
     expect(jackRyan.knownIsTv, isTrue);
     expect(berlin.knownIsTv, isTrue);
+    expect(film.knownIsTv, isNull);
+
+    // BestSimilar can mark series as film in its mixed recommendation HTML.
+    // Only a verified provider autocomplete result can establish film type.
+    film.autocompleteIsTv = BestSimilarScraper.classifyFromAutocomplete(
+      film,
+      [hit(16, 'Tinker Tailor Soldier Spy', isTv: false)],
+    );
     expect(film.knownIsTv, isFalse);
+    expect(Movie.typeLabel('movie'), 'Movie');
+  });
+
+  test('verified series overrides a misleading negative HTML series marker', () {
+    final series = related(17, 'Mislabelled Show', serial: false, year: 2022);
+    expect(series.knownIsTv, isNull);
+    series.autocompleteIsTv = BestSimilarScraper.classifyFromAutocomplete(
+      series,
+      [hit(17, 'Mislabelled Show', isTv: true, year: 2022)],
+    );
+    expect(series.knownIsTv, isTrue);
+    expect(Movie.typeLabel('series'), 'Series');
+  });
+
+  test('autocomplete serial parsing never treats missing metadata as film', () {
+    expect(BestSimilarScraper.parseAutocompleteSerial('1'), isTrue);
+    expect(BestSimilarScraper.parseAutocompleteSerial(1), isTrue);
+    expect(BestSimilarScraper.parseAutocompleteSerial('0'), isFalse);
+    expect(BestSimilarScraper.parseAutocompleteSerial(0), isFalse);
+    expect(BestSimilarScraper.parseAutocompleteSerial(false), isFalse);
+    expect(BestSimilarScraper.parseAutocompleteSerial(null), isNull);
+    expect(BestSimilarScraper.parseAutocompleteSerial(''), isNull);
+    expect(BestSimilarScraper.parseAutocompleteSerial('unknown'), isNull);
   });
 
   test('unverified recommendation is NOT automatically a Movie', () {

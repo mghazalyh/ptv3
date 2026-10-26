@@ -179,6 +179,17 @@ class BestSimilarScraper {
     return matches.length == 1 ? matches.single.isTv : null;
   }
 
+  /// Provider autocomplete may omit 'serial'. Missing or malformed metadata
+  /// is NOT evidence of a movie; only an explicit 0/1 or boolean is trusted.
+  static bool? parseAutocompleteSerial(Object? value) {
+    if (value == true || value == 1) return true;
+    if (value == false || value == 0) return false;
+    final serial = value?.toString().trim().toLowerCase();
+    if (serial == '1' || serial == 'true') return true;
+    if (serial == '0' || serial == 'false') return false;
+    return null;
+  }
+
   /// Bounded background-friendly verification: no uncontrolled flood of
   /// requests and no claim that unverified items are movies.
   static Future<void> classifySimilar(List<BSItem> items) async {
@@ -234,7 +245,8 @@ class BestSimilarScraper {
         final url = (m['url'] ?? '').toString();
         final label = (m['label'] ?? '').toString();
         if (id == null || url.isEmpty || label.isEmpty) continue;
-        final isTv = '${m['serial']}' == '1';
+        final isTv = parseAutocompleteSerial(m['serial']);
+        if (isTv == null) continue;
         final yearMatch = RegExp(r'\((\d{4})\)\s*$').firstMatch(label);
         final year = yearMatch != null ? int.tryParse(yearMatch.group(1)!) : null;
         final title = label.replaceAll(RegExp(r'\s*\(\d{4}\)\s*$'), '').trim();

@@ -1,6 +1,9 @@
-name: Relay PlayTorrio PS4 v1.0 settings fix to Telegram
+name: Relay PlayTorrio PS4 v1.1 live TMDB TV catalog to Telegram
 
 on:
+  push:
+    branches: [parity-floating-player-both]
+    paths: [.github/workflows/ps4-telegram-first-package.yml]
   workflow_dispatch:
 
 permissions:
@@ -19,14 +22,14 @@ jobs:
         run: |
           set -euo pipefail
           : "${TELEGRAM_BOT_TOKEN:?Missing the existing bot secret in ptv3}"
-          url='https://github.com/mghazalyh/playtorrio-ps4/releases/download/ps4-settings-safe-1.0.0/PlayTorrio-PS4-GoldHEN-10.01-EXPERIMENTAL.pkg'
+          url='https://github.com/mghazalyh/playtorrio-ps4/releases/download/ps4-tmdb-catalog-1.1.0/PlayTorrio-PS4-GoldHEN-10.01-EXPERIMENTAL.pkg'
           curl --fail --location --retry 3 --silent --show-error "$url" -o prototype.pkg
           test -s prototype.pkg
           test "$(head -c 4 prototype.pkg | od -An -tx1 | tr -d ' \n')" = 7f434e54
           response="$(curl --fail --silent --show-error --max-time 240 --retry 2 \
             -F "chat_id=$TELEGRAM_CHAT_ID" \
             -F "document=@prototype.pkg;filename=PlayTorrio-PS4-GoldHEN-10.01-EXPERIMENTAL.pkg" \
-            -F "caption=🎮 PlayTorrio PS4 v1.0 (GoldHEN 10.01). Fixed settings.json startup black screen: deferred safe JSON import, BOM handling, malformed JSON protection. Native video remains EXPERIMENTAL and unverified on real hardware. FTP logs: /data/playtorrio/logs/diagnostics.log. https://github.com/mghazalyh/playtorrio-ps4/releases/tag/ps4-settings-safe-1.0.0" \
+            -F "caption=🎮 PlayTorrio PS4 v1.1 (GoldHEN 10.01). Real trending and popular TV and movie catalogs are now on Home/Discover. Windows shadPS4 users run HostTools/Load-Shows.cmd from the emulator ZIP once to fetch shows with their local TMDB key. Native video remains EXPERIMENTAL and unverified on real hardware. FTP logs: /data/playtorrio/logs/diagnostics.log. https://github.com/mghazalyh/playtorrio-ps4/releases/tag/ps4-tmdb-catalog-1.1.0" \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument")"
           RESULT="$response" python3 - <<'PY'
           import os,json,sys
@@ -40,7 +43,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          url='https://github.com/mghazalyh/playtorrio-ps4/releases/download/ps4-settings-safe-1.0.0/PlayTorrio-PS4-shadPS4-extracted.zip'
+          url='https://github.com/mghazalyh/playtorrio-ps4/releases/download/ps4-tmdb-catalog-1.1.0/PlayTorrio-PS4-shadPS4-extracted.zip'
           curl --fail --location --retry 3 --silent --show-error "$url" -o playtorrio-shadps4.zip
           python3 - <<'PY'
           import zipfile
@@ -50,7 +53,7 @@ jobs:
           PY
           curl --fail --silent --show-error --max-time 240 --retry 2 \
             -F "chat_id=$TELEGRAM_CHAT_ID" \
-            -F "document=@playtorrio-shadps4.zip;filename=PlayTorrio-PS4-v1.0-shadPS4.zip" \
-            -F "caption=PlayTorrio PS4 v1.0 — extracted for shadPS4. Unzip BREW20346, then File > Open/Add Elf Folder. Keep your settings.json in shadPS4/data/playtorrio. Send diagnostics.log if configuration still blocks the UI." \
+            -F "document=@playtorrio-shadps4.zip;filename=PlayTorrio-PS4-v1.1-shadPS4.zip" \
+            -F "caption=PlayTorrio PS4 v1.1 — extracted for shadPS4. Unzip BREW20346, then File > Open/Add Elf Folder. Extract ZIP and double-click HostTools/Load-Shows.cmd to load real TMDB TV shows and movies on shadPS4. Your private keys stay in Windows settings.json." \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument" >/dev/null
           echo 'Emulator ZIP delivered to Telegram.'

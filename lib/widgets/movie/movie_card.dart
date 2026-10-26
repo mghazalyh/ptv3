@@ -197,7 +197,7 @@ class _MovieCardState extends State<MovieCard> {
                         ),
                       ),
                     Text(
-                      movie.type == 'series' ? 'Series' : (movie.type == 'anime' ? 'Anime' : 'Movie'),
+                      Movie.typeLabel(movie.type),
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.white.withOpacity(0.42),
@@ -327,7 +327,8 @@ class _PosterFrame extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: (contentType == 'series' || contentType == 'anime')
+                    color: (Movie.canonicalType(contentType) == 'series' ||
+                          Movie.canonicalType(contentType) == 'anime')
                         ? palette.accentColor.withOpacity(0.90)
                         : palette.primaryColor.withOpacity(0.90),
                     borderRadius: BorderRadius.circular(8),
@@ -339,7 +340,7 @@ class _PosterFrame extends StatelessWidget {
                     ],
                   ),
                   child: Text(
-                    contentType == 'series' ? 'SERIES' : (contentType == 'anime' ? 'ANIME' : 'MOVIE'),
+                    Movie.typeLabel(contentType).toUpperCase(),
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,

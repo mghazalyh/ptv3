@@ -2,7 +2,11 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## ACTIVE IMPLEMENTATION — v1.1.5 recommendation fallback (2026-10-27)
+## Build #122 failed; regression compilation fixed (2026-10-27)
+
+The first CI run for new v1.1.5 feature, https://github.com/mghazalyh/ptv3/actions/runs/40377189935, failed Windows tests before they executed because `lib/services/metadata/tmdb_discover_service.dart:360` contained a truncated raw RegExp ending `RegExp(r'^tt\\d+` with no closing literal. A scripted JS string replace interpreted `$'` in the replacement as a special replacement sequence. **Reconstructed the entire `relatedSeries` method using safe source slicing** (complete `RegExp(r'^tt\\d+$').hasMatch(imdbId)`, TMDB search/recommendations/similar, intact `resolveMovie`). No v1.1.5 release exists yet. Verify the replacement workflow tests, Windows/iOS analysis, artifacts, actual Telegram IPA and paired release before sharing downloads; only v1.1.4 Build #121 is an actual verified release. Keep handover updates in every subsequent CI-fix commit.
+
+## HISTORICAL IMPLEMENTATION — v1.1.5 recommendation fallback (2026-10-27)
 
 **User explicitly approved implementation:** Opening favorites (example `The Order (2019–2020)`) should show real related TV series below the episode list, if any reputable source has matches. Fixed year-range parsing via `SimilarRecommendationsService.firstReleaseYear`, BestSimilar is primary. New optional TMDB recommendation+similar endpoints via existing paced/cached request client, exact show name/year/IMDb or TMDB ID, no placeholder matches, dedupe and max 18 real-poster series. On TVDB configure **Settings → TVDB Series Metadata** using existing `flutter_secure_storage` (project API key + optional PIN), then TVDB v4 login/search/extended metadata can enrich TMDB ID and modestly favor actual matching genres. TVDB official API has no documented native recommendation endpoint; don't pretend its search results alone are "similar shows". If TMDB key missing and BestSimilar empty, row can remain empty. Provider attribution displayed for actual metadata use. TMDB respects spacing and 429; TVDB caps to 2 metadata GETs and cooldown.
 

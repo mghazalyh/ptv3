@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../models/my_list/my_list_item.dart';
 import '../../services/my_list/my_list_service.dart';
-import '../../services/my_list/trakt_cloud_library.dart';
-import '../../services/my_list/simkl_hearts_cloud.dart';
+import '../../services/my_list/github_library_cloud.dart';
+import '../settings/github_library_settings_page.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../details/details_page.dart';
 import '../../models/movie/movie.dart';
@@ -287,86 +287,39 @@ class _MyListPageState extends State<MyListPage> {
           ),
           const SizedBox(width: 8),
 
-          ValueListenableBuilder<SimklHeartState>(
-            valueListenable: MyListService.simklCloud.state,
+          ValueListenableBuilder<GitHubLibraryState>(
+            valueListenable: MyListService.githubCloud.state,
             builder: (context, state, _) {
-              final working = state == SimklHeartState.syncing;
-              final label = switch (state) {
-                SimklHeartState.disconnected => 'Simkl offline',
-                SimklHeartState.syncing => 'Syncing Simkl...',
-                SimklHeartState.synced => 'Simkl hearts synced',
-                SimklHeartState.partial => 'Simkl: partial sync',
-                SimklHeartState.failed => 'Simkl sync failed',
-              };
-              final tone = state == SimklHeartState.synced
-                ? const Color(0xFF00ADFF)
-                : (state == SimklHeartState.failed ||
-                   state == SimklHeartState.partial)
-                  ? const Color(0xFFFFB74D) : Colors.white70;
+              final connected = MyListService.githubCloud.enabled.value;
+              final label = !connected
+                  ? 'Local only'
+                  : switch (state) {
+                      GitHubLibraryState.synced => 'GitHub synced',
+                      GitHubLibraryState.syncing => 'Syncing GitHub',
+                      GitHubLibraryState.failed => 'Sync failed',
+                      GitHubLibraryState.disconnected => 'GitHub ready',
+                    };
+              final color = state == GitHubLibraryState.failed
+                  ? Colors.orangeAccent : const Color(0xFF9C7BFF);
               return Row(mainAxisSize: MainAxisSize.min, children: [
-                if (working)
-                  SizedBox(width: 14, height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(tone)))
-                else
-                  Icon(state == SimklHeartState.synced ?
-                    Icons.cloud_done_rounded : Icons.cloud_outlined,
-                    color: tone, size: 14),
+                Icon(connected ? Icons.cloud_done_outlined
+                    : Icons.cloud_off_outlined, color: color, size: 16),
                 const SizedBox(width: 5),
-                Text(label, style: TextStyle(color: tone, fontSize: 11)),
-                const SizedBox(width: 8),
-              ]);
-            },
-          ),
-          // Trakt state reflects actual cloud connectivity and failure,
-          // never labels disconnected or unsuccessful sync as "Cloud Synced".
-          ValueListenableBuilder<TraktSyncState>(
-            valueListenable: MyListService.traktCloud.state,
-            builder: (context, state, _) {
-              final syncing = state == TraktSyncState.syncing;
-              final label = switch (state) {
-                TraktSyncState.disconnected => 'Trakt offline',
-                TraktSyncState.syncing => 'Syncing Trakt...',
-                TraktSyncState.synced => 'Trakt synced',
-                TraktSyncState.partial => 'Trakt: sync incomplete',
-                TraktSyncState.failed => 'Trakt sync failed',
-              };
-              final color = switch (state) {
-                TraktSyncState.synced => const Color(0xFF7C5CFF),
-                TraktSyncState.partial || TraktSyncState.failed =>
-                    const Color(0xFFFFB74D),
-                _ => Colors.white70,
-              };
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(20),
+                Text(label, style: TextStyle(color: color, fontSize: 11)),
+                IconButton(
+                  tooltip: 'Sync library now',
+                  onPressed: state == GitHubLibraryState.syncing
+                      ? null : () => MyListService.syncAll(force: true),
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
                 ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  if (syncing)
-                    SizedBox(width: 14, height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(color)))
-                  else
-                    Icon(state == TraktSyncState.synced
-                        ? Icons.cloud_done_rounded : Icons.cloud_outlined,
-                        color: color, size: 15),
-                  const SizedBox(width: 6),
-                  Text(label, style: TextStyle(color: color, fontSize: 11,
-                    fontWeight: FontWeight.w700)),
-                  const SizedBox(width: 5),
-                  IconButton(
-                    tooltip: 'Refresh saved titles from Trakt and Simkl',
-                    constraints: const BoxConstraints(),
-                    padding: EdgeInsets.zero,
-                    icon: Icon(Icons.refresh_rounded, color: Colors.white70,
-                      size: 16),
-                    onPressed: syncing ? null :
-                        () => MyListService.syncAll(force: true),
-                  ),
-                ]),
-              );
+                IconButton(
+                  tooltip: 'Set up GitHub Library Sync',
+                  onPressed: () => Navigator.push(
+                    context, MaterialPageRoute(
+                      builder: (_) => const GitHubLibrarySettingsPage())),
+                  icon: const Icon(Icons.settings_rounded, size: 18),
+                ),
+              ]);
             },
           ),
         ],

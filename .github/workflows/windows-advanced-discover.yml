@@ -3,12 +3,7 @@ name: PlayTorrio Paired Windows and iOS 15 TrollStore Builds
 on:
   push:
     branches:
-      - ios15-advanced-discover
-      - windows-trakt-sync-navigation
-      - windows-simkl-hearts-sync
-      - parity-floating-player-both
-      - main
-      - ci/paired-windows-ios15-trollstore
+      - '**'
     tags:
       - 'v*'
   workflow_dispatch:

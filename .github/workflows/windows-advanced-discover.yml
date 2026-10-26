@@ -141,7 +141,7 @@ jobs:
       - name: Upload Windows packages
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrio-Windows-Simkl-HeartsSync
+          name: PlayTorrio-Windows-v1.1.0-build-${{ github.run_number }}
           path: |
             PlayTorrio-Windows-Setup.exe
             PlayTorrio-Windows-x64-Portable.zip
@@ -322,7 +322,7 @@ jobs:
       - name: Upload signed iOS 15 TrollStore IPA
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrio-iOS15-TrollStore
+          name: PlayTorrio-iOS15-TrollStore-v1.1.0-build-${{ github.run_number }}
           path: build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa
           if-no-files-found: error
 
@@ -342,7 +342,7 @@ jobs:
       - name: Download signed IPA from this workflow run
         uses: actions/download-artifact@v4
         with:
-          name: PlayTorrio-iOS15-TrollStore
+          name: PlayTorrio-iOS15-TrollStore-v1.1.0-build-${{ github.run_number }}
           path: packages/ios15
 
       - name: Upload IPA to Telegram group or provide GitHub download link
@@ -434,13 +434,13 @@ jobs:
       - name: Download Windows build from this workflow run
         uses: actions/download-artifact@v4
         with:
-          name: PlayTorrio-Windows-Simkl-HeartsSync
+          name: PlayTorrio-Windows-v1.1.0-build-${{ github.run_number }}
           path: packages/windows
 
       - name: Download TrollStore IPA from this workflow run
         uses: actions/download-artifact@v4
         with:
-          name: PlayTorrio-iOS15-TrollStore
+          name: PlayTorrio-iOS15-TrollStore-v1.1.0-build-${{ github.run_number }}
           path: packages/ios15
 
       - name: Verify both packages belong to this build

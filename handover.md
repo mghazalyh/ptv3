@@ -4,6 +4,19 @@
 > **Read [AGENTS.md](AGENTS.md) before changing code.** Every future functional, build, release, test, or configuration change must update this handover in the same work unit.  
 > **Important:** Statuses below are an *as-of-2026-10-26* snapshot, not a claim that GitHub will remain unchanged. Always check the latest commit/run/release when resuming.
 
+## LIVE HANDOFF (2026-10-27) — start with [NEXT_SESSION.md](NEXT_SESSION.md)
+
+This entry supersedes obsolete historical snapshot assertions later in the document. **The newest source is v1.1.3+13; as verified the latest fully published paired Windows/iOS release is v1.1.0 Build 90.** Build #113 has a green Windows artifact but canceled iOS, Build #115 has a concrete failing media-type regression test, and Build #117 was still running with iOS queued when checked. **First fix test/recommendation_media_type_test.dart:43, Expected false / Actual null, without returning to falsely calling unknown shows movies.** Next finish a matching Windows/iOS/TrollStore build, verify the Telegram IPA document and a real GitHub versioned release, then test personalized See All and correct show labels on Windows/iPad. All exact workflow links, root-cause explanation, source paths, constraints, and next actions are captured in [NEXT_SESSION.md](NEXT_SESSION.md).
+
+Current observed code HEAD: b2965ba85f2123be6b7e6ccc0c3602e82a9f33c2 on parity-floating-player-both. The original private database remains mghazalyh/torriodb/main; no secrets in public docs. Source and main branches diverge. The separate PS4 workflow was changed concurrently — preserve it. Date is 2026-10-27 Singapore. **Documentation-only checkpoint; not a new release.**
+
+
+## 2026-10-27 — Recommendation cards incorrectly labeled Movie
+
+User reports that home recommendations label series as Movie. The BestSimilar scraper previously accepted `data-serial=0` / `data-type=movie` from mixed recommendation HTML as definitive film evidence, and its autocomplete verification only ran for entries whose `knownIsTv` was null. This could lock a series into `movie` and make the card label wrong.
+
+Fixed in `lib/services/metadata/bestsimilar_scraper.dart`: autocomplete checks all recommendations without verified TMDB type, not only unknown entries; an exact-ID or unique title+year autocomplete match overrides HTML hints; negative HTML movie flags are no longer proof of film status. If a title cannot be verified, its type remains `unknown` (card label `Title`) rather than being incorrectly called `Movie`. This preserves verified movie/series distinctions and avoids fake certainty. The similarity scraper uses bounded parallel autocomplete requests. **Validation:** code committed, paired workflow result not yet confirmed. Previous v1.1.2 Build #104 Windows succeeded; iOS was queued at prior checkpoint. Do not claim new packages until a fresh paired build completes.
+
 ## 0. Quick-start / what the next developer needs to know
 
 1. **Application source:** public GitHub repository [mghazalyh/ptv3](https://github.com/mghazalyh/ptv3).

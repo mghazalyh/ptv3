@@ -9,8 +9,8 @@ on:
       - parity-floating-player-both
       - main
       - ci/paired-windows-ios15-trollstore
-  tags:
-    - 'v*'
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:

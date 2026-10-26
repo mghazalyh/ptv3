@@ -23,7 +23,13 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## Latest iOS progress (2026-10-27 SGT)
+## Current diagnosis and release status (2026-10-27 SGT)
+
+- **v1.1.4 Build #121** is a fully completed paired Windows x64/iOS 15 TrollStore release, published at https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.4-b121; Telegram signed IPA uploaded as a document (message ID 24). Previous "iOS queued" entries are historical.
+- **Open recommendation issue:** `The Order (2019–2020)` has no Similar Content row; `_fetchSimilarContent()` merges digits in the release range to `20192020`, likely blocking exact BestSimilar matching. The user asked for suggestions; **no implementation yet**. Recommended first-year regex helper/tests; then conservative optional TMDB fallback using existing authenticated, paced/cached Discover service only if BestSimilar empty. No new TVDB credentials, fabricated matches or unlimited scraping.
+- All edits in this checkpoint are **documentation only [skip ci]**. Preserve mandatory updates to handover and session notes with every future meaningful change.
+
+## Historical iOS progress (2026-10-27 SGT)
 
 - **v1.1.4 Build #121 attempt 2 iOS job 121740141007 is running.** Seven initial setup, Flutter, and native-framework steps succeeded, with storage analysis ongoing at this checkpoint. No source compile or signing failure reported yet, but tests, signing, IPA archive, Telegram and release not completed. Prior retry queue issue ended when the runner started. [Workflow](https://github.com/mghazalyh/ptv3/actions/runs/40367298917).
 - Build #121 Windows remains **17/17 success**. Last verified publicly downloadable iOS IPA remains **v1.1.0 Build #90**, not the unreleased v1.1.4. Document every meaningful change and status in handover and NEXT_SESSION; keep this documentation-only checkpoint [skip ci] to avoid interrupting the ongoing paired build.

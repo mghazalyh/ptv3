@@ -27,6 +27,7 @@ class PlayerTransport extends StatelessWidget {
   final bool isFullscreen;
   final bool hasPrevEpisode;
   final bool hasNextEpisode;
+  final String? nextEpisodeLabel;
 
   // Actions
   final VoidCallback onPlayPause;
@@ -65,6 +66,7 @@ class PlayerTransport extends StatelessWidget {
     required this.isFullscreen,
     this.hasPrevEpisode = false,
     this.hasNextEpisode = false,
+    this.nextEpisodeLabel,
     required this.onPlayPause,
     required this.onSeek,
     required this.onSeekBack10,
@@ -127,6 +129,32 @@ class PlayerTransport extends StatelessWidget {
           ),
 
           SizedBox(height: isCompact ? 8 : 14),
+
+          // A labeled, dedicated next-episode control is visible even in
+          // compact/narrow Windows windows. It is not hidden in a tooltip.
+          if (hasNextEpisode) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                key: const ValueKey('player-next-episode'),
+                onPressed: onNextEpisode,
+                icon: const Icon(Icons.skip_next_rounded, size: 22),
+                label: Text(nextEpisodeLabel == null
+                    ? 'Next Episode'
+                    : 'Next Episode · $nextEpisodeLabel'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFF6F2FF),
+                  backgroundColor: const Color(0xFF4933A0),
+                  side: const BorderSide(color: Color(0xFF977BFF)),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isCompact ? 12 : 18,
+                    vertical: isCompact ? 8 : 10,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
 
           // Bottom Controls Row
           Row(
@@ -192,8 +220,8 @@ class PlayerTransport extends StatelessWidget {
                 ],
               ),
 
-              // Center Group: Episode Navigation (if available and enough width)
-              if (!isCompact && (hasPrevEpisode || hasNextEpisode))
+              // Center Group: optional previous-episode shortcut.
+              if (!isCompact && hasPrevEpisode)
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -205,16 +233,6 @@ class PlayerTransport extends StatelessWidget {
                         tooltip: 'Previous Episode',
                         onPressed: onPrevEpisode,
                       ),
-                    if (hasNextEpisode && onNextEpisode != null) ...[
-                      const SizedBox(width: 6),
-                      PlayerIconButton(
-                        size: 40,
-                        iconSize: 22,
-                        icon: const Icon(Icons.skip_next_rounded),
-                        tooltip: 'Next Episode',
-                        onPressed: onNextEpisode,
-                      ),
-                    ],
                   ],
                 ),
 

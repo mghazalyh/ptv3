@@ -23,7 +23,12 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## Immediate iOS delivery checkpoint (2026-10-27 SGT)
+## Latest iOS progress (2026-10-27 SGT)
+
+- **v1.1.4 Build #121 attempt 2 iOS job 121740141007 is running.** Seven initial setup, Flutter, and native-framework steps succeeded, with storage analysis ongoing at this checkpoint. No source compile or signing failure reported yet, but tests, signing, IPA archive, Telegram and release not completed. Prior retry queue issue ended when the runner started. [Workflow](https://github.com/mghazalyh/ptv3/actions/runs/40367298917).
+- Build #121 Windows remains **17/17 success**. Last verified publicly downloadable iOS IPA remains **v1.1.0 Build #90**, not the unreleased v1.1.4. Document every meaningful change and status in handover and NEXT_SESSION; keep this documentation-only checkpoint [skip ci] to avoid interrupting the ongoing paired build.
+
+## Historical iOS delivery checkpoint (2026-10-27 SGT)
 
 - The latest publicly verified iOS 15 TrollStore IPA remains **v1.1.0 Build #90** (https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.0-b90/PlayTorrio-v1.1.0-build90-iOS15-TrollStore.ipa). v1.1.4 Build #121 passed Windows **17/17** (Actions artifact 12670718760), but iOS was **canceled before starting**. Telegram and paired publish were skipped.
 - **The canceled iOS job was rerun independently** via GitHub Actions; Build #121 attempt **2**, iOS job **121740141007**, initially queued. Do not label a new iOS IPA built or sent until an actual signed artifact and delivery exist. No iOS compile error was observed because macOS jobs did not run.

@@ -59,21 +59,14 @@ void main() {
         expect(MyListService.items.value[1].title, 'Older');
       });
 
-      test('enforces raised watchlist capacity', () {
-        for (int i = 0; i < MyListService.maxItems + 10; i++) {
-          MyListService.add(_makeItem(imdbId: 'tt${i.toString().padLeft(7, '0')}'));
+      test('does not silently discard titles after 500 entries', () {
+        for (int i = 0; i < 515; i++) {
+          MyListService.add(_makeItem(
+            imdbId: 'tt${i.toString().padLeft(7, '0')}'));
         }
-        expect(MyListService.items.value.length, MyListService.maxItems);
-      });
-
-      test('caps by removing oldest entries', () {
-        for (int i = 0; i < MyListService.maxItems; i++) {
-          MyListService.add(_makeItem(imdbId: 'tt${i.toString().padLeft(7, '0')}'));
-        }
-        // Add one more - this pushes out the oldest (first added)
+        expect(MyListService.items.value.length, 515);
         MyListService.add(_makeItem(imdbId: 'ttnewest'));
-        expect(MyListService.items.value.length, MyListService.maxItems);
-        expect(MyListService.items.value.any((i) => i.imdbId == 'ttnewest'), true);
+        expect(MyListService.items.value.length, 516);
       });
     });
 

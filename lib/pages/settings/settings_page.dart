@@ -13,6 +13,7 @@ import 'appearance_settings_page.dart';
 import 'debrid_settings_page.dart';
 import 'addons_settings_page.dart';
 import 'trakt_settings_page.dart';
+import 'github_library_settings_page.dart';
 import 'simkl_settings_page.dart';
 import 'updates_settings_page.dart';
 import 'about_settings_page.dart';
@@ -335,6 +336,16 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 12),
               ],
+
+              // GitHub is the only backend used for My List watchlists.
+              _SettingsCategoryTile(
+                icon: Icons.cloud_sync_rounded,
+                iconColor: const Color(0xFF9C7BFF),
+                title: 'GitHub Library Sync',
+                subtitle: 'Share My List across Windows and iOS using one key',
+                onTap: () => _navigateTo(const GitHubLibrarySettingsPage()),
+              ),
+              const SizedBox(height: 12),
 
               // 6. Trakt Sync
               _SettingsCategoryTile(

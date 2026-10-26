@@ -21,9 +21,40 @@ import '../trakt/trakt_service.dart';
 import '../trakt/trakt_continue_watching_service.dart';
 import '../simkl/simkl_service.dart';
 import '../simkl/simkl_continue_watching_service.dart';
+import '../my_list/github_library_cloud.dart';
+import 'github_progress_cloud.dart';
 
 class ContinueWatchingService {
   static const _storageKey = 'continue_watching_sessions_v1';
+  static DateTime? _lastGitHubRefresh;
+
+  static Future<void> _persistSessions(List<ContinueWatchingItem> sessions) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_storageKey,
+        jsonEncode(sessions.map((e) => e.toJson()).toList()));
+  }
+
+  /// Use GitHub as the single cloud authority for Continue Watching when
+  /// configured. Keep progress locally when offline or disconnected.
+  static Future<void> syncGitHubProgress({bool force = false}) async {
+    await GitHubLibraryCloud.instance.initialize();
+    if (!GitHubLibraryCloud.instance.configured) return;
+    if (!force && _lastGitHubRefresh != null &&
+        DateTime.now().difference(_lastGitHubRefresh!) <
+            const Duration(seconds: 50)) return;
+    _lastGitHubRefresh = DateTime.now();
+    await GitHubProgressCloud.instance.sync(
+      readLocal: () => List<ContinueWatchingItem>.from(activeItems.value),
+      persist: (sessions) async {
+        // The cloud has one latest session per movie/show. Pending local
+        // edits have already been merged in by GitHubProgressCloud.
+        activeItems.value = sessions;
+        await _persistSessions(sessions);
+      },
+      force: force,
+    );
+  }
+
 
   static final ValueNotifier<List<ContinueWatchingItem>> activeItems =
       ValueNotifier<List<ContinueWatchingItem>>([]);
@@ -62,12 +93,17 @@ class ContinueWatchingService {
       debugPrint('[ContinueWatchingService] Failed to load sessions: $e');
     }
 
-    // Sync cloud items in background
-    syncCloudSessions();
+    // Sync cloud items in background. GitHub is preferred when connected.
+    unawaited(syncCloudSessions());
   }
 
   /// Syncs continue watching entries from Trakt and Simkl
   static Future<void> syncCloudSessions() async {
+    await GitHubLibraryCloud.instance.initialize();
+    if (GitHubLibraryCloud.instance.configured) {
+      await syncGitHubProgress(force: true);
+      return;
+    }
     try {
       final cloudItems = <ContinueWatchingItem>[];
 
@@ -293,8 +329,10 @@ class ContinueWatchingService {
       debugPrint('[ContinueWatchingService] Failed to persist session: $e');
     }
 
-    // Push cloud scrobble / history to Trakt and Simkl
-    _syncCloudPlayback(
+    // Queue GitHub progress asynchronously; never block playback.
+    GitHubProgressCloud.instance.save(newItem, removed: isFinished);
+    // Legacy scrobbling stays separate from the private GitHub progress.
+    if (!GitHubLibraryCloud.instance.configured) _syncCloudPlayback(
       detail: detail,
       episode: episode,
       progressPercent: (progress * 100.0).clamp(0.0, 100.0),
@@ -402,8 +440,13 @@ class ContinueWatchingService {
       debugPrint('[ContinueWatchingService] Failed to remove session: $e');
     }
 
-    // Cloud Removal (Trakt & Simkl)
-    _removeCloudSession(item);
+    // Persist a GitHub tombstone so other devices remove the card too.
+    GitHubProgressCloud.instance.save(item, removed: true);
+    if (GitHubLibraryCloud.instance.configured) {
+      unawaited(syncGitHubProgress(force: true));
+    } else {
+      _removeCloudSession(item);
+    }
   }
 
   static void _removeCloudSession(ContinueWatchingItem item) async {

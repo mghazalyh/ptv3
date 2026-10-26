@@ -2,7 +2,13 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## Latest user-tested status — 2026-10-27
+## CURRENT TASK — v1.1.4, details Similar Content (2026-10-27)
+
+A user screenshot showed the details **Similar Content** row listing `Year · Drama` rather than identifying Movie vs Series. Fixed `lib/pages/details/details_page.dart` to show `Year · Movie`, `Year · Series`, or neutral `Year · Title`. Type evidence is reused from shared `BSItem.mediaType` and checked via the existing BestSimilar autocomplete (two parallel checks, at most 18 titles per detail page and 16-second budget; cache reused). Poster row paints immediately, type badges refresh after verification, and clicking a card no longer infers its type from the parent page. **No new TMDB/TVDB requests, credentials or providers introduced**. The source classifier's budget now limits ongoing dispatch. Added regression cases in `test/recommendation_media_type_test.dart` and updated `home_page_settings.dart` to use the shared type getter. Existing embedded-English-first subtitle code was reviewed and **intentionally left unchanged**. Version bumped consistently to **v1.1.4**, Flutter fallback `1.1.4+14`, paired CI workflow, Windows installer and resource metadata, Settings fallback.
+
+**Status:** Source and docs are being committed in one work unit. Next verify fresh paired Windows x64 and iOS 15 jobs and current HEAD SHA, Android is not target, and inspect new release/Telegram jobs only if both artifacts exist. **No verified v1.1.4 build or release at writing.** The most recent user-reported working portable Windows package is v1.1.3 Build #120 (Windows 17/17 CI, iOS canceled); the last complete paired release is v1.1.0 Build #90. Maintain `handover.md` for every meaningful subsequent change or build/release status and mirror docs to `main` as documentation only. The older records below describe historical snapshots.
+
+## Historical user-tested status — 2026-10-27
 
 - **User confirmation:** After receiving `PlayTorrio-v1.1.3-build120-Windows-x64-Portable.zip`, the user said **"everything works"**. This means **user-reported successful use of the Windows Build #120 portable package**, not proof of exhaustive feature testing or iOS validation.
 - **Exact source:** `05ebf6e263e1df9d4a47b8cb187b3cfa81c0ba7e` on `parity-floating-player-both`; Flutter semantic version **v1.1.3**.

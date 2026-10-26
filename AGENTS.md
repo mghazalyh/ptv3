@@ -23,7 +23,13 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## Present delivery checkpoint (2026-10-27 SGT)
+## Active development checkpoint (2026-10-27 SGT)
+
+- **v1.1.4 candidate on `parity-floating-player-both`**: title-details **Similar Content** now shows Movie/Series/Title instead of genre, based on the same provider type evidence as Home. Individual BestSimilar autocomplete checks are capped and cached, no extra TMDB/TVDB requests. Click-through uses each item's own media type. Regression tests updated and already included in Windows+iOS workflow. Release/test status remains pending until CI proves it.
+- **Embedded English subtitles first** is the existing preserved policy: embedded forced, then embedded regular, then external auto fallback; manual selection wins. No change to subtitle service behavior.
+- **All future meaningful edits or verification MUST update `handover.md` and `NEXT_SESSION.md`**. User specifically reinforced this tradition. Do not announce v1.1.4 download links without completed build/release evidence. Previous working Windows candidate is v1.1.3 Build #120, paired release is v1.1.0 Build #90.
+
+## Historical delivery checkpoint (2026-10-27 SGT)
 
 - Application source is **v1.1.3**, development branch `parity-floating-player-both`, verified application commit **`05ebf6e263e1df9d4a47b8cb187b3cfa81c0ba7e`**. Root `handover.md` is the operational source of truth and must be updated **for every meaningful change or test/delivery status update**, with `NEXT_SESSION.md` kept in sync.
 - **Windows Build #120**: [workflow](https://github.com/mghazalyh/ptv3/actions/runs/40361913589) completed Windows **17/17 steps successfully** and generated Windows Actions artifact **PlayTorrio-Windows-v1.1.3-build-120** (ID **12668423291**) with a portable ZIP and installer EXE. The extracted portable ZIP passed integrity testing. **The user reported that everything works with the downloaded Windows portable build**, a user confirmation rather than exhaustive independent device testing.

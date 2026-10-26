@@ -72,18 +72,18 @@ void main() {
       expect(allTitles.contains('Attack on Titan'), true);
     });
 
-    test('maxItems cap works end-to-end', () {
+    test('large watchlists survive without truncation', () {
       for (int i = 0; i < 600; i++) {
         MyListService.add(MyListItem.fromMovieDetail(
           id: 'tt${i.toString().padLeft(7, '0')}',
           name: 'Movie $i', type: 'movie', year: '2024',
         ));
       }
-      expect(MyListService.items.value.length, 500);
+      expect(MyListService.items.value.length, 600);
 
-      // First items should be gone (oldest removed)
+      // The earliest saved titles must still be present.
       final allTitles = MyListService.items.value.map((i) => i.title).toList();
-      expect(allTitles.contains('Movie 0'), false);
+      expect(allTitles.contains('Movie 0'), true);
       expect(allTitles.contains('Movie 599'), true);
     });
   });

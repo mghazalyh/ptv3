@@ -308,7 +308,14 @@ abstract final class HomePageSettings {
       }
 
       final movies = <Movie>[];
-      for (final sim in details.similar.take(24)) {
+      final seen = <String>{};
+      for (final sim in details.similar) {
+        final key = sim.title.trim().toLowerCase() + ':' + (sim.year?.toString() ?? '');
+        // BestSimilar occasionally repeats a result or includes the title
+        // itself. Keep the ranking but avoid showing irrelevant duplicates.
+        if (sim.title.trim().isEmpty ||
+            sim.title.trim().toLowerCase() == sourceTitle.trim().toLowerCase() ||
+            !seen.add(key)) continue;
         movies.add(Movie(
           id: 'bestsimilar_${sim.id}',
           type: sim.isTv ? 'series' : 'movie',
@@ -335,6 +342,7 @@ abstract final class HomePageSettings {
           supportsSkip: false,
         ),
         movies: movies,
+        isCurated: true,
       );
     } catch (e) {
       debugPrint('[HomePageSettings] Failed to build similar section for "$sourceTitle": $e');
@@ -447,7 +455,7 @@ abstract final class HomePageSettings {
       if (res.items.isEmpty) return null;
 
       final movies = <Movie>[];
-      for (final item in res.items.take(24)) {
+      for (final item in res.items) {
         movies.add(Movie(
           id: item.id,
           type: item.type,
@@ -499,7 +507,7 @@ abstract final class HomePageSettings {
       if (res.items.isEmpty) return null;
 
       final movies = <Movie>[];
-      for (final item in res.items.take(24)) {
+      for (final item in res.items) {
         movies.add(Movie(
           id: item.id,
           type: item.type,
@@ -513,8 +521,8 @@ abstract final class HomePageSettings {
       if (movies.isEmpty) return null;
 
       final section = MovieSection(
-        title: 'Recommended for You (Simkl)',
-        subtitle: 'Top-rated & personalized suggestions from Simkl',
+        title: 'Top Rated on Simkl',
+        subtitle: 'Popular high-rated titles from Simkl (not personalized)',
         contentType: 'mixed',
         addonBaseUrl: 'https://v3-cinemeta.strem.io',
         catalog: AddonCatalog(

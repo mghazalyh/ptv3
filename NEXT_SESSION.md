@@ -2,6 +2,10 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
+## Latest takeover (2026-10-27)
+
+The earlier Build #117 was canceled. Build #119, workflow https://github.com/mghazalyh/ptv3/actions/runs/40360818728, reached the same Windows failure in the recommendation media-type test (Expected false / Actual null); iOS was queued when reviewed. This takeover fixes the **test expectation**, tests verified movie and wrongly flagged TV cases, and hardens the BestSimilar autocomplete parser against a missing `serial` accidentally becoming Movie. The prior application HEAD was `09568fc7cf327225883cdcf4711498e612e18e88`; inspect the HEAD following this fix and the newest workflow run before further edits. Changes are on `parity-floating-player-both`, with matching handover update. **No new paired IPA/Windows release is confirmed.** The authoritative last completed paired release remains v1.1.0 Build 90. The historical Build #117/#115 details below remain for forensic context; they are not the current step to repeat.
+
 ## Source, credentials and current version
 - Source: https://github.com/mghazalyh/ptv3; branch parity-floating-player-both. Latest observed head b2965ba85f2123be6b7e6ccc0c3602e82a9f33c2. Concurrent work has modified the unrelated PS4 Telegram workflow, so never reset or overwrite unreviewed commits. Main is divergent: mirror documentation only, do not merge main application code.
 - Implemented source version 1.1.3+13; the installed build number comes from the GitHub Actions run number, embedded with the source Git revision. Workflow: .github/workflows/windows-advanced-discover.yml.
@@ -40,4 +44,4 @@ This is the live operational checkpoint; always refresh GitHub state first. Read
 - User prefers autonomous changes and exact visible release reporting: version/build heading, where feature is in UI, verified Windows/iOS step counts, direct actual downloads, Telegram IPA document message and clear limits about device testing. Do not repeat unnecessary credential warnings or ask for already settled choices.
 - EVERY update: keep handover.md current in the same work unit, and the NEXT_SESSION.md checkpoint refreshed. Mirror docs to main without mixing divergent app code.
 
-**This handoff is documentation only; it does not itself fix Build #115 or publish any new app package.**
+**The 2026-10-27 takeover fixes the regression test and missing autocomplete serial handling in source, but does not itself prove a new Windows/iOS build or publication.**

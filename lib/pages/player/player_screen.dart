@@ -25,6 +25,8 @@ import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
 import '../../services/player/audio_language_priority.dart';
+import '../../services/player/playback_autoselection.dart';
+import '../../services/stream/stream_service.dart';
 import '../../services/discord/discord_rpc_service.dart';
 
 import '../../widgets/player/player_glass.dart';
@@ -133,6 +135,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   SubFormat _currentSubFormat = SubFormat.srt;
   double _subtitleDelayMs = 0;
   double _subtitleScale = 1.0;
+  bool _subtitleManuallySelected = false;
+  bool _subtitleAutoPending = false;
+  bool _nextEpisodeBusy = false;
+  int _lastAutoplayEpoch = -1;
 
   // Skip Segments State (IntroDB)
   List<MediaSkipSegment> _skipSegments = [];
@@ -213,8 +219,12 @@ class _PlayerScreenState extends State<PlayerScreen>
         _onControllerError(error);
       }),
       _player.stream.completed.listen((completed) {
-        if (completed && mounted) {
+        if (completed && mounted && !_isLoading) {
           _savePlaybackProgress();
+          if (_lastAutoplayEpoch != _audioMediaEpoch) {
+            _lastAutoplayEpoch = _audioMediaEpoch;
+            unawaited(_goToNextEpisode());
+          }
         }
       }),
     ]);
@@ -233,6 +243,15 @@ class _PlayerScreenState extends State<PlayerScreen>
     _audioAutoSelectionPending = false;
     _audioTracks = [];
     _selectedAudioTrackIndex = 0;
+    // Never carry stale subtitle tracks or download results into another episode.
+    _subtitleManuallySelected = false;
+    _subtitleAutoPending = false;
+    _isSubtitleEnabled = false;
+    _currentSubtitleVariant = null;
+    _selectedEmbeddedSubtitleIndex = null;
+    _currentSubtitlePath = null;
+    _embeddedSubtitles = [];
+    _currentCues = [];
     String? streamUrl;
 
     print('[PlayerScreen] Initializing playback:');
@@ -256,6 +275,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (mounted) setState(() => _isLoading = false);
         _updateMediaTracks(_player.state.tracks);
         _scheduleAudioProbes(audioEpoch);
+        _preferEnglishAudioTrack();
+        unawaited(_fetchInitialSubtitles());
         return;
       }
 
@@ -416,6 +437,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       _player.play();
       _preferEnglishAudioTrack();
+      unawaited(_autoEnableEnglishEmbedded(audioEpoch));
       _startHideControlsTimer();
 
       // Defer background services until after playback starts
@@ -536,6 +558,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (active != null && active > 0) _selectedAudioTrackIndex = active;
     });
     _preferEnglishAudioTrack();
+    if (!_isLoading) unawaited(_autoEnableEnglishEmbedded(_audioMediaEpoch));
   }
 
   void _preferEnglishAudioTrack() {
@@ -646,7 +669,11 @@ class _PlayerScreenState extends State<PlayerScreen>
         ));
       }
       if (!mounted || epoch != _audioMediaEpoch) return;
-      if (found.length > _audioTracks.length) {
+      if (found.length >= _audioTracks.length ||
+          (found.any((t) => AudioLanguagePriority.isEnglish(
+                  language: t.language, title: t.title)) &&
+              !_audioTracks.any((t) => AudioLanguagePriority.isEnglish(
+                  language: t.language, title: t.title)))) {
         found.sort((a, b) {
           final ea = AudioLanguagePriority.isEnglish(
             language: a.language, title: a.title) ? 0 : 1;
@@ -676,21 +703,61 @@ class _PlayerScreenState extends State<PlayerScreen>
     return name.trim().replaceAll(RegExp(r'\s+'), ' ');
   }
 
+  Future<void> _autoEnableEnglishEmbedded(int epoch) async {
+    if (!mounted || _isLoading || epoch != _audioMediaEpoch ||
+        _subtitleManuallySelected || _isSubtitleEnabled ||
+        _subtitleAutoPending) return;
+    final preferred = PlaybackAutoselection.preferredEmbedded(_embeddedSubtitles);
+    if (preferred == null) return;
+    _subtitleAutoPending = true;
+    try {
+      await _player.setSubtitleTrack(SubtitleTrack(
+        preferred.index.toString(), preferred.title, preferred.language,
+      ));
+      if (!mounted || epoch != _audioMediaEpoch || _subtitleManuallySelected) {
+        return;
+      }
+      setState(() {
+        _selectedEmbeddedSubtitleIndex = preferred.index;
+        _currentSubtitleVariant = SubtitleVariant(
+          providerName: 'Embedded',
+          language: preferred.language ?? 'English',
+          title: preferred.title,
+          downloadUrl: '',
+          format: 'ass',
+        );
+        _isSubtitleEnabled = true;
+        _currentSubtitlePath = null;
+        _currentCues = [];
+      });
+      debugPrint('[PlayerSubtitles] Selected embedded English: ${preferred.title}');
+      _setSubtitleScale(_subtitleScale);
+      unawaited(PlayerSettings.applySubtitleStyling(_player));
+    } catch (error) {
+      debugPrint('[PlayerSubtitles] Embedded English track unavailable: $error');
+    } finally {
+      _subtitleAutoPending = false;
+    }
+  }
+
   Future<void> _fetchInitialSubtitles() async {
+    final epoch = _audioMediaEpoch;
+    // Wait briefly for mpv to enumerate embedded tracks on slow TorBox files.
+    await Future<void>.delayed(const Duration(milliseconds: 850));
+    if (!mounted || epoch != _audioMediaEpoch) return;
+    await _autoEnableEnglishEmbedded(epoch);
     try {
       int? searchYear;
       if (widget.detail?.year != null && widget.detail!.year!.isNotEmpty) {
-        final yMatch = RegExp(r'\b(19\d\d|20\d\d)\b').firstMatch(widget.detail!.year!);
+        final yMatch = RegExp(r'\\b(19\\d\\d|20\\d\\d)\\b').firstMatch(widget.detail!.year!);
         if (yMatch != null) searchYear = int.tryParse(yMatch.group(1)!);
       }
       final rawName = widget.detail?.name ?? widget.title;
       if (searchYear == null) {
-        final yMatch = RegExp(r'\b(19\d\d|20\d\d)\b').firstMatch(rawName);
+        final yMatch = RegExp(r'\\b(19\\d\\d|20\\d\\d)\\b').firstMatch(rawName);
         if (yMatch != null) searchYear = int.tryParse(yMatch.group(1)!);
       }
       final showName = cleanMediaTitle(rawName);
-      print('[PlayerScreen] Scraping initial subtitles for "$showName" (year: $searchYear, imdb: ${widget.detail?.id})...');
-
       final groups = await SubtitleService().fetchAllSubtitles(
         showName,
         imdbId: widget.detail?.id,
@@ -698,27 +765,23 @@ class _PlayerScreenState extends State<PlayerScreen>
         episode: _currentEpisode?.episode,
         year: searchYear,
       );
-      print('[PlayerScreen] Scraped ${groups.length} subtitle language groups with ${groups.fold(0, (s, g) => s + g.variants.length)} total variants');
-      if (mounted && groups.isNotEmpty) {
-        setState(() => _subtitleGroups = groups);
+      if (!mounted || epoch != _audioMediaEpoch) return;
+      setState(() => _subtitleGroups = groups);
+      if (_subtitleManuallySelected || _isSubtitleEnabled) return;
 
-        // Auto-load matching language subtitle for the new episode if subtitles were enabled
-        if (_isSubtitleEnabled && _currentSubtitleVariant != null) {
-          final previousLang = _currentSubtitleVariant!.language.toLowerCase();
-          final matchingGroup = groups.firstWhere(
-            (g) => g.language.toLowerCase() == previousLang,
-            orElse: () => groups.firstWhere(
-              (g) => g.language.toLowerCase().contains('english') || g.language.toLowerCase() == 'en',
-              orElse: () => groups.first,
-            ),
-          );
-          if (matchingGroup.variants.isNotEmpty) {
-            _loadSubtitle(matchingGroup.variants.first);
-          }
-        }
+      // Prefer labeled English forced/embedded subtitles. If missing, download
+      // English subtitles from OpenSubtitles or another configured provider.
+      await _autoEnableEnglishEmbedded(epoch);
+      if (_isSubtitleEnabled || _subtitleManuallySelected) return;
+      for (final variant in PlaybackAutoselection.preferredExternal(groups)) {
+        if (!mounted || epoch != _audioMediaEpoch ||
+            _subtitleManuallySelected || _isSubtitleEnabled) break;
+        final loaded = await _loadSubtitle(variant,
+            automatic: true, expectedEpoch: epoch);
+        if (loaded) break;
       }
-    } catch (e) {
-      debugPrint('[PlayerScreen] Error loading subtitles: $e');
+    } catch (error) {
+      debugPrint('[PlayerSubtitles] English subtitle lookup failed: $error');
     }
   }
 
@@ -772,6 +835,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _selectEmbeddedSubtitle(PlayerEmbeddedSubtitle embedded) {
+    _subtitleManuallySelected = true;
     setState(() {
       _selectedEmbeddedSubtitleIndex = embedded.index;
       _currentSubtitleVariant = SubtitleVariant(
@@ -801,6 +865,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _disableSubtitles() {
+    _subtitleManuallySelected = true;
     setState(() {
       _isSubtitleEnabled = false;
       _currentSubtitleVariant = null;
@@ -811,61 +876,72 @@ class _PlayerScreenState extends State<PlayerScreen>
     _player.setSubtitleTrack(SubtitleTrack.no());
   }
 
-  Future<void> _loadSubtitle(SubtitleVariant variant) async {
-    _currentSubtitleVariant = variant;
-    _selectedEmbeddedSubtitleIndex = null;
-    _isSubtitleEnabled = true;
-    _player.setSubtitleTrack(SubtitleTrack.no());
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Downloading ${variant.language} subtitle...'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+  Future<bool> _loadSubtitle(
+    SubtitleVariant variant, {
+    bool automatic = false,
+    int? expectedEpoch,
+  }) async {
+    final epoch = expectedEpoch ?? _audioMediaEpoch;
+    if (!automatic) _subtitleManuallySelected = true;
+    if (!automatic && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Downloading ${variant.language} subtitle...'),
+        duration: const Duration(seconds: 2),
+      ));
     }
-
-    final path = await SubtitleService().downloadSubtitle(variant);
-    if (path == null) {
-      if (mounted) {
+    String? path;
+    try {
+      path = await SubtitleService().downloadSubtitle(variant);
+    } catch (error) {
+      debugPrint('[PlayerSubtitles] Download error: $error');
+    }
+    if (!mounted || epoch != _audioMediaEpoch ||
+        (automatic && (_subtitleManuallySelected || _isSubtitleEnabled))) {
+      return false;
+    }
+    if (path == null || !await File(path).exists()) {
+      if (!automatic && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to download subtitle')),
         );
       }
-      return;
+      return false;
     }
-
     try {
-      final file = File(path);
-      if (await file.exists()) {
-        final bytes = await file.readAsBytes();
-        final content = SubtitleParser.decodeBytesWithFallback(bytes);
-        final parseResult = SubtitleParser.parse(content);
-        _currentCues = parseResult.cues;
-        _currentSubFormat = parseResult.format;
+      final bytes = await File(path).readAsBytes();
+      final content = SubtitleParser.decodeBytesWithFallback(bytes);
+      final result = SubtitleParser.parse(content);
+      if (!mounted || epoch != _audioMediaEpoch ||
+          (automatic && (_subtitleManuallySelected || _isSubtitleEnabled))) {
+        return false;
       }
-    } catch (e) {
-      print('[PlayerScreen] Subtitle cues parse error: $e');
-    }
-
-    _currentSubtitlePath = path;
-    final resolvedUri = _resolveSubtitleUri(path);
-    _player.setSubtitleTrack(SubtitleTrack.uri(resolvedUri, title: variant.language));
-    _setSubtitleScale(_subtitleScale);
-    PlayerSettings.applySubtitleStyling(_player);
-
-    if (_subtitleDelayMs != 0) {
-      await _applyLiveDelay(_subtitleDelayMs / 1000.0);
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+      await _player.setSubtitleTrack(SubtitleTrack.uri(
+          _resolveSubtitleUri(path), title: variant.language));
+      if (!mounted || epoch != _audioMediaEpoch) return false;
+      setState(() {
+        _currentSubtitleVariant = variant;
+        _selectedEmbeddedSubtitleIndex = null;
+        _isSubtitleEnabled = true;
+        _currentSubtitlePath = path;
+        _currentCues = result.cues;
+        _currentSubFormat = result.format;
+      });
+      _setSubtitleScale(_subtitleScale);
+      unawaited(PlayerSettings.applySubtitleStyling(_player));
+      if (_subtitleDelayMs != 0) {
+        await _applyLiveDelay(_subtitleDelayMs / 1000.0);
+      }
+      if (!automatic && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('${variant.language} subtitle loaded (${_currentCues.length} lines)'),
           duration: const Duration(seconds: 2),
-        ),
-      );
+        ));
+      }
+      debugPrint('[PlayerSubtitles] English external subtitles enabled from ${variant.providerName}');
+      return true;
+    } catch (error) {
+      debugPrint('[PlayerSubtitles] Subtitle activation failed: $error');
+      return false;
     }
   }
 
@@ -1076,9 +1152,6 @@ class _PlayerScreenState extends State<PlayerScreen>
     _progressSaveTimer?.cancel();
     _savePlaybackProgress();
 
-    final prevVariant = _currentSubtitleVariant;
-    final wasSubEnabled = _isSubtitleEnabled;
-
     setState(() {
       _currentSource = newSource;
       _currentEpisode = newEpisode;
@@ -1099,8 +1172,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       _subtitleGroups = [];
       _currentSubtitlePath = null;
       _currentCues = [];
-      _currentSubtitleVariant = prevVariant;
-      _isSubtitleEnabled = wasSubEnabled;
+      _currentSubtitleVariant = null;
+      _isSubtitleEnabled = false;
+      _selectedEmbeddedSubtitleIndex = null;
     });
 
     // Cleanup previous torrent engine if was P2P
@@ -1708,7 +1782,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   year: widget.detail?.year != null ? int.tryParse(widget.detail!.year!) : null,
                   delaySec: _subtitleDelayMs / 1000.0,
                   onSelectVariant: (v) {
-                    if (v != null) _loadSubtitle(v);
+                    if (v != null) unawaited(_loadSubtitle(v));
                   },
                   onSelectEmbedded: (emb) => _selectEmbeddedSubtitle(emb),
                   onToggleOff: _disableSubtitles,

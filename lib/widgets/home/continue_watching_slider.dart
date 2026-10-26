@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -33,6 +34,7 @@ class _ContinueWatchingSliderState extends State<ContinueWatchingSlider> {
   bool _canScrollLeft = false;
   bool _canScrollRight = true;
   bool _isHoveringSlider = false;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -41,12 +43,20 @@ class _ContinueWatchingSliderState extends State<ContinueWatchingSlider> {
     _scrollController.addListener(_updateScrollButtons);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _updateScrollButtons();
+      if (!mounted) return;
+      _updateScrollButtons();
+      unawaited(ContinueWatchingService.syncGitHubProgress());
+    });
+    // A device that isn't playing anything still receives updates from
+    // another device while its Continue Watching shelf remains visible.
+    _refreshTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+      if (mounted) unawaited(ContinueWatchingService.syncGitHubProgress(force: true));
     });
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _scrollController.removeListener(_updateScrollButtons);
     _scrollController.dispose();
     super.dispose();

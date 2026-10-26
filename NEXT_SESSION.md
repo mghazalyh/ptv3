@@ -10,7 +10,7 @@ This is the live operational checkpoint; always refresh GitHub state first. Read
 - The user-facing v1.1.1 Show Details, v1.1.2 related See All and v1.1.3 correct Series/Movie/Title classification exist in source, but a newer fully paired Windows+iOS release has NOT been confirmed.
 
 ## Most recent paired CI at handoff
-- Build #117 https://github.com/mghazalyh/ptv3/actions/runs/40358102815, source b2965ba85f2123be6b7e6ccc0c3602e82a9f33c2: Windows in progress (Flutter setup) and iOS queued at verification. Final status UNKNOWN — fetch latest before acting.
+- Build #117 https://github.com/mghazalyh/ptv3/actions/runs/40358102815, source b2965ba85f2123be6b7e6ccc0c3602e82a9f33c2: Windows job 121696208832 has FAILED the same media-type regression test (Expected false, Actual null at test/recommendation_media_type_test.dart:43; six passing tests and one failure); iOS was still queued at final verification. **No new paired release**. Refresh latest status before acting.
 - Build #116 https://github.com/mghazalyh/ptv3/actions/runs/40357960371: canceled by another push. Build #115 https://github.com/mghazalyh/ptv3/actions/runs/40357258712: canceled; Windows had a real failing regression test, iOS canceled; no paired release/IPA.
 - Build #113 https://github.com/mghazalyh/ptv3/actions/runs/40349780283: Windows 17/17 passed, Actions artifact PlayTorrio-Windows-v1.1.3-build-113 (ID 12663885841). iOS canceled, publishing and Telegram skipped, overall failure. It predates the last media-type safety change; do not call it the current fully shipped version.
 - Older v1.1.2 Build #104 Windows 17/17 passed but iOS canceled; all later versions remain unverified as a matched published release.

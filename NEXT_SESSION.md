@@ -2,7 +2,19 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## CURRENT: v1.1.7 optional title + Discover filters (2026-10-27)
+## LATEST SHIPPED — v1.1.7 Build #127 optional Advanced Discover title+filters
+
+**v1.1.7 Build #127 is fully successful and published.** [Run #127](https://github.com/mghazalyh/ptv3/actions/runs/40388302974) from application commit **`16a4143fd085973b9f103e1faa05b4ec95ad3269`** finished Windows **17/17**, iOS 15 TrollStore **28 success steps**, Telegram IPA **real document** message ID **27**, matched GitHub publish **6/6**. Verified [release](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.7-b127) contains actual assets:
+- [Windows portable ZIP](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.7-b127/PlayTorrio-v1.1.7-build127-Windows-x64-Portable.zip)
+- [Windows installer EXE](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.7-b127/PlayTorrio-v1.1.7-build127-Windows-Setup.exe)
+- [iOS 15 TrollStore IPA](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.7-b127/PlayTorrio-v1.1.7-build127-iOS15-TrollStore.ipa)
+- [Checksums](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.7-b127/SHA256SUMS.txt)
+
+**UI:** In **Discover Movies & Series**, directly beneath Movie/TV toggle is **Movie or TV show title (optional)**. Enter partial title and combine with years, country-of-origin, original-language, sort. Submit Search or keyboard Enter; blank text uses legacy filter-only Discover. Clear control returns to blank browsing, saved text persists locally. With one TV year, TMDB search year includes episode airings; with a multi-year TV range, only premiere years match (UI explains). Counts represent actual filtered titles on loaded search pages, Load More uses frozen applied criteria. Optional movie-country verification may fetch extra paced/cache-backed TMDB detail records only when user sets title+movie+origin-country. No new API secrets or typing-time network calls. New tests and static analysis verified on both CI jobs. TVDB credential tile and existing playback/subtitles are intact. **Device UI verification pending**, so do not claim a personal device test.
+
+Documentation-only [skip ci] status update, no additional build. Continue living handover/AGENTS/NEXT_SESSION maintenance and mirror docs only to main.
+
+## HISTORICAL IMPLEMENTATION — v1.1.7 optional Advanced Discover text+filters
 
 User explicitly requested optional title text when **searching movies and TV shows using Advanced Discover** filters. Implemented in `lib/pages/search/advanced_discover_page.dart` (input under Movie/TV switch, press Search or Enter, clear text, persist key `adv_discover_query`, combined country, language, year and sort controls; protect pagination with `_appliedFilters.withPage`). In `lib/services/metadata/tmdb_discover_service.dart`, `DiscoverFilters.titleQuery` defaults empty; **blank text still uses original TMDB `/discover/movie|tv` unmodified**. Nonempty text calls TMDB `/search/movie|tv?query=...` with bounded/local filtering of country/language/year/rating sort. When movie+text+origin-country is selected, fetch individual movie metadata for verified production country only for up to 20 per provider page, using existing spacing/cache/429 cooldown; don't guess country from translated language. **TV single-year search** uses TMDB `year` (episode-year aware); TV multi-year+title uses premiere year and UI explains limitation. Page counts filtered locally vs raw server pages, sort applies within each page. No typing-triggered API traffic.
 

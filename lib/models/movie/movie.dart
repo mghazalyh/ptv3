@@ -1,4 +1,37 @@
 class Movie {
+  /// Normalize common provider names to Stremio's movie/series/anime types.
+  /// Do not turn unknown formats into movies: a missing label is not proof.
+  static String canonicalType(String? input) {
+    switch (input?.trim().toLowerCase()) {
+      case 'series':
+      case 'tv':
+      case 'tvshow':
+      case 'tv_show':
+      case 'tv-series':
+      case 'tv_series':
+      case 'shows':
+      case 'show':
+      case 'serial':
+        return 'series';
+      case 'movie':
+      case 'movies':
+      case 'film':
+        return 'movie';
+      case 'anime':
+        return 'anime';
+      default:
+        return 'unknown';
+    }
+  }
+
+  static String typeLabel(String? input) {
+    switch (canonicalType(input)) {
+      case 'series': return 'Series';
+      case 'movie': return 'Movie';
+      case 'anime': return 'Anime';
+      default: return 'Title';
+    }
+  }
   final String id;
   final String name;
   final String? poster;
@@ -17,7 +50,7 @@ class Movie {
     this.imdbRating,
   });
 
-  factory Movie.fromJson(Map<String, dynamic> json, String addonBaseUrl) {
+  factory Movie.fromJson(Map<String, dynamic> json, String addonBaseUrl, {String? fallbackType}) {
     String? ratingStr;
     if (json['imdbRating'] != null) {
       ratingStr = json['imdbRating'].toString();
@@ -34,7 +67,7 @@ class Movie {
       name: json['name']?.toString() ?? 'Unknown',
       poster: json['poster']?.toString(),
       year: json['releaseInfo']?.toString() ?? json['year']?.toString(),
-      type: json['type']?.toString() ?? 'movie',
+      type: canonicalType(json['type']?.toString() ?? fallbackType),
       addonBaseUrl: addonBaseUrl,
       imdbRating: ratingStr,
     );

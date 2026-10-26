@@ -62,6 +62,34 @@ void main() {
     expect(PlaybackAutoselection.nextEpisode(episodes, null), isNull);
   });
 
+  test('Continue Watching without episode metadata retains Next Episode', () {
+    final current = Video(id: 'tt99:1:4', title: 'Episode 4', season: 1, episode: 4);
+    final next = PlaybackAutoselection.nextEpisodeCandidate(
+      knownEpisodes: const [],
+      current: current,
+      showId: 'tt99',
+    );
+    expect(next?.id, 'tt99:1:5');
+    expect(next?.season, 1);
+    expect(next?.episode, 5);
+  });
+
+  test('known next season is preferred over a guessed same-season episode', () {
+    final current = Video(id: 'tt99:1:8', title: 'Finale', season: 1, episode: 8);
+    final seasonTwo = Video(id: 'tt99:2:1', title: 'Return', season: 2, episode: 1);
+    expect(PlaybackAutoselection.nextEpisodeCandidate(
+      knownEpisodes: [current, seasonTwo],
+      current: current,
+      showId: 'tt99',
+    ), same(seasonTwo));
+    expect(PlaybackAutoselection.nextEpisodeCandidate(
+      knownEpisodes: [current],
+      current: current,
+      showId: 'tt99',
+      catalogComplete: true,
+    ), isNull);
+  });
+
   test('same TorBox or Torrentio source preferred; unusable streams ignored', () {
     final previous = stream('Torrentio', '1080p', url: 'https://old.example/a');
     final sources = [

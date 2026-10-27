@@ -189,6 +189,7 @@ abstract final class WatchedHistoryService {
               ...candidate.completedEpisodeIds, ...existing.completedEpisodeIds,
             }.toList()..sort(),
           );
+          GitHubWatchedHistoryCloud.instance.save(old[candidate.identity]!);
         }
       }
       final merged = old.values.toList()

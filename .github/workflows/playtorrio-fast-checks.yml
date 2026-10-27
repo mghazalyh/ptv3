@@ -11,6 +11,8 @@ on:
       - '**/*.md'
       - 'docs/**'
       - '.github/release-request.txt'
+      - '.github/release-recovery-request.json'
+      - '.github/workflows/playtorrio-recover-release.yml'
   pull_request:
     branches:
       - parity-floating-player-both

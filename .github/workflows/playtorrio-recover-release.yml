@@ -1,0 +1,155 @@
+name: PlayTorrio — recover already-built paired release
+
+# This deliberately uses the successful binaries from the existing workflow.
+# It NEVER runs Flutter, Windows/macOS jobs, or compiles a second package.
+on:
+  push:
+    branches:
+      - parity-floating-player-both
+    paths:
+      - '.github/release-recovery-request.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playtorrio-release-recovery-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  restore-github-release:
+    name: Publish the already-verified Windows and iOS packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact build and both native job outcomes
+        id: config
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(jq -r .version .github/release-recovery-request.json)
+          NUMBER=$(jq -r .build .github/release-recovery-request.json)
+          ID=$(jq -r .run_id .github/release-recovery-request.json)
+          EXPECTED=$(jq -r .source_sha .github/release-recovery-request.json)
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$NUMBER" =~ ^[0-9]+$ ]]
+          [[ "$ID" =~ ^[0-9]+$ ]]
+          [[ "$EXPECTED" =~ ^[0-9a-f]{40}$ ]]
+          ACTUAL=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ID" --jq .head_sha)
+          RUN_NUMBER=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ID" --jq .run_number)
+          test "$EXPECTED" = "$ACTUAL"
+          test "$NUMBER" = "$RUN_NUMBER"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ID/jobs?per_page=100" > /tmp/native-jobs.json
+          jq -e '[.jobs[] | select(.name | startswith("Windows x64")) | .conclusion] | index("success") != null' /tmp/native-jobs.json
+          jq -e '[.jobs[] | select(.name | startswith("iOS 15")) | .conclusion] | index("success") != null' /tmp/native-jobs.json
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "number=$NUMBER" >> "$GITHUB_OUTPUT"
+          echo "run_id=$ID" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$EXPECTED" >> "$GITHUB_OUTPUT"
+          echo "Verified existing binaries from commit $EXPECTED, run $ID"
+      - name: Retrieve the original Windows build artifact (not a rebuild)
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.config.outputs.run_id }}
+          github-token: ${{ github.token }}
+          name: PlayTorrio-Windows-v${{ steps.config.outputs.version }}-build-${{ steps.config.outputs.number }}
+          path: packages/windows
+      - name: Retrieve original signed iOS IPA (not a rebuild)
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.config.outputs.run_id }}
+          github-token: ${{ github.token }}
+          name: PlayTorrio-iOS15-TrollStore-v${{ steps.config.outputs.version }}-build-${{ steps.config.outputs.number }}
+          path: packages/ios15
+      - name: Publish matched release from prebuilt packages
+        shell: bash
+        env:
+          VERSION: ${{ steps.config.outputs.version }}
+          NUMBER: ${{ steps.config.outputs.number }}
+          EXPECTED_SHA: ${{ steps.config.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          test -s packages/windows/PlayTorrio-Windows-Setup.exe
+          test -s packages/windows/PlayTorrio-Windows-x64-Portable.zip
+          test -s packages/ios15/PlayTorrio-iOS15-TrollStore.ipa
+          TAG="build-v${VERSION}-b${NUMBER}"
+          BASENAME="PlayTorrio-v${VERSION}-build${NUMBER}"
+          mkdir -p release
+          cp packages/windows/PlayTorrio-Windows-Setup.exe "release/${BASENAME}-Windows-Setup.exe"
+          cp packages/windows/PlayTorrio-Windows-x64-Portable.zip "release/${BASENAME}-Windows-x64-Portable.zip"
+          cp packages/ios15/PlayTorrio-iOS15-TrollStore.ipa "release/${BASENAME}-iOS15-TrollStore.ipa"
+          (cd release && sha256sum PlayTorrio-* > SHA256SUMS.txt)
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Existing release found, only replacing verified files."
+            gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" release/* --repo "$GITHUB_REPOSITORY" \
+              --target "$EXPECTED_SHA" --title "PlayTorrio v${VERSION} (Build ${NUMBER})" \
+              --notes "Recovered without rebuilding Windows or iOS. Exact source: ${EXPECTED_SHA}." \
+              --latest
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,assets \
+            --jq '{tag: .tagName, assetNames: [.assets[].name]}'
+
+  telegram-windows-recovery:
+    name: Deliver already-built Windows Setup EXE as separate Telegram document
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
+      BUILD_SHA: fed69691fedf200aa6cebbeee83fb2469b976a0c
+      BUILD_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/40537214906
+      BUILD_VERSION: "1.1.14"
+      BUILD_NUMBER: "138"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve successful Build #138 Windows setup, no rebuild
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: 40537214906
+          github-token: ${{ github.token }}
+          name: PlayTorrio-Windows-v1.1.14-build-138
+          path: packages/windows
+      - name: Upload the actual Windows EXE to Telegram independently
+        run: |
+          python3 .github/scripts/telegram_ci.py send-document \
+            --platform Windows \
+            --file packages/windows/PlayTorrio-Windows-Setup.exe \
+            --caption-extra "Windows portable ZIP in GitHub Actions artifact; GitHub Release publication tracked separately."
+
+  telegram-recovery-status:
+    name: Alert Telegram if release recovery is blocked
+    needs: [restore-github-release, telegram-windows-recovery]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report recovery status
+        env:
+          RELEASE_RESULT: ${{ needs.restore-github-release.result }}
+          WINDOWS_RESULT: ${{ needs.telegram-windows-recovery.result }}
+        run: |
+          if [[ "$RELEASE_RESULT" == "success" && "$WINDOWS_RESULT" == "success" ]]; then
+            MSG="✅ PlayTorrio v1.1.14 Build #138: existing Windows and iOS packages published to GitHub Release, Windows EXE and iOS IPA separately sent to Telegram."
+          else
+            MSG="🚨 PlayTorrio Build #138 recovery needs attention. Release: $RELEASE_RESULT. Windows Telegram: $WINDOWS_RESULT. Native Windows/iOS builds already passed; do NOT rebuild. https://github.com/$GITHUB_REPOSITORY/actions"
+          fi
+          python3 .github/scripts/telegram_ci.py send-text --text "$MSG"

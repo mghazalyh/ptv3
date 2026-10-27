@@ -1,0 +1,7 @@
+{
+  "version": "1.1.14",
+  "build": 138,
+  "run_id": 40537214906,
+  "source_sha": "fed69691fedf200aa6cebbeee83fb2469b976a0c",
+  "reason": "Recover release publication without rebuilding successful Windows and iOS native jobs"
+}

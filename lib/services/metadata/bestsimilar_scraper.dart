@@ -344,6 +344,11 @@ class BestSimilarScraper {
     final targetWords = normTarget.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toSet();
 
     for (final h in allHits.values) {
+      // Previous scoring accepted a wholly different film/series if it
+      // shared a word, format and year. Never recommend based on that match.
+      if (!verifiedSourceMatch(
+        title: title, year: year, isTv: isTv, hit: h,
+      )) continue;
       var score = 0.0;
       final normHit = _normalizeTitle(h.title);
       final hitWords = normHit.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toSet();
@@ -395,6 +400,27 @@ class BestSimilarScraper {
 
     // Require a healthy positive score (at least 6.0)
     return bestScore >= 6.0 ? best : null;
+  }
+
+  /// BestSimilar autocomplete contains lookalike titles; a high fuzzy
+  /// score must not identify a different work as the viewer's source.
+  @visibleForTesting
+  static bool verifiedSourceMatch({
+    required String title,
+    required int? year,
+    required bool isTv,
+    required BSAutocompleteHit hit,
+  }) {
+    String canonical(String s) {
+      final normalized = _normalizeTitle(s);
+      return normalized.replaceFirst(RegExp(r'^(the|a|an) '), '');
+    }
+    if (canonical(title).isEmpty ||
+        canonical(title) != canonical(hit.title)) return false;
+    if (hit.isTv != isTv) return false;
+    if (year != null && hit.year != null &&
+        (year - hit.year!).abs() > 1) return false;
+    return true;
   }
 
   static String _normalizeTitle(String str) {

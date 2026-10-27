@@ -293,6 +293,16 @@ abstract final class HomePageSettings {
 
       if (details == null || details.similar.isEmpty) return null;
 
+      // Verify the actual detail page matches the autocomplete identity:
+      // stale provider links can otherwise point to an unrelated film/show.
+      String normalize(String t) => t.toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim()
+          .replaceFirst(RegExp(r'^(the|a|an) '), '');
+      if (details.title.trim().isNotEmpty &&
+          normalize(details.title) != normalize(sourceTitle)) return null;
+      if (year != null && details.year != null &&
+          (year - details.year!).abs() > 1) return null;
+
       // Verify individual results via BestSimilar's explicit 'serial' flag.
       // The HTML .item-movie class is shared by series and films and is NOT
       // media-type evidence. Unknown entries remain neutral, never 'Movie'.

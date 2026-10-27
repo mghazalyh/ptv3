@@ -57,8 +57,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final pkg = await PackageInfo.fromPlatform().catchError((_) => PackageInfo(
           appName: 'PlayTorrio',
           packageName: 'com.playtorrio',
-          version: '1.1.9',
-          buildNumber: '19',
+          version: '1.1.10',
+          buildNumber: '20',
         ));
 
     if (mounted) {

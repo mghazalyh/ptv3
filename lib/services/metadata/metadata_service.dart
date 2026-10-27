@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../models/addon/addon.dart';
@@ -11,6 +12,9 @@ import '../../models/movie/movie_detail.dart';
 /// standard Stremio endpoints (catalog, meta, search).
 class MetadataService {
   MetadataService._();
+
+  @visibleForTesting
+  static Future<http.Response> Function(Uri)? catalogGetOverride;
 
   static final Map<String, List<Movie>> _catalogCache = {};
   static final Map<String, MovieDetail> _metaCache = {};
@@ -70,10 +74,10 @@ class MetadataService {
       return List.from(_catalogCache[url]!);
     }
 
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {'Accept': 'application/json'},
-    );
+    final uri = Uri.parse(url);
+    final response = catalogGetOverride == null
+        ? await http.get(uri, headers: {'Accept': 'application/json'})
+        : await catalogGetOverride!(uri);
 
     if (response.statusCode != 200) {
       throw Exception('Catalog fetch failed (${response.statusCode})');

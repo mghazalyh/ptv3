@@ -22,7 +22,28 @@ class CatalogPage extends StatefulWidget {
 class _CatalogPageState extends State<CatalogPage> {
   final List<Movie> _items = [];
   bool _isLoading = false;
-  bool _hasMore = true;
+  bool _hasMore = false;
+  int _remoteOffset = 0;
+  int _requestSerial = 0;
+
+  // The Home row is the authoritative first page. A synthetic list, missing
+  // addon URL or catalog without 'skip' never becomes a generic Cinemeta
+  // request, even if a caller forgot to mark that section curated.
+  bool get _isSynthetic => widget.section.isCurated ||
+      const {
+        'bestsimilar', 'bestsimilar_list', 'bestsimilar_watching',
+        'trakt_recommendations', 'simkl_recommendations',
+      }.contains(widget.section.catalog.id);
+
+  bool get _hasValidSource {
+    final url = Uri.tryParse(widget.section.addonBaseUrl.trim());
+    return url != null && (url.scheme == 'https' || url.scheme == 'http') &&
+        url.host.isNotEmpty;
+  }
+
+  bool get _canPage => !_isSynthetic &&
+      _hasValidSource && widget.section.catalog.supportsSkip;
+  bool get _isSnapshot => !_canPage;
   String? _error;
 
   String? _selectedGenre;
@@ -40,16 +61,22 @@ class _CatalogPageState extends State<CatalogPage> {
   @override
   void initState() {
     super.initState();
+    _items.addAll(widget.section.movies);
+    _remoteOffset = _items.length;
+    _hasMore = _canPage;
     _scrollController.addListener(_onScroll);
     _genreScrollController.addListener(_updateGenreScrollButtons);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateGenreScrollButtons();
     });
-    _loadItems(refresh: true);
+    // Avoid a duplicate initial fetch: See All first displays exactly
+    // what the tapped section showed. Page two uses the same addon/catalog.
+    if (_items.isEmpty && _canPage) _loadItems(refresh: true);
   }
 
   @override
   void dispose() {
+    _requestSerial++;
     _scrollController.dispose();
     _genreScrollController.dispose();
     _searchController.dispose();
@@ -86,74 +113,74 @@ class _CatalogPageState extends State<CatalogPage> {
   }
 
   Future<void> _loadItems({bool refresh = false}) async {
-    // Personalized home sections are already a complete, source-ranked
-    // recommendation set. Their IDs are NOT real Stremio catalogs. Asking
-    // Cinemeta for 'bestsimilar_list', 'trakt_recommendations', etc. would
-    // return unrelated results (or a generic fallback).
-    if (widget.section.isCurated) {
-      if (!mounted) return;
-      setState(() {
-        _items
-          ..clear()
-          ..addAll(widget.section.movies);
-        _isLoading = false;
-        _hasMore = false;
-        _error = null;
-      });
+    if (!mounted) return;
+
+    // No network fallback to a "top" Cinemeta catalog, or to the wrong
+    // addon, for recommendations and non-paginated source sections.
+    if (_isSnapshot) {
+      if (refresh) {
+        setState(() {
+          _items..clear()..addAll(widget.section.movies);
+          _hasMore = false;
+          _isLoading = false;
+          _error = null;
+        });
+      }
       return;
     }
 
     if (refresh) {
+      _requestSerial++;
       setState(() {
+        // If no filter/search is applied, preserve the row's exact ranked
+        // items as page 1. Never replace them with other generic results.
         _items.clear();
+        if (!_isSearching && _selectedGenre == null) {
+          _items.addAll(widget.section.movies);
+        }
+        _remoteOffset = _items.length;
         _hasMore = true;
+        _isLoading = false; // Cancel stale searches/pages before starting new.
         _error = null;
       });
+      if (_items.isNotEmpty) return;
     }
-
-    if (!_hasMore) return;
-
+    if (!_hasMore || _isLoading) return;
+    final serial = ++_requestSerial;
     setState(() => _isLoading = true);
 
     try {
-      List<Movie> newItems = [];
-
-      if (_isSearching && _searchQuery.isNotEmpty) {
-        // Search usually doesn't support pagination in Stremio natively in the same way,
-        // but we'll try to fetch it.
-        if (refresh) {
-          newItems = await MetadataService.search(
-            baseUrl: widget.section.addonBaseUrl,
-            type: widget.section.contentType,
-            catalogId: widget.section.catalog.id,
-            query: _searchQuery,
-          );
-          _hasMore = false; // Usually search returns all relevant results or doesn't support skip
-        }
+      final List<Movie> fetched;
+      if (_isSearching && _searchQuery.isNotEmpty &&
+          widget.section.catalog.supportsSearch) {
+        fetched = await MetadataService.search(
+          baseUrl: widget.section.addonBaseUrl,
+          type: widget.section.contentType,
+          catalogId: widget.section.catalog.id,
+          query: _searchQuery,
+        );
       } else {
-        newItems = await MetadataService.fetchCatalog(
+        fetched = await MetadataService.fetchCatalog(
           baseUrl: widget.section.addonBaseUrl,
           type: widget.section.contentType,
           catalogId: widget.section.catalog.id,
           genre: _selectedGenre,
-          skip: _items.length,
+          skip: _remoteOffset,
         );
       }
-
-      if (!mounted) return;
-
+      if (!mounted || serial != _requestSerial) return;
+      final seen = _items.map((m) => '${m.type}:${m.id}').toSet();
+      final newItems = fetched.where((m) =>
+          seen.add('${m.type}:${m.id}')).toList();
       setState(() {
-        if (newItems.isEmpty) {
-          _hasMore = false;
-        } else {
-          _items.addAll(newItems);
-        }
+        _remoteOffset += fetched.length;
+        _items.addAll(newItems);
+        // Do not loop infinitely when an addon ignores the skip parameter,
+        // replays the first page, or doesn't implement a search offset.
+        _hasMore = fetched.isNotEmpty && newItems.isNotEmpty &&
+            !(_isSearching && _searchQuery.isNotEmpty);
         _isLoading = false;
       });
-
-      // If content doesn't fill the viewport yet, load more immediately.
-      // This fixes fullscreen mode where the initial batch doesn't produce
-      // enough scroll extent to ever trigger _onScroll.
       if (_hasMore && !_isLoading) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted || !_scrollController.hasClients) return;
@@ -162,10 +189,12 @@ class _CatalogPageState extends State<CatalogPage> {
           }
         });
       }
-    } catch (e) {
-      if (!mounted) return;
+    } catch (_) {
+      if (!mounted || serial != _requestSerial) return;
       setState(() {
-        _error = e.toString();
+        _error = 'Could not load more from this exact addon catalog. '
+            'Your original titles are unchanged.';
+        _hasMore = false;
         _isLoading = false;
       });
     }
@@ -214,13 +243,14 @@ class _CatalogPageState extends State<CatalogPage> {
     final topPadding = MediaQuery.of(context).padding.top;
     final sizing = MovieCardSizing.fromWidth(MediaQuery.sizeOf(context).width);
     final isDesktop = MediaQuery.sizeOf(context).width >= 800;
-    final visibleItems = widget.section.isCurated && _searchQuery.isNotEmpty
+    final visibleItems = _isSnapshot && _searchQuery.isNotEmpty
         ? _items.where((item) => item.name.toLowerCase()
             .contains(_searchQuery.toLowerCase())).toList()
         : _items;
     
     // Calculate safe top padding for grid based on if genres are available
-    final hasGenres = widget.section.catalog.genres.isNotEmpty && !_isSearching;
+    final hasGenres = _canPage &&
+        widget.section.catalog.genres.isNotEmpty && !_isSearching;
     final gridTopPadding = topPadding + kToolbarHeight + (hasGenres ? 60 : 20) + 20;
 
     return Scaffold(
@@ -347,7 +377,7 @@ class _CatalogPageState extends State<CatalogPage> {
                                 ),
                               ),
                             if (!_isSearching &&
-                                (widget.section.isCurated ||
+                                (_isSnapshot ||
                                     widget.section.catalog.supportsSearch))
                               IconButton(
                                 icon: const Icon(Icons.search_rounded),

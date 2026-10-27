@@ -43,7 +43,6 @@ class ContinueWatchingService {
     if (!force && _lastGitHubRefresh != null &&
         DateTime.now().difference(_lastGitHubRefresh!) <
             const Duration(seconds: 50)) return;
-    _lastGitHubRefresh = DateTime.now();
     await GitHubProgressCloud.instance.sync(
       readLocal: () => List<ContinueWatchingItem>.from(activeItems.value),
       persist: (sessions) async {
@@ -54,6 +53,9 @@ class ContinueWatchingService {
       },
       force: force,
     );
+    if (GitHubProgressCloud.instance.status.value.startsWith('Continue Watching synced')) {
+      _lastGitHubRefresh = DateTime.now();
+    }
   }
 
 
@@ -252,7 +254,9 @@ class ContinueWatchingService {
     required int positionSeconds,
     required int totalDurationSeconds,
   }) async {
-    if (positionSeconds < 5 || totalDurationSeconds <= 0) return;
+    // Ignore provisional/incorrect durations: a 5s/30s HLS probe is not
+    // a completed film or episode and must not erase the real resume card.
+    if (positionSeconds < 5 || totalDurationSeconds < 120) return;
 
     final progress = positionSeconds / totalDurationSeconds;
     final isFinished = progress >= 0.90;
@@ -342,6 +346,7 @@ class ContinueWatchingService {
       id: detail.id, title: detail.name, type: detail.type, year: detail.year,
       positionSeconds: positionSeconds,
       totalDurationSeconds: totalDurationSeconds,
+      episodeId: episode?.id,
     );
 
     // Legacy scrobbling stays separate from the private GitHub progress.

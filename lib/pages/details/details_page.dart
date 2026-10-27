@@ -11,6 +11,7 @@ import '../../services/metadata/bestsimilar_scraper.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/metadata/similar_recommendations_service.dart';
 import '../../services/metadata/tmdb_discover_service.dart';
+import '../../services/metadata/tmdb_discover_service.dart';
 import '../../services/metadata/title_origin_language_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../utils/navigation/route_transitions.dart';
@@ -248,6 +249,33 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     String effectiveBaseUrl = widget.movie.addonBaseUrl;
     String effectiveType = widget.movie.type;
     String effectiveId = widget.movie.id;
+
+    // TMDB fallback cards carry a verified provider ID. Prefer its
+    // authoritative external IMDb ID before any title-based Stremio fallback.
+    if (widget.movie.recommendationSource == 'TMDB' &&
+        widget.movie.tmdbId != null) {
+      try {
+        final resolved = await TmdbDiscoverService.instance.resolveMovie(
+          DiscoverTitle(
+            tmdbId: widget.movie.tmdbId!,
+            title: widget.movie.name,
+            type: Movie.canonicalType(widget.movie.type) == 'series'
+                ? DiscoverType.series : DiscoverType.movie,
+            poster: widget.movie.poster,
+            premiereYear: int.tryParse(widget.movie.year ?? ''),
+          ),
+        );
+        if (resolved != null && resolved.id.startsWith('tt')) {
+          effectiveBaseUrl = resolved.addonBaseUrl;
+          effectiveType = resolved.type;
+          effectiveId = resolved.id;
+          _resolvedBaseUrl = effectiveBaseUrl;
+          _resolvedType = effectiveType;
+        }
+      } catch (_) {
+        // Keep the existing metadata fallback; no guessed external IDs.
+      }
+    }
 
     if (effectiveId.startsWith('bestsimilar_') || effectiveBaseUrl.contains('bestsimilar')) {
       final yearNum = widget.movie.year != null ? int.tryParse(widget.movie.year!.replaceAll(RegExp(r'[^0-9]'), '')) : null;

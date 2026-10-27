@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -65,16 +66,14 @@ void main() {
         throwsA(isA<FormatException>()));
   });
 
-  test('TVDB Settings checks before saving and exposes explicit Test key', () {
-    // Source-level guard for save ordering; no real credential is accessed by CI.
-    final page = () async {
-      final file = await importSettingsSource();
-      return file;
-    };
-    expect(page, isNotNull);
+  test('TVDB Settings validates before saving and exposes Test button', () {
+    final file = File('lib/pages/settings/tvdb_settings_page.dart')
+        .readAsStringSync();
+    final check = file.indexOf('validateCredentials(');
+    final save = file.indexOf('saveCredentials(');
+    expect(check, greaterThanOrEqualTo(0));
+    expect(save, greaterThan(check));
+    expect(file, contains('Test TVDB key'));
+    expect(file, contains('Existing saved key was not changed.'));
   });
 }
-
-// Tests above issue only mocked HTTP; widget wiring is checked by the existing
-// TVDB Settings navigation test in its own test process.
-Future<String> importSettingsSource() async => 'validated by UI suite';

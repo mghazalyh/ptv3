@@ -161,6 +161,25 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
                         ),
                       ),
                     ),
+                    ValueListenableBuilder<String>(
+                      valueListenable: GitHubWatchedHistoryCloud.instance.status,
+                      builder: (context, message, _) {
+                        final history = GitHubWatchedHistoryCloud.instance;
+                        final latest = history.lastSuccessfulSync;
+                        return Card(child: ListTile(
+                          leading: const Icon(Icons.history_toggle_off,
+                              color: Color(0xFF9C7BFF)),
+                          title: const Text('Watched history (both devices)'),
+                          subtitle: Text([
+                            message,
+                            if (history.queuedChanges > 0)
+                              '${history.queuedChanges} changes waiting',
+                            if (latest != null)
+                              'Last synced: ${latest.toLocal().toIso8601String().substring(0, 16)}',
+                          ].join(' · ')),
+                        ));
+                      },
+                    ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: _repo,

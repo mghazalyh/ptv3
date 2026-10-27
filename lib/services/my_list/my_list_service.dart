@@ -42,7 +42,6 @@ abstract final class MyListService {
     if (!force && _lastAutoRefresh != null &&
         DateTime.now().difference(_lastAutoRefresh!) <
             const Duration(seconds: 60)) return;
-    _lastAutoRefresh = DateTime.now();
     isSyncing.value = true;
     try {
       await githubCloud.sync(
@@ -52,6 +51,9 @@ abstract final class MyListService {
           await _persist();
         },
       );
+      if (githubCloud.state.value == GitHubLibraryState.synced) {
+        _lastAutoRefresh = DateTime.now();
+      }
     } finally {
       isSyncing.value = false;
     }

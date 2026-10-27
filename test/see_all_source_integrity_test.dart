@@ -100,7 +100,7 @@ void main() {
   });
   testWidgets('real addon paginates only its originating catalog with '
       'the correct skip, then stops repeated pages', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(340, 245));
+    await tester.binding.setSurfaceSize(const Size(720, 380));
     MetadataService.clearCache();
     final paths = <String>[];
     MetadataService.catalogGetOverride = (uri) async {
@@ -121,7 +121,7 @@ void main() {
       expect(visibleMovies(tester), ['London Spy', 'The Bureau']);
       expect(paths, isEmpty, reason: 'See All reuses the row as page one.');
       await tester.drag(find.byType(GridView), const Offset(0, -500));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 250));
       expect(paths, hasLength(1));
       expect(visibleMovies(tester), ['London Spy', 'The Bureau']);
       await tester.drag(find.byType(GridView), const Offset(0, -500));

@@ -196,12 +196,16 @@ class _MovieCardState extends State<MovieCard> {
                           ),
                         ),
                       ),
-                    Text(
-                      Movie.typeLabel(movie.type),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white.withOpacity(0.42),
-                        fontWeight: FontWeight.w600,
+                    Flexible(
+                      child: Text(
+                        Movie.typeLabel(movie.type),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.white.withOpacity(0.42),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],

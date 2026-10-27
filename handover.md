@@ -4,6 +4,12 @@
 
 Read [AGENTS.md](AGENTS.md) and [NEXT_SESSION.md](NEXT_SESSION.md). GitHub project: `mghazalyh/ptv3`. **Active application branch `parity-floating-player-both`**. Default `main` has divergent application sources: **never merge, cherry-pick or rebase application source from main**. On meaningful feature/release checkpoints, maintain three living docs on active branch and **docs-only mirror** to main with `[skip ci]` commit. Do not trigger another native build with handover-only commits.
 
+## LATEST CI REPAIR — Build #130 test harness correction (2026-10-27 SGT)
+
+[Build #130](https://github.com/mghazalyh/ptv3/actions/runs/40472827592) failed on **both Windows and iOS in the newly added source-bound See All test**, not a shipping release. First four tests passed; the fifth intentionally used an extremely narrow 340×245 viewport, exposing a **MovieCard year/type RenderFlex overflow**, then used `pumpAndSettle` while an always-animated loading spinner was on screen, inevitably timing out. **No binaries published**, so Build #129 remains last known good release.
+
+Corrective source change makes the movie-card type label `Flexible` with ellipsis on narrow screens, avoiding year/type overflow. Test now uses a realistic 720×380 viewport (still vertically scrollable) and finite `pump(Duration(milliseconds: 250))` rather than waiting for an endlessly animated spinner. The genuine same-source pagination assertions remain intact; no production pagination protections were loosened. **Replacement paired CI must pass before v1.1.10 downloads are advertised.** Version remains 1.1.10+20. Torriodb shelved.
+
 ## CURRENT WORK — v1.1.10 See All source-integrity repair
 
 **Reported user defect:** “still seeing in places where 'See All' is showing unrelated and generic shows.” Previous v1.1.7 fix treated `MovieSection.isCurated` specially but did **not** cover every section. Specifically `lib/pages/catalog/catalog_page.dart` ignored the Home row's original `MovieSection.movies` list, re-fetched page zero from a section catalog and continued trying `skip` even when unsupported; `MetadataService.fetchCatalog` defaults missing/invalid base URLs to generic Cinemeta. Known synthetic BestSimilar/Trakt/Simkl IDs could also be queried as fake real catalogs if a section wasn't marked curated. Separately, `BestSimilarScraper.findBest` could pick a different same-year TV/movie if it shared a word or overlapping title; generic suggestions from the wrong source then appeared in home recommendation sliders and their See All.

@@ -33,7 +33,7 @@ abstract final class GitHubProgressMerge {
     // Streaming source URLs frequently contain per-user credentials or
     // expiring tokens. Resume playback will rescrape the preferred provider.
     return {
-      'updatedAt': (changedAt ?? DateTime.now()).toUtc().toIso8601String(),
+      'updatedAt': (changedAt ?? item.lastWatchedAt).toUtc().toIso8601String(),
       'deleted': removed || item.isCompleted,
       'item': metadata,
     };
@@ -186,7 +186,7 @@ class GitHubProgressCloud {
     bool force = false,
   }) async {
     if (!configured) return;
-    if (!force && _lastDownload != null &&
+    if (!force && _pending.isEmpty && _lastDownload != null &&
         DateTime.now().difference(_lastDownload!) <
             const Duration(seconds: 45)) return;
     final previous = _activeSync;

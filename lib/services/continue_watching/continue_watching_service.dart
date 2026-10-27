@@ -22,6 +22,7 @@ import '../trakt/trakt_continue_watching_service.dart';
 import '../simkl/simkl_service.dart';
 import '../simkl/simkl_continue_watching_service.dart';
 import '../my_list/github_library_cloud.dart';
+import 'watched_history_service.dart';
 import 'github_progress_cloud.dart';
 
 class ContinueWatchingService {
@@ -334,6 +335,14 @@ class ContinueWatchingService {
     } catch (e) {
       debugPrint('[ContinueWatchingService] Failed to persist session: $e');
     }
+
+    // Completed playback is deliberately removed from Continue Watching but
+    // retained as a privacy-minimal title in on-device recommendation history.
+    await WatchedHistoryService.recordProgress(
+      id: detail.id, title: detail.name, type: detail.type, year: detail.year,
+      positionSeconds: positionSeconds,
+      totalDurationSeconds: totalDurationSeconds,
+    );
 
     // Legacy scrobbling stays separate from the private GitHub progress.
     if (!GitHubLibraryCloud.instance.configured) _syncCloudPlayback(

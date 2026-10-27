@@ -523,6 +523,8 @@ abstract final class HomePageSettings {
             : 'Because you watched "${source.title}"',
         catalogId: 'bestsimilar_watching_${sections.length + 1}',
         imdbId: source.id.startsWith('tt') ? source.id : null,
+        tmdbId: source.id.startsWith('tmdb_')
+            ? int.tryParse(source.id.split('_').last) : null,
       );
       if (row == null) continue;
       final uniqueMovies = <Movie>[];
@@ -557,7 +559,7 @@ abstract final class HomePageSettings {
     }
 
     // Try candidates from My List (latest added first, with fallback to others)
-    final candidates = List<MyListItem>.from(myList.reversed);
+    final candidates = List<MyListItem>.from(myList.reversed).take(5);
 
     for (final sourceItem in candidates) {
       final section = await _buildWithFallback(

@@ -86,6 +86,23 @@ void main() {
     ), isEmpty);
   });
 
+  test('connected Trakt history can seed older played shows safely', () {
+    final source = WatchedHistoryService.parseTraktHistoryEntry({
+      'watched_at': '2026-09-03T10:00:00Z',
+      'show': {
+        'title': 'Older Show', 'year': 2021,
+        'ids': {'imdb': 'tt1234567', 'tmdb': 32},
+      },
+      'episode': {'season': 1, 'number': 4},
+    });
+    expect(source?.id, 'tt1234567');
+    expect(source?.title, 'Older Show');
+    expect(source?.completed, isFalse); // A single episode != whole series.
+    expect(WatchedHistoryService.parseTraktHistoryEntry({
+      'show': {'title': 'Missing ID', 'ids': {}},
+    }), isNull);
+  });
+
   test('similarity is NOT the IMDb rating and only valid percent is parsed', () {
     final movie = Movie.fromJson({
       'id': 'tt123', 'name': 'Test', 'type': 'series',

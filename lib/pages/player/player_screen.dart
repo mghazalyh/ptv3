@@ -210,6 +210,14 @@ class _PlayerScreenState extends State<PlayerScreen>
       _player.stream.position.listen((pos) {
         _position = pos;
         _positionNotifier.value = pos;
+        // A full minute of healthy playback restores future recovery budget.
+        if (!_httpReconnecting && _httpResumedAt != null &&
+            _player.state.playing &&
+            DateTime.now().difference(_httpResumedAt!) >=
+                const Duration(seconds: 60)) {
+          _httpReconnectAttempts = 0;
+          _httpResumedAt = null;
+        }
         _onPlaybackTick(pos);
       }),
       _player.stream.duration.listen((dur) {
@@ -1172,6 +1180,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final headers = Map<String, String>.from(_httpVodHeaders ?? {});
     final resumeAt = PausedHttpRecovery.safePosition(
         _player.state.position, _player.state.duration);
+    final manualAudio = _audioManuallySelected ? _selectedAudioTrackIndex : null;
     _httpReconnecting = true;
     setState(() {
       _isLoading = true;
@@ -1195,9 +1204,9 @@ class _PlayerScreenState extends State<PlayerScreen>
           if (!mounted || generation != _streamGeneration) return;
           final epoch = ++_audioMediaEpoch;
           _audioTracks = [];
-          _selectedAudioTrackIndex = 0;
+          _selectedAudioTrackIndex = manualAudio ?? 0;
           _audioAutoSelectionPending = false;
-          _audioManuallySelected = false;
+          _audioManuallySelected = manualAudio != null;
           setState(() {
             _isLoading = false;
             _statusMessage = 'Stream reconnected';
@@ -1205,7 +1214,11 @@ class _PlayerScreenState extends State<PlayerScreen>
           });
           _updateMediaTracks(_player.state.tracks);
           _scheduleAudioProbes(epoch);
-          _preferEnglishAudioTrack();
+          if (manualAudio != null && manualAudio > 0) {
+            unawaited(_selectAudioTrack(manualAudio, manual: false));
+          } else {
+            _preferEnglishAudioTrack();
+          }
           _httpResumedAt = DateTime.now();
           _startHideControlsTimer();
           return;

@@ -52,7 +52,7 @@ jobs:
             lib/services/metadata/tvdb_series_service.dart \
             lib/models/movie/movie.dart \
             lib/pages/home/home_page.dart \
-            lib/pages/details/details_page.dart
+            lib/pages/details/details_page.dart \
             lib/pages/player/player_screen.dart \
             lib/services/player/paused_http_recovery.dart \
             lib/widgets/movie/movie_card.dart \

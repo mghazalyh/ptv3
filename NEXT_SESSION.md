@@ -2,7 +2,15 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## LATEST USER REQUIREMENT — single Torriodb connection restores everything (2026-10-27)
+## CURRENT USER REQUIREMENT — editable PLAINTEXT private Torriodb keys (2026-10-27)
+
+**User expressly rejected encryption**: the purpose of private Torriodb is to edit rotated API keys **manually on GitHub** (roughly weekly) in a normal readable file and have all devices fetch them. The prior AES-GCM/HKDF, same-PAT-decryption, vault password or recovery-key design is **NOT wanted** and must not be implemented. `docs/torriodb_key_vault_plan.md` was rewritten as canonical human-editable JSON sync specification.
+
+**Verified private repo** `mghazalyh/torriodb`, default branch `main`; only real current database records are `playtorrio/watchlist-v1.json` and `continue-watching-v1.json`. Proposed future `playtorrio/api-keys-v1.json` (plaintext TMDB/TVDB including subscriber PIN/TorBox/other keys), `settings-v1.json` (portable app/addon/prefs), `likes-v1.json` and `watched-history-v1.json`. GitHub library repo+branch+any authorized PAT on each new device should restore them after feature implementation, no second password or same-token requirement. GitHub manual edits are authoritative, stale devices must not overwrite rotated keys; GitHub PAT is never stored remotely. PRIVATE repo access + GitHub history persist risk for plaintext credentials; warn user and verify private flag before accessing credential data.
+
+**No app code change, no Torriodb remote files or actual credentials uploaded in this docs-only [skip ci] correction.** Current app sync still covers only My List and Continue Watching. Latest verified paired release v1.1.8 Build #128, Telegram actual IPA #28. Do not claim full-device restore implemented. Next implement authenticated private-repo guard, schema validation, pull/apply securely to device Settings, explicit edit-on-GitHub refresh, likes/completed-history and portable settings; test iOS15/Windows CI and actual devices. Maintain handover/AGENTS/NEXT_SESSION and docs-only main mirror.
+
+## HISTORICAL / SUPERSEDED ENCRYPTION PROPOSAL — single Torriodb connection restores everything (2026-10-27)
 
 **User clarified that `mghazalyh/torriodb` is their PRIVATE GitHub database**, and the desired product behavior is ONE GitHub Library connection (repo `mghazalyh/torriodb`, branch `main`, same fine-grained access token on all devices), then complete cross-device restore of **My List/watchlist, progress, completed/watched history, liked/favorited titles, portable preferences, addon settings and all eligible provider API keys** including TMDB/TVDB/TorBox etc. Weekly rotating keys should be updated once to sync other devices. This is a **target feature, NOT currently implemented** beyond existing watchlist/progress.
 

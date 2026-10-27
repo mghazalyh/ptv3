@@ -1,67 +1,92 @@
-# Torriodb — complete cross-device PlayTorrio restore specification
+# Torriodb — editable private JSON and full-device restore
 
-Status: **requirements and security design only**, 2026-10-27 Singapore. No credential, PIN, token, settings snapshot, completed-watch history, or likes database was uploaded in this work unit. The app does **not yet** fully restore all settings/credentials from Torriodb.
+**Design decision confirmed by user: 2026-10-27 SGT.** The user expressly does **not** want the TMDB, TVDB or other provider API keys encrypted in Torriodb: the core workflow is editing one **human-readable JSON file** in their **private GitHub repository** each week when rotating keys, then having PlayTorrio on iOS and Windows sync those updates. Do not implement the previous AES-GCM/HKDF or PAT-derived-encryption design for this requirement. Do not introduce a second vault password or recovery prompt.
 
-## Confirmed identity and existing source of truth
+**STATUS: design only.** This document does not mean app code already reads or writes the proposed configuration/keys. No actual credentials were requested, transmitted or committed, and no existing Torriodb records were edited in this documentation work unit.
 
-- **Verified GitHub API:** `mghazalyh/torriodb` exists, **private=true**, user can access it, default branch **main**.
-- **Verified Torriodb `main` tree:** `playtorrio/watchlist-v1.json` and `playtorrio/continue-watching-v1.json` already exist. Do not accidentally overwrite or migrate these without conflict-aware merge and backups.
-- Current app's `GitHubLibraryCloud` already syncs `watchlist-v1.json` (My List) and `GitHubProgressCloud` syncs `continue-watching-v1.json`. The **default** app repo `mghazalyh/ptv3`, branch `library-data`, is a separate public fallback: it is NOT Torriodb. On actual user devices the repo/branch can be configured to Torriodb through **Settings → GitHub Library Sync**. Never silently change an already configured device's source.
-- The existing `GitHub Library Sync` form already accepts repository, branch and a GitHub fine-grained PAT, stored in local FlutterSecureStorage. **The current Connect & Sync Now action does NOT restore all API keys, likes, complete watched history or every app setting.** Do not claim that it does.
+## Verified current repository and functionality
 
-## Non-negotiable target: ONE connection form, complete restore
+- Repository: `mghazalyh/torriodb`, **private** confirmed via GitHub API, default branch **`main`**. This is separate from public app-code repository `mghazalyh/ptv3`.
+- Torriodb currently contains `playtorrio/watchlist-v1.json` and `playtorrio/continue-watching-v1.json`. Keep their existing merge formats and contents intact.
+- `GitHubLibraryCloud` and `GitHubProgressCloud` already sync My List and Continue Watching when the device is configured with the correct private repo/branch and GitHub fine-grained access token in **Settings → GitHub Library Sync**.
+- **Not yet implemented:** separate liked/favorite states, completed/watched titles and episodes history, syncing general preferences/addons, syncing all provider API keys, a full new-device restore workflow, remote key rotation refresh. Do not tell users it already works.
+- The app's legacy default sync location is `mghazalyh/ptv3`/`library-data` (PUBLIC fallback). **Never place credentials there.** New-user defaults should lead explicitly to private Torriodb only after verifying authenticated access; do not override an existing user's chosen repository.
 
-The user explicitly wants all useful PlayTorrio data centralized in their **private Torriodb**, so moving to a fresh iPhone/iPad/Windows device requires **only** entering the GitHub Library repository, branch and GitHub access token once, then choosing **Connect & Restore**. The same connection also supports weekly central API-key rotation without entering individual provider keys on every device.
+## One connection, full restore
 
-Data families required:
+On a fresh iPhone/iPad/Windows device, the user should only need to enter **GitHub repository, branch, and GitHub PAT** under GitHub Library Sync. One **Connect & Restore** action must fetch and apply the following compatible data, then show per-category successes/failures:
 
-1. **My List/watchlist, saved favorites, liked/hearts status:** retain existing watchlist merge/tombstones; implement separate likes/favorites if these statuses cannot be represented without conflating watchlist and Simkl hearts. Keep original provider history safe; watchlist != liked status.
-2. **Continue Watching playback progress:** reuse existing conflict-aware episode/movie progress sync; preserve last watched position, season, episode, device-safe resume.
-3. **Completed/watched viewing history:** must persist separately because current Continue Watching logic filters and purges completed (≥90%) entries. Preserve movies marked watched, watched episodes, date/time and explicit user actions. Never infer watched merely from adding a title to My List.
-4. **Cross-device app preferences:** discovery filters/saved searches, UI appearance and layout, language and subtitle preferences, playback behaviors, selected addon order and enabled providers, relevant profile user preferences, associated account configuration and provider selections. Apply a **reviewed allow-list** and versioned schema; do not blindly import ephemeral caches, local file paths, hardware-specific player/window settings, downloaded files or the GitHub connection itself.
-5. **All user-controlled provider and addon credentials:** TMDB, TVDB v4 and subscriber PIN, debrid/TorBox, Trakt/Simkl auth where exportable and licensed, other configured API keys, addon manifest URLs containing secret installation identifiers. Put them **only in the authenticated encrypted vault**, never in plain settings JSON, committed public app code, CI, logs, or watchlist/history files. Don't upload unrelated OS credentials or refresh tokens when the provider terms prohibit replication.
-6. **Consistent multi-device sync state:** first-setup pull on fresh device; explicit Download/Restore and Sync Now; optional low-frequency refresh on app launch/screen return and after a saved configuration/key change; cache and offline behavior. Existing device local configuration stays available if Torriodb is unreachable. Per-file merges or timestamp+revision CAS on remote writes, never last-writer-wins overwrites of fresh remote settings/keys.
+1. My List/watchlist and saved titles.
+2. Continue Watching resume position, series season/episode and timestamp.
+3. Distinct **completed/watched movies and episodes** history (currently excluded/purged from Continue Watching; never equate “saved” with “watched”).
+4. Separate **likes/hearts/favorites** and removals, preserving distinct Trakt/Simkl behaviors and not overwriting provider histories.
+5. **Portable settings**: Advanced Discover search/filter preferences, appearance, playback/subtitles preferences, addon order and enablement, selected services, and other transferable configuration via reviewed allow-list.
+6. **All user-managed API credentials and eligible addon connection details**: TMDB, TVDB API key and optional PIN, TorBox/debrid keys, applicable Trakt/Simkl/app-specific provider credentials, and opt-in addon manifest URLs containing secret tokens. Store exactly in **private Torriodb editable JSON**, never public code or CI.
+7. Keep hardware-specific paths, downloads, device caches, OS keychain artifacts and GitHub PAT **device-local**; GitHub PAT must remain local because it is required to access the repository in the first place.
 
-Proposed private `Torriodb/main` layout, keeping existing files untouched:
+When an external provider's terms restrict exporting or sharing a token, mark that field device-only or handle through the provider's authorized re-login flow rather than quietly breaking its terms.
+
+## Proposed private Torriodb/main layout
+
 ```text
-playtorrio/watchlist-v1.json                 # existing / conflict merged
-playtorrio/continue-watching-v1.json         # existing / conflict merged
-playtorrio/likes-v1.json                     # future structured likes / tombstones
-playtorrio/watched-history-v1.json           # future completed shows/episodes
-playtorrio/settings-v1.enc.json              # future AEAD encrypted portable settings
-playtorrio/credentials-v1.enc.json           # future AEAD encrypted provider/addon secrets
+playtorrio/watchlist-v1.json            # existing; don't replace
+playtorrio/continue-watching-v1.json    # existing; don't replace
+playtorrio/likes-v1.json                # future explicit likes, removals, IDs
+playtorrio/watched-history-v1.json      # future completed films/episodes
+playtorrio/settings-v1.json             # future editable portable settings
+playtorrio/api-keys-v1.json             # future EDITABLE PLAINTEXT provider keys
 ```
-Structured JSON names are proposed; they do not yet exist in the repository.
 
-## Single GitHub credential vs encryption: explicit trade-off
+Example of the **intended human-editable private JSON**, with placeholders, **not real keys**:
 
-- Because the user wants **no second unlock prompt**, a sensible design uses the **same fine-grained GitHub access token entered in GitHub Library settings** for GitHub authentication **and as high-entropy key material** to derive an encryption key using an audited, documented KDF (e.g. HKDF-SHA256) with a separate random per-vault salt, domain-separation label, repository/branch identity. Use audited **AES-256-GCM** with fresh random 96-bit nonces and AEAD associated data binding schema/vault ID. Encryption/decryption happens locally before HTTPS GitHub API transfer; only ciphertext is committed.
-- **Same GitHub PAT must be entered on other devices** for a true one-form, end-to-end encrypted restore. Different fine-grained PATs for the same repo are *not* interchangeable vault decryption keys, even if both can access the private repo. Warn clearly on different-token failure; do not silently reset/rewrite an unreadable vault. Offer an optional **recovery phrase/export** if the user wishes to use different GitHub PATs, otherwise re-encrypt while an existing device remains unlocked **before rotating the GitHub PAT**.
-- A stolen GitHub PAT would permit both repository access **and local derivation of the vault key**, so token-derived encryption is NOT a second factor. Use repository-scoped least-privilege PAT, store locally in FlutterSecureStorage, do not log it, and disclose this risk in Settings. Private repository permissions still matter. If stronger separation is desired later, require a second passphrase or device-to-device transfer—which conflicts with the one-form requirement. Do not misrepresent encryption as absolute protection from PAT compromise.
-- **Never store the GitHub PAT inside the repo**; it is needed to access the repo in the first place. Do not commit provider API keys in cleartext even though Torriodb is private. Never create a GitHub Actions secret or workflow environment variable for these values.
-- When GitHub PAT changes, old-vault encryption does **not** remain decryptable from the new PAT; support an authenticated re-key/rotation operation that reads the old vault first, encrypts under new PAT, and atomically writes with expected remote SHA. Keep recoverable backups under explicit user control.
+```json
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-27T00:00:00Z",
+  "providers": {
+    "tmdb": {
+      "apiKey": "REPLACE_WITH_TMDB_KEY"
+    },
+    "tvdb": {
+      "apiKey": "REPLACE_WITH_TVDB_KEY",
+      "subscriberPin": ""
+    },
+    "torbox": {
+      "apiKey": "REPLACE_WITH_TORBOX_KEY"
+    }
+  }
+}
+```
 
-## First-run restore sequence (future app behavior)
+Keep field names stable and document additional providers clearly; validate before import and support empty/remove entries. This file is **intentionally not encrypted**: the user can open it in GitHub's editor and update any key in a single commit. Do not copy tokens into app source code, test fixtures, release assets or handover docs.
 
-1. User opens GitHub Library Sync on a fresh device. Repository defaults to private `mghazalyh/torriodb`, branch defaults to `main` for **new users only**, never rewriting existing saved connection. They enter their GitHub fine-grained PAT once.
-2. Validate token permissions and repository privacy by authenticated `GET /repos/{owner}/{repo}`. Require `private=true` for credential sync; for nonprivate repositories only nonsecret legacy My List/Progress functions may run (with a warning).
-3. Fetch + merge the existing watchlist and Continue Watching in their current formats, then fetch optional likes and watched-history files. Missing future files are treated as empty, NOT errors that block legacy sync.
-4. Fetch encrypted settings/credentials. Derive the vault key from the locally entered **same** PAT (or optional recovery unlock, if implemented); verify authenticated tag; reject corrupt, wrong-key or swapped vaults before applying **anything**. Never default to a fresh empty vault on failure.
-5. Preview/merge cross-device settings conservatively and apply allow-listed values; update SharedPreferences and OS secure storage through existing save functions to invalidate TMDB/TVDB and other provider caches. Keep local device-only paths/hardware settings. Automatically reload affected services and UI after successful restore.
-6. Show separate statuses `Library synced`, `Progress synced`, `Likes/history synced`, `Settings synced`, `Credentials synced` and explicit warning if a subset fails. **Never say "Everything synced" until every configured family is verified.**
+## User workflow: update keys once in GitHub
 
-## Updates and conflict handling
+1. Open private `mghazalyh/torriodb` on GitHub; navigate to `playtorrio/api-keys-v1.json`.
+2. Use **Edit** to replace/clear any provider key or optional TVDB PIN and commit to `main`. For immediate rotation, revoke the old key at the provider when appropriate.
+3. On each connected PlayTorrio device, **Sync Now** refreshes the authoritative Torriodb credentials. Once carefully implemented, an app-start/periodic refresh may update them without manual steps, honoring GitHub rate limits.
+4. Validate JSON before changing local keys, then apply through existing provider setters/secure storage, invalidate stale auth tokens/caches, and display per-provider status with key values **never shown in logs, error telemetry or status messages**.
+5. **Remote manual edits win** over an outdated device-local copy. Never automatically upload old keys merely because an existing device has not yet synced. App-originated writes must use GitHub blob SHA/conditional-write checks and conflict resolution instead of overwriting a newer GitHub edit.
 
-- Key changes made from any device upload an entire encrypted credential snapshot through GitHub Contents API using the expected remote blob SHA; on 409/422, refetch, decrypt and merge **per provider + update revision**, never overwrite blindly. Add single-flight/coalescing and retry with capped backoff, no logging secrets.
-- Portable preferences and credentials should be **independent encrypted snapshots** so changing theme cannot race weekly TVDB key replacement.
-- Likes/watched history must use append/tombstones/merge strategies just as watchlist/progress do; no reset of watched histories on reconnect.
-- Allow user to turn off cloud credentials syncing without disabling watchlist/progress. Disconnect keeps local keys and preferences but removes local GitHub PAT if requested.
+A device without network must continue using its last known local settings; it should not delete them because Torriodb is temporarily unavailable.
 
-## Implementation and testing gates
+## Explicit security trade-off user accepts
 
-- Inspect and inventory all SharedPreferences and FlutterSecureStorage keys first; explicitly identify API key vs device-only cache. Token handling for externally managed services may need secure refresh.
-- Choose an audited Flutter/Dart cross-platform AEAD/KDF library for iOS15 and Windows x64 and pin dependencies; no home-grown encryption. Mock repo private/public checks, auth errors, 404 new files, 409/422 concurrent edits, missing/rotated/different PAT, tag tampering, offline, per-provider cache invalidation, Windows/iOS secure storage behavior.
-- Test two-device onboarding from empty local state, weekly TMDB/TVDB key rotation, likes and completed-history merging, changed settings and old/current installs. Rollout should **not** silently migrate legacy cloud watchlists or unencrypted backups.
-- No real credentials should ever be supplied in chat or embedded in public handover, tests, screenshots, GitHub workflows, or assistant-generated source.
+A PRIVATE repo is an access-control boundary, **not encryption**. Everyone with repository access, a compromised GitHub account or token, and any connected app with adequate Contents permission can read these plaintext API keys. **Git history retains prior key values after a rotation**, even when the current file is updated or deleted. Revoking rotated provider keys reduces the usefulness of old versions in that history.
 
-This file is a **design/requirement checkpoint only**, not a shipped full-sync capability. Current authenticated GitHub Library sync still covers only My List and Continue Watching; all other families require future implementation and paired CI/device verification.
+Accordingly, before **any** remote credential read/write:
+- Check authenticated repository identity `mghazalyh/torriodb` (or a user-specified allowed private repo) and GitHub API `private: true`, correct branch, and appropriate repo-scoped access token. Refuse plaintext **credential sync** if repo is public or cannot be verified private. Note that this check cannot prevent later repository visibility changes; warn about visibility changes.
+- Use TLS, least-privilege repository Contents scopes, OS secure storage for the GitHub PAT, and avoid diagnostic output of credentials or Authorization headers.
+- Use content validation and schema versioning, GitHub Contents expected-SHA updates, and failure-safe restore. Do not modify current Torriodb watchlist/progress files when bootstrapping key sync.
+- Make credentials sync explicitly visible/configurable so the user knows private JSON is plaintext, not protected by client-side encryption. **No second encryption passphrase and no requirement to enter the same GitHub PAT on different devices.** Any appropriately authorized PAT for that private repo can access the same JSON.
+
+## Implementation plan and acceptance criteria
+
+1. Inventory all device preferences and credentials, identifying portable settings vs machine-only data; implement one reusable `TorriodbSettingsSyncService` with JSON validation, mocked GitHub Contents API and strict authenticated private-repo guard.
+2. Implement new-device **Connect & Restore** to reuse existing watchlist/progress sync and additionally import likes, completed history, allow-listed settings and API keys. Apply local provider keys through existing setters, preserving caches/refresh behavior.
+3. Implement safe **Sync Now** plus optional lightweight refresh on app startup or resume. GitHub-side manual edits take precedence; stale devices must never upload stale settings/keys unprompted. Preserve conflict-aware watchlist/progress merges.
+4. Add native UI under GitHub Library Sync showing last successful sync and family-specific errors, the private repo path for editing keys, and a privacy notice.
+5. Test Windows + iOS 15 with mocked private/public repo metadata; first-device vs new-device restoration, manual JSON edit followed by refresh, key rotation and removal, invalid JSON, 401/403/404, offline, 409/422 concurrent edit, rollback if partial import fails, preservation of local keys, likes/watch history, and no accidental credential logging.
+6. CI-tested paired signed iOS TrollStore IPA and Windows portable/installer release only after the features meet these checks. Never claim full restoration or new-device readiness before tests and an actual device check.
+
+**Important:** This document is the accepted **unencrypted** design. The previous encryption-dependent recovery/PAT rekey plan is superseded. This checkpoint makes no application-source change or Torriodb database edit.

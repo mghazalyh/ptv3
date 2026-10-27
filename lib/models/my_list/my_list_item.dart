@@ -1,3 +1,45 @@
+/// Correct legacy first-release years and escaped titles without changing
+/// the v1 watchlist file's underlying identifiers or schema.
+abstract final class MyListNormalize {
+  static int? releaseYear(Object? raw) {
+    if (raw == null) return null;
+    final m = RegExp(r'(?:18|19|20|21)\d{2}').firstMatch(raw.toString());
+    if (m == null) return null;
+    final year = int.tryParse(m.group(0)!);
+    return year != null && year <= DateTime.now().year + 5 ? year : null;
+  }
+
+  static String title(String source) {
+    var text = source;
+    const values = <String, String>{
+      '&quot;': '"', '&amp;': '&', '&apos;': "'",
+      '&#39;': "'", '&lt;': '<', '&gt;': '>', '&nbsp;': ' ',
+    };
+    for (final entry in values.entries) {
+      text = text.replaceAll(entry.key, entry.value);
+    }
+    return text.replaceAllMapped(RegExp(r'&#(x[0-9a-fA-F]+|\d+);'), (match) {
+      final digits = match.group(1)!;
+      final code = digits.startsWith('x')
+          ? int.tryParse(digits.substring(1), radix: 16) : int.tryParse(digits);
+      if (code == null || code < 32 || code > 0x10ffff ||
+          (code >= 0xd800 && code <= 0xdfff)) return match.group(0)!;
+      return String.fromCharCode(code);
+    });
+  }
+
+  /// Legacy zone-less date strings cannot reveal the original device's zone.
+  /// Treat them deterministically as UTC on both devices. New dates carry Z.
+  static DateTime? legacyDate(Object? raw) {
+    if (raw == null) return null;
+    final text = raw.toString().trim();
+    if (text.isEmpty) return null;
+    final zoned = RegExp(r'(?:Z|[+-]\d{2}:\d{2})$', caseSensitive: false)
+        .hasMatch(text);
+    return DateTime.tryParse(zoned ? text : text + 'Z')?.toUtc();
+  }
+}
+
 enum MyListSource { local, trakt, simkl }
 
 class MyListItem {
@@ -93,7 +135,7 @@ class MyListItem {
       simklId: simklId,
       title: name,
       poster: poster,
-      year: year != null ? int.tryParse(year.replaceAll(RegExp(r'[^0-9]'), '')) : null,
+      year: MyListNormalize.releaseYear(year),
       type: type == 'series' || type == 'anime' ? 'series' : 'movie',
       addedAt: DateTime.now(),
       source: MyListSource.local,
@@ -118,7 +160,7 @@ class MyListItem {
       simklId: simklId,
       title: name,
       poster: poster,
-      year: year != null ? int.tryParse(year.replaceAll(RegExp(r'[^0-9]'), '')) : null,
+      year: MyListNormalize.releaseYear(year),
       type: type == 'series' || type == 'anime' ? 'series' : 'movie',
       addedAt: DateTime.now(),
       source: MyListSource.local,
@@ -182,7 +224,7 @@ class MyListItem {
       'year': year,
       'type': type,
       'poster': poster,
-      'addedAt': addedAt.toIso8601String(),
+      'addedAt': addedAt.toUtc().toIso8601String(),
       'source': source.name,
     };
   }
@@ -199,13 +241,11 @@ class MyListItem {
       simklId: json['simklId'] as int?,
       imdbId: json['imdbId']?.toString(),
       tmdbId: json['tmdbId'] as int?,
-      title: json['title']?.toString() ?? 'Unknown',
-      year: json['year'] as int?,
+      title: MyListNormalize.title(json['title']?.toString() ?? 'Unknown'),
+      year: MyListNormalize.releaseYear(json['year']),
       type: json['type']?.toString() ?? 'movie',
       poster: json['poster']?.toString(),
-      addedAt: json['addedAt'] != null
-          ? DateTime.tryParse(json['addedAt'].toString()) ?? DateTime.now()
-          : DateTime.now(),
+      addedAt: MyListNormalize.legacyDate(json['addedAt']) ?? DateTime.now().toUtc(),
       source: src,
     );
   }

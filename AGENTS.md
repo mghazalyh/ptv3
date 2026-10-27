@@ -2,6 +2,12 @@
 
 These repository instructions apply to the entire tree. The active product-development branch is **parity-floating-player-both**, while the repository default **main** may lag. Read **handover.md** before starting any change.
 
+## CURRENT v1.1.11 — origin country and original language on every title (2026-10-27)
+
+- New `lib/services/metadata/title_origin_language_service.dart` exposes production **Origin** and **Original language** on MovieCard/Home/See All/Search/Discover, Details including related row, Networks, cast credits, My List and Continue Watching. Existing Similar Content preserved. Differentiate **original production** from dubbed English audio/subtitle language.
+- Use exact verified TMDB or IMDb IDs only (TMDB `/find`), no title guessing or invented country. Display `Not listed` if unknown; translate known ISO codes. Existing TMDB key/rate pace/cache/429 reused, max 24 new scrollable-card lookups/min, no card-wide unbounded polling, opened Details exempt. No key and no ID should work gracefully.
+- Version `1.1.11+21`, new `test/title_origin_language_test.dart` and `test/origin_language_everywhere_test.dart` on Windows and iOS, paired CI **pending**. Last released **v1.1.10 Build #132**, Windows17 iOS30 Telegram actual IPA #30. No Torriodb or playback changes; keep root docs aligned and mirror docs-only to main with [skip ci], never merge divergent app source.
+
 ## Mandatory living handover rule
 
 **Every application change or update must include a matching edit to root handover.md in the same work unit, ideally in the same commit/PR.** This includes source, UI, player, data schema, tests, dependency/config changes, GitHub Actions, releases, deployment, Telegram behavior, bug fixes and meaningful validation status. Never finish an implementation while leaving the handover stale.
@@ -22,6 +28,10 @@ When updating handover.md:
 - The current preferred private DB is **mghazalyh/torriodb**, branch main, with two versioned JSON files. Device PATs are independently provisioned and securely stored. **Never log, commit, paste, or repeat token values, private media history, Telegram credentials, or private group identifiers in public documentation**.
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
+
+## CURRENT CI FIX — Build #131 See All paging (2026-10-27)
+
+Build #131 failed the pagination regression because the test expected an implicit fetch from a grid scroll; request count stayed 0. No release. Runtime improved: `CatalogPage` now exposes explicit **Load more** only for original source catalogs with `supportsSkip`; no auto fetch on scroll. Maintains exact row first, no synthetic/invalid provider fallback, correct skip and dedup. Test now taps the button and checks source, one request and replay-stop. v1.1.10+20 unchanged, third run pending. Preserve all docs and docs-only main mirror.
 
 ## CI REGRESSION CHECKPOINT — v1.1.10 Build #130 failure and correction
 

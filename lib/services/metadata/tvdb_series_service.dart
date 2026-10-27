@@ -130,6 +130,85 @@ class TvdbSeriesService {
     _cache.clear();
   }
 
+  /// Validate a candidate key and optional PIN against *live* TVDB v4.
+  /// POST /login verifies the secret; an authenticated GET /search verifies
+  /// bearer access and subscription permissions. Never persist credentials,
+  /// log response bodies, or replace a working saved key on failure.
+  /// Throws only credential-safe messages suitable for the Settings UI.
+  Future<void> validateCredentials(String key, String pin) async {
+    final candidate = key.trim();
+    if (candidate.isEmpty) {
+      throw const FormatException('Enter a TVDB API key.');
+    }
+    try {
+      await _pace();
+      final loginUri = Uri.parse('$_base/login');
+      final response = await (postOverride == null
+          ? http.post(loginUri,
+              headers: const {'Content-Type': 'application/json',
+                'Accept': 'application/json'},
+              body: jsonEncode({
+                'apikey': candidate,
+                if (pin.trim().isNotEmpty) 'pin': pin.trim(),
+              }))
+          : postOverride!(loginUri,
+              const {'Content-Type': 'application/json',
+                'Accept': 'application/json'},
+              jsonEncode({
+                'apikey': candidate,
+                if (pin.trim().isNotEmpty) 'pin': pin.trim(),
+              }))).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 429) {
+        _blockedUntil = DateTime.now().add(const Duration(minutes: 2));
+        throw const FormatException('TVDB rate limit reached. Try again later.');
+      }
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        throw const FormatException('Invalid TVDB API key or subscriber PIN.');
+      }
+      if (response.statusCode != 200) {
+        throw const FormatException('TVDB login unavailable. Try again later.');
+      }
+      final parsed = jsonDecode(response.body);
+      final token = parsed is Map && parsed['data'] is Map
+          ? (parsed['data'] as Map)['token']?.toString() ?? ''
+          : '';
+      if (token.isEmpty) {
+        throw const FormatException('TVDB login did not return a valid token.');
+      }
+
+      // A successful login alone is not sufficient: verify bearer read access.
+      await _pace();
+      final checkUri = Uri.https('api4.thetvdb.com', '/v4/search',
+          const {'query': 'Breaking Bad', 'type': 'series'});
+      final checkHeaders = <String, String>{
+        'Accept': 'application/json', 'Authorization': 'Bearer $token',
+      };
+      final checked = await (getOverride == null
+          ? http.get(checkUri, headers: checkHeaders)
+          : getOverride!(checkUri, checkHeaders))
+          .timeout(const Duration(seconds: 10));
+      if (checked.statusCode == 429) {
+        _blockedUntil = DateTime.now().add(const Duration(minutes: 2));
+        throw const FormatException('TVDB rate limit reached. Try again later.');
+      }
+      if (checked.statusCode == 401 || checked.statusCode == 403) {
+        throw const FormatException(
+            'TVDB login succeeded but metadata access was denied. Check PIN or subscription.');
+      }
+      if (checked.statusCode != 200) {
+        throw const FormatException('TVDB metadata check unavailable. Try again later.');
+      }
+      final metadata = jsonDecode(checked.body);
+      if (metadata is! Map || metadata['data'] is! List) {
+        throw const FormatException('TVDB metadata response was invalid.');
+      }
+    } on FormatException {
+      rethrow;
+    } catch (_) {
+      throw const FormatException('Could not verify TVDB. Check connection and try again.');
+    }
+  }
+
   Future<void> _pace() async {
     final blocked = _blockedUntil;
     if (blocked != null && DateTime.now().isBefore(blocked)) {

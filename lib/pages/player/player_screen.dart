@@ -27,6 +27,7 @@ import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/playback_autoselection.dart';
+import '../../services/player/paused_http_recovery.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/stream/stream_service.dart';
 import '../../services/discord/discord_rpc_service.dart';
@@ -160,6 +161,13 @@ class _PlayerScreenState extends State<PlayerScreen>
   Video? _sourcesEpisode;
   String? _sourcesErrorMessage;
   final Map<String, List<StreamSource>> _cachedSourcesByEpisode = {};
+  String? _httpVodUrl;
+  Map<String, String>? _httpVodHeaders;
+  DateTime? _httpPausedAt;
+  DateTime? _httpResumedAt;
+  bool _httpReconnecting = false;
+  int _httpReconnectAttempts = 0;
+  int _streamGeneration = 0;
 
   @override
   void initState() {
@@ -184,9 +192,17 @@ class _PlayerScreenState extends State<PlayerScreen>
       _player.stream.playing.listen((playing) {
         if (mounted) {
           final justPaused = _isPlaying && !playing;
+          final justResumed = !_isPlaying && playing;
+          if (justPaused && !_httpReconnecting && !_player.state.buffering) {
+            _httpPausedAt ??= DateTime.now();
+          }
+          if (justResumed && !_httpReconnecting) {
+            _httpResumedAt = DateTime.now();
+            _httpPausedAt = null;
+          }
           setState(() => _isPlaying = playing);
           _updateDiscordRpc(isPaused: !playing);
-          if (justPaused && !_player.state.buffering) {
+          if (justPaused && !_httpReconnecting && !_player.state.buffering) {
             _saveAndSyncLastPosition();
           }
         }
@@ -251,6 +267,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _initStream() async {
+    ++_streamGeneration;
+    _httpVodUrl = null;
+    _httpVodHeaders = null;
+    _httpPausedAt = null;
+    _httpResumedAt = null;
+    _httpReconnectAttempts = 0;
     final audioEpoch = ++_audioMediaEpoch;
     _audioManuallySelected = false;
     _audioAutoSelectionPending = false;
@@ -424,6 +446,12 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
       }
 
+      // Save direct on-demand HTTP details for a stale-socket reopen.
+      // Local files, IPTV/live and local P2P are not eligible.
+      if (hasDirectHttpUrl && !isTorrentStream && !isLive) {
+        _httpVodUrl = cleanUri.toString();
+        _httpVodHeaders = Map<String, String>.from(playerHeaders);
+      }
       await _player.open(
         Media(
           cleanUri.toString(),
@@ -1026,6 +1054,14 @@ class _PlayerScreenState extends State<PlayerScreen>
     final errorMsg = err.toString();
     print('[PlayerScreen ERROR] Player error: $errorMsg');
 
+    if (!_isLoading && !_httpReconnecting &&
+        PausedHttpRecovery.canRetryError(
+          errorMsg, _httpVodUrl != null, _httpResumedAt,
+          DateTime.now(), _httpReconnectAttempts)) {
+      unawaited(_reconnectPausedHttp());
+      return;
+    }
+
     // Ignore non-fatal subtitle track loading errors so video playback is not interrupted
     final lower = errorMsg.toLowerCase();
     if (lower.contains('can not open external file') ||
@@ -1503,6 +1539,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   @override
   void dispose() {
+    ++_streamGeneration;
     _audioMediaEpoch++;
     for (final s in _subscriptions) {
       s.cancel();

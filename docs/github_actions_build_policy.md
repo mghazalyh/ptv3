@@ -47,6 +47,45 @@ falsely invalidate the already published app release. Existing artifacts are
 eligible only on a later successful release; there is no immediate destructive
 cleanup from this workflow-only change.
 
+## Automatic Telegram delivery and failure warnings
+
+From the next intentional paired native release, Windows Setup EXE and signed
+iOS TrollStore IPA are uploaded as **independent Telegram document messages**.
+The Windows portable ZIP exceeds the ordinary 50 MB Telegram Bot API upload
+threshold: use the linked Actions artifact or the GitHub Release's portable ZIP.
+A successful binary upload is recognized only after the Telegram API confirms it.
+
+`.github/workflows/playtorrio-build-watchdog.yml` is an independent standard
+Ubuntu workflow triggered by a deliberate release request. It checks native
+Windows/iOS, queues and GitHub publishing every 60 seconds, warns Telegram
+after iOS has been queued >=12 minutes, reports job failures/cancellations,
+and does not cancel or restart native builds. It expires after 65 minutes.
+The watchdog is on active branch; `workflow_run` events require a workflow on
+default `main`, whose standing policy forbids app/workflow code changes.
+GitHub or Telegram outages can prevent messages; notifications are not a
+guarantee under infrastructure outages.
+
+## Recover without rebuilding
+
+`.github/workflows/playtorrio-recover-release.yml` consumes a separately
+approved explicit `.github/release-recovery-request.json`, verifies original
+Windows/iOS success and source SHA, retrieves the matched artifacts and tries
+to publish them with no native compilation. This may help when a release job
+fails after both packages are built. Its Windows Telegram delivery and
+terminal outcome alert execute separately from GitHub release publication.
+
+**Actual Build #138 case (2026-10-28 SGT):** Native Windows and iOS both
+succeeded; signed IPA was delivered in Telegram document #34. The independent
+watchdog sent warning #35. An artifact-only recovery delivered the Windows EXE
+as Telegram document #36, and sent recovery status alert #37. GitHub rejected
+release publication TWICE in the native workflow and AGAIN in a new recovery
+workflow with HTTP 403 "Resource not accessible by integration" even though
+the token's job log stated `Contents: write`. The owner's account may need
+GitHub repository/organization workflow or release-creation policy review.
+**No GitHub Release for #138 can be claimed; Build #137 remains the latest
+fully published GitHub Release.** Stop retries unless permissions/policy
+change or there is new evidence.
+
 ## Billing
 
 The owner's observed GitHub billing shows gross $41, discounts $41, apparent

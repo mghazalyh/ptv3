@@ -23,6 +23,12 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
+## CURRENT FIX — v1.1.10 preserve See All section source (2026-10-27)
+
+- User reports “See All” remains unrelated/generic in some places. `CatalogPage` must **seed from exact originating MovieSection.movies** on navigation, not refetch first page from a synthetic or invalid addon catalog. Do not silently default empty/invalid addonBaseUrl to Cinemeta. Only real HTTP(S) addon source with declared `supportsSkip` may page, using its original catalog URL/type/id and offset, dedup + stop when skip ignored. Curated and known synthetic BestSimilar/Trakt/Simkl recommendation IDs, or any catalog with no valid source/skip, **never** network-fetch generic results. Search them locally; do not display irrelevant fallback titles.
+- `BestSimilarScraper` must verify exact normalized source work title, correct type and close year before recommending; HomePageSettings validates matched detail title/year too. Do not accept fuzzy same-word/year matches as the user's favorite.
+- New `test/see_all_source_integrity_test.dart` and existing curated regression on Windows + iOS CI, version **1.1.10+20**. CI/release pending at edit time. Last successful published v1.1.9 Build #129. Torriodb shelved. Update root handover/NEXT_SESSION/AGENTS and docs-only mirror to divergent main [skip ci], no main source merges.
+
 ## RELEASED v1.1.9 Build #129 — Networks tab
 
 Actions #129 (https://github.com/mghazalyh/ptv3/actions/runs/40436914158) fully passed: Windows 17/17, iOS TrollStore 30 steps, Telegram real IPA document #29, paired release ZIP/EXE/IPA and checksums. Source commit c359716088c2d3457b1fef52d8a67047210ba396. CI verified new provider region and dock tests; physical device validation outstanding. Torriodb project shelved. Docs-only [skip ci], no new app source modification.

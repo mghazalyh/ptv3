@@ -52,7 +52,9 @@ jobs:
             lib/services/metadata/tvdb_series_service.dart \
             lib/models/movie/movie.dart \
             lib/pages/home/home_page.dart \
-            lib/pages/details/details_page.dart \
+            lib/pages/details/details_page.dart
+            lib/pages/player/player_screen.dart \
+            lib/services/player/paused_http_recovery.dart \
             lib/widgets/movie/movie_card.dart \
             lib/pages/settings/github_library_settings_page.dart
       - name: Test cloud sync, recommendation correctness and platform-neutral playback policy
@@ -72,7 +74,8 @@ jobs:
             test/curated_recommendations_see_all_test.dart \
             test/see_all_source_integrity_test.dart \
             test/audio_language_priority_test.dart \
-            test/playback_autoselection_test.dart
+            test/playback_autoselection_test.dart \
+            test/paused_http_recovery_test.dart
           do
             flutter test "$suite"
           done

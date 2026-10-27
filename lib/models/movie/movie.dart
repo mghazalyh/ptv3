@@ -39,6 +39,9 @@ class Movie {
   final String type;
   final String addonBaseUrl;
   final String? imdbRating;
+  /// Provider-supplied similarity, NOT the star/IMDb/TMDB score.
+  final int? similarityPercent;
+  final String? recommendationSource;
   final int? tmdbId;
   final List<String> originCountries;
   final String? originalLanguage;
@@ -51,10 +54,17 @@ class Movie {
     required this.type,
     required this.addonBaseUrl,
     this.imdbRating,
+    this.similarityPercent,
+    this.recommendationSource,
     this.tmdbId,
     this.originCountries = const [],
     this.originalLanguage,
   });
+
+  static int? _validPercent(Object? value) {
+    final parsed = int.tryParse(value?.toString() ?? '');
+    return parsed != null && parsed >= 0 && parsed <= 100 ? parsed : null;
+  }
 
   factory Movie.fromJson(Map<String, dynamic> json, String addonBaseUrl, {String? fallbackType}) {
     String? ratingStr;
@@ -76,6 +86,7 @@ class Movie {
       type: canonicalType(json['type']?.toString() ?? fallbackType),
       addonBaseUrl: addonBaseUrl,
       imdbRating: ratingStr,
+      similarityPercent: _validPercent(json['similarityPercent']),
       tmdbId: int.tryParse(
         (json['moviedb_id'] ?? json['tmdbId'] ?? '').toString()),
       originCountries: [

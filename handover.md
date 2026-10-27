@@ -4,7 +4,21 @@
 
 Read [AGENTS.md](AGENTS.md) and [NEXT_SESSION.md](NEXT_SESSION.md). GitHub project: `mghazalyh/ptv3`. **Active application branch `parity-floating-player-both`**. Default `main` has divergent application sources: **never merge, cherry-pick or rebase application source from main**. On meaningful feature/release checkpoints, maintain three living docs on active branch and **docs-only mirror** to main with `[skip ci]` commit. Do not trigger another native build with handover-only commits.
 
-## CURRENT FEATURE — v1.1.11 global Origin and Original Language (2026-10-27)
+## CURRENT VERIFIED RELEASE — v1.1.11 Build #133 (2026-10-27 SGT)
+
+**Paired production release fully complete:** [GitHub Actions Build #133](https://github.com/mghazalyh/ptv3/actions/runs/40481855223), source commit `743ab9d889aa37402361c6c3bdd60ea53db31335` on `parity-floating-player-both`, finished overall **SUCCESS**. **Windows job: 17/17 successful steps** (including new metadata tests and static analysis, verified installer and portable archive). **iOS15 TrollStore job: 30/30 successful steps** (including explicit new origin-language tests, 700ms request-policy compatibility, app static analysis, build, ad hoc signature and IPA verification). Telegram job succeeded 4/4, with the **actual signed IPA uploaded as a document, message ID #31** (confirmed in job logs, not link fallback). Matched publication job succeeded 6/6.
+
+**Published matched [v1.1.11 Build #133](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.11-b133)** at 2026-10-27T09:44:28Z / 17:44:28 SGT. Verified assets:
+- [iOS15 TrollStore IPA](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.11-b133/PlayTorrio-v1.1.11-build133-iOS15-TrollStore.ipa) — 47,517,327 bytes.
+- [Windows x64 portable ZIP](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.11-b133/PlayTorrio-v1.1.11-build133-Windows-x64-Portable.zip) — 63,861,215 bytes.
+- [Windows installer EXE](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.11-b133/PlayTorrio-v1.1.11-build133-Windows-Setup.exe) — 47,814,108 bytes.
+- [SHA256SUMS.txt](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.11-b133/SHA256SUMS.txt).
+
+**Shipped behavior:** Reusable `OriginLanguageLabel` is wired into Home/See All/Search/shared MovieCard, Advanced Discover, Networks, person filmographies, My List, Continue Watching, main Details (desktop + mobile) and More Like This. Existing Similar Content origin/language labels retained. Use provider-known production metadata first, otherwise exact verified IMDb/TMDB ID (never a loose name guess); 24 additional card enrichments/minute across visible lists with existing TMDB caching/pacing/429 handling, main Details lookup exempt from card budget. ISO codes rendered as countries and original language names, unknown fields **Not listed**. Original production language is NOT English dub/subtitle availability. Responsive grid/heights adjusted. **No real-device user visual acceptance yet**; test narrow iPhone/iPad and Windows layout, and titles without TMDB keys/IDs. No changes to playback, Torrentio English-audio ranking, English-embedded subtitle preference, or shelved Torriodb.
+
+**This checkpoint is docs-only [skip ci]; no new app-source changes or unnecessary CI.** Mirror root handover, NEXT_SESSION and AGENTS only to divergent `main`, never merge its application code.
+
+## HISTORICAL FEATURE IMPLEMENTATION — v1.1.11 global Origin and Original Language (2026-10-27)
 
 **User explicitly requested this everywhere** after verifying v1.1.8 only showed origin/language on Similar Content cards: every movie/series card and the opened title's own Details page should visibly show **country of origin** and **original production language**. This is NOT subtitle language, dubbed-audio availability or the locale of streaming providers. For accurate non-English shows (e.g. South Korea/Korean), display real translated names. When provider metadata is unavailable, show honest **"Not listed"** instead of fabricating English or United States.
 

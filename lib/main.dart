@@ -14,6 +14,7 @@ import './services/updater/app_updater_service.dart';
 import './services/books/continue_reading_service.dart';
 import './services/books/reader_settings.dart';
 import './services/continue_watching/continue_watching_service.dart';
+import './services/continue_watching/watched_history_service.dart';
 import './services/theme/custom_background_service.dart';
 import './services/theme/dock_settings.dart';
 import './services/theme/glass_settings.dart';
@@ -53,6 +54,7 @@ void main() async {
     AppThemeService.initialize(),
     AudiobookSettings.initialize(),
     ContinueWatchingService.initialize(),
+    WatchedHistoryService.initialize(),
     ContinueReadingService.initialize(),
     ReaderSettings.initialize(),
     CustomBackgroundService.initialize(),

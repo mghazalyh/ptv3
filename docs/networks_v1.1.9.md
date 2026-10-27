@@ -1,6 +1,6 @@
 # v1.1.9 — Networks discovery tab
 
-**Status:** implementation awaiting paired Windows and iOS15 CI validation. The user explicitly **shelved Torriodb key/settings synchronization**; no Torriodb code, files or API keys changed.
+**Status: RELEASED.** [v1.1.9 Build #129](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.9-b129), source commit `c359716088c2d3457b1fef52d8a67047210ba396`. [Actions #129](https://github.com/mghazalyh/ptv3/actions/runs/40436914158) succeeded Windows 17/17, iOS15 30 successful steps, GitHub matched publish 6/6; Telegram actual signed IPA document uploaded as message **#29**. Windows portable/installer and iOS TrollStore IPA assets published. Real-device UI confirmation remains pending. The user explicitly **shelved Torriodb key/settings synchronization**; no Torriodb code, files or API keys changed.
 
 ## Feature
 

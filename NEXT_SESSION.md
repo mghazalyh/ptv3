@@ -2,7 +2,11 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## CURRENT IMPLEMENTATION — v1.1.9 Networks tab
+## LATEST PAIRED RELEASE — v1.1.9 Build #129 fully published
+
+GitHub Actions [#129](https://github.com/mghazalyh/ptv3/actions/runs/40436914158), source `c359716088c2d3457b1fef52d8a67047210ba396`: **Windows 17/17**, **iOS15 TrollStore 30 successful steps**, Telegram **actual IPA document #29**, matched release publish 6/6. Download real artifacts from [build-v1.1.9-b129](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.9-b129): Windows portable ZIP, setup EXE, iOS signed IPA and SHA256SUMS. New Networks Dock tab shipped: dynamic regional streaming providers, curated TV original channels, Movie/Series, Trending/Hot/Popular Discover filters. Tests and static analysis passed; **physical-device layout/browse confirmation pending**. Torriodb key/settings project explicitly shelved, no changes to private Torriodb records or credentials. Documentation-only [skip ci], no rebuild.
+
+## HISTORICAL IMPLEMENTATION — v1.1.9 Networks tab
 
 User has shelved the Torriodb project for now. New global Liquid Dock **Networks** item opens `lib/pages/networks/networks_page.dart`: TMDB watch providers dynamically discovered by region (SG default and 19 alternatives), searchable all-service picker including Netflix/Prime Video/Disney+/Paramount+/Max where available, plus TV networks (Showtime, HBO, etc.). Movies and Series, Trending (popular recent 12 months), Hot (rating with ≥100 votes), and Popular (overall popularity); no invented live provider trending. Cached/rate-limited TMDB Discover through `network_discover_service.dart`, normal Stremio Details playback, user-driven paging. New mock network and navigation tests on Windows+iOS, 1.1.9+19 version/release bump. CI not verified at editing checkpoint; last fully shipped v1.1.8 Build #128. Keep root handover and AGENTS aligned, docs-only main mirror, no Torriodb code or keys changed.
 

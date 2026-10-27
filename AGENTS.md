@@ -23,7 +23,11 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## CURRENT v1.1.9 FEATURE — global Networks tab (2026-10-27 SGT)
+## RELEASED v1.1.9 Build #129 — Networks tab
+
+Actions #129 (https://github.com/mghazalyh/ptv3/actions/runs/40436914158) fully passed: Windows 17/17, iOS TrollStore 30 steps, Telegram real IPA document #29, paired release ZIP/EXE/IPA and checksums. Source commit c359716088c2d3457b1fef52d8a67047210ba396. CI verified new provider region and dock tests; physical device validation outstanding. Torriodb project shelved. Docs-only [skip ci], no new app source modification.
+
+## HISTORICAL IMPLEMENTATION — v1.1.9 Networks tab
 
 - User shelved Torriodb; do not implement keys/config sync now. Add visible Networks Dock destination with TMDB regional watch-providers, searchable many-services picker, separate TV-origin network list including Showtime/HBO/FX. Movie+Series where appropriate, country selection SG default, Trending=recent popular, Hot=rating with minimum 100 votes, Popular=overall. These are Discover proxies, not true per-platform trending feeds. Normal Stremio Details navigation and English audio/subtitle preferences preserved.
 - v1.1.9+19 with new `lib/services/metadata/network_discover_service.dart`, `lib/pages/networks/networks_page.dart`, updated TMDB client and Liquid Dock, mock tests `test/network_discover_service_test.dart`, `test/networks_navigation_ui_test.dart` added to Windows/iOS CI. Latest fully released v1.1.8 Build #128; 1.1.9 CI and actual assets pending validation.

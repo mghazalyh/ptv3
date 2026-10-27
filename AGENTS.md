@@ -1,6 +1,12 @@
 # Repository agent instructions — PlayTorrio
 
-These repository instructions apply to the entire tree. The active product-development branch is **parity-floating-player-both**, while the repository default **main** may lag. Read **handover.md** before starting any change.
+These repository instructions apply to the entire tree. The active product-development AND default branch is **parity-floating-player-both**; historical **main** remains a divergent documentation-only mirror. Read **handover.md** before starting any change.
+
+## 2026-10-28 SGT — GitHub default-branch switch owner-completed and API-verified
+
+**Owner action and verification:** Owner changed repository **default branch** for public `mghazalyh/ptv3` from legacy `main` to active working branch `parity-floating-player-both`. Verified directly via repository GET `default_branch: parity-floating-player-both` on 2026-10-28 SGT. Active branch head at verification **`3bed5f92864bb39aabddb94a3c34e262a88881ff`**, old `main` still exists intact at **`3bdd4dbcdc6bb2bf66f806c85f5e3a1eda452b64`**. This was a default-branch selection, **not a rename, delete, force update, merge or app rebuild**; old `main` remains a divergent **documentation-only mirror** and must never be used for application-source work. GitHub now opens the actual current development source and workflow definitions by default, which may help the `workflow_run` event restriction.
+
+**Open release blocker:** Built v1.1.14 #138 Windows 17/17/iOS15 31/31 binaries were actually delivered to Telegram (#36 Windows EXE and #34 signed IPA) and independent alerts (#35 and #37), but previous GitHub Release API `403 Resource not accessible by integration` means no verified published #138 release; **latest published remains #137** until explicitly checked otherwise. Official GitHub release API documents that targeting an older SHA with differing `.github/workflows/` entries can require a `Workflows: write` capability unavailable to the built-in `GITHUB_TOKEN`. Switching default branch may mitigate some cases but is **not proof the historical commit can be published**; do not claim the 403 resolved without testing. Do not rebuild Windows or iOS to address publishing permissions; use the verified existing artifacts for any separately justified recovery. Docs-only checkpoint and legacy-main mirror use `[skip ci]`; no build triggered.
 
 ## HISTORICAL CI REPAIR CHECKPOINT — Build #136 failed test (superseded by successful #137)
 
@@ -194,7 +200,7 @@ When updating handover.md:
 2. Update feature behavior and affected source/test/workflow file paths; include design constraints and edge cases.
 3. Add a dated **Update log** row: goal, commits, tests, workflow run IDs and conclusions, releases only if verified, Telegram direct attachment vs fallback, blockers and next steps.
 4. Keep it comprehensive, usable from a cold start and honest about missing real-device validation.
-5. Mirror handover.md and AGENTS.md to the default main branch as documentation **when appropriate**. Do not merge stale main application code into the development branch to accomplish this. Avoid needless CI rebuilds purely for docs if infrastructure supports documentation-only filtering.
+5. Mirror handover.md and AGENTS.md to the historical main branch as documentation **when appropriate**. Do not merge stale main application code into the development branch to accomplish this. Avoid needless CI rebuilds purely for docs if infrastructure supports documentation-only filtering.
 
 ## User constraints and release standards
 

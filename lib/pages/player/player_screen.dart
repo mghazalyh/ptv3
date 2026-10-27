@@ -17,6 +17,7 @@ import 'package:playtorrio/services/subtitles/subtitle_parser.dart';
 
 import '../../models/stream/stream_model.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
+import '../../services/continue_watching/watched_history_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/p2p/p2p_settings_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
@@ -185,10 +186,8 @@ class _PlayerScreenState extends State<PlayerScreen>
           final justPaused = _isPlaying && !playing;
           setState(() => _isPlaying = playing);
           _updateDiscordRpc(isPaused: !playing);
-          if (justPaused) {
-            _savePlaybackProgress();
-            unawaited(Future<void>.delayed(const Duration(milliseconds: 350))
-                .then((_) => ContinueWatchingService.syncGitHubProgress(force: true)));
+          if (justPaused && !_player.state.buffering) {
+            _saveAndSyncLastPosition();
           }
         }
       }),
@@ -1437,6 +1436,26 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
+  /// Use a captured player snapshot and finish local journal writes before
+  /// uploading progress/history on pause or player exit.
+  void _saveAndSyncLastPosition() {
+    final detail = widget.detail;
+    final position = _player.state.position.inSeconds;
+    final duration = _player.state.duration.inSeconds;
+    final source = _currentSource;
+    final episode = _currentEpisode;
+    unawaited(() async {
+      if (detail != null && duration >= 120 && position >= 5) {
+        await ContinueWatchingService.saveProgress(
+          detail: detail, episode: episode, source: source,
+          positionSeconds: position, totalDurationSeconds: duration,
+        );
+      }
+      await ContinueWatchingService.syncGitHubProgress(force: true);
+      await WatchedHistoryService.syncGitHubHistory(force: true);
+    }());
+  }
+
   void _updateDiscordRpc({bool? isPaused}) {
     final paused = isPaused ?? !_isPlaying;
     final detail = widget.detail;
@@ -1491,10 +1510,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _progressSaveTimer?.cancel();
     _volumeHudTimer?.cancel();
     _audioHudTimer?.cancel();
-    _savePlaybackProgress();
-    // Upload final position on exit; routine background writes are batched
-    // every four minutes and an immediate pause/exit sync stays available. This is best effort when offline.
-    unawaited(ContinueWatchingService.syncGitHubProgress(force: true));
+    _saveAndSyncLastPosition();
     WakelockPlus.disable();
     _hideTimer?.cancel();
     SystemChrome.setPreferredOrientations([

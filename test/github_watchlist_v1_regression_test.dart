@@ -14,6 +14,7 @@ Map<String, dynamic> record(MyListItem item, DateTime edited, {
   item, changedAt: edited, deleted: deleted,
 );
 
+// Source checkpoint: v1 compatibility; no user's private watchlist is shipped.
 void main() {
   test('concatenated and ranged year inputs use the FIRST release year', () {
     expect(MyListNormalize.releaseYear(20212022), 2021);

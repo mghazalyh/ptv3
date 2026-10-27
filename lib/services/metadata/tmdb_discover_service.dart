@@ -590,6 +590,48 @@ class TmdbDiscoverService {
     return _request('$type/$id', const {}, key);
   }
 
+  /// Provider catalogs are requested only when Networks is opened and
+  /// cached using this service's normal 24h provider-response cache.
+  Future<Map<String, dynamic>> networkProviderCatalog(DiscoverType type) async {
+    final key = await readKey();
+    if (key.trim().isEmpty) {
+      throw const FormatException('Configure your TMDB key in Discover first.');
+    }
+    final mediaType = type == DiscoverType.movie ? 'movie' : 'tv';
+    return _request('watch/providers/$mediaType',
+        const {'language': 'en-US'}, key);
+  }
+
+  /// A single provider/network-filtered Discover page. Reuses normal
+  /// TMDB 700ms pacing, 429 cooldown, caching and request deduplication.
+  Future<DiscoverResults> networkDiscover(
+      DiscoverType type, Map<String, String> parameters) async {
+    final key = await readKey();
+    if (key.trim().isEmpty) {
+      throw const FormatException('Configure your TMDB key in Discover first.');
+    }
+    if (parameters['with_watch_providers'] == null &&
+        parameters['with_networks'] == null) {
+      throw const FormatException('Select a real streaming provider or TV network.');
+    }
+    final mediaType = type == DiscoverType.movie ? 'movie' : 'tv';
+    final data = await _request('discover/$mediaType', parameters, key);
+    final rows = data['results'] as List<dynamic>? ?? const [];
+    final seen = <int>{};
+    final titles = <DiscoverTitle>[];
+    for (final raw in rows) {
+      if (raw is! Map<String, dynamic>) continue;
+      final title = DiscoverTitle.parse(raw, type);
+      if (title.tmdbId > 0 && seen.add(title.tmdbId)) titles.add(title);
+    }
+    return DiscoverResults(
+      titles,
+      (data['page'] as num?)?.toInt() ?? 1,
+      ((data['total_pages'] as num?)?.toInt() ?? 1).clamp(1, 500).toInt(),
+      (data['total_results'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   /// Match the selected show without guessing on ambiguous same-name results.
   /// Exact title and starting year are required when available.
   @visibleForTesting

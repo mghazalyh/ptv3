@@ -1,0 +1,18 @@
+# v1.1.9 — Networks discovery tab
+
+**Status:** implementation awaiting paired Windows and iOS15 CI validation. The user explicitly **shelved Torriodb key/settings synchronization**; no Torriodb code, files or API keys changed.
+
+## Feature
+
+- New **Networks** global Liquid Dock destination (enabled by default; toggleable in existing Dock Settings), accessible alongside Home, Search, My List and other tabs. Page: `lib/pages/networks/networks_page.dart`.
+- Real **streaming service** browse results from `TMDB /watch/providers/{movie|tv}` catalogs, combined and filtered to the selected country's TMDB `display_priorities`. Defaults to **Singapore**, offers US and 18 other regions. Show real provider logos and a searchable picker for **all** providers in that region. Featured service chips highlight Netflix, Prime Video, Disney+, HBO/Max, Paramount+, Apple TV+, Hulu, Peacock, Showtime, Crunchyroll, and many others when present in regional catalog. Netflix and other brand names/IDs are not fabricated.
+- Separate **TV Networks** selector for originating broadcast/production networks (e.g. HBO, Showtime, FX, AMC, BBC One, CBS, NBC, ABC and TV-streaming originals). Uses TMDB `with_networks` for TV series, **not** a promise of local subscription availability. Streaming provider mode uses `with_watch_providers` + `watch_region` on proper Movie/TV Discover endpoints.
+- **Trending**: popular titles with recent first release/TV airings within past year. **Hot**: highest-rated with ≥100 TMDB votes. **Popular**: popularity descending. These are transparent TMDB Discover **proxies**, not provider-specific real-time trends; each mode is explained in UI.
+- Result grid is paged on user action, sorts/filters only in TMDB, shows real movie/series posters/year/rating, and opens a normal DetailsPage through existing TMDB→IMDb/Stremio resolution. Does not require accounts/subscriptions or new keys, just the locally configured TMDB key. Existing TMDB 700ms request spacing, 429 cooldown, cache and in-flight deduplication are reused.
+- Current source is `lib/services/metadata/network_discover_service.dart`, `lib/services/metadata/tmdb_discover_service.dart`, `lib/services/theme/dock_settings.dart`, and `lib/widgets/common/app_liquid_dock.dart`.
+- `test/network_discover_service_test.dart` and `test/networks_navigation_ui_test.dart` cover region and type provider merging, requests, browse modes, deduplication, no-key/429 and dock wiring. Both paired Windows/iOS workflows run these tests and analyze all new code.
+- App release version **1.1.9+19** updated in Flutter/Settings, Windows resource, Inno Setup and paired GitHub workflow.
+
+Last independently verified release before this source change: [v1.1.8 Build #128](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.8-b128), Windows 17/17, iOS15 29 steps, Telegram IPA document #28. The new release should only be announced after CI tests, Windows ZIP/EXE, iOS signed TrollStore IPA, Telegram IPA document and matching GitHub release are verified.
+
+Keep canonical `handover.md`, `NEXT_SESSION.md` and `AGENTS.md` current with actual release results. Mirror documentation only to divergent `main`; do not merge divergent app source into active `parity-floating-player-both`.

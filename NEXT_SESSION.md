@@ -2,7 +2,11 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
-## CURRENT USER REQUIREMENT — editable PLAINTEXT private Torriodb keys (2026-10-27)
+## CURRENT IMPLEMENTATION — v1.1.9 Networks tab
+
+User has shelved the Torriodb project for now. New global Liquid Dock **Networks** item opens `lib/pages/networks/networks_page.dart`: TMDB watch providers dynamically discovered by region (SG default and 19 alternatives), searchable all-service picker including Netflix/Prime Video/Disney+/Paramount+/Max where available, plus TV networks (Showtime, HBO, etc.). Movies and Series, Trending (popular recent 12 months), Hot (rating with ≥100 votes), and Popular (overall popularity); no invented live provider trending. Cached/rate-limited TMDB Discover through `network_discover_service.dart`, normal Stremio Details playback, user-driven paging. New mock network and navigation tests on Windows+iOS, 1.1.9+19 version/release bump. CI not verified at editing checkpoint; last fully shipped v1.1.8 Build #128. Keep root handover and AGENTS aligned, docs-only main mirror, no Torriodb code or keys changed.
+
+## HISTORICAL / SHELVED USER REQUIREMENT — editable plaintext private Torriodb keys (2026-10-27)
 
 **User expressly rejected encryption**: the purpose of private Torriodb is to edit rotated API keys **manually on GitHub** (roughly weekly) in a normal readable file and have all devices fetch them. The prior AES-GCM/HKDF, same-PAT-decryption, vault password or recovery-key design is **NOT wanted** and must not be implemented. `docs/torriodb_key_vault_plan.md` was rewritten as canonical human-editable JSON sync specification.
 

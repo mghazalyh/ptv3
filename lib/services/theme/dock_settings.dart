@@ -9,6 +9,13 @@ enum DockItemKey {
     isRemovable: false,
     description: 'Explore trending, continue watching, and catalog recommendations.',
   ),
+  networks(
+    key: 'networks',
+    label: 'Networks',
+    icon: Icons.hub_rounded,
+    isRemovable: true,
+    description: 'Trending, Hot and Popular shows by streaming service or TV network.',
+  ),
   manga(
     key: 'manga',
     label: 'Manga',

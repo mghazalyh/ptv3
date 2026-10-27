@@ -8,6 +8,7 @@ import '../../pages/iptv/iptv_page.dart';
 import '../../pages/manga/manga_page.dart';
 import '../../pages/music/music_page.dart';
 import '../../pages/my_list/my_list_page.dart';
+import '../../pages/networks/networks_page.dart';
 import '../../pages/search/search_page.dart';
 import '../../pages/settings/addons_settings_page.dart';
 import '../../pages/settings/settings_page.dart';
@@ -104,6 +105,17 @@ class AppLiquidDock extends StatelessWidget {
                   onTap: () => _handleHomeTap(context),
                 ),
               );
+              break;
+
+            case DockItemKey.networks:
+              items.add(DockItem(
+                icon: itemKey.icon,
+                label: itemKey.label,
+                onTap: () {
+                  if (currentDestination == DockItemKey.networks) return;
+                  _navigateToPage(context, const NetworksPage());
+                },
+              ));
               break;
 
             case DockItemKey.manga:

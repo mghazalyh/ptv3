@@ -5,7 +5,7 @@
 
 #define MyAppName      "PlayTorrio"
 #ifndef MyAppVersion
-#define MyAppVersion   "1.1.8"
+#define MyAppVersion   "1.1.9"
 #endif
 #ifndef MyAppBuild
 #define MyAppBuild     "10"

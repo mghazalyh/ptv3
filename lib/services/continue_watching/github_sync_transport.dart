@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -46,8 +47,12 @@ abstract final class GitHubSyncGate {
     if (seconds != null && seconds > 0) {
       until = now.add(Duration(seconds: seconds));
     } else if (retryHeader != null) {
-      final date = HttpDate.parse(retryHeader);
-      if (date.isAfter(now)) until = date;
+      try {
+        final date = HttpDate.parse(retryHeader);
+        if (date.isAfter(now)) until = date;
+      } on FormatException {
+        // Ignore a malformed Retry-After and apply the safe one-minute rule.
+      }
     }
     final reset = int.tryParse(response.headers['x-ratelimit-reset'] ?? '');
     if (until == null && remaining == '0' && reset != null) {

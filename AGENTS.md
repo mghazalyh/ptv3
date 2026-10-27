@@ -23,6 +23,10 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
+## CI REGRESSION CHECKPOINT — v1.1.10 Build #130 failure and correction
+
+Build #130 failed both Windows and iOS **only** in the new `see_all_source_integrity_test.dart` scrolling positive case. Narrow 340×245 test screen exposed `MovieCard` Row overflow; `pumpAndSettle` timed out because progress spinner never stops animating. Fix both properly: make MovieCard type Text Flexible/ellipsized, use 720×380 scrollable test viewport and bounded 250ms pump. No rollback of source-bound See All code. Publish **no v1.1.10** until replacement paired CI and real release succeed. Maintain docs-only main mirror, Torriodb shelved.
+
 ## CURRENT FIX — v1.1.10 preserve See All section source (2026-10-27)
 
 - User reports “See All” remains unrelated/generic in some places. `CatalogPage` must **seed from exact originating MovieSection.movies** on navigation, not refetch first page from a synthetic or invalid addon catalog. Do not silently default empty/invalid addonBaseUrl to Cinemeta. Only real HTTP(S) addon source with declared `supportsSkip` may page, using its original catalog URL/type/id and offset, dedup + stop when skip ignored. Curated and known synthetic BestSimilar/Trakt/Simkl recommendation IDs, or any catalog with no valid source/skip, **never** network-fetch generic results. Search them locally; do not display irrelevant fallback titles.

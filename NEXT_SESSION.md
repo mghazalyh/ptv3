@@ -2,6 +2,10 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
+## FOLLOW-UP CI FIX — Build #130 failed only in new test (2026-10-27)
+
+Build [#130](https://github.com/mghazalyh/ptv3/actions/runs/40472827592) had Windows and iOS test failure at the new `test/see_all_source_integrity_test.dart` final positive pagination case: unrealistic 340px layout caused `MovieCard` year/type Row right overflow by 16px, and `pumpAndSettle` waited on a perpetual progress spinner. First 4/5 new tests passed. No IPA/release produced. Source correction: `lib/widgets/movie/movie_card.dart` type label Flexible+ellipsis, test viewport enlarged to 720×380 while retaining scroll, use finite pump instead of pumpAndSettle. Keep same exact-original-add-on skip and dedup assertions. Commit corrective docs+source on active branch, trigger **new** paired Windows and iOS CI. Last released v1.1.9 Build #129. Torriodb shelved.
+
 ## CURRENT IMPLEMENTATION — v1.1.10 source-bound See All fix (2026-10-27)
 
 User reports **See All** still showing unrelated/generic shows. Source traced to `lib/pages/catalog/catalog_page.dart`: it discarded the Home row's original list then re-queried addon catalog from page zero; addons without valid URLs could fall back to Cinemeta, and catalogs not supporting `skip` still received further pages, potentially showing unrelated data. It also trusted `isCurated` always being set for synthetic recommendation catalogs. Secondary issue: `BestSimilarScraper.findBest` fuzzy match accepted other works sharing a word/year/type, attaching wrong recommendations to a saved/watched show.

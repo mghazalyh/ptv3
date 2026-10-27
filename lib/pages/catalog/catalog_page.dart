@@ -64,7 +64,6 @@ class _CatalogPageState extends State<CatalogPage> {
     _items.addAll(widget.section.movies);
     _remoteOffset = _items.length;
     _hasMore = _canPage;
-    _scrollController.addListener(_onScroll);
     _genreScrollController.addListener(_updateGenreScrollButtons);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateGenreScrollButtons();
@@ -81,15 +80,6 @@ class _CatalogPageState extends State<CatalogPage> {
     _genreScrollController.dispose();
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 400) {
-      if (!_isLoading && _hasMore) {
-        _loadItems();
-      }
-    }
   }
 
   void _updateGenreScrollButtons() {
@@ -181,14 +171,7 @@ class _CatalogPageState extends State<CatalogPage> {
             !(_isSearching && _searchQuery.isNotEmpty);
         _isLoading = false;
       });
-      if (_hasMore && !_isLoading) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted || !_scrollController.hasClients) return;
-          if (_scrollController.position.maxScrollExtent <= 0) {
-            _loadItems();
-          }
-        });
-      }
+
     } catch (_) {
       if (!mounted || serial != _requestSerial) return;
       setState(() {
@@ -293,8 +276,15 @@ class _CatalogPageState extends State<CatalogPage> {
               itemCount: visibleItems.length + (_hasMore ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index == visibleItems.length) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
+                  return Center(
+                    child: _isLoading
+                        ? const CircularProgressIndicator(
+                            color: Color(0xFF7C5CFF))
+                        : TextButton.icon(
+                            onPressed: _hasMore ? () => _loadItems() : null,
+                            icon: const Icon(Icons.expand_more_rounded),
+                            label: const Text('Load more'),
+                          ),
                   );
                 }
                 return MovieCard(movie: visibleItems[index]);

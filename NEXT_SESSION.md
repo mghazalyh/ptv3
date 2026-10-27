@@ -2,6 +2,10 @@
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
+## LATEST CI FOLLOW-UP — Build #131 and explicit Load more (2026-10-27)
+
+Build #131 ([Actions](https://github.com/mghazalyh/ptv3/actions/runs/40473715200)) failed source integrity test's pagination case because `tester.drag` did not cause an implicit network fetch on that test viewport; actual requests remained 0. No actual release. More reliable, **intentional UI improvement**: `CatalogPage` displays an explicit **Load more** button ONLY for valid paginating source catalogs. It seeds See All from exact original row, avoids automatic generic loading when scrolling, and fetches only on deliberate tap with correct base/type/id/skip, dedup and stop if provider ignores skip. New positive test taps Load more rather than assuming scroll triggers it. Continue v1.1.10+20; replace paired CI run and verify IPA + Windows before announcing. Torriodb shelved.
+
 ## FOLLOW-UP CI FIX — Build #130 failed only in new test (2026-10-27)
 
 Build [#130](https://github.com/mghazalyh/ptv3/actions/runs/40472827592) had Windows and iOS test failure at the new `test/see_all_source_integrity_test.dart` final positive pagination case: unrealistic 340px layout caused `MovieCard` year/type Row right overflow by 16px, and `pumpAndSettle` waited on a perpetual progress spinner. First 4/5 new tests passed. No IPA/release produced. Source correction: `lib/widgets/movie/movie_card.dart` type label Flexible+ellipsis, test viewport enlarged to 720×380 while retaining scroll, use finite pump instead of pumpAndSettle. Keep same exact-original-add-on skip and dedup assertions. Commit corrective docs+source on active branch, trigger **new** paired Windows and iOS CI. Last released v1.1.9 Build #129. Torriodb shelved.

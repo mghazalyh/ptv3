@@ -23,6 +23,10 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
+## CURRENT CI FIX — Build #131 See All paging (2026-10-27)
+
+Build #131 failed the pagination regression because the test expected an implicit fetch from a grid scroll; request count stayed 0. No release. Runtime improved: `CatalogPage` now exposes explicit **Load more** only for original source catalogs with `supportsSkip`; no auto fetch on scroll. Maintains exact row first, no synthetic/invalid provider fallback, correct skip and dedup. Test now taps the button and checks source, one request and replay-stop. v1.1.10+20 unchanged, third run pending. Preserve all docs and docs-only main mirror.
+
 ## CI REGRESSION CHECKPOINT — v1.1.10 Build #130 failure and correction
 
 Build #130 failed both Windows and iOS **only** in the new `see_all_source_integrity_test.dart` scrolling positive case. Narrow 340×245 test screen exposed `MovieCard` Row overflow; `pumpAndSettle` timed out because progress spinner never stops animating. Fix both properly: make MovieCard type Text Flexible/ellipsized, use 720×380 scrollable test viewport and bounded 250ms pump. No rollback of source-bound See All code. Publish **no v1.1.10** until replacement paired CI and real release succeed. Maintain docs-only main mirror, Torriodb shelved.

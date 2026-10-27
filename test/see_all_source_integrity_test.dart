@@ -120,10 +120,12 @@ void main() {
       await tester.pump();
       expect(visibleMovies(tester), ['London Spy', 'The Bureau']);
       expect(paths, isEmpty, reason: 'See All reuses the row as page one.');
-      await tester.drag(find.byType(GridView), const Offset(0, -500));
+      await tester.ensureVisible(find.text('Load more'));
+      await tester.tap(find.text('Load more'));
       await tester.pump(const Duration(milliseconds: 250));
       expect(paths, hasLength(1));
       expect(visibleMovies(tester), ['London Spy', 'The Bureau']);
+      expect(find.text('Load more'), findsNothing);
       await tester.drag(find.byType(GridView), const Offset(0, -500));
       await tester.pump();
       expect(paths, hasLength(1),

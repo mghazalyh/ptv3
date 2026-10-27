@@ -4,6 +4,10 @@
 
 Read [AGENTS.md](AGENTS.md) and [NEXT_SESSION.md](NEXT_SESSION.md). GitHub project: `mghazalyh/ptv3`. **Active application branch `parity-floating-player-both`**. Default `main` has divergent application sources: **never merge, cherry-pick or rebase application source from main**. On meaningful feature/release checkpoints, maintain three living docs on active branch and **docs-only mirror** to main with `[skip ci]` commit. Do not trigger another native build with handover-only commits.
 
+## CURRENT CORRECTION — explicit See All pagination after Build #131 (2026-10-27 SGT)
+
+Build [#131](https://github.com/mghazalyh/ptv3/actions/runs/40473715200) passed analyzers/earlier tests but failed final pagination test on both Windows and iOS: under its test viewport a scroll did not necessarily cause a pagination call (`paths=[]`), so the assertion expected 1 and failed. No release from #131. To make runtime behavior **more predictable**, `CatalogPage` now uses a visible, user-controlled **Load more** button for genuinely paginated addon catalogs; it does NOT implicitly fetch more when scrolling or auto-fill an empty viewport. Exact first-page snapshot still preserved. Curated/nonpaged/synthetic catalogs have **no** load-more action. The positive regression explicitly taps that button and checks the next request uses the originating addon `/catalog/series/featured-series/skip=2.json`, never Cinemeta and no endless loop after repeated rows. No change to key storage/player. **Third paired CI run pending; do not claim released until fully green.**
+
 ## LATEST CI REPAIR — Build #130 test harness correction (2026-10-27 SGT)
 
 [Build #130](https://github.com/mghazalyh/ptv3/actions/runs/40472827592) failed on **both Windows and iOS in the newly added source-bound See All test**, not a shipping release. First four tests passed; the fifth intentionally used an extremely narrow 340×245 viewport, exposing a **MovieCard year/type RenderFlex overflow**, then used `pumpAndSettle` while an always-animated loading spinner was on screen, inevitably timing out. **No binaries published**, so Build #129 remains last known good release.

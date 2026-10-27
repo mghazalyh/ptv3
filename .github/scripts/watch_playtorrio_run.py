@@ -40,8 +40,8 @@ def get_api(path):
 def choose_run(runs, sha, now):
     # The deliberate release request and watcher push normally share a SHA.
     for run in runs:
-        if run.get("head_sha") == sha and
-                run.get("head_branch") == "parity-floating-player-both":
+        if (run.get("head_sha") == sha and
+                run.get("head_branch") == "parity-floating-player-both"):
             return run
     # On first installation of the watcher, attach to an ongoing release.
     for run in runs:

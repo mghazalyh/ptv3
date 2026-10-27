@@ -5,6 +5,8 @@ import '../../services/my_list/github_library_cloud.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/continue_watching/github_progress_cloud.dart';
+import '../../services/continue_watching/watched_history_service.dart';
+import '../../services/continue_watching/github_watched_history_cloud.dart';
 
 class GitHubLibrarySettingsPage extends StatefulWidget {
   const GitHubLibrarySettingsPage({super.key});
@@ -55,6 +57,7 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
       _key.clear();
       await MyListService.syncAll(force: true);
       await ContinueWatchingService.syncGitHubProgress(force: true);
+      await WatchedHistoryService.syncGitHubHistory(force: true);
       if (!mounted) return;
       final state = GitHubLibraryCloud.instance.state.value;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -75,8 +78,13 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
 
   Future<void> _sync() async {
     setState(() => _working = true);
-    await MyListService.syncAll(force: true);
-    if (mounted) setState(() => _working = false);
+    try {
+      await MyListService.syncAll(force: true);
+      await ContinueWatchingService.syncGitHubProgress(force: true);
+      await WatchedHistoryService.syncGitHubHistory(force: true);
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
   }
 
   Future<void> _disconnect() async {

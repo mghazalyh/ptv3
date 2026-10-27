@@ -54,6 +54,10 @@ New `.github/workflows/playtorrio-fast-checks.yml` runs code/static analysis and
 
 ## 2026-10-27 SGT — Watchlist-v1 optimization implementation (quick CI + paired release pending)
 
+**Actual paired build checkpoint:** The explicit release-request source commit is **`fed69691fedf200aa6cebbeee83fb2469b976a0c`**, `.github/release-request.txt` requests v1.1.14 Build #138. [GitHub Actions run 40537214906](https://github.com/mghazalyh/ptv3/actions/runs/40537214906) is RUNNING / NOT YET RELEASED. **Windows x64 job 17/17 SUCCESS**, including all native registered watchlist tests/analyzer/Windows build and packages. **iOS15 job remains QUEUED** for a GitHub macOS runner with no actual failed step. Release publication + Telegram signed IPA delivery gated pending iOS, not verified, do not claim app shipped. Cheap Linux regression gate #2 [40536517763](https://github.com/mghazalyh/ptv3/actions/runs/40536517763) completed SUCCESS 10/10 from test commit `14a1a18b2228949367dc90f1d6d852330e453b0a`. This docs-only post-trigger checkpoint is **[skip ci]** and does not change tested native source, release tag, or branch routing. Last verified installable app remains v1.1.13 Build #137 until native and matched release verification. No app edits, no private Torriodb edits or billing changes made at this checkpoint.
+
+
+
 **Linux source verification PASSED:** source `14a1a18b2228949367dc90f1d6d852330e453b0a`, [low-cost Flutter run #2 / 40536517763](https://github.com/mghazalyh/ptv3/actions/runs/40536517763) is completed **SUCCESS, 10/10** steps (analyzer, cloud sync/watchlist regression tests, See All, audio, metadata, pruning guard tests). No native build yet at this checkpoint. Explicit owner-approved v1.1.14 release request in `.github/release-request.txt` is being committed with these updated handover documents to trigger exactly one native paired build; full Windows/iOS and Telegram/Release statuses PENDING. Do NOT claim shipped until verified. Existing fully released build stays v1.1.13 #137 pending the paired result.
 
 

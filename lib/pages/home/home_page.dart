@@ -262,13 +262,15 @@ class _HomePageState extends State<HomePage> {
       }
 
       // Inject recommendation sections (List, Continue Watching, Trakt, Simkl)
-      final results = await Future.wait([listFuture, watchingFuture, traktFuture, simklFuture]);
+      final results = await Future.wait<Object?>([
+        listFuture, watchingFuture, traktFuture, simklFuture,
+      ]);
       if (mounted && generation == _recommendationGeneration) {
         _injectSimilarSections(
-          listSection: results[0],
-          watchingSections: results[1],
-          traktSection: results[2],
-          simklSection: results[3],
+          listSection: results[0] as MovieSection?,
+          watchingSections: results[1] as List<MovieSection>,
+          traktSection: results[2] as MovieSection?,
+          simklSection: results[3] as MovieSection?,
         );
       }
 

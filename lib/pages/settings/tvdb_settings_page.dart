@@ -36,6 +36,8 @@ class _TvdbSettingsPageState extends State<TvdbSettingsPage> {
     }
     setState(() { _saving = true; _notice = null; });
     try {
+      await TvdbSeriesService.instance.validateCredentials(
+          _key.text, _pin.text);
       await TvdbSeriesService.instance.saveCredentials(
         _key.text, _pin.text);
       _key.clear();
@@ -43,12 +45,35 @@ class _TvdbSettingsPageState extends State<TvdbSettingsPage> {
       if (mounted) {
         setState(() {
           _hasKey = true;
-          _notice = 'TVDB credentials saved securely on this device.';
+          _notice = 'TVDB key validated: login and authenticated metadata request succeeded. Credentials saved securely.';
         });
       }
+    } on FormatException catch (error) {
+      if (mounted) setState(() => _notice =
+          'Validation failed: ${error.message} Existing saved key was not changed.');
     } catch (_) {
       if (mounted) setState(() => _notice =
-          'Could not save credentials securely on this device.');
+          'Could not verify or securely save credentials. Existing key was not changed.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _test() async {
+    if (_key.text.trim().isEmpty) {
+      setState(() => _notice = 'Enter the TVDB key to test.');
+      return;
+    }
+    setState(() { _saving = true; _notice = null; });
+    try {
+      await TvdbSeriesService.instance.validateCredentials(
+          _key.text, _pin.text);
+      if (mounted) setState(() => _notice =
+          'TVDB verified: login and an authenticated metadata request succeeded. Key not saved.');
+    } on FormatException catch (error) {
+      if (mounted) setState(() => _notice = 'Validation failed: ${error.message}');
+    } catch (_) {
+      if (mounted) setState(() => _notice = 'Could not verify TVDB right now.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -122,6 +147,11 @@ class _TvdbSettingsPageState extends State<TvdbSettingsPage> {
             onPressed: _saving ? null : _save,
             icon: const Icon(Icons.save_outlined),
             label: const Text('Save TVDB credentials'),
+          ),
+          OutlinedButton.icon(
+            onPressed: _saving ? null : _test,
+            icon: const Icon(Icons.verified_outlined),
+            label: const Text('Test TVDB key'),
           ),
           TextButton(
             onPressed: _saving || !_hasKey ? null : _remove,

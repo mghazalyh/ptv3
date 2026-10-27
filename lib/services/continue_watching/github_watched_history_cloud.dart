@@ -21,8 +21,8 @@ abstract final class GitHubWatchedHistoryMerge {
     return Map<String, dynamic>.from(raw['records'] as Map);
   }
 
-  static Map<String, dynamic> toRecord(WatchedTitle item) => {
-    'updatedAt': item.lastWatchedAt.toUtc().toIso8601String(),
+  static Map<String, dynamic> toRecord(WatchedTitle item, {DateTime? changedAt}) => {
+    'updatedAt': (changedAt ?? item.lastWatchedAt).toUtc().toIso8601String(),
     'deleted': false,
     'item': item.toJson(),
   };
@@ -38,29 +38,45 @@ abstract final class GitHubWatchedHistoryMerge {
     return (record['item'] as Map)['completed'] == true;
   }
 
+  /// Union completed episodes and sticky movie completion across devices.
+  /// Most recent title metadata wins without dropping history from the other.
   static Map<String, dynamic> merge(
       Map<String, dynamic> remote, Map<String, dynamic> changes, {
         List<WatchedTitle> firstImport = const [],
       }) {
     final result = Map<String, dynamic>.from(remote);
-    for (final watched in firstImport) {
-      result.putIfAbsent(watched.identity, () => toRecord(watched));
+    void apply(String key, Map<String, dynamic> incoming) {
+      final old = result[key];
+      final newest = old == null ||
+          !changed(incoming).isBefore(changed(old));
+      final chosen = Map<String, dynamic>.from(
+          (newest ? incoming : old) as Map);
+      final oldItem = old is Map && old['item'] is Map
+          ? old['item'] as Map : const <String, dynamic>{};
+      final newItem = incoming['item'] is Map
+          ? incoming['item'] as Map : const <String, dynamic>{};
+      if (chosen['item'] is Map) {
+        final details = Map<String, dynamic>.from(chosen['item'] as Map);
+        details['completed'] =
+            oldItem['completed'] == true || newItem['completed'] == true;
+        details['completedEpisodeIds'] = {
+          ...((oldItem['completedEpisodeIds'] as List<dynamic>? ?? const [])
+              .whereType<String>()),
+          ...((newItem['completedEpisodeIds'] as List<dynamic>? ?? const [])
+              .whereType<String>()),
+        }.toList()..sort();
+        chosen['item'] = details;
+      }
+      result[key] = chosen;
+    }
+
+    for (final item in firstImport) {
+      apply(item.identity,
+          toRecord(item, changedAt: item.lastWatchedAt));
     }
     for (final entry in changes.entries) {
-      final current = result[entry.key];
-      if (current == null || !changed(entry.value).isBefore(changed(current))) {
-        final next = Map<String, dynamic>.from(entry.value as Map);
-        if (completed(current) && !completed(next) && next['item'] is Map) {
-          next['item'] = Map<String, dynamic>.from(next['item'] as Map)
-            ..['completed'] = true;
-        }
-        result[entry.key] = next;
-      } else if (completed(entry.value) && !completed(current) &&
-          current is Map && current['item'] is Map) {
-        final next = Map<String, dynamic>.from(current);
-        next['item'] = Map<String, dynamic>.from(current['item'] as Map)
-          ..['completed'] = true;
-        result[entry.key] = next;
+      if (entry.value is Map) {
+        apply(entry.key, Map<String, dynamic>.from(entry.value as Map));
       }
     }
     return result;
@@ -162,7 +178,7 @@ class GitHubWatchedHistoryCloud {
   }) async {
     await _connection.initialize();
     if (!configured) return;
-    if (!force && _lastDownload != null &&
+    if (!force && _pending.isEmpty && _lastDownload != null &&
         DateTime.now().difference(_lastDownload!) <
             const Duration(seconds: 50)) return;
     if (_activeSync != null) { await _activeSync; return; }
@@ -183,7 +199,9 @@ class GitHubWatchedHistoryCloud {
       for (final entry in _pending.entries)
         entry.key: Map<String, dynamic>.from(entry.value),
     };
-    final firstImport = _imported ? <WatchedTitle>[] : readLocal();
+    // Always reconcile locally recorded titles; an offline edit from before
+    // reconnection may not have made it into the journal yet.
+    final firstImport = readLocal();
     isSyncing.value = true;
     status.value = 'Syncing watched history...';
     final client = http.Client();

@@ -11,7 +11,6 @@ import '../../services/metadata/bestsimilar_scraper.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/metadata/similar_recommendations_service.dart';
 import '../../services/metadata/tmdb_discover_service.dart';
-import '../../services/metadata/tmdb_discover_service.dart';
 import '../../services/metadata/title_origin_language_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../utils/navigation/route_transitions.dart';

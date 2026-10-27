@@ -15,6 +15,7 @@ import '../../services/theme/glass_settings.dart';
 import '../../services/home/home_page_settings.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
+import '../../services/continue_watching/watched_history_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/animated_ambient_background.dart';
@@ -43,6 +44,9 @@ class _HomePageState extends State<HomePage> {
 
   bool _loading = true;
   final List<MovieSection> _sections = [];
+  List<MovieSection> _lastValidRecommendations = const [];
+  int _recommendationGeneration = 0;
+  Timer? _recommendationDebounce;
   String? _error;
 
   List<Movie> _featuredMovies = [];
@@ -60,6 +64,7 @@ class _HomePageState extends State<HomePage> {
     AppThemeService.currentPalette.addListener(_onSettingsChanged);
     MyListService.items.addListener(_onSettingsChanged);
     ContinueWatchingService.activeItems.addListener(_onSettingsChanged);
+    WatchedHistoryService.items.addListener(_onSettingsChanged);
 
     if (_showIntro) {
       _playIntro();
@@ -127,13 +132,19 @@ class _HomePageState extends State<HomePage> {
     AppThemeService.currentPalette.removeListener(_onSettingsChanged);
     MyListService.items.removeListener(_onSettingsChanged);
     ContinueWatchingService.activeItems.removeListener(_onSettingsChanged);
+    WatchedHistoryService.items.removeListener(_onSettingsChanged);
+    _recommendationDebounce?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
 
   void _onSettingsChanged() {
     if (!mounted) return;
-    _refreshSimilarSections();
+    // Coalesce fast playback updates; do not flood providers per frame.
+    _recommendationDebounce?.cancel();
+    _recommendationDebounce = Timer(const Duration(seconds: 2), () {
+      if (mounted) _refreshSimilarSections();
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() {});
     });
@@ -141,43 +152,43 @@ class _HomePageState extends State<HomePage> {
 
   void _injectSimilarSections({
     MovieSection? listSection,
-    MovieSection? watchingSection,
+    required List<MovieSection> watchingSections,
     MovieSection? traktSection,
     MovieSection? simklSection,
   }) {
     if (!mounted) return;
+    // Replace only successful sections. Preserve the last known good rows if
+    // a provider fails, but respect switches when a source was disabled.
+    final additions = <MovieSection>[
+      ...watchingSections,
+      if (listSection != null) listSection,
+      if (traktSection != null) traktSection,
+      if (simklSection != null) simklSection,
+    ];
+    final retained = HomePageSettings.retainValidRecommendations(
+      _lastValidRecommendations, additions,
+      showList: HomePageSettings.enableSimilar.value,
+      showWatching: HomePageSettings.enableWatchingSimilar.value,
+      showTrakt: HomePageSettings.enableTraktRecommendations.value,
+      showSimkl: HomePageSettings.enableSimklRecommendations.value,
+    );
+    _lastValidRecommendations = retained;
     setState(() {
-      // Remove any existing recommendation sections by title or catalog ID so they NEVER duplicate
-      _sections.removeWhere((s) =>
-          s.title.toLowerCase().startsWith('because you') ||
-          s.catalog.id == 'bestsimilar' ||
-          s.catalog.id == 'bestsimilar_list' ||
-          s.catalog.id == 'bestsimilar_watching' ||
-          s.catalog.id == 'trakt_recommendations' ||
-          s.catalog.id == 'simkl_recommendations');
-
-      final toInsert = <MovieSection>[];
-      if (watchingSection != null) toInsert.add(watchingSection);
-      if (listSection != null) toInsert.add(listSection);
-      if (traktSection != null) toInsert.add(traktSection);
-      if (simklSection != null) toInsert.add(simklSection);
-
-      if (toInsert.isEmpty) return;
-
+      _sections.removeWhere(HomePageSettings.isRecommendationSection);
+      if (retained.isEmpty) return;
       switch (HomePageSettings.similarPosition.value) {
         case SimilarSectionPosition.top:
-          _sections.insertAll(0, toInsert);
+          _sections.insertAll(0, retained);
           break;
         case SimilarSectionPosition.underCinemeta:
-          final insertIdx = _sections.length > 1 ? 1 : _sections.length;
-          _sections.insertAll(insertIdx, toInsert);
+          final idx = _sections.length > 1 ? 1 : _sections.length;
+          _sections.insertAll(idx, retained);
           break;
         case SimilarSectionPosition.middle:
-          final insertIdx = _sections.length ~/ 2;
-          _sections.insertAll(insertIdx, toInsert);
+          _sections.insertAll(_sections.length ~/ 2, retained);
           break;
         case SimilarSectionPosition.bottom:
-          _sections.addAll(toInsert);
+          _sections.addAll(retained);
           break;
       }
     });
@@ -185,18 +196,19 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _refreshSimilarSections() async {
     if (!mounted) return;
-    final listFuture = HomePageSettings.fetchBestSimilarSection(forceRefresh: true);
-    final watchingFuture = HomePageSettings.fetchContinueWatchingSimilarSection(forceRefresh: true);
-    final traktFuture = HomePageSettings.fetchTraktRecommendationsSection(forceRefresh: true);
-    final simklFuture = HomePageSettings.fetchSimklRecommendationsSection(forceRefresh: true);
-
-    final results = await Future.wait([listFuture, watchingFuture, traktFuture, simklFuture]);
-    if (!mounted) return;
+    final generation = ++_recommendationGeneration;
+    final results = await Future.wait<Object?>([
+      HomePageSettings.fetchBestSimilarSection(forceRefresh: true),
+      HomePageSettings.fetchPersonalizedWatchingSections(forceRefresh: true),
+      HomePageSettings.fetchTraktRecommendationsSection(forceRefresh: true),
+      HomePageSettings.fetchSimklRecommendationsSection(forceRefresh: true),
+    ]);
+    if (!mounted || generation != _recommendationGeneration) return;
     _injectSimilarSections(
-      listSection: results[0],
-      watchingSection: results[1],
-      traktSection: results[2],
-      simklSection: results[3],
+      listSection: results[0] as MovieSection?,
+      watchingSections: results[1] as List<MovieSection>,
+      traktSection: results[2] as MovieSection?,
+      simklSection: results[3] as MovieSection?,
     );
   }
 
@@ -219,6 +231,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadHome() async {
     if (!mounted) return;
+    final generation = ++_recommendationGeneration;
     setState(() {
       _loading = true;
       _error = null;
@@ -228,7 +241,7 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final listFuture = HomePageSettings.fetchBestSimilarSection();
-      final watchingFuture = HomePageSettings.fetchContinueWatchingSimilarSection();
+      final watchingFuture = HomePageSettings.fetchPersonalizedWatchingSections();
       final traktFuture = HomePageSettings.fetchTraktRecommendationsSection();
       final simklFuture = HomePageSettings.fetchSimklRecommendationsSection();
 
@@ -250,10 +263,10 @@ class _HomePageState extends State<HomePage> {
 
       // Inject recommendation sections (List, Continue Watching, Trakt, Simkl)
       final results = await Future.wait([listFuture, watchingFuture, traktFuture, simklFuture]);
-      if (mounted) {
+      if (mounted && generation == _recommendationGeneration) {
         _injectSimilarSections(
           listSection: results[0],
-          watchingSection: results[1],
+          watchingSections: results[1],
           traktSection: results[2],
           simklSection: results[3],
         );

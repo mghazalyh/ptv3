@@ -121,7 +121,7 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
                     const SizedBox(height: 10),
                     const Text(
                       'Your movies, TV watchlist and Continue Watching progress '
-                      'sync through two private JSON files. '
+                      'sync through separate watchlist, Continue Watching, and watched-history JSON files. '
                       'Edits work offline and resume across your devices.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white70, height: 1.5),
@@ -144,7 +144,13 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
                             title: Text(cloud.enabled.value
                                 ? 'GitHub sync enabled'
                                 : 'Local-only library'),
-                            subtitle: Text(message),
+                            subtitle: Text([
+                              message,
+                              if (cloud.queuedChanges > 0)
+                                '${cloud.queuedChanges} watchlist edits pending',
+                              if (cloud.lastSuccessfulSync != null)
+                                'Last synced: ${cloud.lastSuccessfulSync!.toLocal().toIso8601String().substring(0, 16)}',
+                            ].join(' · ')),
                           ),
                         ),
                       ),

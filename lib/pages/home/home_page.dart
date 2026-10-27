@@ -245,6 +245,27 @@ class _HomePageState extends State<HomePage> {
       final traktFuture = HomePageSettings.fetchTraktRecommendationsSection();
       final simklFuture = HomePageSettings.fetchSimklRecommendationsSection();
 
+      // Do not make personalized Home rows wait for every unrelated addon
+      // catalog to finish streaming. Failures are isolated by source.
+      Future<T> safe<T>(Future<T> work, T fallback) async {
+        try { return await work; } catch (_) { return fallback; }
+      }
+      final recommendationResults = Future.wait<Object?>([
+        safe<MovieSection?>(listFuture, null),
+        safe<List<MovieSection>>(watchingFuture, const <MovieSection>[]),
+        safe<MovieSection?>(traktFuture, null),
+        safe<MovieSection?>(simklFuture, null),
+      ]);
+      unawaited(recommendationResults.then((results) {
+        if (!mounted || generation != _recommendationGeneration) return;
+        _injectSimilarSections(
+          listSection: results[0] as MovieSection?,
+          watchingSections: results[1] as List<MovieSection>,
+          traktSection: results[2] as MovieSection?,
+          simklSection: results[3] as MovieSection?,
+        );
+      }));
+
       await for (final section in _manager.streamHomeSections()) {
         if (!mounted) return;
 
@@ -262,9 +283,7 @@ class _HomePageState extends State<HomePage> {
       }
 
       // Inject recommendation sections (List, Continue Watching, Trakt, Simkl)
-      final results = await Future.wait<Object?>([
-        listFuture, watchingFuture, traktFuture, simklFuture,
-      ]);
+      final results = await recommendationResults;
       if (mounted && generation == _recommendationGeneration) {
         _injectSimilarSections(
           listSection: results[0] as MovieSection?,

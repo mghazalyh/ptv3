@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../trakt/trakt_service.dart';
 
 /// Privacy-minimal on-device history of titles the user actually played.
 /// Completed titles stay here after Continue Watching removes their sessions.
@@ -56,6 +58,7 @@ abstract final class WatchedHistoryService {
       final raw = prefs.getString(storageKey);
       if (raw == null || raw.isEmpty) {
         items.value = [];
+        unawaited(importRecentTraktHistory());
         return;
       }
       final decoded = jsonDecode(raw);
@@ -71,8 +74,68 @@ abstract final class WatchedHistoryService {
       }
       items.value = byId.values.toList()
         ..sort((a, b) => b.lastWatchedAt.compareTo(a.lastWatchedAt));
+      unawaited(importRecentTraktHistory());
     } catch (_) {
       // Never silently destroy the original persisted history on parse error.
+    }
+  }
+
+  /// Optional one-page recent Trakt history import for accounts the user
+  /// already connected. Never scan the full library, never remove local rows,
+  /// and never ask Trakt for keys or credentials.
+  @visibleForTesting
+  static WatchedTitle? parseTraktHistoryEntry(Object? raw) {
+    if (raw is! Map) return null;
+    final media = raw['movie'] ?? raw['show'];
+    if (media is! Map) return null;
+    final title = media['title']?.toString().trim() ?? '';
+    final ids = media['ids'];
+    if (title.isEmpty || ids is! Map) return null;
+    final type = raw['movie'] != null ? 'movie' : 'series';
+    final imdb = ids['imdb']?.toString() ?? '';
+    final tmdb = int.tryParse(ids['tmdb']?.toString() ?? '');
+    final id = imdb.startsWith('tt') ? imdb
+        : tmdb != null && tmdb > 0 ? 'tmdb_${type}_$tmdb' : '';
+    final date = DateTime.tryParse(
+        raw['watched_at']?.toString() ?? raw['last_watched_at']?.toString() ?? '');
+    if (id.isEmpty || date == null) return null;
+    return WatchedTitle(id: id, title: title, type: type,
+        year: media['year']?.toString(), lastWatchedAt: date,
+        completed: type == 'movie');
+  }
+
+  static Future<void> importRecentTraktHistory() async {
+    try {
+      if (!await TraktService.instance.isAuthenticated()) return;
+      final movies = await TraktService.instance.fetchListOrNull('history', 'movies');
+      final shows = await TraktService.instance.fetchListOrNull('history', 'shows');
+      if (movies == null && shows == null) return;
+      final old = {for (final item in items.value) item.identity: item};
+      for (final raw in <dynamic>[
+        ...?movies?.take(30),
+        ...?shows?.take(30),
+      ]) {
+        final candidate = parseTraktHistoryEntry(raw);
+        if (candidate == null) continue;
+        final existing = old[candidate.identity];
+        if (existing == null) {
+          old[candidate.identity] = candidate;
+        } else if (candidate.lastWatchedAt.isAfter(existing.lastWatchedAt)) {
+          old[candidate.identity] = WatchedTitle(
+            id: candidate.id, title: candidate.title, type: candidate.type,
+            year: candidate.year, lastWatchedAt: candidate.lastWatchedAt,
+            completed: candidate.completed || existing.completed,
+          );
+        }
+      }
+      final merged = old.values.toList()
+        ..sort((a, b) => b.lastWatchedAt.compareTo(a.lastWatchedAt));
+      items.value = merged.take(200).toList();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(storageKey,
+          jsonEncode(items.value.map((entry) => entry.toJson()).toList()));
+    } catch (_) {
+      // Online history is best-effort. Preserve existing local data.
     }
   }
 

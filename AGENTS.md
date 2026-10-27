@@ -23,7 +23,19 @@ When updating handover.md:
 - Avoid repeated questioning on already settled preferences, repetitive credential warnings or claims of physical-device testing without evidence.
 - The user's separate request for feature parity with another ptv repository remains uncompleted; compare features before implementing, not blind code copying.
 
-## CURRENT USER REQUIREMENT — Torriodb private full-device restore (2026-10-27 SGT)
+## CURRENT v1.1.9 FEATURE — global Networks tab (2026-10-27 SGT)
+
+- User shelved Torriodb; do not implement keys/config sync now. Add visible Networks Dock destination with TMDB regional watch-providers, searchable many-services picker, separate TV-origin network list including Showtime/HBO/FX. Movie+Series where appropriate, country selection SG default, Trending=recent popular, Hot=rating with minimum 100 votes, Popular=overall. These are Discover proxies, not true per-platform trending feeds. Normal Stremio Details navigation and English audio/subtitle preferences preserved.
+- v1.1.9+19 with new `lib/services/metadata/network_discover_service.dart`, `lib/pages/networks/networks_page.dart`, updated TMDB client and Liquid Dock, mock tests `test/network_discover_service_test.dart`, `test/networks_navigation_ui_test.dart` added to Windows/iOS CI. Latest fully released v1.1.8 Build #128; 1.1.9 CI and actual assets pending validation.
+- Update handover.md and NEXT_SESSION.md with actual release state in each future source/CI work unit. Documentation-only mirror to divergent main, do not merge application source from main.
+
+## HISTORICAL / SHELVED DECISION — private Torriodb plaintext credentials (2026-10-27 SGT)
+
+- **User explicitly does NOT want encryption.** Rotated TMDB/TVDB/TorBox/other API keys must live in manually editable **`playtorrio/api-keys-v1.json` plaintext** in their **private `mghazalyh/torriodb` repo**, so weekly GitHub edits can be synced across new/current iOS/Windows devices. Prior encrypted/PAT-derived vault specification in older notes is **superseded**; do not implement it or require identical PATs/a second unlock.
+- New canonical plan: `docs/torriodb_key_vault_plan.md`, plus proposed `settings-v1.json`, `likes-v1.json`, `watched-history-v1.json`; preserve existing `watchlist-v1.json` and `continue-watching-v1.json`. Single repo/branch/PAT device connection should eventually restore all. **Not currently coded** beyond watchlist and Continue Watching. Protect remote edits from stale device overwrites, verify repo remains private before syncing plaintext credentials, and never commit GitHub PAT itself or credentials to public ptv3. Private visibility does NOT prevent access by collaborators/compromised PAT; past keys remain in git history even after rotation.
+- **Documentation only [skip ci]** in this requirement correction, no remote credentials or app source modified. Latest fully released v1.1.8 Build #128. Keep canonical root docs aligned and mirror docs only to divergent main.
+
+## HISTORICAL / SUPERSEDED ENCRYPTION PROPOSAL — Torriodb private full-device restore (2026-10-27 SGT)
 
 - **Verified private** `mghazalyh/torriodb`, branch **main**, with existing watchlist and Continue Watching files. User requires **single GitHub Library repo/branch/PAT entry** on new iOS/Windows device restores watchlist, liked/favorited, fully watched history, Continue Watching episode progress, portable app/settings/addon choices, ALL eligible API keys/TVDB PIN, and synchronizes weekly rotations. Existing code only handles watchlist/progress; do **not** claim complete sync or store secrets before implementation.
 - `docs/torriodb_key_vault_plan.md` now has full design and privacy constraints: independent likes and watched records; app settings allow-list; separate AES-GCM authenticated encrypted credentials/settings; GitHub Contents SHA CAS; authenticated **private** repo check; derive encryption key from same PAT only when user wants no second password; different PAT cannot decrypt, and rotation/recovery requires old token or extra unlock; PAT compromise decrypts the vault, so explain tradeoff.

@@ -11,6 +11,7 @@ import '../../services/metadata/bestsimilar_scraper.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/metadata/similar_recommendations_service.dart';
 import '../../services/metadata/tmdb_discover_service.dart';
+import '../../services/metadata/title_origin_language_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../discover/discover_page.dart';
@@ -900,7 +901,25 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       }
     }
 
-    return Wrap(crossAxisAlignment: WrapCrossAlignment.center, runSpacing: 6, children: spaced);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(crossAxisAlignment: WrapCrossAlignment.center,
+          runSpacing: 6, children: spaced),
+        const SizedBox(height: 8),
+        OriginLanguageLabel(
+          titleId: meta.id,
+          type: meta.type,
+          tmdbId: int.tryParse(meta.tmdbId ?? '') ?? widget.movie.tmdbId,
+          knownCountries: meta.originCountries.isNotEmpty
+              ? meta.originCountries : widget.movie.originCountries,
+          knownLanguage: meta.originalLanguage ??
+              widget.movie.originalLanguage,
+          detailPage: true,
+          compact: false,
+        ),
+      ],
+    );
   }
 
   Widget _buildPlayButton({required bool fullWidth}) {
@@ -1365,7 +1384,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         children: [
           _buildSectionHeader('More Like This'),
           SizedBox(
-            height: cardWidth * 1.5 + 8,
+            height: cardWidth * 1.5 + 85,
             child: Stack(
               clipBehavior: Clip.hardEdge,
               children: [
@@ -1411,14 +1430,31 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                             );
                           },
                           scaleAmount: 1.05,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: AspectRatio(
-                              aspectRatio: 2 / 3,
-                              child: item.poster != null
-                                  ? CachedNetworkImage(imageUrl: item.poster!, fit: BoxFit.cover)
-                                  : const ColoredBox(color: _Palette.surface),
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                height: cardWidth * 1.5,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: item.poster != null
+                                      ? CachedNetworkImage(
+                                          imageUrl: item.poster!, fit: BoxFit.cover)
+                                      : const ColoredBox(color: _Palette.surface),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(item.name, maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11,
+                                    fontWeight: FontWeight.w600)),
+                              OriginLanguageLabel(
+                                titleId: item.id, type: item.type,
+                                tmdbId: item.tmdbId,
+                                knownCountries: item.originCountries,
+                                knownLanguage: item.originalLanguage,
+                              ),
+                            ],
                           ),
                         ),
                       );

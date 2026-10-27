@@ -39,6 +39,9 @@ class Movie {
   final String type;
   final String addonBaseUrl;
   final String? imdbRating;
+  final int? tmdbId;
+  final List<String> originCountries;
+  final String? originalLanguage;
 
   Movie({
     required this.id,
@@ -48,6 +51,9 @@ class Movie {
     required this.type,
     required this.addonBaseUrl,
     this.imdbRating,
+    this.tmdbId,
+    this.originCountries = const [],
+    this.originalLanguage,
   });
 
   factory Movie.fromJson(Map<String, dynamic> json, String addonBaseUrl, {String? fallbackType}) {
@@ -70,6 +76,18 @@ class Movie {
       type: canonicalType(json['type']?.toString() ?? fallbackType),
       addonBaseUrl: addonBaseUrl,
       imdbRating: ratingStr,
+      tmdbId: int.tryParse(
+        (json['moviedb_id'] ?? json['tmdbId'] ?? '').toString()),
+      originCountries: [
+        for (final value in (json['origin_country'] is List
+            ? json['origin_country'] as List
+            : json['country'] is String &&
+                (json['country'] as String).trim().isNotEmpty
+              ? [json['country']] : const []))
+          if (value.toString().trim().isNotEmpty) value.toString(),
+      ],
+      originalLanguage:
+          (json['original_language'] ?? json['originalLanguage'])?.toString(),
     );
   }
 }

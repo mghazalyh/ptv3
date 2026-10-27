@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/continue_watching/continue_watching_item.dart';
+import '../../services/metadata/title_origin_language_service.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 import '../../utils/navigation/media_details_navigation.dart';
@@ -122,7 +123,7 @@ class _ContinueWatchingSliderState extends State<ContinueWatchingSlider> {
             : screenWidth > 600
                 ? 240.0
                 : 200.0;
-        final cardHeight = cardWidth * 0.62 + 88.0;
+        final cardHeight = cardWidth * 0.62 + 126.0;
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 28),
@@ -575,6 +576,11 @@ class _ContinueWatchingCardState extends State<_ContinueWatchingCard> {
                           fontWeight: FontWeight.w500,
                           color: Colors.white.withValues(alpha: 0.55),
                         ),
+                      ),
+                      const SizedBox(height: 4),
+                      OriginLanguageLabel(
+                        key: ValueKey('continue-origin-${item.id}'),
+                        titleId: item.id, type: item.type,
                       ),
                       const SizedBox(height: 4),
                       Align(

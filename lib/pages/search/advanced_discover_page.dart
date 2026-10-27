@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/metadata/tmdb_discover_service.dart';
 import '../details/details_page.dart';
+import '../../services/metadata/title_origin_language_service.dart';
 
 class AdvancedDiscoverPage extends StatefulWidget {
   const AdvancedDiscoverPage({super.key});
@@ -330,6 +331,14 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
                   Text('★ ${item.rating.toStringAsFixed(1)}',
                       style: const TextStyle(color: Color(0xFFFFD166),
                           fontSize: 11)),
+                const SizedBox(height: 4),
+                OriginLanguageLabel(
+                  titleId: '',
+                  tmdbId: item.tmdbId,
+                  type: item.type == DiscoverType.series ? 'series' : 'movie',
+                  knownCountries: item.originCountries,
+                  knownLanguage: item.originalLanguage,
+                ),
               ],
             )),
           ],

@@ -590,6 +590,31 @@ class TmdbDiscoverService {
     return _request('$type/$id', const {}, key);
   }
 
+  /// Exact-title production metadata for cards and Details. Never search
+  /// a loose title and risk attaching the WRONG show's language or country.
+  Future<Map<String, dynamic>> titleOriginLanguage({
+    required String imdbId,
+    int? tmdbId,
+    required bool isSeries,
+  }) async {
+    final key = await readKey();
+    if (key.trim().isEmpty) return const {};
+    final kind = isSeries ? 'tv' : 'movie';
+    var id = tmdbId;
+    if (id == null || id <= 0) {
+      if (!RegExp(r'^tt\d+$').hasMatch(imdbId)) return const {};
+      final found = await _request('find/$imdbId',
+          const {'external_source': 'imdb_id'}, key);
+      final rows = found[isSeries ? 'tv_results' : 'movie_results'];
+      if (rows is! List || rows.isEmpty || rows.first is! Map) {
+        return const {};
+      }
+      id = ((rows.first as Map)['id'] as num?)?.toInt();
+      if (id == null || id <= 0) return const {};
+    }
+    return _request('$kind/$id', const {}, key);
+  }
+
   /// Provider catalogs are requested only when Networks is opened and
   /// cached using this service's normal 24h provider-response cache.
   Future<Map<String, dynamic>> networkProviderCatalog(DiscoverType type) async {

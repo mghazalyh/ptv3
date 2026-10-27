@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../services/metadata/title_origin_language_service.dart';
 
 import '../../models/my_list/my_list_item.dart';
 import '../../services/my_list/my_list_service.dart';
@@ -706,6 +707,13 @@ class _MyListCardState extends State<_MyListCard> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
+                        const SizedBox(height: 3),
+                        OriginLanguageLabel(
+                          key: ValueKey('my-list-origin-${item.uniqueKey}'),
+                          titleId: item.imdbId ?? '',
+                          tmdbId: item.tmdbId,
+                          type: item.type,
+                        ),
                       ],
                     ),
                   ),

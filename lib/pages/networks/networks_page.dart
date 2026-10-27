@@ -7,6 +7,7 @@ import '../../services/metadata/tmdb_discover_service.dart';
 import '../../services/theme/dock_settings.dart';
 import '../../widgets/common/app_liquid_dock.dart';
 import '../details/details_page.dart';
+import '../../services/metadata/title_origin_language_service.dart';
 import '../search/advanced_discover_page.dart';
 
 class NetworksPage extends StatefulWidget {
@@ -243,6 +244,14 @@ class _NetworksPageState extends State<NetworksPage> {
               if (item.rating > 0) '★ ${item.rating.toStringAsFixed(1)}',
             ].join(' · '), maxLines: 1, overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Colors.white60, fontSize: 10)),
+            const SizedBox(height: 4),
+            OriginLanguageLabel(
+              titleId: '',
+              tmdbId: item.tmdbId,
+              type: item.type == DiscoverType.series ? 'series' : 'movie',
+              knownCountries: item.originCountries,
+              knownLanguage: item.originalLanguage,
+            ),
           ],
         )),
       ]),
@@ -280,7 +289,7 @@ class _NetworksPageState extends State<NetworksPage> {
         itemCount: titles.length + (page < totalPages ? 1 : 0),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: cols, mainAxisSpacing: 8,
-          crossAxisSpacing: 8, childAspectRatio: 0.57),
+          crossAxisSpacing: 8, childAspectRatio: 0.48),
         itemBuilder: (_, i) => i < titles.length ? _poster(titles[i])
             : Center(child: loading ? const CircularProgressIndicator()
                 : TextButton(onPressed: () => _browse(reset: false),

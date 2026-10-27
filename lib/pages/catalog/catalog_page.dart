@@ -269,7 +269,7 @@ class _CatalogPageState extends State<CatalogPage> {
               physics: const BouncingScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: ((MediaQuery.sizeOf(context).width - sizing.sidePadding * 2 + sizing.spacing) / (sizing.cardWidth + sizing.spacing)).floor().clamp(2, 10),
-                childAspectRatio: 1 / 1.48,
+                childAspectRatio: sizing.cardWidth / sizing.totalHeight,
                 crossAxisSpacing: sizing.spacing,
                 mainAxisSpacing: sizing.spacing,
               ),

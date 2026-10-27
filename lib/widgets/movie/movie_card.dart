@@ -5,6 +5,7 @@ import '../../models/movie/movie.dart';
 import '../../pages/details/details_page.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/home/home_page_settings.dart';
+import '../../services/metadata/title_origin_language_service.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../common/poster_skeleton.dart';
 
@@ -59,7 +60,7 @@ class MovieCardSizing {
     }
 
     final posterHeight = cardWidth * 1.48;
-    final totalHeight = posterHeight + 66;
+    final totalHeight = posterHeight + 108; // title, year, origin and language
 
     return MovieCardSizing(
       cardWidth: cardWidth,
@@ -209,6 +210,17 @@ class _MovieCardState extends State<MovieCard> {
                       ),
                     ),
                   ],
+                ),
+                // Production origin and ORIGINAL language (not the
+                // availability of English dubbing or subtitles).
+                const SizedBox(height: 5),
+                OriginLanguageLabel(
+                  key: ValueKey('origin-${movie.id}-${movie.type}'),
+                  titleId: movie.id,
+                  type: movie.type,
+                  tmdbId: movie.tmdbId,
+                  knownCountries: movie.originCountries,
+                  knownLanguage: movie.originalLanguage,
                 ),
               ],
             ),

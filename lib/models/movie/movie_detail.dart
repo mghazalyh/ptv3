@@ -18,6 +18,8 @@ class MovieDetail {
   final List<Link> links;
   final List<Video> videos;
   final String? tmdbId;
+  final List<String> originCountries;
+  final String? originalLanguage;
 
   MovieDetail({
     required this.id,
@@ -36,6 +38,8 @@ class MovieDetail {
     this.links = const [],
     this.videos = const [],
     this.tmdbId,
+    this.originCountries = const [],
+    this.originalLanguage,
   });
 
   factory MovieDetail.fromJson(Map<String, dynamic> json) {
@@ -62,6 +66,16 @@ class MovieDetail {
               .toList() ??
           [],
       tmdbId: json['moviedb_id']?.toString(),
+      originCountries: [
+        for (final value in (json['origin_country'] is List
+            ? json['origin_country'] as List
+            : json['country'] is String &&
+              (json['country'] as String).trim().isNotEmpty
+              ? [json['country']] : const []))
+          if (value.toString().trim().isNotEmpty) value.toString(),
+      ],
+      originalLanguage:
+          (json['original_language'] ?? json['originalLanguage'])?.toString(),
     );
   }
 }

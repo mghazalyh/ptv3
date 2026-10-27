@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/metadata/tmdb_discover_service.dart';
 import 'details_page.dart';
+import '../../services/metadata/title_origin_language_service.dart';
 
 /// Clicking Cast means filmography, never searching titles for a person's name.
 class PersonCreditsPage extends StatefulWidget {
@@ -86,7 +87,7 @@ class _PersonCreditsPageState extends State<PersonCreditsPage> {
         itemCount: items.length,
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: cols, crossAxisSpacing: 10,
-          mainAxisSpacing: 10, childAspectRatio: 0.62,
+          mainAxisSpacing: 10, childAspectRatio: 0.49,
         ),
         itemBuilder: (_, i) {
           final item = items[i];
@@ -116,6 +117,15 @@ class _PersonCreditsPageState extends State<PersonCreditsPage> {
                             maxLines: 1, overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 11,
                                 color: Colors.white60)),
+                        const SizedBox(height: 4),
+                        OriginLanguageLabel(
+                          titleId: '',
+                          tmdbId: item.tmdbId,
+                          type: item.type == DiscoverType.series
+                              ? 'series' : 'movie',
+                          knownCountries: item.originCountries,
+                          knownLanguage: item.originalLanguage,
+                        ),
                       ],
                     ),
                   ),

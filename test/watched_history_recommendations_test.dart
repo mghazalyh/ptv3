@@ -24,19 +24,19 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  test('completed playback remains in persistent watched history', () async {
+  test('completed movie remains watched after resume is cleared', () async {
     await WatchedHistoryService.initialize();
     expect(WatchedHistoryService.items.value, isEmpty);
     await WatchedHistoryService.recordProgress(
-      id: 'tt101', title: 'Completed Show', type: 'series',
-      year: '2020', positionSeconds: 100, totalDurationSeconds: 100);
+      id: 'tt101', title: 'Completed Movie', type: 'movie',
+      year: '2020', positionSeconds: 270, totalDurationSeconds: 300);
     expect(WatchedHistoryService.items.value.single.completed, isTrue);
     await WatchedHistoryService.initialize(); // reload from prefs
-    expect(WatchedHistoryService.items.value.single.title, 'Completed Show');
+    expect(WatchedHistoryService.items.value.single.title, 'Completed Movie');
     expect(WatchedHistoryService.items.value.single.completed, isTrue);
-    // Rewatching a previously completed title must not erase that fact.
+    // Rewatching a finished movie must not erase that fact.
     await WatchedHistoryService.recordProgress(
-      id: 'tt101', title: 'Completed Show', type: 'series',
+      id: 'tt101', title: 'Completed Movie', type: 'movie',
       positionSeconds: 61, totalDurationSeconds: 1000);
     expect(WatchedHistoryService.items.value.single.completed, isTrue);
   });

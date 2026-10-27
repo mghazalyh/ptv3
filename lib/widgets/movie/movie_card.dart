@@ -155,6 +155,8 @@ class _MovieCardState extends State<MovieCard> {
                     hovered: _hovered,
                     contentType: movie.type,
                     imdbRating: movie.imdbRating,
+                    similarityPercent: movie.similarityPercent,
+                    recommendationSource: movie.recommendationSource,
                   ),
                 ),
 
@@ -240,12 +242,16 @@ class _PosterFrame extends StatelessWidget {
   final bool hovered;
   final String contentType;
   final String? imdbRating;
+  final int? similarityPercent;
+  final String? recommendationSource;
 
   const _PosterFrame({
     required this.posterUrl,
     required this.hovered,
     required this.contentType,
     this.imdbRating,
+    this.similarityPercent,
+    this.recommendationSource,
   });
 
   @override
@@ -404,6 +410,39 @@ class _PosterFrame extends StatelessWidget {
                     ),
                   );
                 },
+              ),
+
+            // BestSimilar's actual match percentage is separate from rating.
+            // TMDB/TVDB suggestions have no compatible percent metric.
+            if (similarityPercent != null &&
+                similarityPercent! >= 0 && similarityPercent! <= 100)
+              Positioned(
+                left: 9, bottom: 9,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xE6080A0F),
+                    borderRadius: BorderRadius.circular(7),
+                    border: Border.all(color: Colors.tealAccent.withOpacity(0.55)),
+                  ),
+                  child: Text('${similarityPercent!}%',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+                ),
+              )
+            else if (recommendationSource != null)
+              Positioned(
+                left: 9, bottom: 9,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xE6080A0F),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Text(recommendationSource!,
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                        color: Colors.white70)),
+                ),
               ),
 
             // Border glow on hover

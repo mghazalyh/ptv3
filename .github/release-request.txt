@@ -1,0 +1,8 @@
+PlayTorrio explicit paired release request
+Version: 1.1.14+24
+Tested source commit: 14a1a18b2228949367dc90f1d6d852330e453b0a
+Linux gate: https://github.com/mghazalyh/ptv3/actions/runs/40536517763 (SUCCESS, 10/10)
+Requested: 2026-10-27 SGT
+Reason: standalone watchlist v1 metadata accuracy, stale-edit conflict handling, GitHub ETag/pacing and two-device reliability.
+Native release scope: Windows x64 EXE+portable ZIP and iOS 15 signed TrollStore IPA, real Telegram document, matched release checksums.
+User approved this build. No changes to private Torriodb, prior Continue Watching or any credentials.

@@ -75,4 +75,7 @@ jobs:
             flutter test "$suite"
           done
       - name: Validate retention pruning policy without GitHub deletion
-        run: python3 .github/scripts/prune_playtorrio_artifacts.py --self-test
+        run: |
+          python3 .github/scripts/prune_playtorrio_artifacts.py --self-test
+          python3 .github/scripts/telegram_ci.py --self-test
+          python3 .github/scripts/watch_playtorrio_run.py --self-test

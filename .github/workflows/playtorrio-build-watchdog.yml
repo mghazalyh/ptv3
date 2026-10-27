@@ -1,0 +1,39 @@
+name: PlayTorrio — independent build watchdog and Telegram alerts
+
+# The notification workflow deliberately lives on the active development
+# branch; workflow_run triggers require the divergent default main branch,
+# where this project's standing policy permits documentation mirrors only.
+# This watchdog starts alongside each deliberate release request and can
+# notify on macOS queue delays or canceled/failed runs without cancelling them.
+on:
+  push:
+    branches:
+      - parity-floating-player-both
+    paths:
+      - '.github/release-request.txt'
+      - '.github/workflows/playtorrio-build-watchdog.yml'
+
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: playtorrio-watchdog-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  watch-release:
+    name: Report canceled/failed/delayed native builds to Telegram
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate notification logic locally
+        run: |
+          python3 .github/scripts/telegram_ci.py --self-test
+          python3 .github/scripts/watch_playtorrio_run.py --self-test
+      - name: Monitor only the deliberately requested paired build
+        run: python3 -u .github/scripts/watch_playtorrio_run.py

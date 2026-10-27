@@ -9,6 +9,9 @@ import '../../models/movie/movie.dart';
 import '../../models/movie/movie_section.dart';
 import '../../models/my_list/my_list_item.dart';
 import '../continue_watching/continue_watching_service.dart';
+import '../continue_watching/watched_history_service.dart';
+import '../metadata/tmdb_discover_service.dart';
+import '../metadata/tvdb_series_service.dart';
 import '../metadata/bestsimilar_scraper.dart';
 import '../my_list/my_list_service.dart';
 import '../simkl/simkl_list_source.dart';
@@ -102,6 +105,7 @@ abstract final class HomePageSettings {
   // Cached recommendation sections to avoid scraping on every scroll
   static MovieSection? _cachedSimilarSection;
   static MovieSection? _cachedWatchingSimilarSection;
+  static List<MovieSection> _cachedPersonalizedSections = const [];
   static MovieSection? _cachedTraktSection;
   static MovieSection? _cachedSimklSection;
   static String? lastListSourceTitle;
@@ -306,7 +310,8 @@ abstract final class HomePageSettings {
       // Verify individual results via BestSimilar's explicit 'serial' flag.
       // The HTML .item-movie class is shared by series and films and is NOT
       // media-type evidence. Unknown entries remain neutral, never 'Movie'.
-      await BestSimilarScraper.classifySimilar(details.similar);
+      await BestSimilarScraper.classifySimilar(details.similar,
+          maxConcurrent: 2, maxLookups: 8);
 
       // Safety Guard: If source title is live-action, don't allow anime details
       final isAnimeSource = type == 'anime' || sourceTitle.toLowerCase().contains('anime');
@@ -337,6 +342,8 @@ abstract final class HomePageSettings {
           name: sim.title,
           poster: sim.thumbUrl,
           year: sim.year?.toString(),
+          imdbRating: sim.rating?.toStringAsFixed(1),
+          similarityPercent: sim.similarityPercent,
           addonBaseUrl: 'https://v3-cinemeta.strem.io',
         ));
       }
@@ -365,6 +372,179 @@ abstract final class HomePageSettings {
     }
   }
 
+  /// BestSimilar retains provider-supplied match %. If it misses, use a
+  /// securely configured TMDB key and optional TVDB identity check. Neither
+  /// TMDB nor TVDB supplies BestSimilar's percentage, so label by source.
+  static Future<MovieSection?> _buildWithFallback({
+    required String sourceTitle,
+    required int? year,
+    required String type,
+    required String sectionTitle,
+    required String catalogId,
+    String? imdbId,
+    int? tmdbId,
+  }) async {
+    final best = await _buildBestSimilarSection(
+      sourceTitle: sourceTitle, year: year, type: type,
+      sectionTitle: sectionTitle, catalogId: catalogId);
+    if (best != null) return best;
+    final mediaType = Movie.canonicalType(type);
+    if (mediaType != 'movie' && mediaType != 'series') return null;
+    try {
+      final tmdb = TmdbDiscoverService.instance;
+      if ((await tmdb.readKey()).trim().isEmpty) return null;
+      TvdbSeriesInfo? tvdb;
+      if (mediaType == 'series') {
+        tvdb = await TvdbSeriesService.instance.matchSeries(sourceTitle, year);
+      }
+      final suggestions = await tmdb.relatedTitles(
+        title: sourceTitle, startYear: year,
+        type: mediaType == 'series' ? DiscoverType.series : DiscoverType.movie,
+        imdbId: imdbId, tmdbId: tmdbId,
+        verifiedTvdbTmdbId: tvdb?.tmdbId,
+      );
+      final ordered = tvdb == null ? suggestions : tvdb.prioritize(suggestions);
+      final seen = <int>{};
+      final movies = <Movie>[];
+      for (final suggestion in ordered) {
+        if (!seen.add(suggestion.tmdbId) ||
+            suggestion.title.trim().toLowerCase() == sourceTitle.trim().toLowerCase()) {
+          continue;
+        }
+        movies.add(Movie(
+          id: 'tmdb_${suggestion.tmdbId}', name: suggestion.title,
+          type: suggestion.type == DiscoverType.series ? 'series' : 'movie',
+          poster: suggestion.poster,
+          year: suggestion.premiereYear?.toString(),
+          addonBaseUrl: 'https://v3-cinemeta.strem.io',
+          imdbRating: suggestion.rating > 0
+              ? suggestion.rating.toStringAsFixed(1) : null,
+          tmdbId: suggestion.tmdbId,
+          originCountries: suggestion.originCountries,
+          originalLanguage: suggestion.originalLanguage,
+          recommendationSource: 'TMDB',
+        ));
+      }
+      if (movies.isEmpty) return null;
+      return MovieSection(
+        title: sectionTitle,
+        subtitle: 'Related via TMDB; verified using TVDB when available',
+        contentType: mediaType,
+        addonBaseUrl: 'https://v3-cinemeta.strem.io',
+        catalog: AddonCatalog(
+          type: mediaType, id: catalogId, name: sectionTitle,
+          genres: const [], supportsSearch: false, supportsSkip: false,
+        ),
+        movies: movies, isCurated: true,
+      );
+    } catch (error) {
+      debugPrint('[Home] personalized provider failed: ${error.runtimeType}');
+      return null;
+    }
+  }
+
+  /// Pure, testable atomic recommendation replacement. A failed refresh must
+  /// never clear the last valid row for an unchanged enabled source.
+  static bool isRecommendationSection(MovieSection item) {
+    final id = item.catalog.id;
+    return id.startsWith('bestsimilar_') || id == 'bestsimilar' ||
+        id == 'trakt_recommendations' || id == 'simkl_recommendations' ||
+        item.title.toLowerCase().startsWith('because you');
+  }
+
+  static List<MovieSection> retainValidRecommendations(
+      List<MovieSection> previous, List<MovieSection> incoming, {
+        required bool showList,
+        required bool showWatching,
+        required bool showTrakt,
+        required bool showSimkl,
+      }) {
+    bool enabled(MovieSection row) {
+      final id = row.catalog.id;
+      if (id.startsWith('bestsimilar_watching')) return showWatching;
+      if (id.startsWith('bestsimilar_list')) return showList;
+      if (id == 'trakt_recommendations') return showTrakt;
+      if (id == 'simkl_recommendations') return showSimkl;
+      return false;
+    }
+    final selected = <String, MovieSection>{};
+    for (final row in previous) {
+      if (enabled(row)) selected[row.catalog.id] = row;
+    }
+    for (final row in incoming) {
+      if (enabled(row) && row.movies.isNotEmpty) {
+        selected[row.catalog.id] = row;
+      }
+    }
+    return selected.values.toList();
+  }
+
+  /// Up to three *different* played titles, including completed history.
+  /// Previous successful rows survive transient provider failures. All work
+  /// is bounded; never re-fetch the entire account/library or invent sources.
+  static Future<List<MovieSection>> fetchPersonalizedWatchingSections({
+    bool forceRefresh = false,
+  }) async {
+    if (!enableWatchingSimilar.value) return const [];
+    final sources = <WatchedTitle>[];
+    final identities = <String>{};
+    for (final session in ContinueWatchingService.activeItems.value) {
+      final id = session.type.toLowerCase() + ':' + session.id.toLowerCase();
+      if (identities.add(id)) {
+        sources.add(WatchedTitle(
+          id: session.id, title: session.title, type: session.type,
+          year: session.year, lastWatchedAt: session.lastWatchedAt,
+        ));
+      }
+    }
+    for (final watched in WatchedHistoryService.items.value) {
+      if (identities.add(watched.identity)) sources.add(watched);
+    }
+    if (sources.isEmpty) return const [];
+    sources.sort((a, b) => b.lastWatchedAt.compareTo(a.lastWatchedAt));
+    if (!forceRefresh && _cachedPersonalizedSections.isNotEmpty) {
+      return _cachedPersonalizedSections;
+    }
+    final sections = <MovieSection>[];
+    final recommendedIds = <String>{};
+    final usedTitles = <String>{};
+    for (final source in sources.take(5)) {
+      if (sections.length >= 3) break;
+      final identity = source.type + ':' + source.title.toLowerCase();
+      if (!usedTitles.add(identity)) continue;
+      final isWatching = ContinueWatchingService.activeItems.value
+          .any((item) => item.id == source.id && item.type == source.type);
+      final row = await _buildWithFallback(
+        sourceTitle: source.title,
+        year: int.tryParse(source.year ?? ''),
+        type: source.type,
+        sectionTitle: isWatching
+            ? 'Because you\'re watching "${source.title}"'
+            : 'Because you watched "${source.title}"',
+        catalogId: 'bestsimilar_watching_${sections.length + 1}',
+        imdbId: source.id.startsWith('tt') ? source.id : null,
+      );
+      if (row == null) continue;
+      final uniqueMovies = <Movie>[];
+      for (final movie in row.movies) {
+        final dedup = Movie.canonicalType(movie.type) + ':' +
+            movie.name.toLowerCase().trim() + ':' + (movie.year ?? '');
+        if (recommendedIds.add(dedup)) uniqueMovies.add(movie);
+      }
+      if (uniqueMovies.isEmpty) continue;
+      sections.add(MovieSection(
+        title: row.title, subtitle: row.subtitle, contentType: row.contentType,
+        addonBaseUrl: row.addonBaseUrl, catalog: row.catalog,
+        movies: uniqueMovies, isCurated: true,
+      ));
+    }
+    if (sections.isNotEmpty) {
+      _cachedPersonalizedSections = sections;
+      return sections;
+    }
+    return _cachedPersonalizedSections;
+  }
+
   /// Fetches a dynamic "Because you have [Title] on your list" section using BestSimilar
   static Future<MovieSection?> fetchBestSimilarSection({bool forceRefresh = false}) async {
     if (!enableSimilar.value) return null;
@@ -380,12 +560,14 @@ abstract final class HomePageSettings {
     final candidates = List<MyListItem>.from(myList.reversed);
 
     for (final sourceItem in candidates) {
-      final section = await _buildBestSimilarSection(
+      final section = await _buildWithFallback(
         sourceTitle: sourceItem.title,
         year: sourceItem.year,
         type: sourceItem.type,
         sectionTitle: 'Because you have "${sourceItem.title}" on your list',
         catalogId: 'bestsimilar_list',
+        imdbId: sourceItem.imdbId,
+        tmdbId: sourceItem.tmdbId,
       );
 
       if (section != null) {

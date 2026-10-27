@@ -1142,8 +1142,96 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _togglePlayPause() {
-    _player.playOrPause();
+    if (_httpReconnecting || _isLoading) return;
+    if (_player.state.playing) {
+      _httpPausedAt = DateTime.now();
+      unawaited(_player.pause());
+    } else {
+      final now = DateTime.now();
+      final longPause = PausedHttpRecovery.needsReopen(
+          _httpVodUrl != null, _httpPausedAt, now);
+      _httpResumedAt = now;
+      _httpPausedAt = null;
+      if (longPause && _httpReconnectAttempts < PausedHttpRecovery.maxAttempts) {
+        unawaited(_reconnectPausedHttp());
+      } else {
+        unawaited(_player.play());
+      }
+    }
     _startHideControlsTimer();
+  }
+
+  /// Open a fresh HTTP connection at the current position. This avoids
+  /// reusing an expired TCP socket held across an extended iPadOS pause.
+  /// Do not call _initStream(): it would reset the episode/resume context.
+  Future<void> _reconnectPausedHttp() async {
+    if (!mounted || _httpReconnecting || _httpVodUrl == null ||
+        _httpReconnectAttempts >= PausedHttpRecovery.maxAttempts) return;
+    final generation = _streamGeneration;
+    final url = _httpVodUrl!;
+    final headers = Map<String, String>.from(_httpVodHeaders ?? {});
+    final resumeAt = PausedHttpRecovery.safePosition(
+        _player.state.position, _player.state.duration);
+    _httpReconnecting = true;
+    setState(() {
+      _isLoading = true;
+      _statusMessage = 'Reconnecting stream at saved position...';
+      _showSourcesPanel = false;
+    });
+    try {
+      while (mounted && generation == _streamGeneration &&
+          _httpReconnectAttempts < PausedHttpRecovery.maxAttempts) {
+        _httpReconnectAttempts++;
+        try {
+          await _player.open(
+            Media(url, httpHeaders: headers,
+              start: resumeAt > Duration.zero ? resumeAt : null),
+            play: true,
+          ).timeout(const Duration(seconds: 35));
+          if (!mounted || generation != _streamGeneration) return;
+          await PlayerSettings.applyPostOpenProperties(_player);
+          await _player.setRate(_playbackRate);
+          await _player.setVolume((_isMuted ? 0.0 : _volume) * 100.0);
+          if (!mounted || generation != _streamGeneration) return;
+          final epoch = ++_audioMediaEpoch;
+          _audioTracks = [];
+          _selectedAudioTrackIndex = 0;
+          _audioAutoSelectionPending = false;
+          _audioManuallySelected = false;
+          setState(() {
+            _isLoading = false;
+            _statusMessage = 'Stream reconnected';
+            _sourcesErrorMessage = null;
+          });
+          _updateMediaTracks(_player.state.tracks);
+          _scheduleAudioProbes(epoch);
+          _preferEnglishAudioTrack();
+          _httpResumedAt = DateTime.now();
+          _startHideControlsTimer();
+          return;
+        } catch (error) {
+          debugPrint('[PlayerScreen] HTTP resume reconnect failed ('
+              + error.runtimeType.toString() + ')');
+          if (_httpReconnectAttempts < PausedHttpRecovery.maxAttempts &&
+              mounted && generation == _streamGeneration) {
+            await Future<void>.delayed(const Duration(milliseconds: 1500));
+          }
+        }
+      }
+      if (!mounted || generation != _streamGeneration) return;
+      setState(() {
+        _isLoading = false;
+        _statusMessage = 'Stream connection expired. Select another source.';
+        if (_currentEpisode != null) {
+          _showSourcesPanel = true;
+          _sourcesEpisode = _currentEpisode;
+          _sourcesErrorMessage = 'Could not restore the connection. '
+              'Please choose another source.';
+        }
+      });
+    } finally {
+      _httpReconnecting = false;
+    }
   }
 
   void _seekRelative(Duration offset) {

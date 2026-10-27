@@ -1,25 +1,32 @@
 name: PlayTorrio v1.1.13 — Paired Windows and iOS 15 Builds
 run-name: "PlayTorrio v1.1.13 · Build #${{ github.run_number }} · ${{ github.ref_name }}"
 
+# Full native packaging is OPT-IN. Ordinary source edits run the cheaper
+# Ubuntu quality gate (playtorrio-fast-checks.yml) instead.
+# To publish deliberately, edit .github/release-request.txt on the active
+# branch, or dispatch this workflow manually on that branch.
 on:
   push:
     branches:
-      - '**'
-    tags:
-      - 'v*'
+      - parity-floating-player-both
+    paths:
+      - '.github/release-request.txt'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: playtorrio-windows-${{ github.ref }}
-  cancel-in-progress: true
+  group: playtorrio-release-${{ github.ref }}
+  # A newer push must never kill an expensive release build in progress.
+  cancel-in-progress: false
 
 jobs:
   windows:
     name: Windows x64 — test, build, setup EXE
+    if: github.ref == 'refs/heads/parity-floating-player-both'
     runs-on: windows-latest
+    timeout-minutes: 100
     steps:
       - name: Checkout shared iOS and Windows source
         uses: actions/checkout@v4
@@ -188,10 +195,13 @@ jobs:
             PlayTorrio-Windows-Setup.exe
             PlayTorrio-Windows-x64-Portable.zip
           if-no-files-found: error
+          retention-days: 3
 
   ios15:
     name: iOS 15 — build and sign TrollStore IPA
+    if: github.ref == 'refs/heads/parity-floating-player-both'
     runs-on: macos-latest
+    timeout-minutes: 100
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -437,11 +447,12 @@ jobs:
           name: PlayTorrio-iOS15-TrollStore-v1.1.13-build-${{ github.run_number }}
           path: build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa
           if-no-files-found: error
+          retention-days: 3
 
   telegram-ipa:
     name: Post signed iOS 15 TrollStore IPA to Telegram
     needs: [ios15]
-    if: github.ref == 'refs/heads/parity-floating-player-both' || startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/parity-floating-player-both'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -581,12 +592,10 @@ jobs:
           Source revision: ${GITHUB_SHA}
           Windows installer, portable ZIP, and signed iOS 15 TrollStore IPA are built from the same commit.
 
-          What's new:
-          - Fix recommendations labeling TV series as Movie. Verify BestSimilar's actual serial flag; never guess unknown titles as movies.
-          - Normalize common TV/show media labels across home cards, posters, and metadata search.
-          - Preserve TV-series types even when a Stremio addon omits the type field in individual catalog entries.
-          - See All retains complete title-specific recommendations and local filtering.
-          - Show Details, Next Episode, private GitHub sync and Windows/iOS parity remain intact."
+          Release details:
+          - See handover.md at commit ${GITHUB_SHA} for the verified changes and tests.
+          - Windows/iOS packages use the same source revision and build number.
+          - This release was explicitly requested, not triggered by every commit."
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "PlayTorrio v${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" --notes "$NOTES" --latest
@@ -603,3 +612,20 @@ jobs:
           echo "### Published PlayTorrio v${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" >> "$GITHUB_STEP_SUMMARY"
           echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}" >> "$GITHUB_STEP_SUMMARY"
           echo "Commit: ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
+
+  prune-release-artifacts:
+    name: Reclaim redundant successful-build artifacts (release assets kept)
+    needs: [publish-paired, telegram-ipa]
+    if: github.ref == 'refs/heads/parity-floating-player-both'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prune only older release-verified PlayTorrio workflow artifacts
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/prune_playtorrio_artifacts.py

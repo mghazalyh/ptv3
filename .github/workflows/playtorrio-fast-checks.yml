@@ -1,0 +1,76 @@
+name: PlayTorrio — lightweight Flutter quality gate
+run-name: "PlayTorrio checks · ${{ github.ref_name }} · ${{ github.sha }}"
+
+# Run ordinary development checks on inexpensive standard Linux runners.
+# Documentation-only edits and explicit release requests cause no extra CI.
+on:
+  push:
+    branches:
+      - parity-floating-player-both
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/release-request.txt'
+  pull_request:
+    branches:
+      - parity-floating-player-both
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+permissions:
+  contents: read
+concurrency:
+  group: playtorrio-checks-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  flutter-checks:
+    name: Flutter analyzer + critical regression tests (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+      - name: Install app dependencies
+        run: |
+          printf '' > .env
+          flutter pub get
+      - name: Analyze shared components before any native release build
+        run: |
+          flutter analyze --no-pub --no-fatal-infos \
+            lib/services/continue_watching \
+            lib/services/my_list/github_library_cloud.dart \
+            lib/services/home/home_page_settings.dart \
+            lib/services/metadata/tmdb_discover_service.dart \
+            lib/services/metadata/tvdb_series_service.dart \
+            lib/models/movie/movie.dart \
+            lib/pages/home/home_page.dart \
+            lib/pages/details/details_page.dart \
+            lib/widgets/movie/movie_card.dart \
+            lib/pages/settings/github_library_settings_page.dart
+      - name: Test cloud sync, recommendation correctness and platform-neutral playback policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          for suite in \
+            test/github_progress_merge_test.dart \
+            test/github_progress_v1_compat_test.dart \
+            test/github_sync_gate_test.dart \
+            test/github_watched_history_merge_test.dart \
+            test/watched_history_recommendations_test.dart \
+            test/github_library_merge_test.dart \
+            test/tvdb_credentials_validation_test.dart \
+            test/tmdb_personalized_fallback_test.dart \
+            test/curated_recommendations_see_all_test.dart \
+            test/see_all_source_integrity_test.dart \
+            test/audio_language_priority_test.dart \
+            test/playback_autoselection_test.dart
+          do
+            flutter test "$suite"
+          done
+      - name: Validate retention pruning policy without GitHub deletion
+        run: python3 .github/scripts/prune_playtorrio_artifacts.py --self-test

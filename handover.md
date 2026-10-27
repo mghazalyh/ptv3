@@ -1,5 +1,13 @@
 # PlayTorrio — active engineering handover
 
+## 2026-10-28 SGT — Intentional single v1.1.15 matched release requested after verified CI
+
+**Pre-release Linux gate SUCCESS:** Source staging commit `5b53b9df33cf843c305f3ada75a23482e7f2f5dc`, [run 40549844329](https://github.com/mghazalyh/ptv3/actions/runs/40549844329), **10/10 SUCCESS**, including the extended player analyzer, new TCP pause/resume policy test and all existing suites, Python watchdog/Telegram CI self-tests. Previous primary player-fix source gate 40549177986 also passed (10/10). No observed compile/test failure after repair.
+
+**Release trigger:** Explicit `.github/release-request.txt` update requests **v1.1.15+25**, with exact tested source SHA `5b53b9df33cf843c305f3ada75a23482e7f2f5dc` and gate URL; committed atomically with this dated handover. This one change triggers paired Windows+iOS 15 workflow + independent lightweight Telegram failure watchdog on current default/active `parity-floating-player-both`; **no additional automatic native builds from normal code/doc pushes**. Native workflow repeats Windows/iOS regression gates, packages matching SHA, independently posts Windows EXE and signed TrollStore IPA Telegram documents, then publishes matched GitHub Release if permissions permit. Expect Build #139 but use actual GitHub run number. The request commit itself differs from test source by handover/release request only. Old `main` is docs-only divergent and not used to build. Do not declare release or Telegram documents successful before inspecting actual job logs.
+
+**Known unresolved:** Build #138 binaries delivered via Telegram but prior GitHub Release API got HTTP403 even with `Contents:write` before default branch switched; new default now matches active source/workflows, which may resolve the permission mismatch, not guaranteed. If publication fails, preserve successful native artifacts and Telegram delivery; diagnose publisher only, do not restart entire native build. Physical iPad 90s+ pause/resume acceptance remains outstanding.
+
 ## 2026-10-28 SGT — v1.1.15 iPad paused-stream fix packaged for intentional paired release
 
 **Required low-cost quality gate passed:** [PlayTorrio checks 40549177986](https://github.com/mghazalyh/ptv3/actions/runs/40549177986) on source **`670a306328983b7353aa8bf5595dd01d4bffdc41`** completed **SUCCESS, 10/10**; Flutter analyzer explicitly checked `player_screen.dart` and new `paused_http_recovery.dart`, new pure regression tests and all existing suites passed. Earlier expanded analyzer run 40548595432 failed exit 126 due missing Bash backslash at the analyzer-path expansion, FIXED in tested commit, not production player failure. No physical iPad regression test yet.

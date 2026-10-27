@@ -111,7 +111,6 @@ class GitHubWatchedHistoryCloud {
   Future<void> _journalWrite = Future<void>.value();
   Future<void>? _activeSync;
   Timer? _timer;
-  bool _imported = false;
   String _account = '';
   DateTime? _lastDownload;
   String? _etag;
@@ -122,7 +121,6 @@ class GitHubWatchedHistoryCloud {
   bool get configured => _connection.configured;
   String get _accountKey => _connection.repository + ':' + _connection.branch;
   String get _journalKey => _suffix + 'pending:' + _accountKey;
-  String get _importKey => _suffix + 'imported:' + _accountKey;
   int get queuedChanges => _pending.length;
   DateTime? get lastSuccessfulSync => _lastDownload;
 
@@ -150,7 +148,6 @@ class GitHubWatchedHistoryCloud {
     } catch (_) {
       status.value = 'Cannot load offline watched-history changes';
     }
-    _imported = prefs.getBool(_importKey) ?? false;
   }
 
   void save(WatchedTitle item) {
@@ -290,10 +287,8 @@ class GitHubWatchedHistoryCloud {
       final prefs = await SharedPreferences.getInstance();
       _journalWrite = _journalWrite.then((_) async {
         await prefs.setString(_journalKey, jsonEncode(_pending));
-        await prefs.setBool(_importKey, true);
       });
       await _journalWrite;
-      _imported = true;
       _lastDownload = DateTime.now();
       await persist(GitHubWatchedHistoryMerge.visible(
           GitHubWatchedHistoryMerge.merge(result, _pending)));

@@ -44,6 +44,7 @@ jobs:
           flutter analyze --no-pub --no-fatal-infos \
             lib/services/continue_watching \
             lib/services/my_list/github_library_cloud.dart \
+            lib/models/my_list/my_list_item.dart \
             lib/services/home/home_page_settings.dart \
             lib/services/metadata/tmdb_discover_service.dart \
             lib/services/metadata/tvdb_series_service.dart \
@@ -63,6 +64,7 @@ jobs:
             test/github_watched_history_merge_test.dart \
             test/watched_history_recommendations_test.dart \
             test/github_library_merge_test.dart \
+            test/github_watchlist_v1_regression_test.dart \
             test/tvdb_credentials_validation_test.dart \
             test/tmdb_personalized_fallback_test.dart \
             test/curated_recommendations_see_all_test.dart \

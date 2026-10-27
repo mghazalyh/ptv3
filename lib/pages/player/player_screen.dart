@@ -182,8 +182,14 @@ class _PlayerScreenState extends State<PlayerScreen>
     _subscriptions.addAll([
       _player.stream.playing.listen((playing) {
         if (mounted) {
+          final justPaused = _isPlaying && !playing;
           setState(() => _isPlaying = playing);
           _updateDiscordRpc(isPaused: !playing);
+          if (justPaused) {
+            _savePlaybackProgress();
+            unawaited(Future<void>.delayed(const Duration(milliseconds: 350))
+                .then((_) => ContinueWatchingService.syncGitHubProgress(force: true)));
+          }
         }
       }),
       _player.stream.position.listen((pos) {
@@ -1486,8 +1492,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     _volumeHudTimer?.cancel();
     _audioHudTimer?.cancel();
     _savePlaybackProgress();
-    // Upload the last position on exit rather than waiting for the next
-    // one-minute progress batch. This is best effort when offline.
+    // Upload final position on exit; routine background writes are batched
+    // every four minutes and an immediate pause/exit sync stays available. This is best effort when offline.
     unawaited(ContinueWatchingService.syncGitHubProgress(force: true));
     WakelockPlus.disable();
     _hideTimer?.cancel();

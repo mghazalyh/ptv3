@@ -12,6 +12,8 @@ on:
     paths:
       - '.github/release-request.txt'
       - '.github/workflows/playtorrio-build-watchdog.yml'
+      - '.github/scripts/watch_playtorrio_run.py'
+      - '.github/scripts/telegram_ci.py'
 
 permissions:
   contents: read

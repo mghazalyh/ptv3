@@ -10,10 +10,12 @@ import '../common/section_header.dart';
 
 class MovieSliderSection extends StatefulWidget {
   final MovieSection section;
+  final bool showSeriesRunYears;
 
   const MovieSliderSection({
     super.key,
     required this.section,
+    this.showSeriesRunYears = false,
   });
 
   @override
@@ -133,7 +135,10 @@ class _MovieSliderSectionState extends State<MovieSliderSection> {
                     itemBuilder: (context, index) {
                       return SizedBox(
                         width: sizing.cardWidth,
-                        child: MovieCard(movie: widget.section.movies[index]),
+                        child: MovieCard(
+                           movie: widget.section.movies[index],
+                           showSeriesRunYears: widget.showSeriesRunYears,
+                         ),
                       );
                     },
                   ),

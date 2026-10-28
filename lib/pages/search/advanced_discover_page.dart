@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/metadata/tmdb_discover_service.dart';
 import '../details/details_page.dart';
 import '../../services/metadata/title_origin_language_service.dart';
+import '../../widgets/movie/series_year_label.dart';
 
 class AdvancedDiscoverPage extends StatefulWidget {
   const AdvancedDiscoverPage({super.key});
@@ -46,7 +47,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
   String country = '', language = '', order = 'popularity.desc';
   List<DiscoverTitle> titles = [];
   int page = 0, totalPages = 0, totalResults = 0, serial = 0;
-  int? openingId, appliedStart, appliedEnd;
+  int? openingId;
   bool loading = false, hasKey = false, applied = false;
   String? error;
   DiscoverFilters? _appliedFilters;
@@ -126,14 +127,9 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
       return;
     }
     if (!reset && (page == 0 || page >= totalPages)) return;
-    // Loading the next page should advance to the newly appended posters,
-    // never reset the list to the top. Retain the position if the user has
-    // scrolled away from the bottom during the request.
-    final oldMaxExtent = _discoverScroll.hasClients
-        ? _discoverScroll.position.maxScrollExtent : 0.0;
-    final nearEnd = _discoverScroll.hasClients &&
-        (_discoverScroll.position.maxScrollExtent -
-            _discoverScroll.offset) < 260;
+    // Pagination must leave the user's scroll offset exactly where it is.
+    // An explicitly new search returns to the form at the top.
+    if (reset && _discoverScroll.hasClients) _discoverScroll.jumpTo(0);
     final request = ++serial;
     setState(() {
       loading = true;
@@ -144,7 +140,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         applied = false;
       }
     });
-    FocusManager.instance.primaryFocus?.unfocus();
+    if (reset) FocusManager.instance.primaryFocus?.unfocus();
     try {
       if (reset) {
         final prefs = await SharedPreferences.getInstance();
@@ -169,26 +165,8 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         totalResults = response.totalResults;
         applied = true;
         _appliedFilters = filters;
-        appliedStart = filters.fromYear ?? filters.toYear;
-        appliedEnd = filters.toYear ?? filters.fromYear;
       });
-      if (!reset && nearEnd) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted || !_discoverScroll.hasClients ||
-              request != serial) return;
-          final position = _discoverScroll.position;
-          // Scroll just past the old page boundary: new posters become
-          // visible, while the previous row stays nearby for orientation.
-          final destination = (oldMaxExtent + 160.0)
-              .clamp(0.0, position.maxScrollExtent)
-              .toDouble();
-          if (destination > position.pixels) {
-            _discoverScroll.animateTo(destination,
-              duration: const Duration(milliseconds: 360),
-              curve: Curves.easeOutCubic);
-          }
-        });
-      }
+
     } catch (e) {
       if (mounted && request == serial) {
         setState(() => error = e.toString().replaceFirst('FormatException: ', ''));
@@ -296,11 +274,6 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
 
   Widget _card(DiscoverTitle item) {
     final debut = item.premiereYear?.toString() ?? 'Year unknown';
-    final yearLabel = item.type == DiscoverType.series &&
-        appliedStart != null && appliedEnd != null
-      ? 'Started $debut · Episodes ${appliedStart == appliedEnd
-          ? appliedStart : '$appliedStart–$appliedEnd'}'
-      : debut;
     return Card(
       clipBehavior: Clip.antiAlias,
       color: const Color(0xFF171A24),
@@ -325,8 +298,18 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
                     style: const TextStyle(fontWeight: FontWeight.bold,
                         fontSize: 13)),
                 const SizedBox(height: 3),
-                Text(yearLabel, maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white60, fontSize: 10)),
+                if (item.type == DiscoverType.series)
+                  SeriesYearLabel(
+                    key: ValueKey('series-run-${item.tmdbId}'),
+                    tmdbId: item.tmdbId,
+                    fallbackYear: item.premiereYear?.toString(),
+                    style: const TextStyle(
+                        color: Colors.white60, fontSize: 10),
+                  )
+                else
+                  Text(debut, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white60, fontSize: 10)),
                 if (item.rating > 0)
                   Text('★ ${item.rating.toStringAsFixed(1)}',
                       style: const TextStyle(color: Color(0xFFFFD166),
@@ -465,7 +448,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
             const SizedBox(height: 12),
             Text(error!, style: const TextStyle(color: Colors.orangeAccent)),
           ],
-          if (loading || openingId != null) ...[
+          if ((loading && !applied) || openingId != null) ...[
             const SizedBox(height: 12),
             const LinearProgressIndicator(),
           ],
@@ -495,8 +478,8 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
             if (page < totalPages)
               OutlinedButton.icon(
                 onPressed: loading ? null : () => _browse(reset: false),
-                icon: const Icon(Icons.expand_more),
-                label: const Text('Load More'),
+                icon: Icon(loading ? Icons.hourglass_top : Icons.expand_more),
+                label: Text(loading ? 'Loading...' : 'Load More'),
               ),
           ],
           const SizedBox(height: 22),

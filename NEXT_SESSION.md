@@ -1,5 +1,10 @@
 # NEXT SESSION — PlayTorrio (2026-10-27, Singapore)
 
+## 2026-10-28 SGT — Discover/Search regression fix in validation
+
+An isolated development branch `fix/discover-series-years-stable-pagination` corrects TV card years using actual TMDB TV details for ended/cancelled series and removes Advanced Discover Load More's forced scroll animation and layout-moving pagination indicator. Search title sliders and the main Discover grid opt into the same series-run labels. Adds pure and widget regressions plus lightweight/native CI coverage. **Pending PR validation; not shipped; no native release requested.** See the newest root `handover.md` entry for file paths and validation. Latest verified published binaries remain v1.1.15 Build #139.
+
+
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.
 
 ## 2026-10-28 SGT — VERIFIED RELEASE: v1.1.15 Build #139 iPad HTTP pause/resume fix, Windows+iOS Telegram delivery and GitHub Release

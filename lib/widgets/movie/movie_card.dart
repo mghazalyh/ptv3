@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/movie/movie.dart';
 import '../../pages/details/details_page.dart';
+import 'series_year_label.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/home/home_page_settings.dart';
 import '../../services/metadata/title_origin_language_service.dart';
@@ -79,11 +80,13 @@ class MovieCardSizing {
 class MovieCard extends StatefulWidget {
   final Movie movie;
   final VoidCallback? onTap;
+  final bool showSeriesRunYears;
 
   const MovieCard({
     super.key,
     required this.movie,
     this.onTap,
+    this.showSeriesRunYears = false,
   });
 
   @override
@@ -174,8 +177,23 @@ class _MovieCardState extends State<MovieCard> {
                   ),
                 ),
 
-                // ── Year / type ─────────────────────────────────────────
+                // Search displays a series run on its own line, preventing
+                // the end year from being truncated beside the type label.
                 const SizedBox(height: 4),
+                if (widget.showSeriesRunYears &&
+                    Movie.canonicalType(movie.type) == 'series')
+                  SeriesYearLabel(
+                    key: ValueKey('series-run-${movie.id}'),
+                    tmdbId: movie.tmdbId,
+                    imdbId: movie.id,
+                    fallbackYear: movie.year,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withOpacity(0.52),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  )
+                else
                 Row(
                   children: [
                     if (movie.year != null && movie.year!.isNotEmpty)

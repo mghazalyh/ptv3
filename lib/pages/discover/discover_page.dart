@@ -174,6 +174,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
       itemBuilder: (context, index) {
         return MovieCard(
           movie: allMovies[index],
+          showSeriesRunYears: true,
         );
       },
     );

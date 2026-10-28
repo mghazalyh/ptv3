@@ -9,11 +9,11 @@ void main() {
   const credits = MediaSkipSegment(type: 'credits', startMs: 2460000);
   const duration = Duration(minutes: 44);
 
-  test('auto-skip only actual TV intro/credits with safe boundaries', () {
+  test('auto-skip TV intros but never automatically skip credits', () {
     expect(AutomaticSkipPolicy.eligible(
         isSeriesEpisode: true, segment: intro, mediaDuration: duration), isTrue);
     expect(AutomaticSkipPolicy.eligible(
-        isSeriesEpisode: true, segment: credits, mediaDuration: duration), isTrue);
+        isSeriesEpisode: true, segment: credits, mediaDuration: duration), isFalse);
     expect(AutomaticSkipPolicy.eligible(
         isSeriesEpisode: false, segment: intro, mediaDuration: duration), isFalse);
     expect(AutomaticSkipPolicy.eligible(isSeriesEpisode: true,

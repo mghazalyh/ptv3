@@ -1,6 +1,5 @@
-run_id=all
-# Retry historical archival after PR #6 (merged source 48c5f100c24accf110fdcd092d50e9240e3a1282).
-# Original Build #138 release tag is forbidden by GitHub HTTP 403; persist
-# exact signed IPA and true SHA in separate ios-historical-archive prerelease.
-# Build #140 IPA already permanently retained in matched release tag, do not rebuild.
-# Existing #137/#139/#140 published assets must remain untouched.
+run_id=40675769942
+# Explicit one-time archival of verified signed iOS15 Build #141.
+# iOS job already completed success; Telegram sendDocument message 43 confirmed.
+# Native source: db12131e781d68a8efd1da65013f23676b16814e
+# No native rebuild. Existing release assets remain preserved.

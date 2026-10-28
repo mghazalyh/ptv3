@@ -23,6 +23,7 @@ class PlayerTransport extends StatelessWidget {
   final bool isSubtitlesActive;
   final bool isSubSyncActive;
   final bool isAudioActive;
+  final bool isDiagnosticsActive;
   final bool isEpisodesActive;
   final bool isFullscreen;
   final bool hasPrevEpisode;
@@ -40,6 +41,7 @@ class PlayerTransport extends StatelessWidget {
   final VoidCallback onToggleAspectMenu;
   final VoidCallback onToggleSpeedMenu;
   final VoidCallback onToggleAudioMenu;
+  final VoidCallback? onToggleDiagnostics;
   final VoidCallback onToggleSubtitleMenu;
   final VoidCallback onToggleSubSync;
   final VoidCallback onToggleFullscreen;
@@ -62,6 +64,7 @@ class PlayerTransport extends StatelessWidget {
     required this.isSubtitlesActive,
     required this.isSubSyncActive,
     required this.isAudioActive,
+    this.isDiagnosticsActive = false,
     this.isEpisodesActive = false,
     required this.isFullscreen,
     this.hasPrevEpisode = false,
@@ -77,6 +80,7 @@ class PlayerTransport extends StatelessWidget {
     required this.onToggleAspectMenu,
     required this.onToggleSpeedMenu,
     required this.onToggleAudioMenu,
+    this.onToggleDiagnostics,
     required this.onToggleSubtitleMenu,
     required this.onToggleSubSync,
     required this.onToggleFullscreen,
@@ -287,6 +291,20 @@ class PlayerTransport extends StatelessWidget {
                   ),
 
                   SizedBox(width: gap),
+
+                  // Compact playback diagnostics toggle, alongside audio/subtitles.
+                  if (onToggleDiagnostics != null) ...[
+                    PlayerIconButton(
+                      size: isCompact ? 30 : 32,
+                      iconSize: isCompact ? 15 : 17,
+                      icon: const Icon(Icons.analytics_outlined),
+                      tooltip: 'Playback diagnostics',
+                      active: isDiagnosticsActive,
+                      activeColor: PlayerTheme.accent,
+                      onPressed: onToggleDiagnostics!,
+                    ),
+                    SizedBox(width: gap),
+                  ],
 
                   // Subtitles Menu Trigger
                   PlayerIconButton(

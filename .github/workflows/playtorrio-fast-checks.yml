@@ -96,6 +96,12 @@ jobs:
           do
             flutter test "$suite"
           done
+      - name: Validate bounded iOS runner fallback without requesting a native build
+        run: |
+          python3 -m py_compile .github/scripts/ios_runner_fallback_guard.py .github/scripts/validate_native_release_workflow.py
+          python3 .github/scripts/ios_runner_fallback_guard.py --self-test
+          python3 .github/scripts/validate_native_release_workflow.py
+
       - name: Validate retention pruning policy without GitHub deletion
         run: |
           python3 .github/scripts/prune_playtorrio_artifacts.py --self-test

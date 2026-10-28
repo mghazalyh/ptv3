@@ -316,7 +316,10 @@ class _SearchPageState extends State<SearchPage> {
               physics: const BouncingScrollPhysics(),
               itemCount: _results.length,
               itemBuilder: (context, index) {
-                return MovieSliderSection(section: _results[index]);
+                return MovieSliderSection(
+                   section: _results[index],
+                   showSeriesRunYears: true,
+                 );
               },
             )
           else

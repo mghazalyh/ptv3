@@ -63,6 +63,8 @@ jobs:
             lib/pages/player/player_screen.dart \
             lib/services/player/paused_http_recovery.dart \
             lib/services/player/automatic_skip_policy.dart \
+            lib/services/player/playback_diagnostics_probe.dart \
+            lib/widgets/player/player_diagnostics_overlay.dart \
             lib/services/player/skip_segments_service.dart \
             lib/models/player/skip_segment_model.dart \
             lib/widgets/player/player_skip_button.dart \
@@ -89,7 +91,8 @@ jobs:
             test/audio_language_priority_test.dart \
             test/playback_autoselection_test.dart \
             test/paused_http_recovery_test.dart \
-            test/series_automatic_skip_test.dart
+            test/series_automatic_skip_test.dart \
+            test/player_diagnostics_overlay_test.dart
           do
             flutter test "$suite"
           done

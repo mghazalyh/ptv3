@@ -1,5 +1,10 @@
 # Repository agent instructions — PlayTorrio
 
+## 2026-10-28 SGT — one signed native Build #141 requested; results not yet verified
+
+PR #7 ended-year and optional genre code merged and Linux CI verified, SHA `a9c1f8d37da05d1d1af6368888259537e3130c89`. Explicit opt-in release-request SHA `db12131e781d68a8efd1da65013f23676b16814e` triggered [native Windows+iOS Build #141, Actions run 40675769942](https://github.com/mghazalyh/ptv3/actions/runs/40675769942) and independent watchdog run `40675769948`; observed queued, not yet a verified signed IPA/Telegram file/permanent release. New user-reported iPad regression The Mentalist 2008 vs 2008-2015 and optional genre need testing on #141. Continue from latest `handover.md`; preserve prior iOS Releases, strict Telegram IPA delivery and independent per-iOS Release archiving.
+
+
 ## 2026-10-28 SGT — PR #7 merged: ended series years and optional genres
 
 [PR #7](https://github.com/mghazalyh/ptv3/pull/7) merged active/default source at `a9c1f8d37da05d1d1af6368888259537e3130c89`; [Linux PR run 40675161295](https://github.com/mghazalyh/ptv3/actions/runs/40675161295) **SUCCESS**. Physical iOS Build #140 regression: ended The Mentalist showed 2008 instead of 2008–2015. Fix queues distinct series details past the old silent 24/min cutoff, uses exact IMDb/Cinemeta releaseInfo when no TMDB key, verified last episode fallback, and maintains no false ranges for ongoing series. Advanced Discover now has optional persisted type-specific Comedy/Action/Adventure/etc genre filter via TMDB `with_genres` on browse and row `genre_ids` on title searches; Load More retains filters. The Mentalist, queue and genre regressions passed. Code NOT YET in signed #140 IPA; native build/Telegram/GitHub release requires opt-in and verification. Existing independent iOS archive + strict Telegram file policy remains. See handover.md top entry for detail.

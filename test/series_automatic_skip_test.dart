@@ -43,6 +43,9 @@ void main() {
         segment: const MediaSkipSegment(type: 'intro',
             startMs: 15000, endMs: 5000000),
         mediaDuration: duration), isFalse);
+    expect(AutomaticSkipPolicy.eligible(isSeriesEpisode: true,
+        segment: const MediaSkipSegment(type: 'credits', startMs: 3000000),
+        mediaDuration: duration), isFalse);
     expect(AutomaticSkipPolicy.destination(credits, duration), duration);
     expect(AutomaticSkipPolicy.destination(intro, duration),
         const Duration(seconds: 96));

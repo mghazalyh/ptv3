@@ -1,8 +1,10 @@
-PlayTorrio explicit paired native release request — prevent early Skip Credits and unintended next-episode autoplay
+PlayTorrio explicit one-time paired native release — Auto Sync subtitle matching and early credits autoplay safety fixes
 Date: 2026-10-28 SGT
-Active branch: parity-floating-player-both
-Previous paired diagnostics build: https://github.com/mghazalyh/ptv3/actions/runs/40697228602 — Windows, signed iOS IPA, Telegram delivery, and durable release jobs all successful.
-Fix commits: 33dd0730b2b373b9b29e34ca3bb614bcae5a7038 and a7e1faae44465e0d753f1728a587d98fa886a7df.
-Behavior: reject invalid early credits metadata; prevent automatic credits skipping from seeking to EOF and auto-advancing to the next episode. Preserve manual valid credits skipping and automatic intro skipping.
-Owner explicitly requested a new build for this playback bug. Trigger one paired Windows and signed iOS 15 TrollStore release; send actual packages via Telegram and publish a permanent uniquely versioned GitHub Release with checksums. Preserve all earlier releases.
-Do not enable automatic native builds for ordinary future source changes.
+Branch: parity-floating-player-both
+Validated source commit: f4da5b7b07a4c970eb23232caf4b86a4a2dce0b7
+Passing Flutter CI: https://github.com/mghazalyh/ptv3/actions/runs/40708151194
+Prior native Build #144: https://github.com/mghazalyh/ptv3/actions/runs/40704420413 (failed; completed; no native jobs remain)
+Last successful native paired Build #143: https://github.com/mghazalyh/ptv3/actions/runs/40697228602
+Owner explicitly requested a native build of the validated current source: separate Auto Sync button beside Playback Diagnostics, English subtitle source/release matching and alternative subtitle loading, plus early Skip Credits safety fix. Auto Sync here is subtitle matching, not yet audio speech-timing analysis.
+Trigger exactly ONE paired Windows x64 and ad hoc signed iOS 15 TrollStore IPA release. Preserve prior releases. Deliver actual Windows and signed IPA Telegram documents and publish version-specific permanent GitHub Release with checksums.
+Do not retrigger without diagnosing failure; do not automatically build on ordinary future source changes.

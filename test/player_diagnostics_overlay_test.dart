@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playtorrio/services/player/playback_diagnostics_probe.dart';
 import 'package:playtorrio/widgets/player/player_diagnostics_overlay.dart';
+import 'package:playtorrio/widgets/player/player_transport.dart';
 
 void main() {
   test('probe shows only allowlisted player properties, not stream URLs', () async {
@@ -33,6 +34,52 @@ void main() {
         {'video-bitrate': '4000000'}, 'video-bitrate'), '4.00 Mbps');
     expect(PlaybackDiagnosticsProbe.time(const Duration(seconds: 63)), '01:03');
     expect(PlaybackDiagnosticsProbe.time(const Duration(hours: 2, seconds: 3)), '2:00:03');
+  });
+
+  testWidgets('small transport-row button toggles stats on and off',
+      (tester) async {
+    tester.view.physicalSize = const Size(1400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    var visible = false;
+    await tester.pumpWidget(MaterialApp(home: StatefulBuilder(
+      builder: (context, update) => Scaffold(body: Stack(children: [
+        Positioned(bottom: 0, left: 0, right: 0, child: PlayerTransport(
+          isPlaying: true,
+          position: Duration.zero,
+          duration: const Duration(minutes: 44),
+          volume: 1.0, isMuted: false, playbackRate: 1.0,
+          isSubtitlesActive: false, isSubSyncActive: false,
+          isAudioActive: false, isFullscreen: false,
+          isDiagnosticsActive: visible,
+          onToggleDiagnostics: () => update(() => visible = !visible),
+          onPlayPause: () {}, onSeek: (_) {},
+          onSeekBack10: () {}, onSeekForward10: () {},
+          onVolumeChanged: (_) {}, onToggleMute: () {},
+          onToggleAspectMenu: () {}, onToggleSpeedMenu: () {},
+          onToggleAudioMenu: () {}, onToggleSubtitleMenu: () {},
+          onToggleSubSync: () {}, onToggleFullscreen: () {},
+        )),
+        if (visible) const Positioned(top: 20, right: 20,
+          child: PlayerDiagnosticsOverlay(
+            properties: {}, isPlaying: true, isBuffering: false,
+            position: Duration.zero, duration: Duration(minutes: 44),
+            buffered: null, playbackRate: 1.0, sourceKind: 'HTTP stream',
+          )),
+      ])),
+    )));
+    final toggle = find.byTooltip('Playback diagnostics');
+    expect(toggle, findsOneWidget);
+    expect(find.byType(PlayerDiagnosticsOverlay), findsNothing);
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(find.byType(PlayerDiagnosticsOverlay), findsOneWidget);
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(find.byType(PlayerDiagnosticsOverlay), findsNothing);
   });
 
   testWidgets('compact diagnostics overlay shows real values',

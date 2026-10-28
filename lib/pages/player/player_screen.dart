@@ -1540,7 +1540,23 @@ class _PlayerScreenState extends State<PlayerScreen>
         debugPrint('[PlayerScreen] Ignoring mismatched episode skip data');
         return;
       }
-      setState(() => _skipSegments = skipData.segments);
+      // Reject credits metadata that places end credits at the beginning of an
+      // episode. Never allow such data to seek to EOF or advance playback.
+      final mediaDuration = _player.state.duration;
+      final safeSegments = skipData.segments.where((segment) {
+        if (segment.type.trim().toLowerCase() != 'credits') return true;
+        final start = segment.startMs;
+        final durationMs = mediaDuration.inMilliseconds;
+        final valid = start != null && durationMs > 0 &&
+            start >= durationMs ~/ 2 && start < durationMs &&
+            (segment.endMs == null ||
+                (segment.endMs! > start && segment.endMs! <= durationMs + 2000));
+        if (!valid) {
+          debugPrint('[PlayerScreen] Discarding invalid early credits metadata');
+        }
+        return valid;
+      }).toList();
+      setState(() => _skipSegments = safeSegments);
       // Metadata can arrive after playback has already entered the intro.
       _onPlaybackTick(_player.state.position);
     } catch (e) {

@@ -628,6 +628,12 @@ jobs:
     if: ${{ always() && !cancelled() && github.ref == 'refs/heads/parity-floating-player-both' && needs.windows.result == 'success' && (needs.ios15.result == 'success' || needs.ios15-rescue-intel.result == 'success' || needs.ios15-rescue-arm.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - name: Verify publishing checkout is pinned to this release
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -s .github/release-notes.txt
+
       - name: Download Windows build from this workflow run
         uses: actions/download-artifact@v4
         with:
@@ -654,38 +660,52 @@ jobs:
           APP_VERSION: "1.1.15"
         run: |
           set -euo pipefail
-          TAG="build-v${APP_VERSION}-b${GITHUB_RUN_NUMBER}"
-          BASENAME="PlayTorrio-v${APP_VERSION}-build${GITHUB_RUN_NUMBER}"
+          TAG="build-v$APP_VERSION-b$GITHUB_RUN_NUMBER"
+          BASENAME="PlayTorrio-v$APP_VERSION-build$GITHUB_RUN_NUMBER"
           mkdir -p release
-          cp packages/windows/PlayTorrio-Windows-Setup.exe "release/${BASENAME}-Windows-Setup.exe"
-          cp packages/windows/PlayTorrio-Windows-x64-Portable.zip "release/${BASENAME}-Windows-x64-Portable.zip"
-          cp packages/ios15/PlayTorrio-iOS15-TrollStore.ipa "release/${BASENAME}-iOS15-TrollStore.ipa"
-          sha256sum release/PlayTorrio-* > release/SHA256SUMS.txt
-          NOTES="PlayTorrio v${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})
-
-          Source revision: ${GITHUB_SHA}
-          Windows installer, portable ZIP, and signed iOS 15 TrollStore IPA are built from the same commit.
-
-          Release details:
-          - See handover.md at commit ${GITHUB_SHA} for the verified changes and tests.
-          - Windows/iOS packages use the same source revision and build number.
-          - Builds are explicitly requested after the previous native release run has finished; the source SHA identifies this build."
+          cp packages/windows/PlayTorrio-Windows-Setup.exe "release/$BASENAME-Windows-Setup.exe"
+          cp packages/windows/PlayTorrio-Windows-x64-Portable.zip "release/$BASENAME-Windows-x64-Portable.zip"
+          cp packages/ios15/PlayTorrio-iOS15-TrollStore.ipa "release/$BASENAME-iOS15-TrollStore.ipa"
+          (cd release && sha256sum PlayTorrio-* > SHA256SUMS.txt)
+          {
+            printf 'PlayTorrio v%s (Build %s)\n\n' "$APP_VERSION" "$GITHUB_RUN_NUMBER"
+            printf 'Source revision: %s\n' "$GITHUB_SHA"
+            printf '%s\n' 'Windows and signed iOS 15 TrollStore IPA use the same source revision.'
+            printf "\nWhat's new / Fixed:\n"
+            cat .github/release-notes.txt
+          } > release-notes.md
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
-            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "PlayTorrio v${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" --notes "$NOTES" --latest
+            echo "Release tag already exists; only upload missing assets without clobbering files."
+            for file in release/*; do
+              name=$(basename "$file")
+              if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+                  --json assets --jq '.assets[].name' | grep -Fxq "$name"; then
+                gh release upload "$TAG" "$file" --repo "$GITHUB_REPOSITORY"
+              fi
+            done
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "PlayTorrio v$APP_VERSION (Build $GITHUB_RUN_NUMBER)" \
+              --notes-file release-notes.md
           else
             gh release create "$TAG" release/* \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title "PlayTorrio v${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" \
-              --notes "$NOTES" \
-              --latest
+              --title "PlayTorrio v$APP_VERSION (Build $GITHUB_RUN_NUMBER)" \
+              --notes-file release-notes.md --latest
           fi
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json name,url,assets \
-            --jq '{name: .name, url: .url, assets: [.assets[].name]}'
-          echo "### Published PlayTorrio v${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" >> "$GITHUB_STEP_SUMMARY"
-          echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Commit: ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
+          # Fail if any direct-download asset is missing, truncated or mismatched.
+          for file in release/*; do
+            name=$(basename "$file")
+            expected=$(stat -c%s "$file")
+            actual=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --json assets --jq ".assets[] | select(.name == \"$name\") | .size")
+            test -n "$actual"
+            test "$actual" = "$expected"
+          done
+          echo "### Published PlayTorrio v$APP_VERSION (Build $GITHUB_RUN_NUMBER)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
 
   prune-release-artifacts:
     name: Reclaim redundant successful-build artifacts (release assets kept)

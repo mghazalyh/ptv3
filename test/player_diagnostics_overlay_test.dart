@@ -25,6 +25,19 @@ void main() {
     expect(PlaybackDiagnosticsProbe.frameRate(values), 'Unavailable');
   });
 
+  test('diagnostics never accept URLs, bearer-like values or wrong bounds', () {
+    expect(PlaybackDiagnosticsProbe.safeValue('https://user:secret@host'), isNull);
+    expect(PlaybackDiagnosticsProbe.safeValue('token?key=private'), isNull);
+    expect(PlaybackDiagnosticsProbe.safeValue('a' * 49), isNull);
+    expect(PlaybackDiagnosticsProbe.resolution(
+        {'video-params/w': '99999', 'video-params/h': '1080'}),
+        'Unavailable');
+    expect(PlaybackDiagnosticsProbe.frameRate(
+        {'estimated-vf-fps': '0'}), 'Unavailable');
+    expect(PlaybackDiagnosticsProbe.cacheAhead(
+        {'demuxer-cache-duration': '-4'}), 'Unavailable');
+  });
+
   test('unavailable stats are not fabricated', () {
     expect(PlaybackDiagnosticsProbe.resolution({}), 'Unavailable');
     expect(PlaybackDiagnosticsProbe.bitrate({}, 'video-bitrate'), 'Unavailable');

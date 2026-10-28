@@ -26,9 +26,88 @@ class SkipSegmentsService {
     final mediaType = (type == 'series' || type == 'tv' || season != null) ? 'tv' : 'movie';
     final isTv = mediaType == 'tv';
 
-    // 1. Resolve TMDB ID if missing
+    // Episode-specific skip timestamps must never be guessed from a title:
+    // a similarly named show/season could skip actual story content.
+    if (isTv && (season == null || episode == null ||
+        season < 0 || episode <= 0)) return null;
+    final verifiedImdb = imdbId != null &&
+        RegExp(r'^tt\d+
+      try {
+        numericTmdbId = await TmdbHelper.resolveTmdbId(
+          imdbId: imdbId,
+          title: title ?? (imdbId ?? ''),
+          type: mediaType,
+          year: year,
+        );
+      } catch (e) {
+        debugPrint('[SkipSegmentsService] Failed to resolve TMDB ID: $e');
+      }
+    }
+
+    final cacheKey = '${numericTmdbId ?? imdbId ?? title}:$mediaType:$season:$episode:$durationMs';
+    if (_cache.containsKey(cacheKey)) {
+      return _cache[cacheKey];
+    }
+
+    // 2. Build query parameters
+    final params = <String, String>{};
+    if (numericTmdbId != null && numericTmdbId > 0) {
+      params['tmdb_id'] = numericTmdbId.toString();
+    } else if (verifiedImdb) {
+      params['imdb_id'] = imdbId;
+    } else {
+      debugPrint('[SkipSegmentsService] No TMDB ID or IMDb ID available to query IntroDB');
+      return null;
+    }
+
+    if (isTv && season != null && episode != null) {
+      params['season'] = season.toString();
+      params['episode'] = episode.toString();
+    }
+
+    if (durationMs != null && durationMs > 0) {
+      params['duration_ms'] = durationMs.toString();
+    }
+
+    final uri = Uri.parse(_baseUrl).replace(queryParameters: params);
+    debugPrint('[SkipSegmentsService] Querying IntroDB: $uri');
+
+    try {
+      final res = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'PlayTorrio/3.0.0 (VideoPlayer SkipEngine)',
+        },
+      ).timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic>) {
+          final skipData = MediaSkipData.fromJson(data);
+          _cache[cacheKey] = skipData;
+          debugPrint(
+              '[SkipSegmentsService] Successfully loaded ${skipData.segments.length} skip segments (${skipData.segments.map((s) => s.type).join(", ")})');
+          return skipData;
+        }
+      } else if (res.statusCode == 404) {
+        debugPrint('[SkipSegmentsService] No skip segments available for $uri (404)');
+      } else {
+        debugPrint('[SkipSegmentsService] IntroDB returned status ${res.statusCode}: ${res.body}');
+      }
+    } catch (e) {
+      debugPrint('[SkipSegmentsService] Error fetching skip timestamps: $e');
+    }
+
+    return null;
+  }
+}
+).hasMatch(imdbId);
+
+    // 1. Resolve TMDB ID only for legacy movie/manual skip metadata.
     int? numericTmdbId = int.tryParse(tmdbId ?? '');
-    if (numericTmdbId == null && ((title != null && title.isNotEmpty) || (imdbId != null && imdbId.isNotEmpty))) {
+    if (numericTmdbId == null && !isTv &&
+        ((title != null && title.isNotEmpty) || verifiedImdb)) {
       try {
         numericTmdbId = await TmdbHelper.resolveTmdbId(
           imdbId: imdbId,

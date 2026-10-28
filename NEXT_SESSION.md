@@ -1,5 +1,10 @@
 # NEXT SESSION — PlayTorrio (2026-10-27, Singapore)
 
+## 2026-10-28 SGT — Wait for Build #142 iOS before diagnostics release (owner override)
+
+Owner **revoked automatic new builds on merged app changes while a previous iOS native build remains pending**. Active native workflow restored to explicit release-request/dispatch-only at commit `ab08328c7f3849ecc47e3060e5a1ea7ee0c1ab28` (no implicit build from PR merge). [Build #142](https://github.com/mghazalyh/ptv3/actions/runs/40683089038) Windows SUCCESS and Telegram Windows success, iOS job was **cancelled while queued with no IPA** in attempt1; assistant re-ran ONLY cancelled iOS job `122798490180`, attempt2 QUEUED. Finish #142 signed iOS/Telegram/permanent release before a new native build. New compact same-row player diagnostics Stats-for-Nerds toggle under [PR #9](https://github.com/mghazalyh/ptv3/pull/9), branch `feat/player-stats-diagnostics-overlay`, with real MPV metrics and no exposed URLs/tokens. The user asks one new diagnostics release AFTER previous iOS completion. New code not yet merged or shipped. See latest `handover.md` for recovery details.
+
+
 ## 2026-10-28 SGT — Standing rule: automatically package every active-branch feature/source merge
 
 Owner corrected the previously opt-in-only policy: **future app source changes merged to active/default `parity-floating-player-both` must automatically trigger paired signed iOS15 TrollStore and Windows native builds** without a second user request. `.github/workflows/windows-advanced-discover.yml` changed at SHA `125b390bbe50dd62d5beec97cbfcaa391ca4bbe8`: watches `lib/**`, `test/**`, app/native/asset paths and pubspec dependencies; ignores docs-only/archive-status pushes so no duplicate expensive jobs. Existing direct `.github/release-request.txt` / workflow_dispatch still work. Independent signed iOS archiving, real Telegram file upload, safety warnings and SHA publication remain required.

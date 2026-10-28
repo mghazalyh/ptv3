@@ -1,16 +1,31 @@
 name: PlayTorrio v1.1.15 — Paired Windows and iOS 15 Builds
 run-name: "PlayTorrio v1.1.15 · Build #${{ github.run_number }} · ${{ github.ref_name }}"
 
-# Full native packaging is OPT-IN. Ordinary source edits run the cheaper
-# Ubuntu quality gate (playtorrio-fast-checks.yml) instead.
-# To publish deliberately, edit .github/release-request.txt on the active
-# branch, or dispatch this workflow manually on that branch.
+# Native packages must accompany merged app feature/source changes on the
+# active/default branch automatically. Never require a second user request
+# just to compile a feature after it was merged.
+# Ignore docs-only and archive-status commits so they never create duplicate
+# expensive native builds. Explicit builds remain available through the
+# release-request sentinel or workflow_dispatch.
 on:
   push:
     branches:
       - parity-floating-player-both
     paths:
       - '.github/release-request.txt'
+      - 'lib/**'
+      - 'assets/**'
+      - 'bin/**'
+      - 'installer/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'android/**'
+      - 'ios/**'
+      - 'windows/**'
+      - 'linux/**'
+      - 'macos/**'
+      - 'web/**'
+      - 'test/**'
   workflow_dispatch:
 
 permissions:
@@ -584,7 +599,7 @@ jobs:
           Release details:
           - See handover.md at commit ${GITHUB_SHA} for the verified changes and tests.
           - Windows/iOS packages use the same source revision and build number.
-          - This release was explicitly requested, not triggered by every commit."
+          - Native builds are automatic for active-branch source changes; docs-only changes are excluded. Explicit release requests and manual dispatch also work."
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "PlayTorrio v${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" --notes "$NOTES" --latest

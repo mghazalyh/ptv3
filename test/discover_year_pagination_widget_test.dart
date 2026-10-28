@@ -66,7 +66,8 @@ void main() {
     await pumpDiscoverFrames(tester);
     final dynamic pageState = tester.state(find.byType(AdvancedDiscoverPage));
     expect(pageState.applied, isTrue,
-        reason: 'First result page must load before pagination assertions.');
+        reason: 'Load state: key=${pageState.hasKey}, loading=${pageState.loading}, '
+            'error=${pageState.error}, requested=$requestedPages');
     expect(requestedPages, [1]);
 
     final outerScroll = tester.state<ScrollableState>(
@@ -133,7 +134,8 @@ void main() {
     await pumpDiscoverFrames(tester);
     final dynamic pageState = tester.state(find.byType(AdvancedDiscoverPage));
     expect(pageState.applied, isTrue,
-        reason: 'TV Discover results must load before inspecting cards.');
+        reason: 'TV state: key=${pageState.hasKey}, loading=${pageState.loading}, '
+            'error=${pageState.error}, requested=$paths');
     final outerScroll = tester.state<ScrollableState>(
       find.byType(Scrollable).first,
     ).position;

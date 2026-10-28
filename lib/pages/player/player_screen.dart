@@ -2171,6 +2171,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                           isSubSyncActive: _selectedEmbeddedSubtitleIndex == null && (_showSubSyncBar || _subtitleDelayMs != 0),
                           isAudioActive: _selectedAudioTrackIndex > 0,
                           isDiagnosticsActive: _showDiagnostics,
+                          isAutoSyncBusy: _autoSyncBusy,
+                          onAutoSync: () => unawaited(_autoSyncSubtitles()),
                           onToggleDiagnostics: _toggleDiagnostics,
                           isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
                           hasNextEpisode: _nextEpisode != null,

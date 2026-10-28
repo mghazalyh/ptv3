@@ -97,7 +97,9 @@ def verify_ipa(ipa):
         if 2 not in info.get("UIDeviceFamily", []):
             raise RuntimeError("IPA does not support iPad")
         minimum = tuple(int(x) for x in info["MinimumOSVersion"].split("."))
-        if minimum > (15, 0):
+        # 15.0 and 15.0.0 are equivalent.
+        major, minor = minimum[0], minimum[1] if len(minimum) > 1 else 0
+        if (major, minor) > (15, 0):
             raise RuntimeError("IPA minimum OS newer than iOS 15")
 
 

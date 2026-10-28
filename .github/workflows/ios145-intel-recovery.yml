@@ -1,4 +1,4 @@
-name: PlayTorrio Build #145 — isolated iOS recovery (Mac Intel)
+name: 'PlayTorrio Build #145 — isolated iOS recovery (Mac Intel)'
 
 # Explicit, one-time recovery for completed Build #145, whose macOS ARM runners
 # were never assigned in attempts 1, 2, and 3. Do not rebuild Windows.
@@ -341,8 +341,11 @@ jobs:
       - name: Publish permanent, unique Build #145 GitHub Release
         run: |
           set -euo pipefail
-          NOTES="$(printf 'PlayTorrio v1.1.15 (Build #145)\n\nOriginal source: %s\nOriginal Windows build: %s\n\nWhat's new / Fixed:\n' "$ORIGINAL_SHA" "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${ORIGINAL_RUN}")"
-          NOTES="$NOTES
+          NOTES="PlayTorrio v1.1.15 (Build 145)
+          Original source: ${ORIGINAL_SHA}
+          Original Windows build: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${ORIGINAL_RUN}
+
+          What's new / Fixed:
           $(cat .github/release-notes.txt)
           Windows was preserved from original #145. The iOS 15 TrollStore IPA was ad hoc signed in the isolated Mac Intel recovery workflow."
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then

@@ -9,6 +9,34 @@ import 'metadata_service.dart';
 
 enum DiscoverType { movie, series }
 
+/// TMDB genre IDs differ for a few movie and TV categories. Keep the menu
+/// type-specific and use the exact IDs for both Discover and title search.
+class DiscoverGenres {
+  static const movies = <String, String>{
+    '': 'Any genre',
+    '28': 'Action', '12': 'Adventure', '16': 'Animation',
+    '35': 'Comedy', '80': 'Crime', '99': 'Documentary',
+    '18': 'Drama', '10751': 'Family', '14': 'Fantasy',
+    '36': 'History', '27': 'Horror', '10402': 'Music',
+    '9648': 'Mystery', '10749': 'Romance', '878': 'Science Fiction',
+    '10770': 'TV Movie', '53': 'Thriller', '10752': 'War',
+    '37': 'Western',
+  };
+  static const series = <String, String>{
+    '': 'Any genre',
+    '10759': 'Action & Adventure', '16': 'Animation',
+    '35': 'Comedy', '80': 'Crime', '99': 'Documentary',
+    '18': 'Drama', '10751': 'Family', '10762': 'Kids',
+    '9648': 'Mystery', '10763': 'News', '10764': 'Reality',
+    '10765': 'Sci-Fi & Fantasy', '10766': 'Soap',
+    '10767': 'Talk', '10768': 'War & Politics',
+    '37': 'Western',
+  };
+
+  static Map<String, String> options(DiscoverType type) =>
+      type == DiscoverType.series ? series : movies;
+}
+
 class DiscoverFilters {
   final DiscoverType type;
   final String titleQuery;
@@ -16,6 +44,7 @@ class DiscoverFilters {
   final int? toYear;
   final String? country;
   final String? originalLanguage;
+  final int? genreId;
   final String sort;
   final int page;
   const DiscoverFilters({
@@ -25,6 +54,7 @@ class DiscoverFilters {
     this.toYear,
     this.country,
     this.originalLanguage,
+    this.genreId,
     this.sort = 'popularity.desc',
     this.page = 1,
   });
@@ -40,6 +70,7 @@ class DiscoverFilters {
     toYear: toYear,
     country: country,
     originalLanguage: originalLanguage,
+    genreId: genreId,
     sort: sort,
     page: requestedPage,
   );
@@ -53,6 +84,10 @@ class DiscoverFilters {
     }
     if (first != null && last != null && first > last) {
       throw const FormatException('Start year must not exceed end year.');
+    }
+    if (genreId != null &&
+        !DiscoverGenres.options(type).containsKey('$genreId')) {
+      throw const FormatException('Choose a genre valid for this media type.');
     }
     if (page < 1 || page > 500) {
       throw const FormatException('Invalid page number.');
@@ -81,6 +116,7 @@ class DiscoverFilters {
       'language': 'en-US',
       'include_adult': 'false',
       'sort_by': sort,
+      if (genreId != null) 'with_genres': '$genreId',
       if (sort == 'vote_average.desc') 'vote_count.gte': '100',
     };
     if (first != null && last != null) {
@@ -380,6 +416,12 @@ class TmdbDiscoverService {
         item['original_language']?.toString() != filters.originalLanguage) {
       return false;
     }
+    if (filters.genreId != null) {
+      final genres = item['genre_ids'];
+      if (genres is! List ||
+          !genres.any((value) => value is num &&
+              value.toInt() == filters.genreId)) return false;
+    }
     if (filters.sort == 'vote_average.desc' &&
         ((item['vote_count'] as num?)?.toInt() ?? 0) < 100) {
       return false;
@@ -462,6 +504,7 @@ class TmdbDiscoverService {
           type: filters.type, titleQuery: filters.titleQuery,
           fromYear: filters.fromYear, toYear: filters.toYear,
           originalLanguage: filters.originalLanguage,
+          genreId: filters.genreId,
           sort: filters.sort, page: filters.page,
         );
         if (!matchesTitleFilters(item, preCountry)) continue;

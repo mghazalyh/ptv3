@@ -1,0 +1,3 @@
+• New: Auto Sync button beside Playback Diagnostics to try better-matched English subtitle releases.
+• Fixed: Invalid early Skip Credits markers no longer auto-skip into the next episode; automatic intro skipping stays enabled.
+• Note: Auto Sync selects subtitle files; speech-based timing alignment is not implemented yet.

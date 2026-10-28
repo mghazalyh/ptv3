@@ -1,15 +1,8 @@
-PlayTorrio one-time explicit native release request — compact player Stats for Nerds diagnostics overlay
+PlayTorrio explicit paired native release request — prevent early Skip Credits and unintended next-episode autoplay
 Date: 2026-10-28 SGT
-App version: 1.1.15+25; use the next unique GitHub Actions build number; preserve all previous releases.
-Active/default branch: parity-floating-player-both
-Feature: PR #9 feat/player-stats-diagnostics-overlay, merged into active branch.
-Feature merge commit: 4798085314b1ddb5b36878d49dea6616f6801399
-Final green Flutter/Linux PR CI: https://github.com/mghazalyh/ptv3/actions/runs/40686999190
-Sequential prerequisite completed: previous paired native Build #142 https://github.com/mghazalyh/ptv3/actions/runs/40683089038 succeeded on attempt 3, iOS signing/IPA verification/upload succeeded.
-Previous iOS signed IPA actual Telegram sendDocument confirmed: message ID 51.
-Previous durable GitHub Release: https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.15-b142, signed IPA 47,555,249 bytes and matched Windows assets, source SHA e8528a2410d70553194aa5f4378d0cb96572e1b0.
-Reason: owner's explicit one-time follow-up after #142 completes; not a standing auto-build-on-merge policy.
-Scope: exactly one new paired Windows x64 Setup/portable ZIP and signed iOS15 TrollStore IPA containing the merged compact audio/subtitles-row diagnostics toggle and translucent stats panel. Deliver actual signed IPA and Windows installer as separate Telegram documents, verify strict sendDocument, publish permanent uniquely tagged GitHub Release with checksums, preserve earlier releases.
-Safety: no secret/source URLs or credentials in diagnostics; only read-only allowlisted mpv metrics; never alter watchlist/progress/cloud data.
-Tests: test/player_diagnostics_overlay_test.dart plus all existing native platform gates.
-Never automatically initiate another native run for ordinary source merges.
+Active branch: parity-floating-player-both
+Previous paired diagnostics build: https://github.com/mghazalyh/ptv3/actions/runs/40697228602 — Windows, signed iOS IPA, Telegram delivery, and durable release jobs all successful.
+Fix commits: 33dd0730b2b373b9b29e34ca3bb614bcae5a7038 and a7e1faae44465e0d753f1728a587d98fa886a7df.
+Behavior: reject invalid early credits metadata; prevent automatic credits skipping from seeking to EOF and auto-advancing to the next episode. Preserve manual valid credits skipping and automatic intro skipping.
+Owner explicitly requested a new build for this playback bug. Trigger one paired Windows and signed iOS 15 TrollStore release; send actual packages via Telegram and publish a permanent uniquely versioned GitHub Release with checksums. Preserve all earlier releases.
+Do not enable automatic native builds for ordinary future source changes.

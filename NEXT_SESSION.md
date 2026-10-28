@@ -1,5 +1,10 @@
 # NEXT SESSION — PlayTorrio (2026-10-27, Singapore)
 
+## 2026-10-28 SGT — Merged safe auto intro/credits skipping for series
+
+[PR #8](https://github.com/mghazalyh/ptv3/pull/8) squash merged on active/default `parity-floating-player-both` at exact app SHA `ad9f8574bacc7cd44ce7b3a80b56e102f0d6a044`; [PR Linux checks #40682144930](https://github.com/mghazalyh/ptv3/actions/runs/40682144930) **SUCCESS**. For TV episode with exact IDs/S/E and reliable IntroDB boundaries, `PlayerSkipButton` now displays **Skipping Intro/Credits in 3s** with **Cancel**, auto-seeks only after timer (paused when playback paused), preserving manual recap/preview/movie skips. `AutomaticSkipPolicy` validates boundaries; `PlayerScreen` protects episode identity/stale async responses/cancel reset and uses clamped seek. `test/series_automatic_skip_test.dart` registered in Linux and *future opt-in* Windows/iOS CI. Source-only; published Build #141 does **NOT** include this feature. No new native IPA or Telegram/release produced; keep existing iOS archiving and Telegram sendDocument guarantees for future explicitly requested builds. See latest `handover.md` for source paths/tests and continuity.
+
+
 ## 2026-10-28 SGT — WIP automatic 3s series intro/credits skip
 
 Owner wants intro and credits automatically skipped on series only where IntroDB provides usable episode-specific timestamps, with visible **3s Countdown + Cancel** allowing viewer to watch instead; no guessed offsets or unwanted movie auto-skip. Development branch `feat/series-auto-skip-intro-credits-cancel`; new `automatic_skip_policy.dart`, `PlayerSkipButton` auto/pause/cancel, `PlayerScreen` episode-aware skip/late-response safety, exact TV IntroDB lookup, tests `test/series_automatic_skip_test.dart`, native and Linux CI gates. **Not yet CI-verified, merged or shipped**; existing signed Build #141 remains latest. See root `handover.md`; only request future paired native release deliberately via `.github/release-request.txt`.

@@ -225,7 +225,15 @@ jobs:
     timeout-minutes: 100
     # Reuse the exact same, source-pinned tests/build/signing steps on backup runners.
     steps: &ios_build_steps
-      - name: Checkout source
+      - name: Checkout source (recoverable network step)
+        id: ios_checkout
+        uses: actions/checkout@v4
+        # Checkout already retries internally. One extra retry in the SAME job
+        # can recover transient github.com DNS failure without a native rebuild.
+        continue-on-error: true
+
+      - name: Retry source checkout if GitHub DNS/network was unavailable
+        if: steps.ios_checkout.outcome == 'failure'
         uses: actions/checkout@v4
 
       - name: Verify iOS checkout matches the triggering commit

@@ -11,8 +11,13 @@ import 'package:playtorrio/services/metadata/tmdb_discover_service.dart';
 /// Finite pumps are required: image/cursor/loading animations can keep
 /// scheduling frames, so pumpAndSettle is unsuitable for this page.
 Future<void> pumpDiscoverFrames(WidgetTester tester) async {
-  for (var frame = 0; frame < 6; frame++) {
-    await tester.pump(const Duration(milliseconds: 150));
+  // SharedPreferences and TMDB's serialized request queue use real async
+  // futures; pumping fake frame time alone never advances those futures.
+  await tester.runAsync(() async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+  });
+  for (var frame = 0; frame < 4; frame++) {
+    await tester.pump(const Duration(milliseconds: 100));
   }
 }
 

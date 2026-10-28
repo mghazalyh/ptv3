@@ -191,11 +191,11 @@ def archive_one(repo, artifact, version):
                 historic_sum.write_text(checksums.read_text())
                 provenance = root / f"IOS-SOURCE-build{number}.txt"
                 provenance.write_text(
-                    f"Historical IPA build {number} (v{version})\\n"
-                    f"Original source SHA: {sha}\\n"
-                    f"Native build: https://github.com/{repo}/actions/runs/{run_id}\\n"
-                    f"Original release tag {tag} was blocked by GitHub HTTP 403.\\n"
-                    f"The containing release tag belongs to a DIFFERENT build.\\n"
+                    f"Historical IPA build {number} (v{version})\n"
+                    f"Original source SHA: {sha}\n"
+                    f"Native build: https://github.com/{repo}/actions/runs/{run_id}\n"
+                    f"Original release tag {tag} was blocked by GitHub HTTP 403.\n"
+                    f"The containing release tag belongs to a DIFFERENT build.\n"
                 )
                 gh("release", "upload", target_tag, str(ipa),
                    str(historic_sum), str(provenance), "--repo", repo)

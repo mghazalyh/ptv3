@@ -49,12 +49,19 @@ def send_request(method, fields, file_path=None, filename=None):
             print("Telegram " + method + " confirmed. Message ID: " + str(message_id))
             return result
         except urllib.error.HTTPError as error:
-            if error.code == 429 and attempt < 2:
-                delay = min(60, max(2, int(error.headers.get("Retry-After", "5"))))
-                print("Telegram rate limited; retrying after delay")
+            if error.code in (429, 500, 502, 503, 504) and attempt < 2:
+                retry_after = error.headers.get("Retry-After", "")
+                delay = min(60, max(2, int(retry_after) if retry_after.isdigit() else 3 * (attempt + 1)))
+                print("Telegram temporarily unavailable; retrying document upload")
                 time.sleep(delay)
                 continue
             raise RuntimeError("Telegram " + method + " HTTP " + str(error.code)) from None
+        except urllib.error.URLError:
+            if attempt < 2:
+                print("Telegram network error; retrying upload")
+                time.sleep(3 * (attempt + 1))
+                continue
+            raise RuntimeError("Telegram " + method + " network error") from None
     raise RuntimeError("Telegram request retries exhausted")
 
 

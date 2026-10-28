@@ -1,0 +1,7 @@
+One-time publication-only recovery for PlayTorrio v1.1.15 Build #145
+Source commit: a6245d5abe64c8e01bab02cf57c18266c7054269
+Windows packages: successful original run 40711113294, preserve untouched.
+Signed iOS 15 TrollStore IPA: successful iOS job in recovery run 40721637244 (Actions artifact uploaded and verified).
+Telegram iOS document delivery confirmed: message 63; Windows confirmed: message 57. Do not resend them.
+Original recovery publication failed only due shell quoting, no release was published.
+Trigger ONE ubuntu-only verified-artifact release publication, no Windows/macOS builds and no duplicate Telegram documents. Preserve every older release.

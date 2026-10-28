@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:playtorrio/pages/search/advanced_discover_page.dart';
 import 'package:playtorrio/services/metadata/series_run_service.dart';
+import 'package:playtorrio/widgets/movie/series_year_label.dart';
 import 'package:playtorrio/services/metadata/tmdb_discover_service.dart';
 
 /// Finite pumps are required: image/cursor/loading animations can keep
@@ -151,4 +152,26 @@ void main() {
     expect(find.textContaining('Started 2006'), findsNothing);
     expect(paths, ['/3/discover/tv', '/3/tv/123']);
   });
+  testWidgets('The Mentalist Search label resolves ended range without '
+      'a TMDB key', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    SeriesRunService.instance.cinemetaGetOverride = (uri) async {
+      expect(uri.path, '/meta/series/tt1196946.json');
+      return http.Response(jsonEncode({'meta': {
+        'id': 'tt1196946',
+        'name': 'The Mentalist',
+        'releaseInfo': '2008-2015',
+      }}), 200);
+    };
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(body: SeriesYearLabel(
+        imdbId: 'tt1196946', fallbackYear: '2008',
+      )),
+    ));
+    expect(find.text('2008'), findsOneWidget);
+    await pumpDiscoverFrames(tester);
+    expect(find.text('2008 - 2015'), findsOneWidget);
+  });
+
+
 }

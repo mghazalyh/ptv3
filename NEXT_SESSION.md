@@ -1,5 +1,10 @@
 # NEXT SESSION — PlayTorrio (2026-10-27, Singapore)
 
+## 2026-10-28 SGT — WIP ended-series year consistency and optional genre filter
+
+Owner found *The Mentalist* shows only 2008 in Search/Discover on physical Build #140 despite actual ended 2008-2015. Cause: `SeriesRunService` silently discarded distinct card 25+ in a minute; Search could also lack locally configured TMDB key for exact IMDb series. WIP branch `fix/series-ended-years-and-genre-filter` queues overflow requests rather than dropping, adds exact IMDb/Cinemeta bounded `releaseInfo` fallback, more verified last episode date parsing and test coverage. Advanced Discover gains optional persisted type-specific movie/TV genre selector; server `with_genres` for blank-title discover and row `genre_ids` for text search, preserving pagination/filter semantics. Linux gates/merge **pending**; no new native IPA built or delivered. Continue with `handover.md` top entry. Preserve every signed IPA GitHub Release + Telegram file delivery safeguards.
+
+
 ## 2026-10-28 SGT — VERIFIED iOS Build #140 and complete accessible IPA retention
 
 **Final:** Signed iOS15 TrollStore **Build #140** source `9cf7cf4e98b9b67be8708c2c3d1f2bbab0519af0`, actual Telegram **sendDocument #41** and published permanent [GitHub IPA Build #140](https://github.com/mghazalyh/ptv3/releases/download/build-v1.1.15-b140/PlayTorrio-v1.1.15-build140-iOS15-TrollStore.ipa) **47,559,355 bytes**, release target SHA verified; [iOS archive run 40672265756](https://github.com/mghazalyh/ptv3/actions/runs/40672265756) SUCCESS. Build #140 Windows failed only stale scroll CI guard; patched for *future* native builds, no Windows #140 binary claimed. Latest successful paired native release remains #139.

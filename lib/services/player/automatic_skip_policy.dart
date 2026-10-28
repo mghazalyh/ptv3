@@ -15,7 +15,9 @@ class AutomaticSkipPolicy {
   }) {
     if (!isSeriesEpisode) return false;
     final kind = segment.type.trim().toLowerCase();
-    if (kind != 'intro' && kind != 'credits') return false;
+    // Credits must never auto-advance an episode based on untrusted timestamps.
+    // A manual skip remains available for valid end-of-episode credits.
+    if (kind != 'intro') return false;
     final start = segment.startMs;
     if (start == null || start < 0) return false;
     if (mediaDuration > Duration.zero &&

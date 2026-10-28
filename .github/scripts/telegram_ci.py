@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import sys
 import time
@@ -71,7 +72,22 @@ def send_text(message):
     return send_request("sendMessage", {"text": message[:4000]})
 
 
-def send_document(file_name, platform, extra="", require_document=False):
+def read_release_highlights(filename):
+    """Read concise, reviewed user-facing notes from this build's source commit."""
+    if not filename:
+        return ""
+    notes = Path(filename).read_text(encoding="utf-8").strip()
+    if not notes:
+        raise RuntimeError("Telegram release highlights are empty")
+    if len(notes) > 500:
+        raise RuntimeError("Telegram release highlights exceed 500 characters")
+    if re.search(r"https?://|github[.]com/|api[.]telegram[.]org|gh[pousr]_[A-Za-z0-9]+", notes, re.I):
+        raise RuntimeError("Telegram release highlights must not contain links or tokens")
+    return notes
+
+
+def send_document(file_name, platform, extra="", require_document=False,
+                  release_notes_file=""):
     file_path = Path(file_name)
     if not file_path.is_file() or file_path.stat().st_size <= 0:
         raise FileNotFoundError("Built package missing: " + str(file_path))
@@ -79,10 +95,14 @@ def send_document(file_name, platform, extra="", require_document=False):
     number = os.environ.get("BUILD_NUMBER", "?")
     sha = os.environ.get("BUILD_SHA", "")[:12]
     run = os.environ.get("BUILD_RUN_URL", "")
+    highlights = read_release_highlights(release_notes_file)
+    details = ("\n\nWhat's new / Fixed:\n" + highlights) if highlights else ""
     caption = (f"✅ PlayTorrio {platform}\n"
         f"v{version} · Build #{number}\nCommit: {sha}\n"
         f"Package built and uploaded independently.\n"
-        + run + ("\n" + extra if extra else ""))
+        + run + details + ("\n" + extra if extra else ""))
+    if len(caption) > 1024:
+        raise RuntimeError("Telegram document caption exceeds 1024 characters")
     if file_path.stat().st_size >= BOT_UPLOAD_LIMIT:
         if require_document:
             raise RuntimeError("Required iOS IPA Telegram attachment exceeds bot upload limit")
@@ -109,6 +129,8 @@ def self_test():
     assert BOT_UPLOAD_LIMIT > 47_000_000
     assert len("🏗️ PlayTorrio CI warning") < 4000
     assert Path("/missing/PlayTorrio.exe").is_file() is False
+    assert read_release_highlights("") == ""
+    assert len(read_release_highlights(".github/release-notes.txt")) <= 500
     print("Telegram CI self-test passed (offline, no token or request).")
 
 
@@ -122,12 +144,14 @@ def main():
     document.add_argument("--file", required=True)
     document.add_argument("--platform", required=True)
     document.add_argument("--caption-extra", default="")
+    document.add_argument("--release-notes-file", default="")
     document.add_argument("--require-document", action="store_true")
     message = sub.add_parser("send-text")
     message.add_argument("--text", required=True)
     args = parser.parse_args()
     if args.action == "send-document":
-        send_document(args.file, args.platform, args.caption_extra, args.require_document)
+        send_document(args.file, args.platform, args.caption_extra,
+                      args.require_document, args.release_notes_file)
     else:
         send_text(args.text)
 

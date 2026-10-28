@@ -1,11 +1,15 @@
-PlayTorrio native release request — user asked to build merged feature without repeated prompts
-App version: 1.1.15+25 (new Actions build number, preserve all earlier releases)
-Active/default branch: parity-floating-player-both
-Exact merged application feature: PR #8 https://github.com/mghazalyh/ptv3/pull/8
-Feature merge SHA: ad9f8574bacc7cd44ce7b3a80b56e102f0d6a044
-Final passing code CI: https://github.com/mghazalyh/ptv3/actions/runs/40682144930
-Branch head before request: 717300568ba35442ef145d64167a70faef8b429b
+PlayTorrio one-time explicit native release request — compact player Stats for Nerds diagnostics overlay
 Date: 2026-10-28 SGT
-Reason: User requires installable iOS version after feature merges, without an extra request. Series intro and credits auto-skip with 3s visible countdown and cancel, only for exact episode verified IntroDB segment timestamps, correct pause and seek safety.
-Scope: Once, paired native Windows x64 Setup/portable ZIP and signed iOS15 TrollStore IPA, independently deliver both real files via Telegram and publish actual signed IPA in durable GitHub Releases even if Windows fails. Do not overwrite Build #141 or prior releases.
-Safety: no credentials, watchlist, progress/cloud or private data changes. Native tests include test/series_automatic_skip_test.dart.
+App version: 1.1.15+25; use the next unique GitHub Actions build number; preserve all previous releases.
+Active/default branch: parity-floating-player-both
+Feature: PR #9 feat/player-stats-diagnostics-overlay, merged into active branch.
+Feature merge commit: 4798085314b1ddb5b36878d49dea6616f6801399
+Final green Flutter/Linux PR CI: https://github.com/mghazalyh/ptv3/actions/runs/40686999190
+Sequential prerequisite completed: previous paired native Build #142 https://github.com/mghazalyh/ptv3/actions/runs/40683089038 succeeded on attempt 3, iOS signing/IPA verification/upload succeeded.
+Previous iOS signed IPA actual Telegram sendDocument confirmed: message ID 51.
+Previous durable GitHub Release: https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.15-b142, signed IPA 47,555,249 bytes and matched Windows assets, source SHA e8528a2410d70553194aa5f4378d0cb96572e1b0.
+Reason: owner's explicit one-time follow-up after #142 completes; not a standing auto-build-on-merge policy.
+Scope: exactly one new paired Windows x64 Setup/portable ZIP and signed iOS15 TrollStore IPA containing the merged compact audio/subtitles-row diagnostics toggle and translucent stats panel. Deliver actual signed IPA and Windows installer as separate Telegram documents, verify strict sendDocument, publish permanent uniquely tagged GitHub Release with checksums, preserve earlier releases.
+Safety: no secret/source URLs or credentials in diagnostics; only read-only allowlisted mpv metrics; never alter watchlist/progress/cloud data.
+Tests: test/player_diagnostics_overlay_test.dart plus all existing native platform gates.
+Never automatically initiate another native run for ordinary source merges.

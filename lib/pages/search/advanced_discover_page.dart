@@ -44,7 +44,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
   final fromController = TextEditingController();
   final toController = TextEditingController();
   DiscoverType type = DiscoverType.movie;
-  String country = '', language = '', order = 'popularity.desc';
+  String country = '', language = '', genre = '', order = 'popularity.desc';
   List<DiscoverTitle> titles = [];
   int page = 0, totalPages = 0, totalResults = 0, serial = 0;
   int? openingId;
@@ -80,6 +80,8 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         final l = prefs.getString('adv_discover_language') ?? '';
         country = countries.containsKey(c) ? c : '';
         language = languages.containsKey(l) ? l : '';
+        final g = prefs.getString('adv_discover_genre') ?? '';
+        genre = DiscoverGenres.options(type).containsKey(g) ? g : '';
         titleController.text = prefs.getString('adv_discover_query') ?? '';
         fromController.text = prefs.getString('adv_discover_from') ?? '';
         toController.text = prefs.getString('adv_discover_to') ?? '';
@@ -118,6 +120,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
             toYear: _year(toController),
             country: country.isEmpty ? null : country,
             originalLanguage: language.isEmpty ? null : language,
+            genreId: genre.isEmpty ? null : int.parse(genre),
             sort: order,
             page: 1,
           );
@@ -150,6 +153,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
             type == DiscoverType.series ? 'series' : 'movie');
         await prefs.setString('adv_discover_country', country);
         await prefs.setString('adv_discover_language', language);
+        await prefs.setString('adv_discover_genre', genre);
         await prefs.setString('adv_discover_from', fromController.text.trim());
         await prefs.setString('adv_discover_to', toController.text.trim());
         await prefs.setString('adv_discover_sort', order);
@@ -352,7 +356,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         padding: const EdgeInsets.all(16),
         children: [
           const Text('Optionally enter a title, then combine it with your '
-              'year, country, language and sort filters. Leave the title '
+              'year, genre, country, language and sort filters. Leave the title '
               'blank to browse everything.'),
           const SizedBox(height: 14),
           SegmentedButton<DiscoverType>(
@@ -363,7 +367,13 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
                   label: Text('TV Series'), icon: Icon(Icons.tv)),
             ],
             selected: {type},
-            onSelectionChanged: (v) => setState(() => type = v.first),
+            onSelectionChanged: (v) => setState(() {
+              type = v.first;
+              // TMDB's genre IDs differ between movies and TV series.
+              if (!DiscoverGenres.options(type).containsKey(genre)) {
+                genre = '';
+              }
+            }),
           ),
           const SizedBox(height: 14),
           TextField(
@@ -403,6 +413,9 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
                 onPressed: () => _preset('', '')),
           ]),
           const SizedBox(height: 13),
+          _selector('Genre (optional)', genre, DiscoverGenres.options(type),
+              (v) => setState(() => genre = v ?? '')),
+          const SizedBox(height: 12),
           _selector('Country of origin', country, countries,
               (v) => setState(() => country = v ?? '')),
           const SizedBox(height: 12),

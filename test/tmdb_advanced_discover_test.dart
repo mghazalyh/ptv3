@@ -70,6 +70,41 @@ void main() {
         page: 501).toQuery(), throwsFormatException);
     });
 
+    test('movie and TV genre IDs are optional and type-specific', () {
+      expect(DiscoverGenres.movies['28'], 'Action');
+      expect(DiscoverGenres.series['10759'], 'Action & Adventure');
+      expect(const DiscoverFilters(
+        type: DiscoverType.movie, genreId: 28,
+      ).toQuery()['with_genres'], '28');
+      expect(const DiscoverFilters(
+        type: DiscoverType.series, genreId: 10759,
+      ).toQuery()['with_genres'], '10759');
+      expect(const DiscoverFilters().toQuery().containsKey('with_genres'),
+          isFalse);
+      expect(() => const DiscoverFilters(
+        type: DiscoverType.series, genreId: 28,
+      ).toQuery(), throwsFormatException);
+    });
+
+    test('text search enforces genre from genre_ids, even without discover API', () {
+      const filters = DiscoverFilters(
+        type: DiscoverType.series,
+        titleQuery: 'the mentalist',
+        genreId: 80,
+      );
+      final query = filters.toQuery();
+      expect(query['query'], 'the mentalist');
+      expect(query.containsKey('with_genres'), isFalse,
+          reason: 'TMDB /search/tv cannot accept Discover-only genre params');
+      expect(TmdbDiscoverService.matchesTitleFilters({
+        'name': 'The Mentalist', 'genre_ids': [80, 18, 9648],
+      }, filters), isTrue);
+      expect(TmdbDiscoverService.matchesTitleFilters({
+        'name': 'Comedy show', 'genre_ids': [35],
+      }, filters), isFalse);
+      expect(filters.withPage(2).genreId, 80);
+    });
+
     test('top-rated filters out very few vote shows', () {
       final q = const DiscoverFilters(
         sort: 'vote_average.desc').toQuery();

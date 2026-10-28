@@ -1,3 +1,11 @@
+## Telegram package release highlights — mandatory for future explicit builds
+
+- Every Telegram Windows setup and signed iOS IPA sendDocument caption must include a short, human-readable **What's new / Fixed** section so recipients know what the build changes.
+- Before the next *explicitly authorized* native release, update `.github/release-notes.txt` to accurately describe that specific build's user-facing features, bug fixes, and important limitations. Use concise bullets, maximum 500 characters, no source URLs, credentials, internal paths, or sensitive metadata.
+- `.github/scripts/telegram_ci.py` reads those reviewed notes through `--release-notes-file`. Both Telegram jobs in `.github/workflows/windows-advanced-discover.yml` use that same versioned file from the build's pinned checkout.
+- Do **not** send stale highlights from a prior release. Update release-notes.txt **before** changing `.github/release-request.txt`; only the latter is the opt-in native-build trigger. Neither documentation nor Telegram-note-only commits authorize an additional native build.
+- This workflow change was committed **after** Build #145 was requested, so #145 uses its original workflow at the triggering commit; the new caption format applies to later native runs.
+
 ## Verified diagnostics delivery checkpoint (2026-10-28 SGT)
 
 - **Sequential native release rule satisfied:** paired Build #142, run 40683089038, source e8528a2410d70553194aa5f4378d0cb96572e1b0, completed successfully after iOS retry. iOS signing, IPA archive verification, and artifact upload passed. Actual iOS Telegram sendDocument message **51**. Durable release **build-v1.1.15-b142** includes signed IPA, Windows installer, portable ZIP and SHA256SUMS.

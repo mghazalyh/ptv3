@@ -1,8 +1,8 @@
 # NEXT SESSION — PlayTorrio (2026-10-27, Singapore)
 
-## 2026-10-28 SGT — Discover/Search regression fix in validation
+## 2026-10-28 SGT — Discover/Search regression fix merged and Linux verified
 
-An isolated development branch `fix/discover-series-years-stable-pagination` corrects TV card years using actual TMDB TV details for ended/cancelled series and removes Advanced Discover Load More's forced scroll animation and layout-moving pagination indicator. Search title sliders and the main Discover grid opt into the same series-run labels. Adds pure and widget regressions plus lightweight/native CI coverage. **Pending PR validation; not shipped; no native release requested.** See the newest root `handover.md` entry for file paths and validation. Latest verified published binaries remain v1.1.15 Build #139.
+An isolated development branch `fix/discover-series-years-stable-pagination` corrects TV card years using actual TMDB TV details for ended/cancelled series and removes Advanced Discover Load More's forced scroll animation and layout-moving pagination indicator. Search title sliders and the main Discover grid opt into the same series-run labels. Adds pure and widget regressions plus lightweight/native CI coverage. **[PR #4](https://github.com/mghazalyh/ptv3/pull/4) MERGED**, source `e2abfbc3c6a9c4872073fa370d0a889086bc0be1`; [Linux run #40654298739](https://github.com/mghazalyh/ptv3/actions/runs/40654298739) **SUCCESS** (Flutter analysis, series-year/pagination widget tests, existing suites, CI self-checks). Not in an installed native release; no native build or Telegram delivery requested or triggered. Physical iPad/Windows acceptance pending.** See the newest root `handover.md` entry for file paths and validation. Latest verified published binaries remain v1.1.15 Build #139.
 
 
 This is the live operational checkpoint; always refresh GitHub state first. Read the full root handover.md for the comprehensive history, AGENTS.md for required document updates, and do not mistake a green Windows artifact for a paired release.

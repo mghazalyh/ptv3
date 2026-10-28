@@ -1,0 +1,112 @@
+name: 'PlayTorrio Build #145 — publish already-signed iOS and Windows (no native rebuild)'
+# One-time release-only recovery. The original Windows #145 artifact was
+# successfully built and Telegram delivered in run 40711113294. The iOS #145
+# IPA was built, verified, and Telegram delivered in recovery run 40721637244.
+# Do not rebuild either platform or resend already-delivered Telegram files.
+on:
+  push:
+    branches: [parity-floating-player-both]
+    paths:
+      - '.github/ios145-publish-request.txt'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: playtorrio-publish-build145-once
+  cancel-in-progress: false
+
+jobs:
+  publish-verified-existing-packages:
+    name: Verify and permanently publish already-built Build 145 packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      WINDOWS_RUN: "40711113294"
+      IOS_RUN: "40721637244"
+      SOURCE_SHA: "a6245d5abe64c8e01bab02cf57c18266c7054269"
+      TAG: "build-v1.1.15-b145"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify original source and successful native jobs without recompiling
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${WINDOWS_RUN}" --jq .head_sha)" = "$SOURCE_SHA"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${WINDOWS_RUN}/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.name | startswith("Windows x64")) | .conclusion] | index("success") != null' | grep -Fx true
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${IOS_RUN}/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.name | startswith("iOS 15")) | .conclusion] | index("success") != null' | grep -Fx true
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${IOS_RUN}/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.name | startswith("Send actual recovered signed iOS")) | .conclusion] | index("success") != null' | grep -Fx true
+      - name: Download original successful Windows #145 binaries
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: 40711113294
+          github-token: ${{ github.token }}
+          name: PlayTorrio-Windows-v1.1.15-build-145
+          path: packages/windows
+      - name: Download recovered signed iOS #145 IPA
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: 40721637244
+          github-token: ${{ github.token }}
+          name: PlayTorrio-iOS15-TrollStore-v1.1.15-build-145
+          path: packages/ios15
+      - name: Verify signed IPA archive and both original Windows files
+        run: |
+          set -euo pipefail
+          test -s packages/windows/PlayTorrio-Windows-Setup.exe
+          test -s packages/windows/PlayTorrio-Windows-x64-Portable.zip
+          test -s packages/ios15/PlayTorrio-iOS15-TrollStore.ipa
+          python3 - <<'PY'
+          import plistlib, zipfile
+          from pathlib import Path
+          p = Path("packages/ios15/PlayTorrio-iOS15-TrollStore.ipa")
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              items = z.namelist()
+              assert "Payload/Runner.app/_CodeSignature/CodeResources" in items
+              meta = plistlib.loads(z.read("Payload/Runner.app/Info.plist"))
+              assert tuple(map(int, meta["MinimumOSVersion"].split("."))) <= (15, 0)
+              assert 2 in meta["UIDeviceFamily"]
+          print("Verified original signed iOS 15 TrollStore IPA", p.stat().st_size)
+          PY
+          mkdir -p release
+          cp packages/windows/PlayTorrio-Windows-Setup.exe release/PlayTorrio-v1.1.15-build145-Windows-Setup.exe
+          cp packages/windows/PlayTorrio-Windows-x64-Portable.zip release/PlayTorrio-v1.1.15-build145-Windows-x64-Portable.zip
+          cp packages/ios15/PlayTorrio-iOS15-TrollStore.ipa release/PlayTorrio-v1.1.15-build145-iOS15-TrollStore.ipa
+          (cd release && sha256sum PlayTorrio-* > SHA256SUMS.txt)
+      - name: Publish one permanent versioned release from existing files
+        run: |
+          set -euo pipefail
+          {
+            echo "PlayTorrio v1.1.15 — Build 145"
+            echo "Source commit: $SOURCE_SHA"
+            echo "Windows: original paired Build #145 (no rebuild)"
+            echo "iOS: signed and verified in isolated macOS Intel recovery (no rebuild)"
+            echo
+            echo "What's new / Fixed:"
+            cat .github/release-notes.txt
+          } > release-notes.md
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release exists; checking the four assets without overwriting any prior files."
+          else
+            gh release create "$TAG" release/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$SOURCE_SHA" \
+              --title "PlayTorrio v1.1.15 (Build 145)" \
+              --notes-file release-notes.md \
+              --latest
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '[.assets[].name] | sort | join("\\n")' > /tmp/published-assets.txt
+          for asset in PlayTorrio-v1.1.15-build145-Windows-Setup.exe \
+                       PlayTorrio-v1.1.15-build145-Windows-x64-Portable.zip \
+                       PlayTorrio-v1.1.15-build145-iOS15-TrollStore.ipa SHA256SUMS.txt; do
+            grep -Fx "$asset" /tmp/published-assets.txt
+          done
+          echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}" >> "$GITHUB_STEP_SUMMARY"

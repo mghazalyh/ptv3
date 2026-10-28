@@ -1,5 +1,10 @@
 # Repository agent instructions — PlayTorrio
 
+## 2026-10-28 SGT — iOS TrollStore native package requested after PR #4
+
+User needs the newly corrected iOS build. The existing v1.1.15 Build #139 IPA is available but predates the merged Discover/Search fix. App source PR #4 merge `e2abfbc3c6a9c4872073fa370d0a889086bc0be1` passed Linux PR check `40654298739` and exact post-merge default-branch run `40654677938`. One explicit run-number-distinct **v1.1.15** native paired Windows/iOS15 build will be requested using `.github/release-request.txt`; **do not claim a new signed IPA, Telegram delivery or GitHub release until verified**. Preserve existing Build #139. See newest `handover.md` entry for current status and workflow outcomes.
+
+
 ## 2026-10-28 SGT — Discover/Search regression fix merged and Linux verified
 
 An isolated development branch `fix/discover-series-years-stable-pagination` corrects TV card years using actual TMDB TV details for ended/cancelled series and removes Advanced Discover Load More's forced scroll animation and layout-moving pagination indicator. Search title sliders and the main Discover grid opt into the same series-run labels. Adds pure and widget regressions plus lightweight/native CI coverage. **[PR #4](https://github.com/mghazalyh/ptv3/pull/4) MERGED**, source `e2abfbc3c6a9c4872073fa370d0a889086bc0be1`; [Linux PR run #40654298739](https://github.com/mghazalyh/ptv3/actions/runs/40654298739) **SUCCESS** and [post-merge default-branch run #40654677938](https://github.com/mghazalyh/ptv3/actions/runs/40654677938) **SUCCESS** (Flutter analysis, series-year/pagination widget tests, existing suites, CI self-checks). Not in an installed native release; no native build or Telegram delivery requested or triggered. Physical iPad/Windows acceptance pending.** See the newest root `handover.md` entry for file paths and validation. Latest verified published binaries remain v1.1.15 Build #139.

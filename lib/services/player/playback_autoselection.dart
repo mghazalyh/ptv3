@@ -30,7 +30,7 @@ abstract final class PlaybackAutoselection {
   /// External backup when no embedded English track is available.
   /// Prefer English forced tracks, then OpenSubtitles, then other providers.
   static List<SubtitleVariant> preferredExternal(
-      List<SubtitleLanguageGroup> groups) {
+      List<SubtitleLanguageGroup> groups, {String mediaTitle = ''}) {
     final english = groups
         .expand((group) => group.variants)
         .where((variant) => isEnglishSubtitle(
@@ -43,7 +43,94 @@ abstract final class PlaybackAutoselection {
       }
       return 2;
     }
-    english.sort((a, b) => rank(a).compareTo(rank(b)));
+    int releaseMatch(SubtitleVariant variant) {
+      final tokens = mediaTitle.toLowerCase().split(RegExp(r'[^a-z0-9]+'))
+          .where((token) => token.length >= 3 &&
+              !RegExp(r'^(1080p|720p|2160p|x264|x265|h264|h265)
+    return english;
+  }
+
+  /// The following numbered episode, including across season boundaries.
+  /// Never assume that arbitrary metadata order is chronological.
+  static Video? nextEpisode(List<Video> episodes, Video? current) {
+    if (current?.episode == null || current?.season == null) return null;
+    final upcoming = episodes.where((ep) {
+      if (ep.season == null || ep.episode == null) return false;
+      if (ep.season! > current!.season!) return true;
+      return ep.season == current.season &&
+          ep.episode! > current.episode!;
+    }).toList();
+    upcoming.sort((a, b) {
+      final season = a.season!.compareTo(b.season!);
+      return season != 0 ? season : a.episode!.compareTo(b.episode!);
+    });
+    return upcoming.firstOrNull;
+  }
+
+  /// An episode list can be missing when a show was opened from Continue
+  /// Watching or an addon returned only stream details. Keep the Next Episode
+  /// action available while a richer catalog lookup is pending/unavailable.
+  /// This is a candidate only; a source must actually be found before play.
+  static Video? nextEpisodeCandidate({
+    required List<Video> knownEpisodes,
+    required Video? current,
+    required String showId,
+    bool catalogComplete = false,
+  }) {
+    final listed = nextEpisode(knownEpisodes, current);
+    if (listed != null) return listed;
+    if (current?.season == null || current?.episode == null ||
+        showId.isEmpty || catalogComplete) {
+      return null;
+    }
+    final season = current!.season!;
+    final number = current.episode! + 1;
+    return Video(
+      id: '$showId:$season:$number',
+      title: 'Episode $number',
+      season: season,
+      episode: number,
+    );
+  }
+
+  static StreamSource? preferredSource(
+      List<StreamSource> candidates, StreamSource previous) {
+    if (candidates.isEmpty) return null;
+    final usable = candidates.where((source) =>
+        (source.url?.isNotEmpty ?? false) ||
+        (source.infoHash?.isNotEmpty ?? false)).toList();
+    if (usable.isEmpty) return null;
+    final addon = previous.addonName.toLowerCase().trim();
+    final previousLabel = previous.name?.toLowerCase().trim() ?? '';
+    usable.sort((a, b) {
+      int score(StreamSource source) {
+        var value = 0;
+        if (source.addonName.toLowerCase().trim() == addon) value += 100;
+        if (previousLabel.isNotEmpty &&
+            (source.name?.toLowerCase().trim() ?? '') == previousLabel) {
+          value += 15;
+        }
+        if (source.url?.startsWith('https://') == true ||
+            source.url?.startsWith('http://') == true) {
+          value += 5;
+        }
+        value -= AudioLanguagePriority.torrentioAudioRank(source) * 2;
+        return value;
+      }
+      return score(b).compareTo(score(a));
+    });
+    return usable.first;
+  }
+}
+).hasMatch(token))
+          .toSet();
+      final title = variant.title.toLowerCase();
+      return tokens.where((token) => title.contains(token)).length;
+    }
+    english.sort((a, b) {
+      final match = releaseMatch(b).compareTo(releaseMatch(a));
+      return match != 0 ? match : rank(a).compareTo(rank(b));
+    });
     return english;
   }
 

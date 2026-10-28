@@ -24,6 +24,7 @@ class PlayerTransport extends StatelessWidget {
   final bool isSubSyncActive;
   final bool isAudioActive;
   final bool isDiagnosticsActive;
+  final bool isAutoSyncBusy;
   final bool isEpisodesActive;
   final bool isFullscreen;
   final bool hasPrevEpisode;
@@ -42,6 +43,7 @@ class PlayerTransport extends StatelessWidget {
   final VoidCallback onToggleSpeedMenu;
   final VoidCallback onToggleAudioMenu;
   final VoidCallback? onToggleDiagnostics;
+  final VoidCallback? onAutoSync;
   final VoidCallback onToggleSubtitleMenu;
   final VoidCallback onToggleSubSync;
   final VoidCallback onToggleFullscreen;
@@ -65,6 +67,7 @@ class PlayerTransport extends StatelessWidget {
     required this.isSubSyncActive,
     required this.isAudioActive,
     this.isDiagnosticsActive = false,
+    this.isAutoSyncBusy = false,
     this.isEpisodesActive = false,
     required this.isFullscreen,
     this.hasPrevEpisode = false,
@@ -81,6 +84,7 @@ class PlayerTransport extends StatelessWidget {
     required this.onToggleSpeedMenu,
     required this.onToggleAudioMenu,
     this.onToggleDiagnostics,
+    this.onAutoSync,
     required this.onToggleSubtitleMenu,
     required this.onToggleSubSync,
     required this.onToggleFullscreen,
@@ -302,6 +306,20 @@ class PlayerTransport extends StatelessWidget {
                       active: isDiagnosticsActive,
                       activeColor: PlayerTheme.accent,
                       onPressed: onToggleDiagnostics!,
+                    ),
+                    SizedBox(width: gap),
+                  ],
+
+                  // Separate one-tap subtitle matching action, beside diagnostics.
+                  if (onAutoSync != null) ...[
+                    PlayerIconButton(
+                      size: isCompact ? 30 : 32,
+                      iconSize: isCompact ? 15 : 17,
+                      icon: Icon(isAutoSyncBusy ? Icons.hourglass_top_rounded : Icons.sync_rounded),
+                      tooltip: 'Auto Sync subtitles (find matching release)',
+                      active: isAutoSyncBusy,
+                      activeColor: PlayerTheme.accent,
+                      onPressed: onAutoSync!,
                     ),
                     SizedBox(width: gap),
                   ],

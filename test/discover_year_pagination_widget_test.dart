@@ -64,15 +64,17 @@ void main() {
 
     await tester.pumpWidget(const MaterialApp(home: AdvancedDiscoverPage()));
     await pumpDiscoverFrames(tester);
-    expect(find.text('Load More'), findsOneWidget);
+    final dynamic pageState = tester.state(find.byType(AdvancedDiscoverPage));
+    expect(pageState.applied, isTrue,
+        reason: 'First result page must load before pagination assertions.');
     expect(requestedPages, [1]);
 
-    await tester.scrollUntilVisible(find.text('Load More'), 400,
-        scrollable: find.byType(Scrollable).first);
-    await pumpDiscoverFrames(tester);
     final outerScroll = tester.state<ScrollableState>(
       find.byType(Scrollable).first,
     ).position;
+    outerScroll.jumpTo(outerScroll.maxScrollExtent);
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(find.text('Load More'), findsOneWidget);
     final before = outerScroll.pixels;
     expect(before, greaterThan(0));
 
@@ -129,8 +131,13 @@ void main() {
 
     await tester.pumpWidget(const MaterialApp(home: AdvancedDiscoverPage()));
     await pumpDiscoverFrames(tester);
-    await tester.scrollUntilVisible(find.text('Finished drama'), 250,
-        scrollable: find.byType(Scrollable).first);
+    final dynamic pageState = tester.state(find.byType(AdvancedDiscoverPage));
+    expect(pageState.applied, isTrue,
+        reason: 'TV Discover results must load before inspecting cards.');
+    final outerScroll = tester.state<ScrollableState>(
+      find.byType(Scrollable).first,
+    ).position;
+    outerScroll.jumpTo(outerScroll.maxScrollExtent);
     await pumpDiscoverFrames(tester);
     expect(find.text('Finished drama'), findsOneWidget);
     expect(find.text('2006 - 2011'), findsOneWidget);

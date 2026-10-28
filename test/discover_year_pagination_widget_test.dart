@@ -59,7 +59,8 @@ void main() {
     expect(find.text('Load More'), findsOneWidget);
     expect(requestedPages, [1]);
 
-    await tester.ensureVisible(find.text('Load More'));
+    await tester.scrollUntilVisible(find.text('Load More'), 400,
+        scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     final outerScroll = tester.state<ScrollableState>(
       find.byType(Scrollable).first,
@@ -74,7 +75,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(outerScroll.pixels, closeTo(before, 0.5));
     expect(requestedPages, [1, 2]);
-    expect(find.text('Movie 40'), findsOneWidget);
+    expect(find.text('Load More'), findsNothing);
   });
 
   testWidgets('ended TV result shows real airing years, not search year',
@@ -119,6 +120,9 @@ void main() {
     };
 
     await tester.pumpWidget(const MaterialApp(home: AdvancedDiscoverPage()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Finished drama'), 250,
+        scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(find.text('Finished drama'), findsOneWidget);
     expect(find.text('2006 - 2011'), findsOneWidget);

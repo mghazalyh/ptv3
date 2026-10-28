@@ -1,0 +1,5 @@
+run_id=40669706544
+# One-time archival recovery of previously signed v1.1.15 Build #140 IPA.
+# Native source SHA: 9cf7cf4e98b9b67be8708c2c3d1f2bbab0519af0
+# IPA and actual Telegram sendDocument #41 already confirmed; do NOT rebuild native binaries.
+# After verified publication, this file may be changed to run_id=all to backfill all other unexpired signed IPA artifacts.

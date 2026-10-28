@@ -1,0 +1,63 @@
+name: PlayTorrio — permanently archive every signed iOS IPA
+
+# The original paired native workflow may fail on Windows after iOS has already
+# built and been sent to Telegram. Always preserve the signed IPA as a Release.
+# Recover recent historical artifacts with the explicit request file or dispatch.
+on:
+  workflow_run:
+    workflows:
+      - PlayTorrio v1.1.15 — Paired Windows and iOS 15 Builds
+    types: [completed]
+    branches: [parity-floating-player-both]
+  push:
+    branches: [parity-floating-player-both]
+    paths:
+      - '.github/ios-release-archive-request.txt'
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Completed native run ID to archive, or all for historical backfill'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: playtorrio-ios-archive
+  cancel-in-progress: false
+
+jobs:
+  archive-signed-ios:
+    name: Retain signed iOS 15 IPA in a permanent GitHub Release
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == 'parity-floating-player-both'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TRIGGER_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify independent iOS release archiving policy
+        run: python3 .github/scripts/archive_ios_release.py --self-test
+      - name: Archive verified signed IPA(s) without rebuilding
+        run: |
+          set -euo pipefail
+          RUN_ID="$TRIGGER_RUN_ID"
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID="$(sed -n 's/^run_id=//p' .github/ios-release-archive-request.txt | tail -n 1)"
+          fi
+          if [ -z "$RUN_ID" ]; then
+            echo "No archival run ID supplied" >&2
+            exit 1
+          fi
+          python3 .github/scripts/archive_ios_release.py --run-id "$RUN_ID"
+      - name: Alert Telegram on any iOS archival failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
+        run: |
+          python3 .github/scripts/telegram_ci.py send-text \
+            --text "⚠️ PlayTorrio signed iOS IPA could not be archived as a permanent GitHub Release. Inspect https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Successful iOS native Telegram document delivery is independent."

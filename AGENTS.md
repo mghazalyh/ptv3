@@ -1,5 +1,10 @@
 # Repository agent instructions — PlayTorrio
 
+## 2026-10-28 SGT — Persist every signed iOS IPA and require Telegram document delivery
+
+Build #140 [native run 40669706544](https://github.com/mghazalyh/ptv3/actions/runs/40669706544): **iOS15 native build/signing/IPA verification SUCCESS**, Telegram **sendDocument message #41 SUCCESS**, Windows failed only an obsolete `oldMaxExtent + 160.0` test, so old paired publication skipped; signed IPA temporary artifact `12806979992` expires 2026-10-31 UTC. User requires all future successfully built iOS IPA binaries durably archived as GitHub Releases and actually sent as Telegram files (visible error rather than silent link fallback). Add workflow-run-triggered independent iOS archive, idempotent backfill for all unexpired native artifacts including #140, strict Telegram document verification/retry, and repair Windows CI guard. Details/verification in root `handover.md`; do not assert #140 permanent GitHub publication until an actual archiving workflow succeeds.
+
+
 ## 2026-10-28 SGT — iOS TrollStore native package requested after PR #4
 
 User needs the newly corrected iOS build. The existing v1.1.15 Build #139 IPA is available but predates the merged Discover/Search fix. App source PR #4 merge `e2abfbc3c6a9c4872073fa370d0a889086bc0be1` passed Linux PR check `40654298739` and exact post-merge default-branch run `40654677938`. A single explicit v1.1.15 **Build #140** has been triggered at SHA `9cf7cf4e98b9b67be8708c2c3d1f2bbab0519af0`: [native run 40669706544](https://github.com/mghazalyh/ptv3/actions/runs/40669706544). iOS and Windows jobs are running; no new signed IPA, Telegram delivery or GitHub release has been verified. Preserve existing Build #139. See newest `handover.md` entry for current status and workflow outcomes.

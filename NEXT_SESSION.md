@@ -1,8 +1,9 @@
 # NEXT SESSION — PlayTorrio (2026-10-27, Singapore)
 
-## 2026-10-28 SGT — Stats-for-Nerds diagnostics toggle, sequential iOS builds only
+## 2026-10-28 SGT — Wait for Build #142 iOS before diagnostics release (owner override)
 
-User wants tiny toggle button by audio/subtitle track icons, first tap shows read-only Netflix/YouTube-style playback stats, second tap hides. Implementing on `feat/player-stats-diagnostics-overlay`: native mpv stats allowlist, compact scrollable overlay, per-2s poll only while visible, no raw URLs/tokens, tests/CI. **User explicitly revoked automatic native building for this feature**. Active `.github/workflows/windows-advanced-discover.yml` restored at commit `ab08328c7f3849ecc47e3060e5a1ea7ee0c1ab28` to manual release sentinel/dispatch, so app merge will not auto-package. Need **finish prior iOS Build #142 first** before one new diagnostics native build. #142 [run 40683089038](https://github.com/mghazalyh/ptv3/actions/runs/40683089038) Windows SUCCESS, iOS job was cancelled while queued (no IPA); isolated iOS-only job rerun on same run accepted, attempt #2 queued. No signed IPA #142 claimed. See root `handover.md` for complete recovery, status and verification requirements.
+Owner **revoked automatic new builds on merged app changes while a previous iOS native build remains pending**. Active native workflow restored to explicit release-request/dispatch-only at commit `ab08328c7f3849ecc47e3060e5a1ea7ee0c1ab28` (no implicit build from PR merge). [Build #142](https://github.com/mghazalyh/ptv3/actions/runs/40683089038) Windows SUCCESS and Telegram Windows success, iOS job was **cancelled while queued with no IPA** in attempt1; assistant re-ran ONLY cancelled iOS job `122798490180`, attempt2 QUEUED. Finish #142 signed iOS/Telegram/permanent release before a new native build. New compact same-row player diagnostics Stats-for-Nerds toggle under [PR #9](https://github.com/mghazalyh/ptv3/pull/9), branch `feat/player-stats-diagnostics-overlay`, with real MPV metrics and no exposed URLs/tokens. The user asks one new diagnostics release AFTER previous iOS completion. New code not yet merged or shipped. See latest `handover.md` for recovery details.
+
 
 ## 2026-10-28 SGT — Standing rule: automatically package every active-branch feature/source merge
 

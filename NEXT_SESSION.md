@@ -1,3 +1,11 @@
+## Future native release runner recovery policy (2026-10-29 SGT; documentation-only mirror)
+
+- Active working/release branch: `parity-floating-player-both`. Ordinary source merges and documentation commits DO NOT trigger native Windows or iOS builds; only `.github/release-request.txt` or manual dispatch explicitly request a paired release.
+- Active branch paired workflow has primary `macos-15-intel`, bounded sequential backups `macos-26-intel` and `macos-15` (Apple Silicon), using exactly the same anchored iOS build/sign/test steps and source/build identity. Backup is allowed only for a preceding cancelled job with zero steps and no runner assigned, after Windows succeeded and no signed IPA/release already exists. It does not retry compilation, tests or signing failures automatically.
+- Checkout has one same-job retry for intermittent DNS failures. The sole downstream Telegram IPA sender and permanent paired GitHub Release publisher accept whichever iOS runner succeeded, without Windows duplication or overwriting published assets. The publisher uses reviewed `What's new / Fixed` notes and verifies file sizes.
+- Linux CI validates guard scenarios and fallback job dependencies/YAML before the next explicit native release. Future failover behavior is not yet verified by a real failure injection; no native test build was requested by this change.
+- Last proven user-installable version: signed `build-v1.1.15-b145`, iOS Telegram message 63, Windows message 57; permanent versioned GitHub Release with signed IPA, installer, portable ZIP and checksums. No ChatGPT scheduler.
+
 ## Verified diagnostics delivery checkpoint (2026-10-28 SGT)
 
 - **Sequential native release rule satisfied:** paired Build #142, run 40683089038, source e8528a2410d70553194aa5f4378d0cb96572e1b0, completed successfully after iOS retry. iOS signing, IPA archive verification, and artifact upload passed. Actual iOS Telegram sendDocument message **51**. Durable release **build-v1.1.15-b142** includes signed IPA, Windows installer, portable ZIP and SHA256SUMS.

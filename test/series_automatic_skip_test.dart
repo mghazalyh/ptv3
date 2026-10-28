@@ -63,9 +63,11 @@ void main() {
       ),
     ))));
     expect(find.text('Skipping Intro in 3s'), findsOneWidget);
+    // Flutter starts a new ticker at its first frame, not at pumpWidget.
+    await tester.pump();
     await tester.pump(const Duration(seconds: 2));
     expect(skips, 0);
-    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 1020));
     expect(skips, 1);
     expect(cancels, 0);
   });
@@ -82,6 +84,7 @@ void main() {
         onDismiss: () => cancels++,
       ),
     ))));
+    await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     await tester.tap(find.text('Cancel'));
     await tester.pump();
@@ -105,12 +108,14 @@ void main() {
       ),
     )));
     await tester.pumpWidget(view(true));
+    await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpWidget(view(false));
     await tester.pump(const Duration(seconds: 5));
     expect(skips, 0);
     await tester.pumpWidget(view(true));
-    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 2020));
     expect(skips, 1);
   });
 
@@ -125,7 +130,8 @@ void main() {
         onDismiss: () => cancels++,
       ),
     ))));
-    await tester.pump(const Duration(seconds: 5));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 5020));
     expect(skips, 0);
     expect(cancels, 1);
   });

@@ -77,6 +77,10 @@ class SeriesRunService {
     if ((await TmdbDiscoverService.instance.readKey()).trim().isEmpty) {
       return null;
     }
+    // Two cards may have reached the asynchronous key lookup together.
+    // Recheck before charging the request budget or starting a second lookup.
+    final pending = _inFlightOrCached[id];
+    if (pending != null) return pending;
 
     final now = DateTime.now();
     _cardRequests.removeWhere((time) =>

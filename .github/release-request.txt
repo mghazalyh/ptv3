@@ -1,9 +1,11 @@
-PlayTorrio explicit paired release request
-Version: 1.1.15+25 (same app display version, new unique Actions build number)
-Merged and tested application source: a9c1f8d37da05d1d1af6368888259537e3130c89
-Linux PR verification: https://github.com/mghazalyh/ptv3/actions/runs/40675161295 (SUCCESS)
-PR and scope: https://github.com/mghazalyh/ptv3/pull/7 (merged)
-Requested: 2026-10-28 SGT
-Reason: Physical iPad Build #140 showed ended The Mentalist as only 2008. New code queues ended-series year lookups instead of silently dropping >24/min, uses exact IMDb/Cinemeta completed release metadata when no TMDB key, and adds optional TMDB movie/series genres (Comedy, Action & Adventure, etc.) with applied title-query and browse filtering. Existing Load More scroll preservation retained.
-Native scope: Precisely one new matched Windows x64 setup/portable + signed iOS 15 TrollStore IPA from the same source, independent Telegram actual sendDocument file jobs and independent IPA-to-GitHub-Release archival even if Windows fails. Keep Build #140 and all historical signed iOS Releases unchanged.
-Safety: Do not write private Torriodb, credentials, watchlist or playback progress schemas. Active/default branch parity-floating-player-both.
+PlayTorrio native release request — user asked to build merged feature without repeated prompts
+App version: 1.1.15+25 (new Actions build number, preserve all earlier releases)
+Active/default branch: parity-floating-player-both
+Exact merged application feature: PR #8 https://github.com/mghazalyh/ptv3/pull/8
+Feature merge SHA: ad9f8574bacc7cd44ce7b3a80b56e102f0d6a044
+Final passing code CI: https://github.com/mghazalyh/ptv3/actions/runs/40682144930
+Branch head before request: 717300568ba35442ef145d64167a70faef8b429b
+Date: 2026-10-28 SGT
+Reason: User requires installable iOS version after feature merges, without an extra request. Series intro and credits auto-skip with 3s visible countdown and cancel, only for exact episode verified IntroDB segment timestamps, correct pause and seek safety.
+Scope: Once, paired native Windows x64 Setup/portable ZIP and signed iOS15 TrollStore IPA, independently deliver both real files via Telegram and publish actual signed IPA in durable GitHub Releases even if Windows fails. Do not overwrite Build #141 or prior releases.
+Safety: no credentials, watchlist, progress/cloud or private data changes. Native tests include test/series_automatic_skip_test.dart.

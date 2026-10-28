@@ -103,7 +103,7 @@ jobs:
               --latest
           fi
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
-            --jq '[.assets[].name] | sort | join("\\n")' > /tmp/published-assets.txt
+            --jq '[.assets[].name] | sort | join("\n")' > /tmp/published-assets.txt
           for asset in PlayTorrio-v1.1.15-build145-Windows-Setup.exe \
                        PlayTorrio-v1.1.15-build145-Windows-x64-Portable.zip \
                        PlayTorrio-v1.1.15-build145-iOS15-TrollStore.ipa SHA256SUMS.txt; do

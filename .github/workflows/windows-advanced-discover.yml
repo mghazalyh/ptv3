@@ -19,6 +19,7 @@ permissions:
 concurrency:
   group: playtorrio-release-${{ github.ref }}
   # A newer push must never kill an expensive release build in progress.
+  # Recovery stays inside this SAME workflow/run number; no duplicate paired job.
   cancel-in-progress: false
 
 jobs:
@@ -222,7 +223,8 @@ jobs:
     # Confirmed macos-15-intel allocated a runner for isolated #145 recovery.
     runs-on: macos-15-intel
     timeout-minutes: 100
-    steps:
+    # Reuse the exact same, source-pinned tests/build/signing steps on backup runners.
+    steps: &ios_build_steps
       - name: Checkout source
         uses: actions/checkout@v4
 
@@ -487,6 +489,66 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+  ios15-allocation-check:
+    name: Verify iOS 15 — build and sign TrollStore IPA had no assigned Mac runner
+    needs: [windows, ios15]
+    if: ${{ always() && !cancelled() && needs.windows.result == 'success' && needs.ios15.result == 'cancelled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      eligible: ${{ steps.guard.outputs.eligible }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check cancelled job, no runner, no steps and no signed IPA
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_JOB_NAME: "iOS 15 — build and sign TrollStore IPA"
+          APP_VERSION: "1.1.15"
+        run: python3 .github/scripts/ios_runner_fallback_guard.py
+
+  ios15-rescue-intel:
+    name: iOS 15 — backup Intel runner
+    needs: [windows, ios15, ios15-allocation-check]
+    if: ${{ always() && !cancelled() && needs.ios15-allocation-check.outputs.eligible == 'true' }}
+    # Different macOS image/runner label, still 14 GB Intel hardware.
+    runs-on: macos-26-intel
+    timeout-minutes: 100
+    steps: *ios_build_steps
+
+  ios15-rescue-allocation-check:
+    name: Verify iOS 15 — backup Intel runner had no assigned Mac runner
+    needs: [windows, ios15-rescue-intel]
+    if: ${{ always() && !cancelled() && needs.windows.result == 'success' && needs.ios15-rescue-intel.result == 'cancelled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      eligible: ${{ steps.guard.outputs.eligible }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check cancelled job, no runner, no steps and no signed IPA
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_JOB_NAME: "iOS 15 — backup Intel runner"
+          APP_VERSION: "1.1.15"
+        run: python3 .github/scripts/ios_runner_fallback_guard.py
+
+  ios15-rescue-arm:
+    name: iOS 15 — emergency Apple Silicon runner
+    needs: [windows, ios15-rescue-intel, ios15-rescue-allocation-check]
+    if: ${{ always() && !cancelled() && needs.ios15-rescue-allocation-check.outputs.eligible == 'true' }}
+    # Last resort: a separate M-series runner pool. Never triggered by test or signing failures.
+    runs-on: macos-15
+    timeout-minutes: 100
+    steps: *ios_build_steps
+
   telegram-windows:
     name: Send Windows setup EXE to Telegram (independent)
     needs: [windows]
@@ -520,8 +582,9 @@ jobs:
 
   telegram-ipa:
     name: Post signed iOS 15 TrollStore IPA to Telegram
-    needs: [ios15]
-    if: github.ref == 'refs/heads/parity-floating-player-both'
+    needs: [ios15, ios15-rescue-intel, ios15-rescue-arm]
+    # Exactly one sender, irrespective of which Mac runner produced the signed IPA.
+    if: ${{ always() && !cancelled() && github.ref == 'refs/heads/parity-floating-player-both' && (needs.ios15.result == 'success' || needs.ios15-rescue-intel.result == 'success' || needs.ios15-rescue-arm.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -552,8 +615,9 @@ jobs:
 
   publish-paired:
     name: Publish matched Windows and iOS 15 builds
-    needs: [windows, ios15]
-    if: github.ref == 'refs/heads/parity-floating-player-both'
+    needs: [windows, ios15, ios15-rescue-intel, ios15-rescue-arm]
+    # Publish original Windows and the sole successfully signed iOS artifact.
+    if: ${{ always() && !cancelled() && github.ref == 'refs/heads/parity-floating-player-both' && needs.windows.result == 'success' && (needs.ios15.result == 'success' || needs.ios15-rescue-intel.result == 'success' || needs.ios15-rescue-arm.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - name: Download Windows build from this workflow run

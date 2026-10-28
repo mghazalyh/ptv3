@@ -106,7 +106,9 @@ def fallback_release(repo):
         if not existing.get("prerelease"):
             raise RuntimeError("Historical iOS archive must remain prerelease-only")
         return existing
-    archive_sha = os.environ["GITHUB_SHA"]
+    archive_sha = os.environ.get("GITHUB_SHA", "").strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", archive_sha):
+        raise RuntimeError("Historical archive needs an exact default-branch commit SHA")
     notes = (
         "Permanent retention of older signed PlayTorrio iOS 15 TrollStore IPAs "
         "whose original build-specific GitHub Release tag was denied.\n\n"

@@ -43,6 +43,8 @@ void main() {
     expect(PlaybackDiagnosticsProbe.bitrate({}, 'video-bitrate'), 'Unavailable');
     expect(PlaybackDiagnosticsProbe.frameRate({}), 'Unavailable');
     expect(PlaybackDiagnosticsProbe.cacheAhead({}), 'Unavailable');
+    expect(PlaybackDiagnosticsProbe.audioSampleRate({'audio-params/samplerate': '48000'}), '48.0 kHz');
+    expect(PlaybackDiagnosticsProbe.audioSampleRate({'audio-params/samplerate': '-1'}), 'Unavailable');
     expect(PlaybackDiagnosticsProbe.bitrate(
         {'video-bitrate': '4000000'}, 'video-bitrate'), '4.00 Mbps');
     expect(PlaybackDiagnosticsProbe.time(const Duration(seconds: 63)), '01:03');

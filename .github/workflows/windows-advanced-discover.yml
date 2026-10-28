@@ -218,7 +218,9 @@ jobs:
   ios15:
     name: iOS 15 — build and sign TrollStore IPA
     if: github.ref == 'refs/heads/parity-floating-player-both'
-    runs-on: macos-latest
+    # Explicit Intel macOS pool avoids repeated ARM macos-latest runner starvation.
+    # Confirmed macos-15-intel allocated a runner for isolated #145 recovery.
+    runs-on: macos-15-intel
     timeout-minutes: 100
     steps:
       - name: Checkout source

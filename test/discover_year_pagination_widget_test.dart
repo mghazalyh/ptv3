@@ -8,6 +8,14 @@ import 'package:playtorrio/pages/search/advanced_discover_page.dart';
 import 'package:playtorrio/services/metadata/series_run_service.dart';
 import 'package:playtorrio/services/metadata/tmdb_discover_service.dart';
 
+/// Finite pumps are required: image/cursor/loading animations can keep
+/// scheduling frames, so pumpAndSettle is unsuitable for this page.
+Future<void> pumpDiscoverFrames(WidgetTester tester) async {
+  for (var frame = 0; frame < 6; frame++) {
+    await tester.pump(const Duration(milliseconds: 150));
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -55,13 +63,13 @@ void main() {
     };
 
     await tester.pumpWidget(const MaterialApp(home: AdvancedDiscoverPage()));
-    await tester.pumpAndSettle();
+    await pumpDiscoverFrames(tester);
     expect(find.text('Load More'), findsOneWidget);
     expect(requestedPages, [1]);
 
     await tester.scrollUntilVisible(find.text('Load More'), 400,
         scrollable: find.byType(Scrollable).first);
-    await tester.pumpAndSettle();
+    await pumpDiscoverFrames(tester);
     final outerScroll = tester.state<ScrollableState>(
       find.byType(Scrollable).first,
     ).position;
@@ -72,7 +80,7 @@ void main() {
     await tester.pump();
     expect(outerScroll.pixels, closeTo(before, 0.5));
 
-    await tester.pumpAndSettle();
+    await pumpDiscoverFrames(tester);
     expect(outerScroll.pixels, closeTo(before, 0.5));
     expect(requestedPages, [1, 2]);
     expect(find.text('Load More'), findsNothing);
@@ -120,10 +128,10 @@ void main() {
     };
 
     await tester.pumpWidget(const MaterialApp(home: AdvancedDiscoverPage()));
-    await tester.pumpAndSettle();
+    await pumpDiscoverFrames(tester);
     await tester.scrollUntilVisible(find.text('Finished drama'), 250,
         scrollable: find.byType(Scrollable).first);
-    await tester.pumpAndSettle();
+    await pumpDiscoverFrames(tester);
     expect(find.text('Finished drama'), findsOneWidget);
     expect(find.text('2006 - 2011'), findsOneWidget);
     expect(find.textContaining('Started 2006'), findsNothing);

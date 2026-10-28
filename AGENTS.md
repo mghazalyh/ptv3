@@ -1,3 +1,10 @@
+## Verified diagnostics delivery checkpoint (2026-10-28 SGT)
+
+- **Sequential native release rule satisfied:** paired Build #142, run 40683089038, source e8528a2410d70553194aa5f4378d0cb96572e1b0, completed successfully after iOS retry. iOS signing, IPA archive verification, and artifact upload passed. Actual iOS Telegram sendDocument message **51**. Durable release **build-v1.1.15-b142** includes signed IPA, Windows installer, portable ZIP and SHA256SUMS.
+- **Stats for Nerds diagnostics:** PR #9 merged at commit 4798085314b1ddb5b36878d49dea6616f6801399. The requested one-time follow-up paired Build **#143**, run **40697228602**, source **e54899a5b4671cee1957751d035b9a4396c65ce2**, completed all Windows, iOS signing/verification, Telegram and publish jobs successfully. Signed IPA Actions artifact ID **12821505545**, 47,382,670 bytes (artifact ZIP). Actual iOS Telegram sendDocument confirmed message **53**. Permanent release **build-v1.1.15-b143** contains signed IPA, Windows Setup EXE, portable ZIP and SHA256SUMS. This is the diagnostics release; no more diagnostics native jobs are needed. Device playback has not been independently verified.
+- **Later separate user request:** early Skip Credits / unwanted next episode fix commits 33dd0730b2b373b9b29e34ca3bb614bcae5a7038 and a7e1faae44465e0d753f1728a587d98fa886a7df. A **distinct** explicit one-time release request was committed at 461f5a5c6d859c7c6876f81d7f1c8155c1c7dbc3. Its CI acceptance and delivery must be verified separately; do not conflate this with successful #143 or launch duplicates. The user also requested a separate Auto Sync control beside diagnostics; that is a separate feature, not part of #143.
+- **Policy:** ordinary source commits and documentation-only [skip ci] changes must not trigger native builds. Preserve prior releases and never expose credentials.
+
 # Repository agent instructions — PlayTorrio
 
 ## 2026-10-28 SGT — #142 signed/released; exactly ONE diagnostics native Build #143 requested

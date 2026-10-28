@@ -151,6 +151,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   double _subtitleScale = 1.0;
   bool _subtitleManuallySelected = false;
   bool _subtitleAutoPending = false;
+  bool _autoSyncBusy = false;
   bool _nextEpisodeBusy = false;
   List<Video> _episodeCatalog = const [];
   bool _episodeCatalogComplete = false;
@@ -999,6 +1000,39 @@ class _PlayerScreenState extends State<PlayerScreen>
       _currentCues = [];
     });
     _player.setSubtitleTrack(SubtitleTrack.no());
+  }
+
+  // One-tap release-aware subtitle replacement. No speculative audio offset:
+  // matching metadata is not proof of spoken-word synchronization.
+  Future<void> _autoSyncSubtitles() async {
+    if (_autoSyncBusy || _isLoading) return;
+    final epoch = _audioMediaEpoch;
+    setState(() => _autoSyncBusy = true);
+    try {
+      final ranked = PlaybackAutoselection.preferredExternal(
+        _subtitleGroups, mediaTitle: _currentStream?.name ?? '',
+      );
+      final alternatives = ranked.where((v) =>
+        v.downloadUrl != _currentSubtitleVariant?.downloadUrl).take(6);
+      bool loaded = false;
+      for (final variant in alternatives) {
+        if (!mounted || epoch != _audioMediaEpoch) return;
+        loaded = await _loadSubtitle(variant, automatic: false,
+          expectedEpoch: epoch);
+        if (loaded) break;
+      }
+      if (mounted && epoch == _audioMediaEpoch) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(loaded
+              ? 'Loaded a better release-matched subtitle. Check its timing.'
+              : 'No alternative English subtitle found. Use manual sync for timing.'),
+        ));
+      }
+    } finally {
+      if (mounted && epoch == _audioMediaEpoch) {
+        setState(() => _autoSyncBusy = false);
+      }
+    }
   }
 
   Future<bool> _loadSubtitle(

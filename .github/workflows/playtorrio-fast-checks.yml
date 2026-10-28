@@ -68,6 +68,8 @@ jobs:
         run: |
           set -euo pipefail
           for suite in \
+            test/series_run_service_test.dart \
+            test/discover_year_pagination_widget_test.dart \
             test/github_progress_merge_test.dart \
             test/github_progress_v1_compat_test.dart \
             test/github_sync_gate_test.dart \
@@ -81,9 +83,7 @@ jobs:
             test/see_all_source_integrity_test.dart \
             test/audio_language_priority_test.dart \
             test/playback_autoselection_test.dart \
-            test/paused_http_recovery_test.dart \
-            test/series_run_service_test.dart \
-            test/discover_year_pagination_widget_test.dart
+            test/paused_http_recovery_test.dart
           do
             flutter test "$suite"
           done

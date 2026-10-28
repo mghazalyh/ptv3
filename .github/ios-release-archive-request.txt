@@ -1,6 +1,6 @@
 run_id=all
-# One-time backfill of every still-downloadable signed iOS IPA artifact,
-# including historical iOS builds missing a matched Windows release.
-# Idempotent: existing GitHub Releases remain unchanged and are never deleted.
-# Note: Expired Actions artifacts cannot be recovered.
-# Build #140 was already archived and verified in GitHub Actions 40672265756.
+# Retry historical archival after PR #6 (merged source 48c5f100c24accf110fdcd092d50e9240e3a1282).
+# Original Build #138 release tag is forbidden by GitHub HTTP 403; persist
+# exact signed IPA and true SHA in separate ios-historical-archive prerelease.
+# Build #140 IPA already permanently retained in matched release tag, do not rebuild.
+# Existing #137/#139/#140 published assets must remain untouched.

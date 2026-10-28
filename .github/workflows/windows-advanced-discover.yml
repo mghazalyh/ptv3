@@ -83,7 +83,9 @@ jobs:
           flutter test test/networks_navigation_ui_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/tmdb_advanced_discover_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/series_run_service_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/discover_year_pagination_widget_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/recommendation_media_type_test.dart
@@ -381,13 +383,15 @@ jobs:
           assert 'Navigator.pushReplacement(' not in details, 'Details page replaces its history'
           assert 'Navigator.push(' in details
           assert 'controller: _discoverScroll' in discover
-          assert 'oldMaxExtent + 160.0' in discover
+          assert '_discoverScroll.animateTo(' not in discover
+          assert 'if ((loading && !applied) || openingId != null)' in discover
           assert 'PageStorageKey' in discover
-          print('Nested details history and pagination behavior verified')
+          print('Nested details history and stable pagination verified')
           PY
 
       - name: Test TMDB Discover filters and year matching
-        run: flutter test test/tmdb_advanced_discover_test.dart
+        run: |
+          flutter test test/tmdb_advanced_discover_test.dart
           flutter test test/series_run_service_test.dart
           flutter test test/discover_year_pagination_widget_test.dart
 

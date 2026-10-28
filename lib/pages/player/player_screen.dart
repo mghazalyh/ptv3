@@ -28,6 +28,7 @@ import '../../services/player/player_settings.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/playback_autoselection.dart';
 import '../../services/player/paused_http_recovery.dart';
+import '../../services/player/automatic_skip_policy.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/stream/stream_service.dart';
 import '../../services/discord/discord_rpc_service.dart';
@@ -151,6 +152,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   MediaSkipSegment? _activeSkipSegment;
   bool _showSkipButton = false;
   final Set<String> _dismissedSegmentKeys = {};
+  int _skipMediaEpoch = 0;
 
   // Episodes & Sources Side Panels State
   late StreamSource _currentSource;
@@ -276,6 +278,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _initStream() async {
     ++_streamGeneration;
+    ++_skipMediaEpoch;
     _httpVodUrl = null;
     _httpVodHeaders = null;
     _httpPausedAt = null;
@@ -319,6 +322,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         _updateMediaTracks(_player.state.tracks);
         _scheduleAudioProbes(audioEpoch);
         _preferEnglishAudioTrack();
+        unawaited(_fetchSkipSegments());
         unawaited(_fetchInitialSubtitles());
         return;
       }
@@ -1424,6 +1428,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _showSkipButton = false;
       _activeSkipSegment = null;
       _skipSegments = [];
+      _dismissedSegmentKeys.clear();
       _subtitleGroups = [];
       _currentSubtitlePath = null;
       _currentCues = [];
@@ -1438,33 +1443,42 @@ class _PlayerScreenState extends State<PlayerScreen>
     await _initStream();
   }
 
-  void _fetchSkipSegments() async {
+  Future<void> _fetchSkipSegments() async {
+    final epoch = _skipMediaEpoch;
+    final episode = _currentEpisode;
+    final detail = widget.detail;
+    // Never apply show-level timings to an arbitrary episode.
+    if (episode != null && (episode.season == null || episode.episode == null)) {
+      return;
+    }
     try {
-      final detail = widget.detail;
-      final showName = widget.detail?.name ?? widget.title;
       final skipData = await SkipSegmentsService.instance.fetchSkipSegments(
         tmdbId: detail?.tmdbId,
         imdbId: (detail != null && detail.id.startsWith('tt')) ? detail.id : null,
-        title: showName,
+        title: detail?.name ?? widget.title,
         year: int.tryParse(detail?.year ?? ''),
-        type: detail?.type ?? (_currentEpisode != null ? 'tv' : 'movie'),
-        season: _currentEpisode?.season,
-        episode: _currentEpisode?.episode,
+        type: episode != null ? 'tv' : (detail?.type ?? 'movie'),
+        season: episode?.season,
+        episode: episode?.episode,
         durationMs: _player.state.duration.inMilliseconds,
       );
-
-      if (skipData != null && mounted) {
-        setState(() {
-          _skipSegments = skipData.segments;
-        });
+      if (!mounted || epoch != _skipMediaEpoch || skipData == null) return;
+      if (episode != null &&
+          ((skipData.season != null && skipData.season != episode.season) ||
+           (skipData.episode != null && skipData.episode != episode.episode))) {
+        debugPrint('[PlayerScreen] Ignoring mismatched episode skip data');
+        return;
       }
+      setState(() => _skipSegments = skipData.segments);
+      // Metadata can arrive after playback has already entered the intro.
+      _onPlaybackTick(_player.state.position);
     } catch (e) {
       debugPrint('[PlayerScreen] Error loading skip segments: $e');
     }
   }
 
   void _onPlaybackTick(Duration pos) {
-    if (_skipSegments.isEmpty) return;
+    if (!mounted || _skipSegments.isEmpty) return;
 
     final dur = _player.state.duration;
 
@@ -1496,20 +1510,36 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _handleSkipSegment(MediaSkipSegment seg) {
+    if (!mounted || _activeSkipSegment?.uniqueKey != seg.uniqueKey) return;
     _dismissedSegmentKeys.add(seg.uniqueKey);
-    final target = seg.endMs != null
-        ? Duration(milliseconds: seg.endMs!)
-        : _player.state.duration;
-
-    _player.seek(target + const Duration(milliseconds: 300));
-
+    final target = AutomaticSkipPolicy.destination(
+        seg, _player.state.duration);
+    if (target != null) {
+      // Keep seeks inside known media duration. A seek to the end of credits
+      // can trigger the existing next-episode completion path.
+      final duration = _player.state.duration;
+      final padded = target + const Duration(milliseconds: 300);
+      _player.seek(duration > Duration.zero && padded > duration
+          ? duration : padded);
+    }
     setState(() {
       _showSkipButton = false;
       _activeSkipSegment = null;
     });
   }
 
+  void _handleAutomaticSkipSegment(MediaSkipSegment seg) {
+    if (!_isPlaying ||
+        !seg.contains(_player.state.position, _player.state.duration) ||
+        !AutomaticSkipPolicy.eligible(
+            isSeriesEpisode: _currentEpisode != null,
+            segment: seg,
+            mediaDuration: _player.state.duration)) return;
+    _handleSkipSegment(seg);
+  }
+
   void _handleDismissSkipSegment(MediaSkipSegment seg) {
+    if (!mounted || _activeSkipSegment?.uniqueKey != seg.uniqueKey) return;
     _dismissedSegmentKeys.add(seg.uniqueKey);
     setState(() {
       _showSkipButton = false;
@@ -2328,8 +2358,28 @@ class _PlayerScreenState extends State<PlayerScreen>
                 duration: const Duration(milliseconds: 250),
                 child: PlayerSkipButton(
                   segment: _activeSkipSegment!,
-                  onSkip: () => _handleSkipSegment(_activeSkipSegment!),
-                  onDismiss: () => _handleDismissSkipSegment(_activeSkipSegment!),
+                  autoSkip: AutomaticSkipPolicy.eligible(
+                    isSeriesEpisode: _currentEpisode != null,
+                    segment: _activeSkipSegment!,
+                    mediaDuration: _player.state.duration,
+                  ),
+                  isPlaying: _isPlaying,
+                  onSkip: () {
+                    final segment = _activeSkipSegment;
+                    if (segment == null) return;
+                    if (AutomaticSkipPolicy.eligible(
+                        isSeriesEpisode: _currentEpisode != null,
+                        segment: segment,
+                        mediaDuration: _player.state.duration)) {
+                      _handleAutomaticSkipSegment(segment);
+                    } else {
+                      _handleSkipSegment(segment);
+                    }
+                  },
+                  onDismiss: () {
+                    final segment = _activeSkipSegment;
+                    if (segment != null) _handleDismissSkipSegment(segment);
+                  },
                 ),
               ),
             ),

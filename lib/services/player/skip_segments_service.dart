@@ -26,9 +26,16 @@ class SkipSegmentsService {
     final mediaType = (type == 'series' || type == 'tv' || season != null) ? 'tv' : 'movie';
     final isTv = mediaType == 'tv';
 
-    // 1. Resolve TMDB ID if missing
+    // Never guess a TV episode's timestamps from a similar show title.
+    if (isTv && (season == null || episode == null ||
+        season < 0 || episode <= 0)) return null;
+    final verifiedImdb = imdbId != null &&
+        RegExp(r'^tt\d+$').hasMatch(imdbId);
+
+    // Resolve TMDB ID from a title only for legacy movie/manual skips.
     int? numericTmdbId = int.tryParse(tmdbId ?? '');
-    if (numericTmdbId == null && ((title != null && title.isNotEmpty) || (imdbId != null && imdbId.isNotEmpty))) {
+    if (numericTmdbId == null && !isTv &&
+        ((title != null && title.isNotEmpty) || verifiedImdb)) {
       try {
         numericTmdbId = await TmdbHelper.resolveTmdbId(
           imdbId: imdbId,
@@ -41,7 +48,7 @@ class SkipSegmentsService {
       }
     }
 
-    final cacheKey = '${numericTmdbId ?? imdbId ?? title}:$mediaType:$season:$episode';
+    final cacheKey = '${numericTmdbId ?? imdbId ?? title}:$mediaType:$season:$episode:$durationMs';
     if (_cache.containsKey(cacheKey)) {
       return _cache[cacheKey];
     }
@@ -50,7 +57,7 @@ class SkipSegmentsService {
     final params = <String, String>{};
     if (numericTmdbId != null && numericTmdbId > 0) {
       params['tmdb_id'] = numericTmdbId.toString();
-    } else if (imdbId != null && imdbId.isNotEmpty) {
+    } else if (verifiedImdb) {
       params['imdb_id'] = imdbId;
     } else {
       debugPrint('[SkipSegmentsService] No TMDB ID or IMDb ID available to query IntroDB');

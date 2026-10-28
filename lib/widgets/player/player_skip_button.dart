@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../models/player/skip_segment_model.dart';
+import '../../services/player/automatic_skip_policy.dart';
 
 /// Ultra-sleek, responsive glassmorphism Skip Button with dynamic hover effects
 /// and a left-to-right sweep progress bar that auto-hides when complete.
@@ -9,6 +10,8 @@ class PlayerSkipButton extends StatefulWidget {
   final VoidCallback onSkip;
   final VoidCallback onDismiss;
   final Duration lifespan;
+  final bool autoSkip;
+  final bool isPlaying;
 
   const PlayerSkipButton({
     super.key,
@@ -16,6 +19,8 @@ class PlayerSkipButton extends StatefulWidget {
     required this.onSkip,
     required this.onDismiss,
     this.lifespan = const Duration(seconds: 5),
+    this.autoSkip = false,
+    this.isPlaying = true,
   });
 
   @override
@@ -33,24 +38,37 @@ class _PlayerSkipButtonState extends State<PlayerSkipButton>
     super.initState();
     _sweepController = AnimationController(
       vsync: this,
-      duration: widget.lifespan,
+      duration: widget.autoSkip ? AutomaticSkipPolicy.countdown : widget.lifespan,
     );
 
     _sweepController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        widget.onDismiss();
+        if (widget.autoSkip) {
+          if (widget.isPlaying) widget.onSkip();
+        } else {
+          widget.onDismiss();
+        }
       }
     });
 
-    _sweepController.forward();
+    if (widget.isPlaying) _sweepController.forward();
   }
 
   @override
   void didUpdateWidget(PlayerSkipButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.segment.uniqueKey != widget.segment.uniqueKey) {
+    if (oldWidget.segment.uniqueKey != widget.segment.uniqueKey ||
+        oldWidget.autoSkip != widget.autoSkip) {
+      _sweepController.duration =
+          widget.autoSkip ? AutomaticSkipPolicy.countdown : widget.lifespan;
       _sweepController.reset();
-      _sweepController.forward();
+      if (widget.isPlaying) _sweepController.forward();
+    } else if (oldWidget.isPlaying != widget.isPlaying) {
+      if (widget.isPlaying) {
+        _sweepController.forward();
+      } else {
+        _sweepController.stop();
+      }
     }
   }
 
@@ -74,12 +92,12 @@ class _PlayerSkipButtonState extends State<PlayerSkipButton>
       onEnter: (_) {
         setState(() => _isHovered = true);
         // Pause the auto-dismiss timer while user is hovering to let them click comfortably
-        _sweepController.stop();
+        if (!widget.autoSkip) _sweepController.stop();
       },
       onExit: (_) {
         setState(() => _isHovered = false);
         // Resume the countdown
-        if (mounted) {
+        if (mounted && widget.isPlaying && !widget.autoSkip) {
           _sweepController.forward();
         }
       },
@@ -196,21 +214,31 @@ class _PlayerSkipButtonState extends State<PlayerSkipButton>
                                     SizedBox(width: isCompact ? 7 : 10),
 
                                     // Action Label
-                                    Text(
-                                      widget.segment.label,
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: isCompact ? 12.5 : 14.0,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: -0.2,
-                                        shadows: [
-                                          Shadow(
-                                            color: Colors.black.withValues(alpha: 0.8),
-                                            offset: const Offset(0, 1),
-                                            blurRadius: 4,
+                                    AnimatedBuilder(
+                                      animation: _sweepController,
+                                      builder: (context, _) {
+                                        final remaining = (3 *
+                                            (1 - _sweepController.value)).ceil();
+                                        return Text(
+                                          widget.autoSkip
+                                              ? AutomaticSkipPolicy.countdownLabel(
+                                                  widget.segment, remaining)
+                                              : widget.segment.label,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: isCompact ? 12.5 : 14.0,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: -0.2,
+                                            shadows: [
+                                              Shadow(
+                                                color: Colors.black.withValues(alpha: 0.8),
+                                                offset: const Offset(0, 1),
+                                                blurRadius: 4,
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
+                                        );
+                                      },
                                     ),
                                   ],
                                 ),
@@ -236,7 +264,7 @@ class _PlayerSkipButtonState extends State<PlayerSkipButton>
                                 hoverColor: Colors.white.withValues(alpha: 0.15),
                                 splashColor: Colors.white.withValues(alpha: 0.25),
                                 child: Tooltip(
-                                  message: 'Dismiss (✕)',
+                                  message: widget.autoSkip ? 'Cancel automatic skip' : 'Dismiss (✕)',
                                   child: Container(
                                     padding: EdgeInsets.symmetric(
                                       horizontal: isCompact ? 9 : 12,
@@ -246,13 +274,20 @@ class _PlayerSkipButtonState extends State<PlayerSkipButton>
                                     child: AnimatedScale(
                                       scale: _isDismissHovered ? 1.15 : 1.0,
                                       duration: const Duration(milliseconds: 140),
-                                      child: Icon(
-                                        Icons.close_rounded,
-                                        size: isCompact ? 15 : 17,
-                                        color: _isDismissHovered
-                                            ? Colors.white
-                                            : Colors.white.withValues(alpha: 0.60),
-                                      ),
+                                      child: widget.autoSkip
+                                          ? Text('Cancel', style: TextStyle(
+                                              color: _isDismissHovered
+                                                  ? Colors.white
+                                                  : Colors.white70,
+                                              fontSize: isCompact ? 12 : 13,
+                                              fontWeight: FontWeight.w700))
+                                          : Icon(
+                                              Icons.close_rounded,
+                                              size: isCompact ? 15 : 17,
+                                              color: _isDismissHovered
+                                                  ? Colors.white
+                                                  : Colors.white.withValues(alpha: 0.60),
+                                            ),
                                     ),
                                   ),
                                 ),

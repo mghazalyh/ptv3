@@ -1,5 +1,12 @@
 # PlayTorrio — active engineering handover
 
+## 2026-10-28 SGT — Build #141 explicitly requested, native signing and Telegram delivery pending
+
+**One opt-in native request after PR #7:** Merged app source `a9c1f8d37da05d1d1af6368888259537e3130c89`, [PR Linux gate #40675161295](https://github.com/mghazalyh/ptv3/actions/runs/40675161295) **SUCCESS**, passed new Mentalist exact IMDb year, overflow 25th card, genre + existing scrolling tests. Request triggered by `.github/release-request.txt` on active/default at SHA **`db12131e781d68a8efd1da65013f23676b16814e`**. GitHub Actions accepted [v1.1.15 Build #141 native Windows+iOS workflow #40675769942](https://github.com/mghazalyh/ptv3/actions/runs/40675769942) and independent [watchdog run #40675769948](https://github.com/mghazalyh/ptv3/actions/runs/40675769948), both **queued at observation**. New signed IPA, Telegram `sendDocument`, persistent GitHub Release and physical iPad fix are NOT YET VERIFIED. Existing #140 IPA still available and all historic iOS Releases preserved.
+
+**Must verify at completion:** iOS15 native job actual Flutter analyze/tests, signing, ZIP+signature verification and nonempty IPA; independent Telegram iOS `sendDocument` actual message ID with file ID and matching size; independent iOS GitHub Release archival (workflow_run triggered on native workflow completion, even if Windows fails) with correct target SHA and checksum; Windows build and Telegram independently; matched GitHub release if both succeed. Record exact result and do not run duplicate native packages without diagnosing any failed stage. On physical device, verify The Mentalist `2008 - 2015`, other ended show ranges, Search and Discover, optional TV Action & Adventure and Comedy filters, genre combined with title/year and Load More scroll preservation.
+
+
 ## 2026-10-28 SGT — MERGED / PR CI SUCCESS: ended-TV year consistency and optional genre filtering
 
 **User's real-device regression:** After installing signed iOS v1.1.15 Build #140, ended shows such as The Mentalist still displayed only `2008` in some Search and Discover cards instead of `2008 - 2015`. Physical acceptance FAILED for this case, although prior isolated tests passed. Also requested optional Comedy/Action/Adventure-style genre filter and explicit crash-recovery handover.

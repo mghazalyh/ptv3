@@ -12,7 +12,7 @@ void main() {
     expect(ui, contains('onSubmitted: (_) => _browse(reset: true)'));
     expect(ui, contains('_appliedFilters!.withPage(page + 1)'));
     expect(ui, contains('Search Titles & Apply Filters'));
-    expect(ui, isNot(contains('Started $debut · Episodes')));
+    expect(ui, isNot(contains('Started \$debut · Episodes')));
     expect(ui, isNot(contains('_discoverScroll.animateTo(')));
     expect(ui, contains('if ((loading && !applied) || openingId != null)'));
     final discover = File('lib/pages/discover/discover_page.dart')

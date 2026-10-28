@@ -1,0 +1,6 @@
+One-time iOS-only recovery of completed paired Build #145
+Original paired run: 40711113294 (all three iOS macos-latest attempts canceled before any runner or build step)
+Original source commit: a6245d5abe64c8e01bab02cf57c18266c7054269
+Reuse successful original Windows installer and portable artifact; do not rebuild Windows.
+Build only the original source iOS 15 IPA on macos-15-intel, sign it for TrollStore, deliver actual IPA to Telegram with release highlights, publish permanent build-v1.1.15-b145 with original Windows assets and checksums.
+Run this recovery once. Do not rerun or launch overlapping native jobs without checking this workflow's status.

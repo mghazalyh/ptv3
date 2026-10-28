@@ -47,7 +47,7 @@ class PlayerDiagnosticsOverlay extends StatelessWidget {
       ('Hardware decode', PlaybackDiagnosticsProbe.readable(data['hwdec-current'])),
       ('Audio codec', PlaybackDiagnosticsProbe.readable(data['audio-codec'])),
       ('Audio bitrate', PlaybackDiagnosticsProbe.bitrate(data, 'audio-bitrate')),
-      ('Audio sample rate', PlaybackDiagnosticsProbe.readable(data['audio-params/samplerate'])),
+      ('Audio sample rate', PlaybackDiagnosticsProbe.audioSampleRate(data)),
       ('Demux cache ahead', PlaybackDiagnosticsProbe.cacheAhead(data)),
     ];
     return Semantics(

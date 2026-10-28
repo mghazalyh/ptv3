@@ -71,6 +71,12 @@ class PlaybackDiagnosticsProbe {
     return '${n.toStringAsFixed(1)} s';
   }
 
+  static String audioSampleRate(Map<String, String> data) {
+    final n = int.tryParse(data['audio-params/samplerate'] ?? '');
+    if (n == null || n < 8000 || n > 384000) return 'Unavailable';
+    return '${(n / 1000).toStringAsFixed(1)} kHz';
+  }
+
   static String readable(String? value) =>
       safeValue(value?.trim() ?? '') ?? 'Unavailable';
 

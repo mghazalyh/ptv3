@@ -261,7 +261,7 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Discover by year, country and language',
+                    tooltip: 'Discover by year, genre, country and language',
                     icon: const Icon(Icons.tune_rounded),
                     color: const Color(0xFF00E5FF),
                     onPressed: _openDiscover,
@@ -349,7 +349,7 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Filter movies and TV by year, country or language',
+                    'Filter movies and TV by year, genre, country or language',
                     style: TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                 ],

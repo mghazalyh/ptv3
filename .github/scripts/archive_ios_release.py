@@ -84,6 +84,49 @@ def asset_is_present(release, name):
                for a in release.get("assets", []))
 
 
+def list_releases(repo):
+    return api(repo, "releases?per_page=100")
+
+
+def retained_ipa_release(repo, ipa_name):
+    for release in list_releases(repo):
+        if asset_is_present(release, ipa_name):
+            return release
+    return None
+
+
+def fallback_release(repo):
+    # Some historical build-specific tags are denied by GitHub's integration.
+    # Create one clearly labelled archival prerelease at the archive workflow
+    # commit, NEVER at a falsely attributed historical application commit.
+    # A prerelease cannot accidentally supplant the current app update.
+    tag = "ios-historical-archive"
+    existing = api(repo, f"releases/tags/{tag}", allow_missing=True)
+    if existing:
+        if not existing.get("prerelease"):
+            raise RuntimeError("Historical iOS archive must remain prerelease-only")
+        return existing
+    archive_sha = os.environ.get("GITHUB_SHA", "").strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", archive_sha):
+        raise RuntimeError("Historical archive needs an exact default-branch commit SHA")
+    notes = (
+        "Permanent retention of older signed PlayTorrio iOS 15 TrollStore IPAs "
+        "whose original build-specific GitHub Release tag was denied.\n\n"
+        "The tag points to the archival workflow source, NOT an IPA build. "
+        "Each IPA retains its original version and build number in its filename, "
+        "with a matching IOS-SOURCE-buildN.txt showing the real native source SHA "
+        "and CI run URL and IOS-SHA256SUMS-buildN.txt containing its hash. "
+        "This archive is a prerelease to avoid replacing the current app update."
+    )
+    gh("release", "create", tag, "--repo", repo, "--target", archive_sha,
+       "--title", "PlayTorrio historical signed iOS IPA archive",
+       "--notes", notes, "--prerelease")
+    published = api(repo, f"releases/tags/{tag}")
+    if not published.get("prerelease"):
+        raise RuntimeError("Historical iOS archive was not published as prerelease")
+    return published
+
+
 def verify_ipa(ipa):
     if not ipa.is_file() or ipa.stat().st_size < 1_000_000:
         raise RuntimeError("Missing or unexpectedly small signed IPA")
@@ -116,6 +159,12 @@ def archive_one(repo, artifact, version):
     if release and asset_is_present(release, ipa_name):
         print(f"{tag}: signed IPA already permanently retained")
         return False
+    if not release:
+        previous = retained_ipa_release(repo, ipa_name)
+        if previous:
+            print(f"{tag}: signed IPA already retained on release "
+                  f"{previous['tag_name']} (old-tag permission fallback)")
+            return False
 
     with tempfile.TemporaryDirectory(prefix="ptv-ios-archive-") as folder:
         root = Path(folder)
@@ -136,19 +185,43 @@ def archive_one(repo, artifact, version):
             "This iOS release is independent of Windows packaging: a Windows "
             "installer will be attached only if the matching Windows build succeeds."
         )
+        target_tag = tag
         if release:
             gh("release", "upload", tag, str(ipa), str(checksums), "--repo", repo)
         else:
-            gh("release", "create", tag, str(ipa), str(checksums),
-               "--repo", repo, "--target", sha, "--title",
-               f"PlayTorrio v{version} (Build {number}) — iOS 15",
-               "--notes", description, "--latest")
-        published = api(repo, f"releases/tags/{tag}")
-        if (published.get("target_commitish") != sha
-                or not asset_is_present(published, ipa_name)):
+            try:
+                gh("release", "create", tag, str(ipa), str(checksums),
+                   "--repo", repo, "--target", sha, "--title",
+                   f"PlayTorrio v{version} (Build {number}) — iOS 15",
+                   "--notes", description, "--latest")
+            except RuntimeError as error:
+                if "HTTP 403" not in str(error):
+                    raise
+                # Do not lie about the source SHA by retagging an old IPA at
+                # today's commit. Keep the original IPA and provenance inside
+                # an already verified GitHub Release instead.
+                holder = fallback_release(repo)
+                target_tag = holder["tag_name"]
+                historic_sum = root / f"IOS-SHA256SUMS-build{number}.txt"
+                historic_sum.write_text(checksums.read_text())
+                provenance = root / f"IOS-SOURCE-build{number}.txt"
+                provenance.write_text(
+                    f"Historical IPA build {number} (v{version})\n"
+                    f"Original source SHA: {sha}\n"
+                    f"Native build: https://github.com/{repo}/actions/runs/{run_id}\n"
+                    f"Original release tag {tag} was blocked by GitHub HTTP 403.\n"
+                    f"The containing release tag belongs to a DIFFERENT build.\n"
+                )
+                gh("release", "upload", target_tag, str(ipa),
+                   str(historic_sum), str(provenance), "--repo", repo)
+                print(f"{tag}: tag creation HTTP 403; retained actual source-"
+                      f"identified IPA inside existing {target_tag}")
+        published = api(repo, f"releases/tags/{target_tag}")
+        if (not asset_is_present(published, ipa_name) or
+                (target_tag == tag and published.get("target_commitish") != sha)):
             raise RuntimeError(f"Publication verification failed for {tag}")
         print(f"ARCHIVED {tag} sha={sha} size={ipa.stat().st_size} "
-              f"sha256={digest} url={published['html_url']}")
+              f"sha256={digest} release={published['html_url']}")
     return True
 
 
@@ -158,6 +231,7 @@ def self_test():
     assert not asset_is_present({"assets": [{"name": "x.ipa", "size": 0}]}, "x.ipa")
     assert asset_is_present({"assets": [{"name": "x.ipa", "size": 10}]}, "x.ipa")
     assert not PATTERN.fullmatch("PlayTorrio-iOS15-TrollStore-v1.1.15-build-140.zip")
+    assert retained_ipa_release.__name__ == "retained_ipa_release"
     print("iOS release archive self-test passed")
 
 

@@ -29,6 +29,7 @@ import '../../services/player/audio_language_priority.dart';
 import '../../services/player/playback_autoselection.dart';
 import '../../services/player/paused_http_recovery.dart';
 import '../../services/player/automatic_skip_policy.dart';
+import '../../services/player/playback_diagnostics_probe.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/stream/stream_service.dart';
 import '../../services/discord/discord_rpc_service.dart';
@@ -45,6 +46,7 @@ import '../../widgets/player/player_audio_menu.dart';
 import '../../widgets/player/player_subtitle_menu.dart';
 import '../../widgets/player/player_sub_style_modal.dart';
 import '../../widgets/player/player_skip_button.dart';
+import '../../widgets/player/player_diagnostics_overlay.dart';
 import '../../widgets/player/player_episodes_panel.dart';
 import '../../widgets/player/player_sources_panel.dart';
 import '../../widgets/player/player_volume_control.dart';
@@ -109,6 +111,13 @@ class _PlayerScreenState extends State<PlayerScreen>
   String? _activeMenu; // 'subtitle' | 'audio' | 'speed' | 'aspect' | 'style' | null
   bool _showSubSyncBar = false;
   bool _showTextSyncOverlay = false;
+
+  // Read-only playback diagnostics. Never poll player properties while hidden.
+  bool _showDiagnostics = false;
+  bool _diagnosticsReading = false;
+  int _diagnosticsRevision = 0;
+  Timer? _diagnosticsTimer;
+  Map<String, String> _diagnosticsProperties = {};
 
   // Playback & Audio State
   double _volume = 1.0;
@@ -278,6 +287,8 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _initStream() async {
     ++_streamGeneration;
+    ++_diagnosticsRevision;
+    _diagnosticsProperties = {};
     ++_skipMediaEpoch;
     _httpVodUrl = null;
     _httpVodHeaders = null;
@@ -841,6 +852,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _startHideControlsTimer() {
     _hideTimer?.cancel();
+    if (_showDiagnostics) return;
     _hideTimer = Timer(const Duration(seconds: 4), () {
       if (mounted &&
           _isPlaying &&
@@ -854,7 +866,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _toggleControls() {
-    if (_showTextSyncOverlay || _activeMenu != null) return;
+    if (_showTextSyncOverlay || _activeMenu != null || _showDiagnostics) return;
     setState(() => _showControls = !_showControls);
     if (_showControls) _startHideControlsTimer();
   }
@@ -868,6 +880,65 @@ class _PlayerScreenState extends State<PlayerScreen>
         now.difference(_lastPointerTimerReset!) >= const Duration(milliseconds: 250)) {
       _lastPointerTimerReset = now;
       _startHideControlsTimer();
+    }
+  }
+
+  String _diagnosticsSourceKind() {
+    final url = _currentSource.url ?? '';
+    if (_currentSource.name?.toLowerCase() == 'downloaded' ||
+        url.startsWith('file:') || url.startsWith('/')) {
+      return 'Local file';
+    }
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return 'HTTP stream';
+    }
+    if (url.startsWith('magnet:') ||
+        _currentSource.infoHash?.isNotEmpty == true) {
+      return 'Torrent / P2P';
+    }
+    return 'Other';
+  }
+
+  void _toggleDiagnostics() {
+    if (_isLoading || !mounted) return;
+    final next = !_showDiagnostics;
+    _diagnosticsTimer?.cancel();
+    ++_diagnosticsRevision;
+    setState(() {
+      _showDiagnostics = next;
+      if (next) {
+        _showControls = true;
+        _activeMenu = null;
+        _diagnosticsProperties = {};
+      }
+    });
+    if (next) {
+      _hideTimer?.cancel();
+      unawaited(_readDiagnostics());
+      _diagnosticsTimer = Timer.periodic(const Duration(seconds: 2),
+          (_) => unawaited(_readDiagnostics()));
+    } else {
+      _startHideControlsTimer();
+    }
+  }
+
+  Future<void> _readDiagnostics() async {
+    if (!mounted || !_showDiagnostics || _isLoading ||
+        _diagnosticsReading) return;
+    _diagnosticsReading = true;
+    final generation = _streamGeneration;
+    final revision = _diagnosticsRevision;
+    try {
+      final dynamic native = _player.platform;
+      final properties = await PlaybackDiagnosticsProbe.sample(
+        (name) async => await native.getProperty(name),
+      );
+      if (!mounted || !_showDiagnostics || _isLoading ||
+          generation != _streamGeneration ||
+          revision != _diagnosticsRevision) return;
+      setState(() => _diagnosticsProperties = properties);
+    } finally {
+      _diagnosticsReading = false;
     }
   }
 
@@ -1672,6 +1743,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   void dispose() {
     ++_streamGeneration;
     _audioMediaEpoch++;
+    ++_diagnosticsRevision;
+    _diagnosticsTimer?.cancel();
     for (final s in _subscriptions) {
       s.cancel();
     }
@@ -2047,6 +2120,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                           isSubtitlesActive: _isSubtitleEnabled && _currentSubtitleVariant != null,
                           isSubSyncActive: _selectedEmbeddedSubtitleIndex == null && (_showSubSyncBar || _subtitleDelayMs != 0),
                           isAudioActive: _selectedAudioTrackIndex > 0,
+                          isDiagnosticsActive: _showDiagnostics,
+                          onToggleDiagnostics: _toggleDiagnostics,
                           isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
                           hasNextEpisode: _nextEpisode != null,
                           nextEpisodeLabel: _nextEpisode == null
@@ -2103,6 +2178,23 @@ class _PlayerScreenState extends State<PlayerScreen>
                     ),
                   ),
                 ),
+              ),
+            ),
+
+          // Floating read-only diagnostics; never obscures video with a modal.
+          if (_showDiagnostics && !_isLoading)
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + 58,
+              right: MediaQuery.sizeOf(context).width < 680 ? 12 : 28,
+              child: PlayerDiagnosticsOverlay(
+                properties: _diagnosticsProperties,
+                isPlaying: _isPlaying,
+                isBuffering: _player.state.buffering,
+                position: _position,
+                duration: _duration,
+                buffered: _buffered,
+                playbackRate: _playbackRate,
+                sourceKind: _diagnosticsSourceKind(),
               ),
             ),
 

@@ -2,7 +2,7 @@
 
 ## 2026-10-28 SGT — Discover/Search regression fix in validation
 
-An isolated development branch `fix/discover-series-years-stable-pagination` corrects TV card years using actual TMDB TV details for ended/cancelled series and removes Advanced Discover Load More's forced scroll animation and layout-moving pagination indicator. Search title sliders opt into the same series-run labels. Adds pure and widget regressions plus lightweight/native CI coverage. **Pending PR validation; not shipped; no native release requested.** See the newest root `handover.md` entry for file paths and validation. Latest verified published binaries remain v1.1.15 Build #139.
+An isolated development branch `fix/discover-series-years-stable-pagination` corrects TV card years using actual TMDB TV details for ended/cancelled series and removes Advanced Discover Load More's forced scroll animation and layout-moving pagination indicator. Search title sliders and the main Discover grid opt into the same series-run labels. Adds pure and widget regressions plus lightweight/native CI coverage. **Pending PR validation; not shipped; no native release requested.** See the newest root `handover.md` entry for file paths and validation. Latest verified published binaries remain v1.1.15 Build #139.
 
 
 These repository instructions apply to the entire tree. The active product-development AND default branch is **parity-floating-player-both**; historical **main** remains a divergent documentation-only mirror. Read **handover.md** before starting any change.

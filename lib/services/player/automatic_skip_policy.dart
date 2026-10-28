@@ -18,6 +18,8 @@ class AutomaticSkipPolicy {
     if (kind != 'intro' && kind != 'credits') return false;
     final start = segment.startMs;
     if (start == null || start < 0) return false;
+    if (mediaDuration > Duration.zero &&
+        start >= mediaDuration.inMilliseconds) return false;
     final target = destination(segment, mediaDuration);
     return target != null && target.inMilliseconds > start;
   }

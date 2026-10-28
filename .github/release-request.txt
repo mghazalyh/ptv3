@@ -1,8 +1,10 @@
 PlayTorrio explicit paired release request
-Version: 1.1.15+25
-Tested source commit: 5b53b9df33cf843c305f3ada75a23482e7f2f5dc
-Linux quick gate: https://github.com/mghazalyh/ptv3/actions/runs/40549844329 (SUCCESS, 10/10)
+Version: 1.1.15+25 (same app version, new GitHub build number)
+Tested application commit: e2abfbc3c6a9c4872073fa370d0a889086bc0be1
+Passed Linux PR check: https://github.com/mghazalyh/ptv3/actions/runs/40654298739
+Passed exact merged-source Linux check: https://github.com/mghazalyh/ptv3/actions/runs/40654677938
+Current active/default branch head before request: e6c1956b9b47d9e6f4cb847c860a12b34203e8d6
 Requested: 2026-10-28 SGT
-Reason: iPadOS long pause then resume on Torrentio/TorBox HTTP streams caused tcp: ffurl_read returned 0xfffffcf7 and premature Sources panel. Restore same direct HTTP VOD connection at saved position, preserve stream headers and audio behavior, limit retries.
-Native release scope: Windows x64 EXE+portable ZIP and iOS15 signed TrollStore IPA; independent Windows/iOS Telegram documents and independent failure watchdog; matched GitHub Release if API authorizes.
-Do not modify private Torriodb, watchlist/progress JSON schema, or source credentials. GitHub default branch is parity-floating-player-both.
+Reason: Owner needs a newly packaged signed iOS 15 TrollStore IPA containing merged PR #4: correct Discover/Search series premiere and actual ended/cancelled end years, stable Load More scroll position and no double-bounce. Previous v1.1.15 Build #139 predates these changes.
+Scope: Trigger precisely one existing matched Windows x64 + signed iOS15 TrollStore native workflow, independent Telegram document delivery for both platforms, and a new run-number-specific GitHub Release. Preserve all v1.1.15 Build #139 assets. Do not re-trigger without diagnosing exact results.
+Source/safety: no app source or saved library data changes since green merged-source gate; no secrets, provider credentials, watchlist/progress schemas or Torriodb changes. Root handover.md, AGENTS.md and NEXT_SESSION.md checkpoint updated.

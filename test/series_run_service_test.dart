@@ -106,10 +106,74 @@ void main() {
       }), 200);
     };
 
-    for (var id = 1; id <= 25; id++) {
-      await SeriesRunService.instance.resolve(tmdbId: id);
-    }
-    expect(requests, 24);
+    // The 25th card must WAIT for a free slot, not be permanently skipped.
+    SeriesRunService.instance.resetForTesting(
+      maxPerWindow: 24,
+      window: const Duration(milliseconds: 40),
+    );
+    final pending = [
+      for (var id = 1; id <= 25; id++)
+        SeriesRunService.instance.resolve(tmdbId: id),
+    ];
+    final runs = await Future.wait(pending);
+    expect(requests, 25);
+    expect(runs.map((r) => r?.displayYear()).toSet(), {'2006 - 2011'});
+  });
+
+  test('The Mentalist shows 2008 - 2015 via exact IMDb metadata without '
+      'a local TMDB key', () async {
+    SharedPreferences.setMockInitialValues({});
+    var lookedUp = 0;
+    SeriesRunService.instance.cinemetaGetOverride = (uri) async {
+      lookedUp++;
+      expect(uri.host, 'v3-cinemeta.strem.io');
+      expect(uri.path, '/meta/series/tt1196946.json');
+      return http.Response(jsonEncode({
+        'meta': {
+          'id': 'tt1196946',
+          'name': 'The Mentalist',
+          'releaseInfo': '2008-2015',
+        }
+      }), 200);
+    };
+    final first = await SeriesRunService.instance.resolve(
+        imdbId: 'tt1196946');
+    final again = await SeriesRunService.instance.resolve(
+        imdbId: 'tt1196946');
+    expect(first?.displayYear(fallbackYear: '2008'), '2008 - 2015');
+    expect(again?.displayYear(fallbackYear: '2008'), '2008 - 2015');
+    expect(lookedUp, 1);
+  });
+
+  test('Cinemeta will not attach another show\'s run to an IMDb ID', () async {
+    SharedPreferences.setMockInitialValues({});
+    SeriesRunService.instance.cinemetaGetOverride = (uri) async =>
+        http.Response(jsonEncode({'meta': {
+          'id': 'tt9999999',
+          'releaseInfo': '2008-2015',
+        }}), 200);
+    final found = await SeriesRunService.instance.resolve(
+        imdbId: 'tt1196946');
+    expect(found, isNull);
+  });
+
+  test('ended TMDB detail can use verified last episode air date', () {
+    final run = SeriesRun.fromTmdb({
+      'status': 'Ended',
+      'first_air_date': '2008-09-23',
+      'last_air_date': '',
+      'last_episode_to_air': {'air_date': '2015-02-18'},
+    });
+    expect(run.displayYear(), '2008 - 2015');
+  });
+
+  test('open-ended provider releaseInfo does not claim an end year', () {
+    expect(SeriesRun.fromCinemeta({
+      'releaseInfo': '2008-',
+    }).displayYear(), '2008');
+    expect(SeriesRun.fromCinemeta({
+      'releaseInfo': '2008-2015',
+    }).displayYear(), '2008 - 2015');
   });
 
   test('no verified ID makes no TMDB network request', () async {

@@ -513,6 +513,7 @@ jobs:
           python3 .github/scripts/telegram_ci.py send-document \
             --platform Windows \
             --file packages/windows/PlayTorrio-Windows-Setup.exe \
+            --release-notes-file .github/release-notes.txt \
             --caption-extra "The Windows portable ZIP is available via this build's GitHub artifact, and via GitHub Releases after the paired publication."
 
   telegram-ipa:
@@ -544,6 +545,7 @@ jobs:
           python3 .github/scripts/telegram_ci.py send-document \
             --platform "iOS 15 TrollStore" \
             --file packages/ios15/PlayTorrio-iOS15-TrollStore.ipa \
+            --release-notes-file .github/release-notes.txt \
             --require-document
 
   publish-paired:

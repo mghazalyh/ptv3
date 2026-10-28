@@ -1,5 +1,10 @@
 # Repository agent instructions — PlayTorrio
 
+## 2026-10-28 SGT — Discover ended-years + genre fix, signed iOS #141 Telegram delivered
+
+[PR #7](https://github.com/mghazalyh/ptv3/pull/7) merged, Linux gate #40675161295 SUCCESS: queued series-run enrichment fixes 25+ omitted ended-series ranges; exact IMDb-bound public Cinemeta fallback; The Mentalist `2008 - 2015` regression; optional persisted movie/TV genre filters (Comedy/Action & Adventure etc.) combined with title/year/pagination. Paired Build #141 [native run 40675769942](https://github.com/mghazalyh/ptv3/actions/runs/40675769942), source `db12131e781d68a8efd1da65013f23676b16814e`: **iOS signed job SUCCESS; actual Telegram IPA sendDocument message #43 SUCCESS**; Windows/overall workflow still in progress. Premature explicit archive run 40676538304 failed safely because parent native workflow not yet completed, generated Telegram warning #44; IPA itself is valid. Wait for native run completion and independent auto-archival, then verify nonempty Build #141 GitHub Release asset. Do not duplicate native build. Full continuity and prior recoverable releases in root `handover.md`.
+
+
 ## 2026-10-28 SGT — one signed native Build #141 requested; results not yet verified
 
 PR #7 ended-year and optional genre code merged and Linux CI verified, SHA `a9c1f8d37da05d1d1af6368888259537e3130c89`. Explicit opt-in release-request SHA `db12131e781d68a8efd1da65013f23676b16814e` triggered [native Windows+iOS Build #141, Actions run 40675769942](https://github.com/mghazalyh/ptv3/actions/runs/40675769942) and independent watchdog run `40675769948`; observed queued, not yet a verified signed IPA/Telegram file/permanent release. New user-reported iPad regression The Mentalist 2008 vs 2008-2015 and optional genre need testing on #141. Continue from latest `handover.md`; preserve prior iOS Releases, strict Telegram IPA delivery and independent per-iOS Release archiving.

@@ -95,6 +95,23 @@ void main() {
     expect(paths, ['/3/tv/123']);
   });
 
+  test('card enrichment budget limits unique lookups per minute', () async {
+    var requests = 0;
+    TmdbDiscoverService.instance.httpGetOverride = (uri, headers) async {
+      requests++;
+      return http.Response(jsonEncode({
+        'first_air_date': '2006-01-01',
+        'last_air_date': '2011-01-01',
+        'status': 'Ended',
+      }), 200);
+    };
+
+    for (var id = 1; id <= 25; id++) {
+      await SeriesRunService.instance.resolve(tmdbId: id);
+    }
+    expect(requests, 24);
+  });
+
   test('no verified ID makes no TMDB network request', () async {
     var requests = 0;
     TmdbDiscoverService.instance.httpGetOverride = (uri, headers) async {

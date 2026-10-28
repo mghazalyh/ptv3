@@ -109,7 +109,7 @@ def fallback_release(repo):
     archive_sha = os.environ["GITHUB_SHA"]
     notes = (
         "Permanent retention of older signed PlayTorrio iOS 15 TrollStore IPAs "
-        "whose original build-specific GitHub Release tag was denied.\\n\\n"
+        "whose original build-specific GitHub Release tag was denied.\n\n"
         "The tag points to the archival workflow source, NOT an IPA build. "
         "Each IPA retains its original version and build number in its filename, "
         "with a matching IOS-SOURCE-buildN.txt showing the real native source SHA "

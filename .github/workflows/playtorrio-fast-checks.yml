@@ -49,6 +49,11 @@ jobs:
             lib/models/my_list/my_list_item.dart \
             lib/services/home/home_page_settings.dart \
             lib/services/metadata/tmdb_discover_service.dart \
+            lib/services/metadata/series_run_service.dart \
+            lib/widgets/movie/series_year_label.dart \
+            lib/pages/search/advanced_discover_page.dart \
+            lib/pages/search/search_page.dart \
+            lib/widgets/movie/movie_slider_section.dart \
             lib/services/metadata/tvdb_series_service.dart \
             lib/models/movie/movie.dart \
             lib/pages/home/home_page.dart \
@@ -75,7 +80,9 @@ jobs:
             test/see_all_source_integrity_test.dart \
             test/audio_language_priority_test.dart \
             test/playback_autoselection_test.dart \
-            test/paused_http_recovery_test.dart
+            test/paused_http_recovery_test.dart \
+            test/series_run_service_test.dart \
+            test/discover_year_pagination_widget_test.dart
           do
             flutter test "$suite"
           done

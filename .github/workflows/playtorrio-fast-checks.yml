@@ -11,6 +11,7 @@ on:
       - '**/*.md'
       - 'docs/**'
       - '.github/release-request.txt'
+      - '.github/ios-release-archive-request.txt'
       - '.github/release-recovery-request.json'
       - '.github/workflows/playtorrio-recover-release.yml'
   pull_request:
@@ -90,5 +91,6 @@ jobs:
       - name: Validate retention pruning policy without GitHub deletion
         run: |
           python3 .github/scripts/prune_playtorrio_artifacts.py --self-test
+          python3 .github/scripts/archive_ios_release.py --self-test
           python3 .github/scripts/telegram_ci.py --self-test
           python3 .github/scripts/watch_playtorrio_run.py --self-test

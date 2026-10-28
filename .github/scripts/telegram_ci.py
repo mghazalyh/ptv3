@@ -49,12 +49,19 @@ def send_request(method, fields, file_path=None, filename=None):
             print("Telegram " + method + " confirmed. Message ID: " + str(message_id))
             return result
         except urllib.error.HTTPError as error:
-            if error.code == 429 and attempt < 2:
-                delay = min(60, max(2, int(error.headers.get("Retry-After", "5"))))
-                print("Telegram rate limited; retrying after delay")
+            if error.code in (429, 500, 502, 503, 504) and attempt < 2:
+                retry_after = error.headers.get("Retry-After", "")
+                delay = min(60, max(2, int(retry_after) if retry_after.isdigit() else 3 * (attempt + 1)))
+                print("Telegram temporarily unavailable; retrying document upload")
                 time.sleep(delay)
                 continue
             raise RuntimeError("Telegram " + method + " HTTP " + str(error.code)) from None
+        except urllib.error.URLError:
+            if attempt < 2:
+                print("Telegram network error; retrying upload")
+                time.sleep(3 * (attempt + 1))
+                continue
+            raise RuntimeError("Telegram " + method + " network error") from None
     raise RuntimeError("Telegram request retries exhausted")
 
 
@@ -64,7 +71,7 @@ def send_text(message):
     return send_request("sendMessage", {"text": message[:4000]})
 
 
-def send_document(file_name, platform, extra=""):
+def send_document(file_name, platform, extra="", require_document=False):
     file_path = Path(file_name)
     if not file_path.is_file() or file_path.stat().st_size <= 0:
         raise FileNotFoundError("Built package missing: " + str(file_path))
@@ -77,21 +84,29 @@ def send_document(file_name, platform, extra=""):
         f"Package built and uploaded independently.\n"
         + run + ("\n" + extra if extra else ""))
     if file_path.stat().st_size >= BOT_UPLOAD_LIMIT:
-        send_text(caption + "\nFile exceeds Telegram Bot upload limit; download via GitHub Actions.")
+        if require_document:
+            raise RuntimeError("Required iOS IPA Telegram attachment exceeds bot upload limit")
+        send_text(caption + "\nFile exceeds Telegram Bot upload limit; download via GitHub Releases.")
         return
     try:
-        send_request("sendDocument", {"caption": caption},
+        result = send_request("sendDocument", {"caption": caption},
             file_path=file_path, filename=file_path.name)
+        if require_document:
+            document = result.get("result", {}).get("document") or {}
+            if (not document.get("file_id")
+                    or document.get("file_size") != file_path.stat().st_size):
+                raise RuntimeError("Telegram did not confirm the complete IPA document")
     except RuntimeError as error:
-        if "HTTP 400" in str(error) or "HTTP 413" in str(error):
+        if not require_document and ("HTTP 400" in str(error) or "HTTP 413" in str(error)):
             send_text(caption +
-                "\nDirect attachment rejected; download from the GitHub Actions artifact.")
+                "\nDirect attachment rejected; download from the GitHub Release.")
             return
         raise
 
 
 def self_test():
     assert BOT_UPLOAD_LIMIT == 50_000_000
+    assert BOT_UPLOAD_LIMIT > 47_000_000
     assert len("🏗️ PlayTorrio CI warning") < 4000
     assert Path("/missing/PlayTorrio.exe").is_file() is False
     print("Telegram CI self-test passed (offline, no token or request).")
@@ -107,11 +122,12 @@ def main():
     document.add_argument("--file", required=True)
     document.add_argument("--platform", required=True)
     document.add_argument("--caption-extra", default="")
+    document.add_argument("--require-document", action="store_true")
     message = sub.add_parser("send-text")
     message.add_argument("--text", required=True)
     args = parser.parse_args()
     if args.action == "send-document":
-        send_document(args.file, args.platform, args.caption_extra)
+        send_document(args.file, args.platform, args.caption_extra, args.require_document)
     else:
         send_text(args.text)
 

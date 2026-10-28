@@ -51,6 +51,7 @@ jobs:
             lib/services/metadata/tmdb_discover_service.dart \
             lib/services/metadata/series_run_service.dart \
             lib/widgets/movie/series_year_label.dart \
+            lib/pages/discover/discover_page.dart \
             lib/pages/search/advanced_discover_page.dart \
             lib/pages/search/search_page.dart \
             lib/widgets/movie/movie_slider_section.dart \

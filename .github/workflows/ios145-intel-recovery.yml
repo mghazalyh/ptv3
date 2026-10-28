@@ -1,0 +1,392 @@
+name: PlayTorrio Build #145 — isolated iOS recovery (Mac Intel)
+
+# Explicit, one-time recovery for completed Build #145, whose macOS ARM runners
+# were never assigned in attempts 1, 2, and 3. Do not rebuild Windows.
+# This workflow reads the EXACT original Build #145 source SHA, signs an iOS 15
+# TrollStore IPA, and reuses the verified Windows #145 artifact.
+on:
+  push:
+    branches:
+      - parity-floating-player-both
+    paths:
+      - '.github/ios145-recovery-request.txt'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: playtorrio-ios145-intel-recovery
+  cancel-in-progress: false
+
+jobs:
+  ios15:
+    name: iOS 15 — build and sign TrollStore IPA
+    if: github.ref == 'refs/heads/parity-floating-player-both'
+    runs-on: macos-15-intel
+    timeout-minutes: 100
+    steps:
+      - name: Checkout source pinned to original Build #145
+        uses: actions/checkout@v4
+        with:
+          ref: a6245d5abe64c8e01bab02cf57c18266c7054269
+
+      - name: Verify iOS checkout matches original Build #145
+        run: |
+          test "$(git rev-parse HEAD)" = "a6245d5abe64c8e01bab02cf57c18266c7054269"
+          echo "iOS 15 build commit: a6245d5abe64c8e01bab02cf57c18266c7054269"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+
+      - name: Setup Flutter dependencies
+        run: |
+          touch .env
+          flutter pub get
+
+      - name: Restore iOS TorrServerKit framework
+        run: |
+          mkdir -p "$RUNNER_TEMP/torrserver-ios15"
+          curl --fail --show-error --location --retry 3 \
+            "https://github.com/MrSergo15/torrserver_flutter/releases/download/linux-macos-torrserver-fix-test/TorrServerKit.xcframework.zip" \
+            -o "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework.zip"
+          unzip -t "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework.zip" >/dev/null
+          unzip -q "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework.zip" \
+            -d "$RUNNER_TEMP/torrserver-ios15"
+          test -d "$RUNNER_TEMP/torrserver-ios15/TorrServerKit.xcframework"
+          echo "TORRSERVER_FLUTTER_LOCAL_BINARIES=$RUNNER_TEMP/torrserver-ios15" >> "$GITHUB_ENV"
+
+      - name: Inspect native framework platforms
+        run: |
+          python3 - <<'PY'
+          import os
+          import plistlib
+          from pathlib import Path
+          root = Path(os.environ['TORRSERVER_FLUTTER_LOCAL_BINARIES']) / 'TorrServerKit.xcframework'
+          with (root / 'Info.plist').open('rb') as f:
+              info = plistlib.load(f)
+          print('Native framework slices:', info.get('AvailableLibraries'))
+          if not any(
+              entry.get('SupportedPlatform') == 'ios' and
+              'arm64' in entry.get('SupportedArchitectures', []) and
+              not entry.get('SupportedPlatformVariant')
+              for entry in info.get('AvailableLibraries', [])
+          ):
+              raise SystemExit('TorrServerKit is missing iOS arm64 device support')
+          PY
+
+      - name: Analyze storage code
+        run: |
+          flutter analyze --no-pub --no-fatal-infos \
+            lib/services/cache/storage_cache_service.dart \
+            lib/pages/settings/storage_settings_page.dart \
+            lib/services/config/settings_transfer_service.dart \
+            lib/pages/settings/settings_transfer_page.dart \
+            lib/pages/settings/torbox_quick_settings_page.dart \
+            lib/pages/settings/settings_page.dart \
+            lib/pages/settings/github_library_settings_page.dart \
+            lib/services/my_list/github_library_cloud.dart lib/models/my_list/my_list_item.dart \
+            lib/services/continue_watching/github_progress_cloud.dart \
+            lib/services/continue_watching/continue_watching_service.dart \
+            lib/services/continue_watching/watched_history_service.dart \
+            lib/services/continue_watching/github_watched_history_cloud.dart \
+            lib/services/continue_watching/github_sync_transport.dart \
+            lib/widgets/home/continue_watching_slider.dart \
+            lib/services/my_list/my_list_service.dart \
+            lib/pages/my_list/my_list_page.dart \
+            lib/services/addon/addon_manager.dart \
+            lib/services/player/audio_language_priority.dart \
+            lib/services/player/playback_autoselection.dart \
+            lib/services/player/paused_http_recovery.dart \
+            lib/services/player/automatic_skip_policy.dart \
+            lib/services/player/playback_diagnostics_probe.dart \
+            lib/widgets/player/player_diagnostics_overlay.dart \
+            lib/services/player/skip_segments_service.dart \
+            lib/models/player/skip_segment_model.dart \
+            lib/widgets/player/player_skip_button.dart \
+            lib/widgets/player/player_transport.dart \
+            lib/widgets/player/player_top_bar.dart \
+            lib/utils/navigation/media_details_navigation.dart \
+            lib/services/config/build_identity.dart \
+            lib/models/movie/movie.dart \
+            lib/services/metadata/bestsimilar_scraper.dart \
+            lib/services/metadata/metadata_service.dart \
+            lib/widgets/movie/movie_card.dart \
+            lib/models/movie/movie_section.dart \
+            lib/pages/catalog/catalog_page.dart \
+            lib/services/home/home_page_settings.dart \
+            lib/widgets/movie/movie_slider_section.dart \
+            lib/services/updater/app_updater_service.dart \
+            lib/pages/settings/about_settings_page.dart \
+            lib/pages/settings/updates_settings_page.dart \
+            lib/services/player/player_settings.dart \
+            lib/pages/player/player_screen.dart \
+            lib/pages/player/watch_screen.dart \
+            lib/services/metadata/tmdb_discover_service.dart \
+            lib/services/metadata/title_origin_language_service.dart lib/services/metadata/series_run_service.dart lib/widgets/movie/series_year_label.dart \
+            lib/models/movie/movie_detail.dart \
+            lib/pages/discover/discover_page.dart \
+            lib/services/metadata/network_discover_service.dart \
+            lib/pages/networks/networks_page.dart \
+            lib/services/theme/dock_settings.dart \
+            lib/widgets/common/app_liquid_dock.dart \
+            lib/services/metadata/tvdb_series_service.dart \
+            lib/services/metadata/similar_recommendations_service.dart \
+            lib/pages/details/person_credits_page.dart \
+            lib/pages/settings/tvdb_settings_page.dart \
+            lib/pages/search/advanced_discover_page.dart \
+            lib/pages/search/search_page.dart \
+            lib/pages/details/details_page.dart
+
+      - name: Test GitHub library and cross-device playback progress
+        run: |
+          flutter test test/github_progress_merge_test.dart
+          flutter test test/github_progress_v1_compat_test.dart
+          flutter test test/github_sync_gate_test.dart
+          flutter test test/github_watched_history_merge_test.dart
+          flutter test test/github_watchlist_v1_regression_test.dart
+          flutter test test/github_library_merge_test.dart
+          flutter test test/services/my_list_service_test.dart
+
+      - name: Test TV Series vs Movie recommendations on iOS
+        run: flutter test test/recommendation_media_type_test.dart
+
+      - name: Verify TVDB key option is discoverable in iOS Settings
+        run: flutter test test/tvdb_settings_navigation_test.dart
+
+      - name: Validate TVDB key probe, completed history and TMDB personalized fallback
+        run: |
+          flutter test test/tvdb_credentials_validation_test.dart
+          flutter test test/watched_history_recommendations_test.dart
+          flutter test test/tmdb_personalized_fallback_test.dart
+
+      - name: Test optional movie and TV title search with combined filters
+        run: |
+          flutter test test/tmdb_text_filter_search_test.dart
+          flutter test test/advanced_discover_text_ui_test.dart
+
+      - name: Test cast-person filmography and rich similar-card metadata
+        run: |
+          flutter test test/person_filmography_test.dart
+          flutter test test/similar_card_metadata_test.dart
+          flutter test test/cast_similar_navigation_ui_test.dart
+
+      - name: Test streaming service and TV networks browsing
+        run: |
+          flutter test test/network_discover_service_test.dart
+          flutter test test/networks_navigation_ui_test.dart
+
+      - name: Test genuine source-bound See All on iOS
+        run: |
+          flutter test test/curated_recommendations_see_all_test.dart
+          flutter test test/see_all_source_integrity_test.dart
+          flutter test test/title_origin_language_test.dart
+          flutter test test/origin_language_everywhere_test.dart
+
+      - name: Test player and Continue Watching Show Details actions
+        run: flutter test test/show_details_navigation_test.dart
+
+      - name: Verify cancelable TV intro and credits auto-skip
+        run: flutter test test/series_automatic_skip_test.dart
+
+      - name: Verify playback diagnostics overlay
+        run: flutter test test/player_diagnostics_overlay_test.dart
+
+      - name: Test English-audio priority
+        run: flutter test test/audio_language_priority_test.dart
+
+      - name: Test English subtitles and continuous episode selection
+        run: flutter test test/playback_autoselection_test.dart
+
+      - name: Check nested details history and Discover scroll preservation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          details = Path('lib/pages/details/details_page.dart').read_text()
+          discover = Path('lib/pages/search/advanced_discover_page.dart').read_text()
+          assert 'Navigator.pushReplacement(' not in details, 'Details page replaces its history'
+          assert 'Navigator.push(' in details
+          assert 'controller: _discoverScroll' in discover
+          assert '_discoverScroll.animateTo(' not in discover
+          assert 'if ((loading && !applied) || openingId != null)' in discover
+          assert 'PageStorageKey' in discover
+          print('Nested details history and stable pagination verified')
+          PY
+
+      - name: Test TMDB Discover filters and year matching
+        run: |
+          flutter test test/tmdb_advanced_discover_test.dart
+          flutter test test/series_run_service_test.dart
+          flutter test test/discover_year_pagination_widget_test.dart
+
+      - name: Test polite TV recommendations and optional TVDB enrichment
+        run: |
+          flutter test test/tmdb_rate_limit_test.dart
+          flutter test test/similar_recommendations_test.dart
+
+      - name: Build unsigned iOS 15 release
+        run: flutter build ios --release --no-codesign --build-name=1.1.15 --build-number="145" --dart-define=PLAYTORRIO_COMMIT="a6245d5abe64c8e01bab02cf57c18266c7054269" --dart-define=PLAYTORRIO_RUN="145" --dart-define-from-file=.env
+
+      - name: Verify minimum iOS 15
+        run: |
+          test -d build/ios/iphoneos/Runner.app
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          info = Path('build/ios/iphoneos/Runner.app/Info.plist')
+          with info.open('rb') as f:
+              version = plistlib.load(f).get('MinimumOSVersion', '')
+          print('App minimum iOS version:', version)
+          if not version or tuple(map(int, version.split('.'))) > (15, 0):
+              raise SystemExit('Build is not compatible with iOS 15')
+          PY
+
+      - name: Ad hoc sign for TrollStore
+        run: |
+          codesign --force --deep --sign - --timestamp=none build/ios/iphoneos/Runner.app
+          codesign --verify --deep --strict --verbose=2 build/ios/iphoneos/Runner.app
+
+      - name: Package IPA
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qry PlayTorrio-iOS15-TrollStore.ipa Payload
+          test -s PlayTorrio-iOS15-TrollStore.ipa
+
+      - name: Verify TrollStore IPA archive and app signing
+        run: |
+          python3 - <<'PY'
+          import hashlib, plistlib, zipfile
+          from pathlib import Path
+          ipa = Path('build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa')
+          if not ipa.is_file() or ipa.stat().st_size == 0:
+              raise SystemExit('Missing IPA archive')
+          with zipfile.ZipFile(ipa) as archive:
+              if archive.testzip() is not None:
+                  raise SystemExit('IPA archive is corrupt')
+              names = archive.namelist()
+              info = plistlib.loads(archive.read('Payload/Runner.app/Info.plist'))
+              minimum = tuple(map(int, info['MinimumOSVersion'].split('.')))
+              if minimum > (15, 0):
+                  raise SystemExit(f'IPA requires iOS {minimum}, not compatible with iOS 15.0')
+              if 2 not in info['UIDeviceFamily']:
+                  raise SystemExit('IPA does not support iPad')
+              if 'Payload/Runner.app/_CodeSignature/CodeResources' not in names:
+                  raise SystemExit('Missing ad hoc code signature in packaged IPA')
+              print('IPA bundle:', info['CFBundleIdentifier'])
+              print('Minimum iOS:', info['MinimumOSVersion'])
+              print('iOS build number:', info['CFBundleVersion'])
+          print('SHA256:', hashlib.sha256(ipa.read_bytes()).hexdigest())
+          PY
+
+      - name: Upload signed iOS 15 TrollStore IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayTorrio-iOS15-TrollStore-v1.1.15-build-145
+          path: build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa
+          if-no-files-found: error
+          retention-days: 3
+
+  release-145:
+    name: Publish verified original Windows + recovered iOS Build #145
+    needs: [ios15]
+    if: github.ref == 'refs/heads/parity-floating-player-both'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ORIGINAL_RUN: "40711113294"
+      ORIGINAL_SHA: "a6245d5abe64c8e01bab02cf57c18266c7054269"
+      TAG: "build-v1.1.15-b145"
+    steps:
+      - name: Check out only recovery release scripts and notes
+        uses: actions/checkout@v4
+      - name: Verify Windows belongs to the original successful #145 job
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${ORIGINAL_RUN}" --jq .head_sha)" = "$ORIGINAL_SHA"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${ORIGINAL_RUN}" --jq .run_number)" = "145"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${ORIGINAL_RUN}/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.name | startswith("Windows x64")) | .conclusion] | index("success") != null' | grep -Fx true
+          test ! -z "$ORIGINAL_SHA"
+      - name: Download already successful Windows #145 packages without rebuilding
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: 40711113294
+          github-token: ${{ github.token }}
+          name: PlayTorrio-Windows-v1.1.15-build-145
+          path: packages/windows
+      - name: Download newly signed iOS #145 IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: PlayTorrio-iOS15-TrollStore-v1.1.15-build-145
+          path: packages/ios15
+      - name: Verify artifacts and preserve earlier releases
+        run: |
+          set -euo pipefail
+          test -s packages/windows/PlayTorrio-Windows-Setup.exe
+          test -s packages/windows/PlayTorrio-Windows-x64-Portable.zip
+          test -s packages/ios15/PlayTorrio-iOS15-TrollStore.ipa
+          mkdir -p release
+          cp packages/windows/PlayTorrio-Windows-Setup.exe release/PlayTorrio-v1.1.15-build145-Windows-Setup.exe
+          cp packages/windows/PlayTorrio-Windows-x64-Portable.zip release/PlayTorrio-v1.1.15-build145-Windows-x64-Portable.zip
+          cp packages/ios15/PlayTorrio-iOS15-TrollStore.ipa release/PlayTorrio-v1.1.15-build145-iOS15-TrollStore.ipa
+          (cd release && sha256sum PlayTorrio-* > SHA256SUMS.txt)
+      - name: Publish permanent, unique Build #145 GitHub Release
+        run: |
+          set -euo pipefail
+          NOTES="$(printf 'PlayTorrio v1.1.15 (Build #145)\n\nOriginal source: %s\nOriginal Windows build: %s\n\nWhat's new / Fixed:\n' "$ORIGINAL_SHA" "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${ORIGINAL_RUN}")"
+          NOTES="$NOTES
+          $(cat .github/release-notes.txt)
+          Windows was preserved from original #145. The iOS 15 TrollStore IPA was ad hoc signed in the isolated Mac Intel recovery workflow."
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "The Build #145 release already exists; preserving existing assets and checking integrity."
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+              --jq '[.assets[].name] | index("PlayTorrio-v1.1.15-build145-iOS15-TrollStore.ipa") != null' | grep -Fx true
+          else
+            gh release create "$TAG" release/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$ORIGINAL_SHA" \
+              --title "PlayTorrio v1.1.15 (Build 145)" \
+              --notes "$NOTES" --latest
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '[.assets[].name] | sort | join("\n")' > /tmp/published-assets.txt
+          for asset in PlayTorrio-v1.1.15-build145-Windows-Setup.exe \
+                       PlayTorrio-v1.1.15-build145-Windows-x64-Portable.zip \
+                       PlayTorrio-v1.1.15-build145-iOS15-TrollStore.ipa SHA256SUMS.txt; do
+            grep -Fx "$asset" /tmp/published-assets.txt
+          done
+  telegram-ios-145:
+    name: Send actual recovered signed iOS #145 IPA to Telegram
+    needs: [ios15]
+    if: github.ref == 'refs/heads/parity-floating-player-both'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
+      BUILD_SHA: "a6245d5abe64c8e01bab02cf57c18266c7054269"
+      BUILD_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      BUILD_VERSION: "1.1.15"
+      BUILD_NUMBER: "145"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download signed IPA from this recovery run
+        uses: actions/download-artifact@v4
+        with:
+          name: PlayTorrio-iOS15-TrollStore-v1.1.15-build-145
+          path: packages/ios15
+      - name: Send document and verify Telegram received actual IPA
+        run: |
+          python3 .github/scripts/telegram_ci.py send-document \
+            --platform "iOS 15 TrollStore" \
+            --file packages/ios15/PlayTorrio-iOS15-TrollStore.ipa \
+            --release-notes-file .github/release-notes.txt \
+            --require-document

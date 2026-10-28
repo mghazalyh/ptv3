@@ -2,7 +2,7 @@
 
 ## 2026-10-28 SGT — iOS TrollStore native package requested after PR #4
 
-User needs the newly corrected iOS build. The existing v1.1.15 Build #139 IPA is available but predates the merged Discover/Search fix. App source PR #4 merge `e2abfbc3c6a9c4872073fa370d0a889086bc0be1` passed Linux PR check `40654298739` and exact post-merge default-branch run `40654677938`. One explicit run-number-distinct **v1.1.15** native paired Windows/iOS15 build will be requested using `.github/release-request.txt`; **do not claim a new signed IPA, Telegram delivery or GitHub release until verified**. Preserve existing Build #139. See newest `handover.md` entry for current status and workflow outcomes.
+User needs the newly corrected iOS build. The existing v1.1.15 Build #139 IPA is available but predates the merged Discover/Search fix. App source PR #4 merge `e2abfbc3c6a9c4872073fa370d0a889086bc0be1` passed Linux PR check `40654298739` and exact post-merge default-branch run `40654677938`. A single explicit v1.1.15 **Build #140** has been triggered at SHA `9cf7cf4e98b9b67be8708c2c3d1f2bbab0519af0`: [native run 40669706544](https://github.com/mghazalyh/ptv3/actions/runs/40669706544). iOS and Windows jobs are running; no new signed IPA, Telegram delivery or GitHub release has been verified. Preserve existing Build #139. See newest `handover.md` entry for current status and workflow outcomes.
 
 
 ## 2026-10-28 SGT — Discover/Search regression fix merged and Linux verified

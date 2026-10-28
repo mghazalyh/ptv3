@@ -159,7 +159,8 @@ jobs:
           $discover = Get-Content "lib/pages/search/advanced_discover_page.dart" -Raw
           if ($details.Contains("Navigator.pushReplacement(")) { throw "Nested details navigation replaces route" }
           if (!$discover.Contains("controller: _discoverScroll")) { throw "Discover scrolling was not carried over" }
-          if (!$discover.Contains("oldMaxExtent + 160.0")) { throw "Load More scroll offset change missing" }
+          if ($discover.Contains("oldMaxExtent + 160.0")) { throw "Obsolete Load More forced scroll must stay removed" }
+          if (!$discover.Contains("if ((loading && !applied) || openingId != null)")) { throw "Load More must not shift the grid" }
 
       - name: Build Windows executable
         shell: pwsh
@@ -522,7 +523,8 @@ jobs:
         run: |
           python3 .github/scripts/telegram_ci.py send-document \
             --platform "iOS 15 TrollStore" \
-            --file packages/ios15/PlayTorrio-iOS15-TrollStore.ipa
+            --file packages/ios15/PlayTorrio-iOS15-TrollStore.ipa \
+            --require-document
 
   publish-paired:
     name: Publish matched Windows and iOS 15 builds

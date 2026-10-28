@@ -96,20 +96,33 @@ def retained_ipa_release(repo, ipa_name):
 
 
 def fallback_release(repo):
-    # GitHub's integration may forbid creating tags against older commits.
-    # Preserve the exact original signed IPA as a named asset on the newest
-    # verified existing iOS release, rather than falsifying the tag's SHA.
-    for release in sorted(list_releases(repo),
-                          key=lambda item: item.get("published_at") or "",
-                          reverse=True):
-        if (not release.get("draft") and
-                re.fullmatch(r"build-v\d+\.\d+\.\d+-b\d+",
-                             release.get("tag_name", "")) and
-                any(asset.get("name", "").endswith("-iOS15-TrollStore.ipa")
-                    and asset.get("size", 0) > 0
-                    for asset in release.get("assets", []))):
-            return release
-    raise RuntimeError("No existing verified iOS Release for old-build fallback")
+    # Some historical build-specific tags are denied by GitHub's integration.
+    # Create one clearly labelled archival prerelease at the archive workflow
+    # commit, NEVER at a falsely attributed historical application commit.
+    # A prerelease cannot accidentally supplant the current app update.
+    tag = "ios-historical-archive"
+    existing = api(repo, f"releases/tags/{tag}", allow_missing=True)
+    if existing:
+        if not existing.get("prerelease"):
+            raise RuntimeError("Historical iOS archive must remain prerelease-only")
+        return existing
+    archive_sha = os.environ["GITHUB_SHA"]
+    notes = (
+        "Permanent retention of older signed PlayTorrio iOS 15 TrollStore IPAs "
+        "whose original build-specific GitHub Release tag was denied.\\n\\n"
+        "The tag points to the archival workflow source, NOT an IPA build. "
+        "Each IPA retains its original version and build number in its filename, "
+        "with a matching IOS-SOURCE-buildN.txt showing the real native source SHA "
+        "and CI run URL and IOS-SHA256SUMS-buildN.txt containing its hash. "
+        "This archive is a prerelease to avoid replacing the current app update."
+    )
+    gh("release", "create", tag, "--repo", repo, "--target", archive_sha,
+       "--title", "PlayTorrio historical signed iOS IPA archive",
+       "--notes", notes, "--prerelease")
+    published = api(repo, f"releases/tags/{tag}")
+    if not published.get("prerelease"):
+        raise RuntimeError("Historical iOS archive was not published as prerelease")
+    return published
 
 
 def verify_ipa(ipa):

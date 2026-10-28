@@ -1010,7 +1010,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     setState(() => _autoSyncBusy = true);
     try {
       final ranked = PlaybackAutoselection.preferredExternal(
-        _subtitleGroups, mediaTitle: _currentStream?.name ?? '',
+        _subtitleGroups, mediaTitle: _currentSource.name ?? '',
       );
       final alternatives = ranked.where((v) =>
         v.downloadUrl != _currentSubtitleVariant?.downloadUrl).take(6);

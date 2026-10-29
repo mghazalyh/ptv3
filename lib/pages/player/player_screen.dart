@@ -1548,6 +1548,29 @@ class _PlayerScreenState extends State<PlayerScreen>
         await PlayerSettings.applyPostOpenProperties(_player);
         await _player.setRate(_playbackRate);
         await _player.setVolume((_isMuted ? 0.0 : _volume) * 100.0);
+
+        // Reopening the same Media resets native track selection and delays.
+        // Restore the user's existing audio/subtitle selection, not a default.
+        final dynamic native = _player.platform;
+        if (_selectedAudioTrackIndex > 0) {
+          try {
+            await native.setProperty('aid', _selectedAudioTrackIndex.toString());
+          } catch (error) {
+            debugPrint('[PlayerScreen] Audio track restore unavailable: $error');
+          }
+        }
+        if (_isSubtitleEnabled) {
+          if (_currentSubtitlePath != null) {
+            await _player.setSubtitleTrack(
+              SubtitleTrack.uri(_resolveSubtitleUri(_currentSubtitlePath!)),
+            );
+          } else if (_selectedEmbeddedSubtitleIndex != null) {
+            await native.setProperty(
+                'sid', _selectedEmbeddedSubtitleIndex.toString());
+          }
+          await _applyLiveDelay(_subtitleDelayMs / 1000.0);
+          _setSubtitleScale(_subtitleScale);
+        }
       } else {
         await _player.play();
       }
@@ -2508,7 +2531,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             _nightModeRecoveryFailed ||
             _nightModeRecoveryInProgress)
           Positioned(
-            bottom: 22,
+            bottom: _isLoading ? 22 : 156,
             left: 16,
             right: 16,
             child: PlayerNightModeRecovery(

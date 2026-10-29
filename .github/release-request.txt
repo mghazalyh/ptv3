@@ -1,10 +1,11 @@
-PlayTorrio explicit one-time paired native release — Auto Sync subtitle matching and early credits autoplay safety fixes
-Date: 2026-10-28 SGT
+PlayTorrio explicit ONE-TIME paired native release — shared Flutter parity and platform-aware subtitle Auto Sync
+Date: 2026-10-29 SGT
 Branch: parity-floating-player-both
-Validated source commit: f4da5b7b07a4c970eb23232caf4b86a4a2dce0b7
-Passing Flutter CI: https://github.com/mghazalyh/ptv3/actions/runs/40708151194
-Prior native Build #144: https://github.com/mghazalyh/ptv3/actions/runs/40704420413 (failed; completed; no native jobs remain)
-Last successful native paired Build #143: https://github.com/mghazalyh/ptv3/actions/runs/40697228602
-Owner explicitly requested a native build of the validated current source: separate Auto Sync button beside Playback Diagnostics, English subtitle source/release matching and alternative subtitle loading, plus early Skip Credits safety fix. Auto Sync here is subtitle matching, not yet audio speech-timing analysis.
-Trigger exactly ONE paired Windows x64 and ad hoc signed iOS 15 TrollStore IPA release. Preserve prior releases. Deliver actual Windows and signed IPA Telegram documents and publish version-specific permanent GitHub Release with checksums.
-Do not retrigger without diagnosing failure; do not automatically build on ordinary future source changes.
+Validated application + notes source: 061c56ebe305994719cc0c4b1f6a57c4d2d4fdd8
+Verified Flutter/Linux + Windows compatibility CI: https://github.com/mghazalyh/ptv3/actions/runs/40854917684 (both jobs SUCCESS)
+Latest iOS-only signed release: Build #149, run 40836405538 (completed). Latest Windows release: Build #145.
+Owner request: "ok build the ios n windows then to wnsure both build successfuly"
+Authorization: exactly ONE paired native Windows x64 Setup EXE + portable ZIP and ad hoc signed iOS 15 TrollStore IPA build on the SAME triggering Git commit. Retain iOS speech-based Auto Sync, Windows subtitle-release matching, platform-aware tooltips, manual timing and player safeguards. Windows must never invoke Apple Speech. Release notes live in .github/release-notes.txt (Telegram-safe length <= 500 characters).
+Trigger via this .github/release-request.txt update only; DO NOT trigger separate iOS-only or second paired build.
+After native compilation verify Windows installer/portable package, iOS 15 deployment target, signature, IPA integrity, Telegram sendDocument results, permanent GitHub Release and SHA256SUMS. No earlier release may be overwritten.
+No queued/in-progress native workflow at request time. Do not automatically rerun successful artifacts or enable schedules.

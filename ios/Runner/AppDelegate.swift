@@ -193,8 +193,13 @@ private final class SpeechSubtitleSync {
             self.finishSuccess(words)
           }
         } else if error != nil {
-          self.finishFailure("recognition_failed",
-            "Speech recognition failed. Check your internet, Speech permission or try another scene.")
+          if onDeviceOnly {
+            self.finishFailure("offline_recognition_failed",
+              "Offline English recognition failed; Apple's online service may work with consent.")
+          } else {
+            self.finishFailure("recognition_failed",
+              "Apple online speech recognition failed. Check internet or Speech permission.")
+          }
         }
       }
     }

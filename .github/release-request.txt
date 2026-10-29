@@ -1,8 +1,8 @@
-Explicit ONE-TIME native repair release for the Windows Torrentio/MKV speech Auto Sync failure shown in the owner's screenshot.
-Date: 2026-10-29 SGT.
-Branch: parity-floating-player-both; one Flutter codebase for Windows+iOS.
-Validated repair source and release notes: 29f9958bfba23bf7c2185740a1831b560db9de07.
-Pre-release CI, Linux analyzer/tests + Windows smoke both SUCCESS: https://github.com/mghazalyh/ptv3/actions/runs/40865625422
-Owner directive: "next time dont just tell me build it so i can test or give me the ... fix". Request exactly one actual Windows release and paired signed iOS package, not source only.
-Fix Windows audio extraction failure by prioritizing bundled verified LGPL FFmpeg (pinned BtbN 2026-10-25 ZIP sha256 47526345cc4800f4163337d5db8048a2d06c78a53bb234532f55a30dbfb49868), falling back to mpv if needed; do not access microphone or cloud speech. The Whisper model cache path and SHA remain unchanged. Display stage-specific errors without URLs/tokens. Keep iOS remembered Apple Speech consent and both-platform 5min subtitle rechecks.
-In SAME native workflow, verify that pinned FFmpeg archive downloads and launches, extracts a real container into 16k mono WAV, and that the pinned English whisper.cpp model (SHA a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002) recognizes actual jfk.wav speech with valid timed JSON. Afterward package Windows installer/portable, sign iOS15 TrollStore IPA, deliver Telegram as permitted by file-size limits, publish permanent GitHub Release with SHA256SUMS. No duplicate native build; previous b147 already finished. Use checked .github/release-notes.txt (460 characters). Never silently overwrite previous release.
+PlayTorrio ONE-TIME owner-approved paired native iOS 15 + Windows release: optional player Night Mode audio compressor and global extra video brightness slider.
+Date: 2026-10-29 SGT
+Source: same unified Flutter branch parity-floating-player-both, application source commit 43f61e4b4ef908d5ca98be77d7cce410f7e6dcb6.
+Green Linux and Windows regression CI: https://github.com/mghazalyh/ptv3/actions/runs/40872664851 (both jobs SUCCESS).
+Documented BEFORE code changes in handover.md commit 88f397c0859987aaa9bd20a2348409a45483f7e2; implementation checkpoint in handover.md.
+Owner: "Automatic Audio Normalization ... player itself, small button same row as audio track and sub icon ... globally until turn it off ... extra brightness slider ... build for both ios and windows. now".
+ONE paired native release from this single commit only: Windows x64 Setup EXE and portable ZIP (retain Whisper + FFmpeg), and signed iOS 15 TrollStore IPA. Native MPV audio chain MUST retain scaletempo2 while adding optional FFmpeg acompressor; global night preference is OFF by default and saved until disabled. Native MPV brightness +0..+80 is a video-only value, Reset to 0, persistent across playback sessions. Do not claim hardware backlight changes; verify iOS and Windows native packaging and no regressions to subtitle sync and video acceleration.
+Validate native build, signed IPA, minimum iOS, package integrity, SHA256SUMS.txt, permanent GitHub Release with new tag, actual Windows/iOS Telegram sendDocument results; no overlapping or duplicate workflows. Release notes in .github/release-notes.txt <=500 characters.

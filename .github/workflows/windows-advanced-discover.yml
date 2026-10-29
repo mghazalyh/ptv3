@@ -105,6 +105,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/windows_whisper_transcriber_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/ffmpeg_speech_audio_capture_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/playback_autoselection_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/series_automatic_skip_test.dart
@@ -146,7 +148,7 @@ jobs:
       - name: Analyze modified shared app screens and services
         shell: pwsh
         run: |
-          flutter analyze --no-pub --no-fatal-infos lib/services/metadata/tmdb_discover_service.dart lib/services/metadata/title_origin_language_service.dart lib/services/metadata/series_run_service.dart lib/widgets/movie/series_year_label.dart lib/models/movie/movie_detail.dart lib/pages/discover/discover_page.dart lib/services/metadata/network_discover_service.dart lib/pages/networks/networks_page.dart lib/services/theme/dock_settings.dart lib/widgets/common/app_liquid_dock.dart lib/services/metadata/tvdb_series_service.dart lib/services/metadata/similar_recommendations_service.dart lib/pages/details/person_credits_page.dart lib/pages/settings/tvdb_settings_page.dart lib/pages/settings/settings_page.dart lib/pages/search/advanced_discover_page.dart lib/pages/search/search_page.dart lib/services/cache/storage_cache_service.dart lib/services/config/settings_transfer_service.dart lib/pages/settings/torbox_quick_settings_page.dart lib/pages/settings/settings_transfer_page.dart lib/services/player/audio_language_priority.dart lib/services/player/playback_autoselection.dart lib/services/player/paused_http_recovery.dart lib/services/player/automatic_skip_policy.dart lib/services/player/playback_diagnostics_probe.dart lib/widgets/player/player_diagnostics_overlay.dart lib/services/player/skip_segments_service.dart lib/models/player/skip_segment_model.dart lib/widgets/player/player_skip_button.dart lib/widgets/player/player_transport.dart lib/widgets/player/player_top_bar.dart lib/utils/navigation/media_details_navigation.dart lib/services/config/build_identity.dart lib/models/movie/movie.dart lib/services/metadata/bestsimilar_scraper.dart lib/services/metadata/metadata_service.dart lib/widgets/movie/movie_card.dart lib/models/movie/movie_section.dart lib/pages/catalog/catalog_page.dart lib/services/home/home_page_settings.dart lib/widgets/movie/movie_slider_section.dart lib/services/updater/app_updater_service.dart lib/pages/settings/about_settings_page.dart lib/pages/settings/updates_settings_page.dart lib/pages/player/player_screen.dart lib/services/player/windows_whisper_transcriber.dart lib/services/player/subtitle_auto_sync_policy.dart lib/services/player/mpv_speech_audio_capture.dart lib/pages/player/watch_screen.dart lib/pages/details/details_page.dart lib/services/my_list/my_list_service.dart lib/services/my_list/github_library_cloud.dart lib/models/my_list/my_list_item.dart lib/services/continue_watching/github_progress_cloud.dart lib/services/continue_watching/continue_watching_service.dart lib/services/continue_watching/watched_history_service.dart lib/services/continue_watching/github_watched_history_cloud.dart lib/services/continue_watching/github_sync_transport.dart lib/widgets/home/continue_watching_slider.dart lib/pages/settings/github_library_settings_page.dart lib/services/my_list/trakt_cloud_library.dart lib/services/my_list/trakt_merge_plan.dart lib/services/trakt/trakt_service.dart lib/pages/my_list/my_list_page.dart lib/pages/settings/trakt_settings_page.dart lib/pages/settings/simkl_settings_page.dart lib/services/simkl/simkl_service.dart lib/services/storage/storage_service.dart lib/services/config/env_service.dart lib/services/my_list/simkl_hearts_cloud.dart
+          flutter analyze --no-pub --no-fatal-infos lib/services/metadata/tmdb_discover_service.dart lib/services/metadata/title_origin_language_service.dart lib/services/metadata/series_run_service.dart lib/widgets/movie/series_year_label.dart lib/models/movie/movie_detail.dart lib/pages/discover/discover_page.dart lib/services/metadata/network_discover_service.dart lib/pages/networks/networks_page.dart lib/services/theme/dock_settings.dart lib/widgets/common/app_liquid_dock.dart lib/services/metadata/tvdb_series_service.dart lib/services/metadata/similar_recommendations_service.dart lib/pages/details/person_credits_page.dart lib/pages/settings/tvdb_settings_page.dart lib/pages/settings/settings_page.dart lib/pages/search/advanced_discover_page.dart lib/pages/search/search_page.dart lib/services/cache/storage_cache_service.dart lib/services/config/settings_transfer_service.dart lib/pages/settings/torbox_quick_settings_page.dart lib/pages/settings/settings_transfer_page.dart lib/services/player/audio_language_priority.dart lib/services/player/playback_autoselection.dart lib/services/player/paused_http_recovery.dart lib/services/player/automatic_skip_policy.dart lib/services/player/playback_diagnostics_probe.dart lib/widgets/player/player_diagnostics_overlay.dart lib/services/player/skip_segments_service.dart lib/models/player/skip_segment_model.dart lib/widgets/player/player_skip_button.dart lib/widgets/player/player_transport.dart lib/widgets/player/player_top_bar.dart lib/utils/navigation/media_details_navigation.dart lib/services/config/build_identity.dart lib/models/movie/movie.dart lib/services/metadata/bestsimilar_scraper.dart lib/services/metadata/metadata_service.dart lib/widgets/movie/movie_card.dart lib/models/movie/movie_section.dart lib/pages/catalog/catalog_page.dart lib/services/home/home_page_settings.dart lib/widgets/movie/movie_slider_section.dart lib/services/updater/app_updater_service.dart lib/pages/settings/about_settings_page.dart lib/pages/settings/updates_settings_page.dart lib/pages/player/player_screen.dart lib/services/player/windows_whisper_transcriber.dart lib/services/player/subtitle_auto_sync_policy.dart lib/services/player/mpv_speech_audio_capture.dart lib/services/player/ffmpeg_speech_audio_capture.dart lib/pages/player/watch_screen.dart lib/pages/details/details_page.dart lib/services/my_list/my_list_service.dart lib/services/my_list/github_library_cloud.dart lib/models/my_list/my_list_item.dart lib/services/continue_watching/github_progress_cloud.dart lib/services/continue_watching/continue_watching_service.dart lib/services/continue_watching/watched_history_service.dart lib/services/continue_watching/github_watched_history_cloud.dart lib/services/continue_watching/github_sync_transport.dart lib/widgets/home/continue_watching_slider.dart lib/pages/settings/github_library_settings_page.dart lib/services/my_list/trakt_cloud_library.dart lib/services/my_list/trakt_merge_plan.dart lib/services/trakt/trakt_service.dart lib/pages/my_list/my_list_page.dart lib/pages/settings/trakt_settings_page.dart lib/pages/settings/simkl_settings_page.dart lib/services/simkl/simkl_service.dart lib/services/storage/storage_service.dart lib/services/config/env_service.dart lib/services/my_list/simkl_hearts_cloud.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Supply official verified TorrServer Windows binary
@@ -206,6 +208,59 @@ jobs:
           if (!(Test-Path "$dest/whisper-cli.exe")) { throw "Whisper missing from packaged app" }
           & "$dest/whisper-cli.exe" --help
           if ($LASTEXITCODE -ne 0) { throw "Bundled Whisper CLI cannot start" }
+
+      - name: Bundle pinned LGPL FFmpeg for robust Windows MKV/Torrentio speech extraction
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-25-13-00/ffmpeg-n9.0.2-36-g6882969ce9-win64-lgpl-9.0.zip"
+          $expected = "47526345cc4800f4163337d5db8048a2d06c78a53bb234532f55a30dbfb49868"
+          $archive = Join-Path $env:RUNNER_TEMP "playtorrio-ffmpeg-lgpl.zip"
+          $expanded = Join-Path $env:RUNNER_TEMP "playtorrio-ffmpeg-lgpl-expanded"
+          Invoke-WebRequest -Uri $url -OutFile $archive -MaximumRedirection 8
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Pinned LGPL FFmpeg ZIP checksum mismatch" }
+          Expand-Archive -LiteralPath $archive -DestinationPath $expanded -Force
+          $exe = Get-ChildItem $expanded -Recurse -File -Filter "ffmpeg.exe" | Select-Object -First 1
+          if ($null -eq $exe) { throw "Pinned FFmpeg ZIP contains no executable" }
+          $dest = "build/windows/x64/runner/Release/ffmpeg"
+          New-Item -Force -ItemType Directory -Path $dest | Out-Null
+          Copy-Item -LiteralPath $exe.FullName -Destination "$dest/ffmpeg.exe" -Force
+          $licences = Get-ChildItem $expanded -Recurse -File | Where-Object { $_.Name -match '^(COPYING|LICENSE)' }
+          foreach ($notice in $licences) {
+            $target = Join-Path $dest ($notice.Name -replace '[^A-Za-z0-9._-]', '_')
+            if (!(Test-Path $target)) { Copy-Item -LiteralPath $notice.FullName -Destination $target }
+          }
+          @'
+          FFmpeg LGPL unmodified Windows command-line executable
+          Project: https://ffmpeg.org/
+          Upstream build: https://github.com/BtbN/FFmpeg-Builds
+          Pinned release: autobuild-2026-10-25-13-00
+          Pinned artifact: ffmpeg-n9.0.2-36-g6882969ce9-win64-lgpl-9.0.zip
+          SHA-256 of original ZIP: 47526345cc4800f4163337d5db8048a2d06c78a53bb234532f55a30dbfb49868
+          Licencing: LGPL variant; see FFmpeg legal notices and source at https://ffmpeg.org/legal.html
+          '@ | Set-Content -LiteralPath "$dest/FFMPEG-PROVENANCE.txt" -Encoding utf8
+          & "$dest/ffmpeg.exe" -version
+          if ($LASTEXITCODE -ne 0) { throw "Bundled FFmpeg failed to start" }
+
+      - name: Native Windows FFmpeg decode-to-Whisper-WAV regression (no network/media credentials)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ff = "build/windows/x64/runner/Release/ffmpeg/ffmpeg.exe"
+          $source = Join-Path $env:RUNNER_TEMP "speech-test-mkv.mka"
+          $wav = Join-Path $env:RUNNER_TEMP "speech-test-16khz.wav"
+          & $ff -hide_banner -nostdin -loglevel error -y -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=22" -c:a flac $source
+          if ($LASTEXITCODE -ne 0) { throw "Could not generate simulated MKV audio" }
+          & $ff -hide_banner -nostdin -loglevel error -y -ss 5.000 -i $source -t 3.000 -map 0:a:0 -vn -sn -dn -ac 1 -ar 16000 -c:a pcm_s16le -f wav $wav
+          if ($LASTEXITCODE -ne 0) { throw "FFmpeg failed MKV-like source extraction" }
+          $bytes = [System.IO.File]::ReadAllBytes($wav)
+          if ($bytes.Length -lt 65536) { throw "Extracted WAV too small" }
+          if ([System.Text.Encoding]::ASCII.GetString($bytes, 0, 4) -ne "RIFF") { throw "Bad WAV header" }
+          if ([BitConverter]::ToInt32($bytes, 24) -ne 16000) { throw "Wrong Whisper sample rate" }
+          if ([BitConverter]::ToInt16($bytes, 22) -ne 1) { throw "Wrong Whisper channel count" }
+          if ([BitConverter]::ToInt16($bytes, 34) -ne 16) { throw "Wrong Whisper sample format" }
+          Write-Host "Real bundled FFmpeg decoded a seeked MKV-like audio source to valid Whisper WAV."
 
       - name: Package portable ZIP
         shell: pwsh

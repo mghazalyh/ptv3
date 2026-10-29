@@ -61,6 +61,10 @@ jobs:
             lib/pages/home/home_page.dart \
             lib/pages/details/details_page.dart \
             lib/pages/player/player_screen.dart \
+            lib/services/player/player_settings.dart \
+            lib/services/player/player_picture_audio.dart \
+            lib/widgets/player/player_transport.dart \
+            lib/widgets/player/player_brightness_menu.dart \
             lib/services/player/paused_http_recovery.dart \
             lib/services/player/automatic_skip_policy.dart \
             lib/services/player/ios_speech_transcriber.dart \
@@ -106,7 +110,8 @@ jobs:
             test/mpv_speech_audio_capture_test.dart \
             test/paused_http_recovery_test.dart \
             test/series_automatic_skip_test.dart \
-            test/player_diagnostics_overlay_test.dart
+            test/player_diagnostics_overlay_test.dart \
+            test/player_picture_audio_test.dart
           do
             flutter test "$suite"
           done

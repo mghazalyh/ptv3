@@ -108,11 +108,12 @@ class PlayerTransport extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isCompact = screenWidth < 680;
+    final isVeryCompact = screenWidth < 560;
     final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
-    final btnSize = isCompact ? 36.0 : 42.0;
-    final btnIconSize = isCompact ? 20.0 : 22.0;
-    final playBtnSize = isCompact ? 46.0 : 54.0;
-    final gap = isCompact ? 2.0 : 4.0;
+    final btnSize = isVeryCompact ? 28.0 : (isCompact ? 36.0 : 42.0);
+    final btnIconSize = isVeryCompact ? 17.0 : (isCompact ? 20.0 : 22.0);
+    final playBtnSize = isVeryCompact ? 40.0 : (isCompact ? 46.0 : 54.0);
+    final gap = isVeryCompact ? 0.0 : (isCompact ? 2.0 : 4.0);
 
     return Container(
       padding: EdgeInsets.fromLTRB(

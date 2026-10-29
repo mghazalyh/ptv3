@@ -20,7 +20,7 @@ abstract final class PlayerPictureAudio {
   static const int maxExtraBrightness = 80;
   static int brightnessValue(double value) {
     if (!value.isFinite) return 0;
-    return value.round().clamp(0, maxExtraBrightness);
+    return value.round().clamp(0, maxExtraBrightness).toInt();
   }
 
   static Future<void> applyAudio(

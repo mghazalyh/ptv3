@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 class PlayerNightModeRecovery extends StatelessWidget {
   final bool isRecovering;
   final VoidCallback onRetry;
+  final VoidCallback? onCopyLogPath;
 
   const PlayerNightModeRecovery({
     super.key,
     required this.isRecovering,
     required this.onRetry,
+    this.onCopyLogPath,
   });
 
   @override
@@ -17,7 +19,10 @@ class PlayerNightModeRecovery extends StatelessWidget {
     return SafeArea(
       child: Center(
         heightFactor: 1,
-        child: FilledButton.icon(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FilledButton.icon(
           key: const ValueKey('player-night-mode-emergency-retry'),
           onPressed: isRecovering ? null : onRetry,
           icon: Icon(isRecovering
@@ -26,6 +31,15 @@ class PlayerNightModeRecovery extends StatelessWidget {
           label: Text(isRecovering
               ? 'Restoring normal audio...'
               : 'Turn Night Mode off and retry playback'),
+            ),
+            if (onCopyLogPath != null)
+              TextButton.icon(
+                key: const ValueKey('player-night-mode-copy-log'),
+                onPressed: onCopyLogPath,
+                icon: const Icon(Icons.copy_outlined),
+                label: const Text('Copy diagnostic log path'),
+              ),
+          ],
         ),
       ),
     );

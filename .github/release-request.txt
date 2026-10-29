@@ -1,10 +1,8 @@
-PlayTorrio explicit ONE-TIME paired Windows and iOS 15 release: offline Windows Whisper, remembered iOS Speech consent and 5-minute subtitle realignment.
-Date: 2026-10-29 SGT
-Branch: parity-floating-player-both
-Validated source with release notes: 4780f105d25073864635ec9db9adfde02ae336f6
-Passing Linux Flutter and Windows smoke CI: https://github.com/mghazalyh/ptv3/actions/runs/40861032799 (both jobs SUCCESS)
-Owner request: "please implement whisper on windows ... on ios ... ask once and remember ... auto run auto sync every 5 mins ... build it so i can test both"
-Build exactly ONE paired native Windows x64 setup EXE and portable ZIP (bundle CPU whisper.cpp CLI v1.9.5), and ONE ad hoc signed iOS 15 TrollStore IPA from the SAME triggering commit. Never build a platform fork. Windows first manual sync requests consent to download/verify the 148 MB base.en model once, then speech recognition is offline; no microphone. iOS Apple online service opt-in is remembered and revocable in Settings. Automatic rechecks occur at five-minute intervals only when playing with external text subtitles; no concurrent jobs or interrupting dialogs; unsupported media leaves subtitle timing unchanged.
-The checked 472-character Telegram-safe release notes are in .github/release-notes.txt.
-Verify actual native Windows build, bundled Whisper CLI execution, Windows installer/portable ZIP, iOS minimum target/signature/IPA archive, both Telegram document sends, and permanent GitHub Release with SHA256 checksums.
-No native workflow queued or in-progress at request time. Do not start another native workflow or duplicate this request. Future fixes must follow release delivery policy.
+Explicit ONE-TIME native repair release for the Windows Torrentio/MKV speech Auto Sync failure shown in the owner's screenshot.
+Date: 2026-10-29 SGT.
+Branch: parity-floating-player-both; one Flutter codebase for Windows+iOS.
+Validated repair source and release notes: 29f9958bfba23bf7c2185740a1831b560db9de07.
+Pre-release CI, Linux analyzer/tests + Windows smoke both SUCCESS: https://github.com/mghazalyh/ptv3/actions/runs/40865625422
+Owner directive: "next time dont just tell me build it so i can test or give me the ... fix". Request exactly one actual Windows release and paired signed iOS package, not source only.
+Fix Windows audio extraction failure by prioritizing bundled verified LGPL FFmpeg (pinned BtbN 2026-10-25 ZIP sha256 47526345cc4800f4163337d5db8048a2d06c78a53bb234532f55a30dbfb49868), falling back to mpv if needed; do not access microphone or cloud speech. The Whisper model cache path and SHA remain unchanged. Display stage-specific errors without URLs/tokens. Keep iOS remembered Apple Speech consent and both-platform 5min subtitle rechecks.
+In SAME native workflow, verify that pinned FFmpeg archive downloads and launches, extracts a real container into 16k mono WAV, and that the pinned English whisper.cpp model (SHA a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002) recognizes actual jfk.wav speech with valid timed JSON. Afterward package Windows installer/portable, sign iOS15 TrollStore IPA, deliver Telegram as permitted by file-size limits, publish permanent GitHub Release with SHA256SUMS. No duplicate native build; previous b147 already finished. Use checked .github/release-notes.txt (460 characters). Never silently overwrite previous release.

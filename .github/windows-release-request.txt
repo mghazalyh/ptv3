@@ -1,8 +1,11 @@
-OWNER AUTHORIZED ONE Windows-only native PlayTorrio v1.1.15 release to correct the Night Mode MPV filter initialization failure observed on Windows Build #149.
-Request date: 2026-10-29 SGT.
-Source gate: https://github.com/mghazalyh/ptv3/actions/runs/40884584985 (Linux+Windows completed success).
-Last reviewed application/release-notes SHA: 757bf3115b8347691f7b208d725b412b9f3e6338.
-Handover-first record: commit 7ac83df174f108579246c23378f6654023ec5e76.
-Expected output: Windows x64 Setup EXE, Windows portable ZIP, SHA256SUMS.txt, GitHub Release and Telegram Windows delivery/link fallback.
-All queued/in_progress/waiting/requested/pending native Actions checked zero immediately before this request.
-Windows only. Do not build or sign another iOS IPA for this Windows bug. Never repeat this request for the same fix.
+OWNER AUTHORIZED ONE Windows-only native PlayTorrio Night Mode diagnostics build to capture the real MPV/libavfilter failure seen after installing Build #150.
+Request: 2026-10-29 SGT.
+Unified Flutter working branch: parity-floating-player-both.
+Pre-release source SHA: 8112812b12cbf5648c396a80eac2ac3e35234494.
+Linux Flutter and Windows regression checks: https://github.com/mghazalyh/ptv3/actions/runs/40891646454 (both SUCCESS), including diagnostics file creation, native audio log filtering, privacy redaction and log rotation.
+Required package: ONE Windows x64 Setup EXE, Windows portable ZIP, checksum manifest, permanent GitHub Release, and truthful Telegram link/document status.
+Diagnostics: %LOCALAPPDATA%\PlayTorrio\logs\night-mode-diagnostics.log; copy file path from player document icon beside Night Mode; capture actual MPV audio filter warnings and toggle/recovery context without saving stream URLs or credentials.
+The app Night Mode compressor is NOT yet confirmed fixed; this build is to diagnose it.
+Owner write-ahead scope recorded at top of handover.md in commit 94d5330beb7ceddbfad9f96e476e58683048591e.
+Native Actions queued/in_progress/waiting/requested/pending checked ZERO immediately before this ONE release request.
+Windows-only. No iOS compilation, IPA, signing or paired release. Do not repeat this request for the same diagnostics build.

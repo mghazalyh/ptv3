@@ -1,0 +1,8 @@
+OWNER AUTHORIZED ONE Windows-only native PlayTorrio v1.1.15 release to correct the Night Mode MPV filter initialization failure observed on Windows Build #149.
+Request date: 2026-10-29 SGT.
+Source gate: https://github.com/mghazalyh/ptv3/actions/runs/40884584985 (Linux+Windows completed success).
+Last reviewed application/release-notes SHA: 757bf3115b8347691f7b208d725b412b9f3e6338.
+Handover-first record: commit 7ac83df174f108579246c23378f6654023ec5e76.
+Expected output: Windows x64 Setup EXE, Windows portable ZIP, SHA256SUMS.txt, GitHub Release and Telegram Windows delivery/link fallback.
+All queued/in_progress/waiting/requested/pending native Actions checked zero immediately before this request.
+Windows only. Do not build or sign another iOS IPA for this Windows bug. Never repeat this request for the same fix.

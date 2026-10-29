@@ -2,6 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:playtorrio/services/player/ios_speech_transcriber.dart';
 
 void main() {
+  test('Speech sample stays under Apple recognition one-minute limit', () {
+    expect(IosSpeechTranscriber.maxSampleSeconds, lessThan(60));
+    expect(IosSpeechTranscriber.maxSampleSeconds, 55);
+  });
+
   test('Speech audio is never sent to Apple by default', () {
     final args = IosSpeechTranscriber.requestArguments(
       mediaUrl: 'file:///tmp/episode.mp4',

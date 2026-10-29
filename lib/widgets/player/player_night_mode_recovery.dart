@@ -1,3 +1,4 @@
+import '../../services/player/night_mode_diagnostics.dart';
 import 'package:flutter/material.dart';
 
 /// Emergency action outside the transport bar. Kept visible even when the
@@ -33,11 +34,16 @@ class PlayerNightModeRecovery extends StatelessWidget {
               : 'Turn Night Mode off and retry playback'),
             ),
             if (onCopyLogPath != null)
-              TextButton.icon(
-                key: const ValueKey('player-night-mode-copy-log'),
-                onPressed: onCopyLogPath,
-                icon: const Icon(Icons.copy_outlined),
-                label: const Text('Copy diagnostic log path'),
+              ValueListenableBuilder<bool>(
+                valueListenable: NightModeDiagnostics.debugModeEnabled,
+                builder: (context, enabled, _) => enabled
+                    ? TextButton.icon(
+                        key: const ValueKey('player-night-mode-copy-log'),
+                        onPressed: onCopyLogPath,
+                        icon: const Icon(Icons.copy_outlined),
+                        label: const Text('Copy diagnostic log path'),
+                      )
+                    : const SizedBox.shrink(),
               ),
           ],
         ),

@@ -64,7 +64,7 @@ class NightModeDiagnostics {
     if (!enabled || !_started) return Future<void>.value();
     final safeCategory = sanitize(category);
     final safeDetail = sanitize(detail);
-    final line = '${DateTime.now().toUtc().toIso8601String()}Z '
+    final line = '${DateTime.now().toUtc().toIso8601String()} '
         '[${safeCategory.isEmpty ? 'event' : safeCategory}] $safeDetail\n';
     _pending = _pending.then((_) async {
       try {
@@ -133,14 +133,14 @@ class NightModeDiagnostics {
   static String sanitize(String source) {
     var safe = source
         .replaceAll(RegExp(r'[\r\n\t]+'), ' ')
-        .replaceAll(RegExp(r'(?i)\b(?:https?|rtsp|rtmp|ftp|file|magnet)://?[^\s\x27\x22<>]+'), '[REDACTED_URL]')
-        .replaceAll(RegExp(r'(?i)\bmagnet:\?[^\s\x27\x22<>]+'), '[REDACTED_URL]')
-        .replaceAll(RegExp(r'(?i)\b[a-z]:[\\/][^\s\x27\x22<>]+'), '[REDACTED_PATH]')
-        .replaceAll(RegExp(r'(?i)(?:^|\s)/(?:home|users|mnt|media|tmp|var|storage|sdcard|private)/[^\s\x27\x22<>]+'), ' [REDACTED_PATH]')
-        .replaceAll(RegExp(r'(?i)\b(?:authorization|bearer|cookie|api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|signature|referer|origin)\s*[:=]\s*[^\s,;]+'), '[REDACTED_CREDENTIAL]')
-        .replaceAll(RegExp(r'(?i)\b(?:token|key|pass|auth|sig|signature|cookie)=[^\s&]+'), '[REDACTED_CREDENTIAL]')
-        .replaceAll(RegExp(r'(?i)\b(?:[a-f0-9]{48,}|[a-z0-9_-]{80,})\b'), '[REDACTED_VALUE]')
-        .replaceAll(RegExp(r'(?i)(?:title|filename|path|url|uri)\s*[:=]\s*[^,;]+'), '[REDACTED_METADATA]');
+        .replaceAll(RegExp(r'\b(?:https?|rtsp|rtmp|ftp|file|magnet)://?[^\s\x27\x22<>]+', caseSensitive: false), '[REDACTED_URL]')
+        .replaceAll(RegExp(r'\bmagnet:\?[^\s\x27\x22<>]+', caseSensitive: false), '[REDACTED_URL]')
+        .replaceAll(RegExp(r'\b[a-z]:[\\/][^\s\x27\x22<>]+', caseSensitive: false), '[REDACTED_PATH]')
+        .replaceAll(RegExp(r'(?:^|\s)/(?:home|users|mnt|media|tmp|var|storage|sdcard|private)/[^\s\x27\x22<>]+', caseSensitive: false), ' [REDACTED_PATH]')
+        .replaceAll(RegExp(r'\b(?:authorization|bearer|cookie|api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|signature|referer|origin)\s*[:=]\s*[^\s,;]+', caseSensitive: false), '[REDACTED_CREDENTIAL]')
+        .replaceAll(RegExp(r'\b(?:token|key|pass|auth|sig|signature|cookie)=[^\s&]+', caseSensitive: false), '[REDACTED_CREDENTIAL]')
+        .replaceAll(RegExp(r'\b(?:[a-f0-9]{48,}|[a-z0-9_-]{80,})\b', caseSensitive: false), '[REDACTED_VALUE]')
+        .replaceAll(RegExp(r'(?:title|filename|path|url|uri)\s*[:=]\s*[^,;]+', caseSensitive: false), '[REDACTED_METADATA]');
     if (safe.length > 380) safe = '${safe.substring(0, 380)} [TRUNCATED]';
     return safe.trim();
   }

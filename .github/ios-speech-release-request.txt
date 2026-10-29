@@ -1,8 +1,8 @@
-Explicit one-time iOS-only speech subtitle timing compatibility fix build (owner reported "not available on this iPad").
+Explicit ONE-TIME iOS-only playable-stream subtitle speech WAV extraction fix release.
 Date: 2026-10-29 SGT.
-Source before this request: 85c92c235c40a4d56351fb424ba4fba099087eae.
-FIX: Build #146 wrongly required on-device English Speech recognition, which is not supported by some iOS 15 iPads. Try offline first; if unavailable or fails, prompt for separate explicit consent before invoking Apple's network speech service; no audio is uploaded to Apple if declined.
-Constrain sample to 55 seconds due to Apple's documented one-minute Speech recognition limit.
-Keep external English subtitle matching and no-unreliable-adjustment safety gate, use no microphone. Preserve user data and no spoken transcripts stored. Update Telegram What's new / Fixed details.
-Build EXACTLY ONE signed ad hoc iOS 15 TrollStore IPA (next build #147) with regression tests, privacy checks, native signing/IPA verification; deliver via Telegram and publish one permanent, uniquely tagged GitHub release and SHA256SUMS.
-Do NOT build Windows. Preserve existing Windows and signed Build #145 and #146 IPA releases. No automated scheduler or duplicate native runs.
+Fully CI-tested source commit before this request: 141249d68bc292cdae0cb6e127a1d321822ecc3b (Flutter CI run 40821480970: success).
+Owner screenshot from Build #147: "iOS could not read this stream's audio. Try another MP4/HLS source." This means AVAssetExportSession failed BEFORE speech transcription and matching; prior offline/Apple-service permission changes did not fix decoder compatibility.
+Fix: On native audio_extract_failed or unsupported_media, create an independent libmpv audio-only decoder using same source URL/HTTP headers/audio track, export bounded 55s WAV with mpv pcm AO, validate RIFF/WAVE size, send WAV file to iOS Speech recognizer, clean up temp audio in all paths; never modify original video playback or submit movie audio to Apple unless user explicitly consents. Keep source/episode epoch guards, multi-cue matching, no unreliable subtitle adjustment.
+Workflow iOS-only, signed iOS 15 TrollStore IPA with tests, ad hoc codesign verification, Telegram document with accurate What's new / Fixed caption, unique permanent GitHub Release and SHA256SUMS. Use primary Intel Mac runner and bounded fallback only for no-runner cancellations.
+Build number expected 148 (speech release run #3); keep previous #145/#146/#147 signed IPA releases and existing Windows #145 untouched; do not trigger paired Windows release or duplicate native jobs.
+IMPORTANT: A successful build does NOT verify the exact owner's torrent/HTTP stream works on their iPad; do not claim runtime success until tested there.

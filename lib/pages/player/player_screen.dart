@@ -155,6 +155,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _subtitleAutoPending = false;
   bool _autoSyncBusy = false;
   String? _speechMediaUrl; // Active playable media; never logged or persisted.
+  Map<String, String>? _speechMediaHeaders; // Same header set as the mpv movie player.
   bool _nextEpisodeBusy = false;
   List<Video> _episodeCatalog = const [];
   bool _episodeCatalogComplete = false;
@@ -297,6 +298,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _httpVodUrl = null;
     _httpVodHeaders = null;
     _speechMediaUrl = null;
+    _speechMediaHeaders = null;
     _httpPausedAt = null;
     _httpResumedAt = null;
     _httpReconnectAttempts = 0;
@@ -457,6 +459,9 @@ class _PlayerScreenState extends State<PlayerScreen>
           sanitizedUrlStr.contains('/stream?link=') ||
           sanitizedUrlStr.contains('/stream?'));
 
+      _speechMediaHeaders = isTorrentStream
+          ? null
+          : Map<String, String>.from(playerHeaders);
       await PlayerSettings.applyPreOpenProperties(_player, isLive: isLive, isTorrent: isTorrentStream);
 
       // Set native MPV properties for referer and user-agent directly on the player for web streams
@@ -1100,6 +1105,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         mediaUrl: mediaUrl,
         startSeconds: sampleStart,
         durationSeconds: sampleLength,
+        httpHeaders: _speechMediaHeaders,
+        audioTrackId: _selectedAudioTrackIndex,
       );
     } on PlatformException catch (error) {
       if (error.code != 'network_required' &&
@@ -1147,6 +1154,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         startSeconds: sampleStart,
         durationSeconds: sampleLength,
         allowAppleNetworkRecognition: true,
+        httpHeaders: _speechMediaHeaders,
+        audioTrackId: _selectedAudioTrackIndex,
       );
     }
     if (!mounted || epoch != _audioMediaEpoch ||

@@ -7,10 +7,11 @@ abstract final class PlayerPictureAudio {
   static const String normalAudioFilter = 'scaletempo2=max-speed=8';
 
   // FFmpeg acompressor threshold is LINEAR amplitude (0.10 ~ -20 dB).
-  // Modest makeup gives quieter dialogue a lift without recreating loud peaks.
+  // No post-compressor makeup amplification: leave headroom for transient peaks
+  // and for subsequent multichannel-to-stereo remixing.
   static const String nightCompressor =
       'lavfi=[acompressor=threshold=0.10:ratio=3:attack=20:'
-      'release=300:makeup=1.4:knee=2.5]';
+      'release=300:makeup=1.0:knee=2.5]';
 
   static String audioFilterChain(bool nightMode) =>
       nightMode ? '$normalAudioFilter,$nightCompressor' : normalAudioFilter;
@@ -47,9 +48,18 @@ abstract final class PlayerPictureAudio {
     return value.round().clamp(0, maxExtraBrightness).toInt();
   }
 
+  /// MPV's native surround-to-stereo remix can otherwise exceed full scale.
+  /// Keep the normal listening path unchanged when Night Mode is disabled.
+  static String downmixNormalization(bool nightMode) =>
+      nightMode ? 'yes' : 'no';
+
   static Future<void> applyAudio(
     Future<void> Function(String, String) setProperty, bool nightMode,
-  ) => setProperty('af', audioFilterChain(nightMode));
+  ) async {
+    await setProperty('audio-normalize-downmix',
+        downmixNormalization(nightMode));
+    await setProperty('af', audioFilterChain(nightMode));
+  }
 
   static Future<void> applyBrightness(
     Future<void> Function(String, String) setProperty, double brightness,

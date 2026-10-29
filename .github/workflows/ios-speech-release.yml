@@ -212,6 +212,7 @@ jobs:
           assert 'request.requiresOnDeviceRecognition = onDeviceOnly' in app
           assert 'if !onDeviceOnly && !allowAppleNetworkRecognition' in app
           assert 'code: "network_required"' in app
+          assert 'offline_recognition_failed' in app
           assert 'allowAppleNetworkRecognition: allowAppleNetworkRecognition' in app
           assert 'Use Apple online Speech Recognition?' in player
           assert "if (approved != true)" in player

@@ -47,6 +47,7 @@ class PlayerTransport extends StatelessWidget {
   final VoidCallback onToggleSpeedMenu;
   final VoidCallback onToggleAudioMenu;
   final VoidCallback? onToggleNightMode;
+  final VoidCallback? onCopyNightModeLogPath;
   final VoidCallback? onToggleBrightnessMenu;
   final VoidCallback? onToggleDiagnostics;
   final VoidCallback? onAutoSync;
@@ -93,6 +94,7 @@ class PlayerTransport extends StatelessWidget {
     required this.onToggleSpeedMenu,
     required this.onToggleAudioMenu,
     this.onToggleNightMode,
+    this.onCopyNightModeLogPath,
     this.onToggleBrightnessMenu,
     this.onToggleDiagnostics,
     this.onAutoSync,
@@ -321,6 +323,19 @@ class PlayerTransport extends StatelessWidget {
                        active: isNightModeEnabled,
                        activeColor: PlayerTheme.accent,
                        onPressed: onToggleNightMode!,
+                     ),
+                     SizedBox(width: gap),
+                   ],
+
+                   // Windows diagnostic file is saved under LocalAppData.
+                   if (onCopyNightModeLogPath != null) ...[
+                     PlayerIconButton(
+                       key: const ValueKey('player-night-mode-log-path'),
+                       size: isCompact ? 30 : 32,
+                       iconSize: isCompact ? 15 : 17,
+                       icon: const Icon(Icons.description_outlined),
+                       tooltip: 'Copy Night Mode diagnostic log path',
+                       onPressed: onCopyNightModeLogPath!,
                      ),
                      SizedBox(width: gap),
                    ],

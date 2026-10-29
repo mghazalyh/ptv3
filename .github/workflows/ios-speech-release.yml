@@ -219,7 +219,9 @@ jobs:
           assert "await mpv.setProperty('ao', 'pcm')" in Path('lib/services/player/mpv_speech_audio_capture.dart').read_text()
 
           assert 'request.requiresOnDeviceRecognition = onDeviceOnly' in app
-          assert 'if !onDeviceOnly && !allowAppleNetworkRecognition' in app
+          assert 'let onDeviceOnly = offlineSupported && !allowAppleNetworkRecognition' in app
+          assert 'if !offlineSupported && !allowAppleNetworkRecognition' in app
+          assert 'request.requiresOnDeviceRecognition = onDeviceOnly' in app
           assert 'code: "network_required"' in app
           assert 'offline_recognition_failed' in app
           assert 'allowAppleNetworkRecognition: allowAppleNetworkRecognition' in app

@@ -34,16 +34,23 @@ import UIKit
         callback(FlutterError(code: "invalid_args", message: "Missing playback excerpt", details: nil))
         return
       }
-      self?.speechSync.transcribe(location: location, start: start,
-                                 duration: duration, callback: callback)
+      let allowAppleNetworkRecognition = arguments["allowAppleNetworkRecognition"] as? Bool ?? false
+      self?.speechSync.transcribe(
+        location: location,
+        start: start,
+        duration: duration,
+        allowAppleNetworkRecognition: allowAppleNetworkRecognition,
+        callback: callback
+      )
     }
   }
 }
 
-/// Uses Apple's built-in, on-device Speech recognizer to transcribe only a
-/// 75-second excerpt exported from a playable local/HTTP AVFoundation asset.
-/// The app does not capture the microphone and does not upload audio to a third
-/// party. Unsupported files and streams fail visibly without changing captions.
+/// Uses Apple's Speech recognizer to transcribe a bounded video-audio excerpt.
+/// Prefers offline recognition. If unavailable, Apple's network-based
+/// recognition is allowed ONLY after separate in-app opt-in for this attempt.
+/// The microphone is never captured and the app does not operate its own
+/// speech-recognition server. Unsupported audio leaves captions unchanged.
 private final class SpeechSubtitleSync {
   private var exporter: AVAssetExportSession?
   private var speechTask: SFSpeechRecognitionTask?
@@ -53,6 +60,7 @@ private final class SpeechSubtitleSync {
   private var excerptStart = 0.0
 
   func transcribe(location: String, start: Double, duration: Double,
+                  allowAppleNetworkRecognition: Bool,
                   callback: @escaping FlutterResult) {
     guard pending == nil else {
       callback(FlutterError(code: "busy", message: "Speech sync is already running.", details: nil))
@@ -77,11 +85,31 @@ private final class SpeechSubtitleSync {
       return
     }
 
-    guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")),
-          recognizer.supportsOnDeviceRecognition else {
+    guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")) else {
       callback(FlutterError(code: "speech_unavailable",
-                            message: "English on-device speech recognition is not available on this iPad.",
+                            message: "English speech recognition is unsupported by this iPad.",
                             details: nil))
+      return
+    }
+
+    // Never silently upload movie audio. When an offline speech model is not
+    // supported, Flutter first shows a consent dialog; the caller must
+    // explicitly approve this single network-assisted attempt.
+    let onDeviceOnly = recognizer.supportsOnDeviceRecognition
+    if !onDeviceOnly && !allowAppleNetworkRecognition {
+      callback(FlutterError(
+        code: "network_required",
+        message: "This iPad needs Apple's online speech recognition service.",
+        details: nil
+      ))
+      return
+    }
+    guard recognizer.isAvailable else {
+      callback(FlutterError(
+        code: "speech_service_unavailable",
+        message: "Apple's speech recognition service is unavailable. Check internet and Speech Recognition settings.",
+        details: nil
+      ))
       return
     }
 
@@ -99,13 +127,14 @@ private final class SpeechSubtitleSync {
           return
         }
         self.exportExcerpt(mediaURL, start: start, duration: duration,
-                           recognizer: recognizer)
+                           recognizer: recognizer, onDeviceOnly: onDeviceOnly)
       }
     }
   }
 
   private func exportExcerpt(_ mediaURL: URL, start: Double, duration: Double,
-                             recognizer: SFSpeechRecognizer) {
+                             recognizer: SFSpeechRecognizer,
+                             onDeviceOnly: Bool) {
     let asset = AVURLAsset(url: mediaURL)
     guard let session = AVAssetExportSession(
       asset: asset, presetName: AVAssetExportPresetAppleM4A
@@ -133,14 +162,18 @@ private final class SpeechSubtitleSync {
             "iOS could not read this stream's audio. Try another MP4/HLS source.")
           return
         }
-        self.recognizeFile(audioURL, recognizer: recognizer)
+        self.recognizeFile(audioURL, recognizer: recognizer,
+                           onDeviceOnly: onDeviceOnly)
       }
     }
   }
 
-  private func recognizeFile(_ url: URL, recognizer: SFSpeechRecognizer) {
+  private func recognizeFile(_ url: URL, recognizer: SFSpeechRecognizer,
+                             onDeviceOnly: Bool) {
     let request = SFSpeechURLRecognitionRequest(url: url)
-    request.requiresOnDeviceRecognition = true
+    // False explicitly permits Apple's server only after the user's approval
+    // in the Flutter consent dialog. True keeps audio on the device.
+    request.requiresOnDeviceRecognition = onDeviceOnly
     request.shouldReportPartialResults = false
     request.taskHint = .dictation
     speechTask = recognizer.recognitionTask(with: request) { [weak self] transcript, error in
@@ -161,7 +194,7 @@ private final class SpeechSubtitleSync {
           }
         } else if error != nil {
           self.finishFailure("recognition_failed",
-            "On-device speech recognition failed. Subtitle timing was not changed.")
+            "Speech recognition failed. Check your internet, Speech permission or try another scene.")
         }
       }
     }

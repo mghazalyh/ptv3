@@ -316,7 +316,7 @@ class PlayerTransport extends StatelessWidget {
                       size: isCompact ? 30 : 32,
                       iconSize: isCompact ? 15 : 17,
                       icon: Icon(isAutoSyncBusy ? Icons.hourglass_top_rounded : Icons.sync_rounded),
-                      tooltip: 'Auto Sync subtitles (find matching release)',
+                      tooltip: 'Auto Sync subtitles to spoken audio on iOS (external English tracks)',
                       active: isAutoSyncBusy,
                       activeColor: PlayerTheme.accent,
                       onPressed: onAutoSync!,

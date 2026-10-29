@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:playtorrio/services/player/player_picture_audio.dart';
 import 'package:playtorrio/services/player/player_settings.dart';
+import 'package:playtorrio/services/player/night_mode_diagnostics.dart';
 import 'package:playtorrio/widgets/player/player_brightness_menu.dart';
 import 'package:playtorrio/widgets/player/player_night_mode_recovery.dart';
 import 'package:playtorrio/widgets/player/player_transport.dart';
@@ -11,6 +12,8 @@ void _noOperation() {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => NightModeDiagnostics.debugModeEnabled.value = false);
+  tearDown(() => NightModeDiagnostics.debugModeEnabled.value = false);
 
   test('MPV runtime filter initialization errors are recognized', () {
     expect(PlayerPictureAudio.isNightModeFilterError(
@@ -31,7 +34,7 @@ void main() {
     await PlayerPictureAudio.restoreNormalAudio((key, value) async {
       written.add('$key=$value');
     });
-    expect(written, ['af=scaletempo2=max-speed=8']);
+    expect(written, ['audio-normalize-downmix=no', 'af=scaletempo2=max-speed=8']);
 
     written.clear();
     await PlayerPictureAudio.restoreNormalAudio((key, value) async {
@@ -40,7 +43,7 @@ void main() {
         throw StateError('filter unsupported');
       }
     });
-    expect(written, ['af=scaletempo2=max-speed=8', 'af=']);
+    expect(written, ['audio-normalize-downmix=no', 'af=scaletempo2=max-speed=8', 'af=']);
   });
 
   test('Late native error disables persisted Night Mode even on setter error',
@@ -71,6 +74,7 @@ void main() {
       (tester) async {
     var retried = false;
     var logCopied = false;
+    NightModeDiagnostics.debugModeEnabled.value = false;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: Stack(children: [
@@ -92,8 +96,14 @@ void main() {
     expect(button, findsOneWidget);
     await tester.tap(button);
     expect(retried, isTrue);
+    expect(find.byKey(const ValueKey('player-night-mode-copy-log')), findsNothing);
+    NightModeDiagnostics.debugModeEnabled.value = true;
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('player-night-mode-copy-log')));
     expect(logCopied, isTrue);
+    NightModeDiagnostics.debugModeEnabled.value = false;
+    await tester.pump();
+    expect(find.byKey(const ValueKey('player-night-mode-copy-log')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -118,6 +128,10 @@ void main() {
     expect('acompressor'.allMatches(chain).length, 1);
     expect(chain, contains('ratio=3'));
     expect(chain, contains('release=300'));
+    expect(chain, contains('makeup=1.0'));
+    expect(chain, isNot(contains('makeup=1.4')));
+    expect(PlayerPictureAudio.downmixNormalization(true), 'yes');
+    expect(PlayerPictureAudio.downmixNormalization(false), 'no');
   });
 
   test('Native MPV property updates address audio and video independently', () async {
@@ -128,8 +142,10 @@ void main() {
     await PlayerPictureAudio.applyBrightness(write, 47.6);
     await PlayerPictureAudio.applyAudio(write, false);
     expect(calls, [
+      'audio-normalize-downmix=yes',
       'af=${PlayerPictureAudio.audioFilterChain(true)}',
       'brightness=48',
+      'audio-normalize-downmix=no',
       'af=scaletempo2=max-speed=8',
     ]);
     expect(PlayerPictureAudio.brightnessValue(-100), 0);
@@ -167,6 +183,7 @@ void main() {
     bool night = false;
     bool brightness = false;
     bool logPathCopied = false;
+    NightModeDiagnostics.debugModeEnabled.value = false;
     await tester.pumpWidget(MaterialApp(home: StatefulBuilder(
       builder: (context, update) => Scaffold(body: Stack(children: [
         Positioned(bottom: 0, left: 0, right: 0, child: PlayerTransport(
@@ -192,7 +209,7 @@ void main() {
     )));
     expect(find.byKey(const ValueKey('player-night-mode')), findsOneWidget);
     expect(find.byKey(const ValueKey('player-extra-brightness')), findsOneWidget);
-    expect(find.byKey(const ValueKey('player-night-mode-log-path')), findsOneWidget);
+    expect(find.byKey(const ValueKey('player-night-mode-log-path')), findsNothing);
     expect(find.byTooltip('Audio Tracks'), findsOneWidget);
     expect(find.byTooltip('Subtitles'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('player-night-mode')));
@@ -201,8 +218,14 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('player-extra-brightness')));
     await tester.pump();
     expect(brightness, true);
+    NightModeDiagnostics.debugModeEnabled.value = true;
+    await tester.pump();
+    expect(find.byKey(const ValueKey('player-night-mode-log-path')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('player-night-mode-log-path')));
     expect(logPathCopied, isTrue);
+    NightModeDiagnostics.debugModeEnabled.value = false;
+    await tester.pump();
+    expect(find.byKey(const ValueKey('player-night-mode-log-path')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

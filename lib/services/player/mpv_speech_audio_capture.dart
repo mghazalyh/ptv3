@@ -38,15 +38,10 @@ class MpvSpeechAudioCapture {
     StreamSubscription<Duration>? positionListener;
     StreamSubscription<bool>? completionListener;
     StreamSubscription<String>? errorListener;
-    final finished = Completer<void>();
+    final finished = Completer<Object?>();
 
     void completeOnce([Object? error]) {
-      if (finished.isCompleted) return;
-      if (error != null) {
-        finished.completeError(error);
-      } else {
-        finished.complete();
-      }
+      if (!finished.isCompleted) finished.complete(error);
     }
 
     var exported = false;
@@ -94,13 +89,14 @@ class MpvSpeechAudioCapture {
           httpHeaders: httpHeaders?.isEmpty == true ? null : httpHeaders,
         ),
         play: true,
-      );
-      await finished.future.timeout(
+      ).timeout(const Duration(seconds: 45));
+      final result = await finished.future.timeout(
         const Duration(seconds: 85),
         onTimeout: () => throw TimeoutException(
           'Audio capture timed out. No subtitle timing was changed.',
         ),
       );
+      if (result != null) throw result;
       exported = true;
     } catch (_) {
       // Do not log media URLs (torrent credentials, provider tokens or hashes).

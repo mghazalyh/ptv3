@@ -52,6 +52,7 @@ import '../../widgets/player/player_audio_menu.dart';
 import '../../widgets/player/player_brightness_menu.dart';
 import '../../widgets/player/player_night_mode_recovery.dart';
 import '../../services/player/player_picture_audio.dart';
+import '../../services/player/night_mode_diagnostics.dart';
 import '../../widgets/player/player_subtitle_menu.dart';
 import '../../widgets/player/player_sub_style_modal.dart';
 import '../../widgets/player/player_skip_button.dart';
@@ -282,6 +283,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (idx != null && _selectedAudioTrackIndex != idx) {
           setState(() => _selectedAudioTrackIndex = idx);
         }
+      }),
+      // Native MPV/libavfilter details arrive independently of player errors.
+      _player.stream.log.listen((log) {
+        unawaited(NightModeDiagnostics.instance.recordMpv(
+          prefix: log.prefix,
+          level: log.level,
+          message: log.text,
+        ));
       }),
       _player.stream.error.listen((error) {
         _onControllerError(error);
@@ -975,20 +984,57 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  Future<void> _copyNightModeLogPath() async {
+    final location = NightModeDiagnostics.instance.filePath;
+    try {
+      await NightModeDiagnostics.instance.flush();
+      await Clipboard.setData(ClipboardData(text: location));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Night Mode diagnostic log path copied: $location'),
+          duration: const Duration(seconds: 8),
+        ));
+      }
+    } catch (error) {
+      debugPrint('[PlayerScreen] Cannot copy diagnostic log path: $error');
+    }
+  }
+
+  Future<void> _captureNightModeNativeState(String phase) async {
+    if (!Platform.isWindows) return;
+    final log = NightModeDiagnostics.instance;
+    await log.record('night-native-state', 'phase=$phase');
+    final dynamic native = _player.platform;
+    for (final property in const <String>[
+      'af', 'audio-codec-name', 'audio-params', 'audio-out-params',
+      'audio-filter', 'audio-device',
+    ]) {
+      try {
+        final value = await native.getProperty(property);
+        await log.record('night-mpv-property', '$property=$value');
+      } catch (error) {
+        await log.record('night-mpv-property', '$property=unavailable (${error.runtimeType})');
+      }
+    }
+  }
+
   Future<void> _toggleNightMode() async {
     if (_nightModeApplying || !mounted) return;
     final wanted = !PlayerSettings.nightModeEnabled.value;
+    unawaited(_captureNightModeNativeState('before-toggle'));
     setState(() => _nightModeApplying = true);
     try {
       // Apply to this actual libmpv instance BEFORE persisting. Failure must
       // not leave an enabled toggle that silently has no effect.
       await PlayerSettings.setNightMode(wanted, player: _player);
+      unawaited(_captureNightModeNativeState('after-toggle'));
       if (mounted) {
         setState(() {});
         _showAudioHudToast(wanted ? 'NIGHT MODE ON' : 'NIGHT MODE OFF');
       }
     } catch (e) {
       debugPrint('[PlayerScreen] Cannot apply Night Mode: $e');
+      unawaited(NightModeDiagnostics.instance.record('night-toggle-error', e.toString()));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Night Mode is unavailable on this audio output.'),
@@ -1508,6 +1554,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// classify that as a broken movie/source or strand the Night Mode toggle.
   Future<void> _recoverNightModeAudioFailure() async {
     if (_nightModeRecoveryInProgress || !mounted) return;
+    unawaited(_captureNightModeNativeState('filter-error-before-recovery'));
+    unawaited(NightModeDiagnostics.instance.record('night-recovery', 'runtime filter failure detected; reopening previous playback without filter'));
     final generation = _streamGeneration;
     final playbackUrl = _speechMediaUrl;
     final headers = _speechMediaHeaders == null
@@ -1529,6 +1577,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     try {
       // The preference is disabled on disk before the native setter runs.
       await PlayerSettings.recoverFailedNightMode(player: _player);
+      unawaited(_captureNightModeNativeState('filter-error-after-fallback'));
       _nightModeLastFallbackAt = DateTime.now();
       if (!mounted || generation != _streamGeneration) return;
 
@@ -1582,9 +1631,11 @@ class _PlayerScreenState extends State<PlayerScreen>
         _nightModeRecoveryFailed = false;
         _statusMessage = 'Night Mode disabled. Normal audio restored.';
       });
+      unawaited(NightModeDiagnostics.instance.record('night-recovery', 'normal playback reopened successfully; Night Mode OFF'));
       _showAudioHudToast('NIGHT MODE OFF');
     } catch (error) {
       debugPrint('[PlayerScreen] Night Mode audio recovery failed: $error');
+      unawaited(NightModeDiagnostics.instance.record('night-recovery-error', error.toString()));
       if (!mounted || generation != _streamGeneration) return;
       setState(() {
         _isLoading = false;
@@ -1603,6 +1654,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (!mounted) return;
     final errorMsg = err.toString();
     print('[PlayerScreen ERROR] Player error: $errorMsg');
+    if (PlayerPictureAudio.isNightModeFilterError(errorMsg)) {
+      unawaited(NightModeDiagnostics.instance.record('mpv-error', errorMsg));
+      unawaited(_captureNightModeNativeState('player-error-received'));
+    }
 
     if (PlayerPictureAudio.isNightModeFilterError(errorMsg)) {
       if (PlayerSettings.nightModeEnabled.value) {
@@ -2537,6 +2592,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             child: PlayerNightModeRecovery(
               isRecovering: _nightModeRecoveryInProgress,
               onRetry: () => unawaited(_recoverNightModeAudioFailure()),
+              onCopyLogPath: () => unawaited(_copyNightModeLogPath()),
             ),
           ),
 
@@ -2666,6 +2722,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                           onToggleAspectMenu: () => _toggleMenu('aspect'),
                           onToggleSpeedMenu: () => _toggleMenu('speed'),
                           onToggleAudioMenu: () => _toggleMenu('audio'),
+                          onCopyNightModeLogPath: Platform.isWindows
+                              ? () => unawaited(_copyNightModeLogPath()) : null,
                           onToggleNightMode: _nightModeApplying
                               ? null : () => unawaited(_toggleNightMode()),
                           onToggleBrightnessMenu: () => _toggleMenu('brightness'),

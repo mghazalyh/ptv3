@@ -105,6 +105,7 @@ jobs:
           python3 .github/scripts/ios_runner_fallback_guard.py --self-test
           python3 .github/scripts/validate_native_release_workflow.py
           ruby -e 'require "yaml"; doc = YAML.load_file(".github/workflows/windows-advanced-discover.yml", aliases: true); abort "Invalid release workflow" unless doc.fetch("jobs").key?("ios15-rescue-arm")'
+          ruby -e 'require "yaml"; d = YAML.load_file(".github/workflows/ios-speech-release.yml", aliases: true); j = d.fetch("jobs"); abort "Missing iOS speech release fallback" unless %w[speech-ios-primary speech-ios-rescue-intel speech-ios-rescue-arm publish-ios-speech telegram-ios-speech].all? { |name| j.key?(name) }; abort "Unexpected Windows build" if j.keys.any? { |name| name.include?("windows") }'
 
       - name: Validate retention pruning policy without GitHub deletion
         run: |

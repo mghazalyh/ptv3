@@ -127,8 +127,12 @@ private final class SpeechSubtitleSync {
     // Never silently upload movie audio. When an offline speech model is not
     // supported, Flutter first shows a consent dialog; the caller must
     // explicitly approve this single network-assisted attempt.
-    let onDeviceOnly = recognizer.supportsOnDeviceRecognition
-    if !onDeviceOnly && !allowAppleNetworkRecognition {
+    let offlineSupported = recognizer.supportsOnDeviceRecognition
+    // Per-attempt consent must actually disable the on-device requirement.
+    // Otherwise a device whose offline model fails remains stuck offline
+    // even after its owner approved Apple's network speech service.
+    let onDeviceOnly = offlineSupported && !allowAppleNetworkRecognition
+    if !offlineSupported && !allowAppleNetworkRecognition {
       callback(FlutterError(
         code: "network_required",
         message: "This iPad needs Apple's online speech recognition service.",

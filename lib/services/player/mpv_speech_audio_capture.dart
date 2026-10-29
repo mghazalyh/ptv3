@@ -21,8 +21,8 @@ class MpvSpeechAudioCapture {
     Map<String, String>? httpHeaders,
     int? audioTrackId,
   }) async {
-    if (!Platform.isIOS) {
-      throw UnsupportedError('mpv WAV speech capture is intended for iOS.');
+    if (!Platform.isIOS && !Platform.isWindows) {
+      throw UnsupportedError('mpv WAV speech capture requires iOS or Windows.');
     }
     if (mediaUrl.isEmpty || !startSeconds.isFinite || startSeconds < 0 ||
         !durationSeconds.isFinite || durationSeconds < 15 ||

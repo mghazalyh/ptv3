@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart' as mk;
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -28,6 +29,8 @@ import '../../services/player/player_settings.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/playback_autoselection.dart';
 import '../../services/player/ios_speech_transcriber.dart';
+import '../../services/player/windows_whisper_transcriber.dart';
+import '../../services/player/subtitle_auto_sync_policy.dart';
 import '../../services/player/subtitle_auto_sync_platform.dart';
 import '../../services/player/speech_subtitle_alignment.dart';
 import '../../services/player/paused_http_recovery.dart';
@@ -155,6 +158,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _subtitleManuallySelected = false;
   bool _subtitleAutoPending = false;
   bool _autoSyncBusy = false;
+  bool _syncIsAutomatic = false;
+  Timer? _periodicAutoSyncTimer;
   String? _speechMediaUrl; // Active playable media; never logged or persisted.
   Map<String, String>? _speechMediaHeaders; // Same header set as the mpv movie player.
   bool _nextEpisodeBusy = false;
@@ -293,6 +298,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _initStream() async {
     ++_streamGeneration;
+    _startPeriodicAutoSync();
     ++_diagnosticsRevision;
     _diagnosticsProperties = {};
     ++_skipMediaEpoch;
@@ -1017,17 +1023,34 @@ class _PlayerScreenState extends State<PlayerScreen>
     _player.setSubtitleTrack(SubtitleTrack.no());
   }
 
-  // On iOS, compare recognized actual dialogue with external subtitle cues.
-  // Never invent a timing offset if two independent phrases cannot agree.
-  Future<void> _autoSyncSubtitles() async {
+  // Recheck speech every five minutes while video with EXTERNAL subtitles
+  // is playing. Never prompt, change subtitle source, or overlap attempts.
+  void _startPeriodicAutoSync() {
+    _periodicAutoSyncTimer?.cancel();
+    _periodicAutoSyncTimer = Timer.periodic(SubtitleAutoSyncPolicy.interval, (_) {
+      if (!mounted || !SubtitleAutoSyncPolicy.shouldRun(
+        isPlaying: _isPlaying, isLoading: _isLoading, isBusy: _autoSyncBusy,
+        hasExternalCues: _isSubtitleEnabled &&
+            _currentSubtitlePath != null && _currentCues.length >= 2,
+        hasAudioSource: _speechMediaUrl?.isNotEmpty == true,
+        isSupported: Platform.isIOS || Platform.isWindows,
+      )) return;
+      unawaited(_autoSyncSubtitles(automatic: true));
+    });
+  }
+
+  // Spoken-audio timing is platform-specific; cue alignment is shared.
+  Future<void> _autoSyncSubtitles({bool automatic = false}) async {
     if (_autoSyncBusy || _isLoading) return;
     final epoch = _audioMediaEpoch;
+    _syncIsAutomatic = automatic;
     setState(() => _autoSyncBusy = true);
     try {
-      if (SubtitleAutoSyncPlatform.modeFor(isIOS: Platform.isIOS) ==
+      if (SubtitleAutoSyncPlatform.modeFor(
+            isIOS: Platform.isIOS, isWindows: Platform.isWindows) ==
           SubtitleAutoSyncMode.speechTiming) {
-        await _autoSyncToSpokenAudio(epoch);
-      } else {
+        await _autoSyncToSpokenAudio(epoch, automatic: automatic);
+      } else if (!automatic) {
         await _autoSyncByReleaseName(epoch);
       }
     } on PlatformException catch (error) {
@@ -1046,19 +1069,20 @@ class _PlayerScreenState extends State<PlayerScreen>
           'Audio sync was not possible for this media. Try an MP4/HLS source or manual subtitle sync.');
       }
     } finally {
+      _syncIsAutomatic = false;
       if (mounted) setState(() => _autoSyncBusy = false);
     }
   }
 
   void _showAutoSyncMessage(String message) {
-    if (!mounted) return;
+    if (!mounted || _syncIsAutomatic) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message),
       duration: const Duration(seconds: 5),
     ));
   }
 
-  Future<void> _autoSyncToSpokenAudio(int epoch) async {
+  Future<void> _autoSyncToSpokenAudio(int epoch, {bool automatic = false}) async {
     var cues = _currentCues;
     if (_currentSubtitlePath == null || cues.length < 2) {
       // Embedded subtitles do not expose timed text through media_kit.
@@ -1100,9 +1124,41 @@ class _PlayerScreenState extends State<PlayerScreen>
         (durationSeconds - sampleStart)
             .clamp(15.0, IosSpeechTranscriber.maxSampleSeconds)
             .toDouble();
-    _showAutoSyncMessage('Checking English speech recognition for this iPad...');
+    if (Platform.isWindows && !await WindowsWhisperTranscriber.hasModel()) {
+      // A background timer must never interrupt playback with a download.
+      if (automatic) return;
+      final approved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Enable offline Windows Auto Sync?'),
+          content: const Text(
+            'Download the free 148 MB English Whisper model once? It will be '
+            'cached for future use. Speech runs only on your PC; no '
+            'microphone or cloud speech recognition is used.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Not now')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Download model')),
+          ],
+        ),
+      );
+      if (approved != true || !mounted || epoch != _audioMediaEpoch) return;
+      _showAutoSyncMessage('Downloading offline English model (148 MB) once...');
+      await WindowsWhisperTranscriber.ensureModel();
+      if (!mounted || epoch != _audioMediaEpoch) return;
+    }
+    _showAutoSyncMessage(Platform.isWindows
+        ? 'Checking audio with offline Windows Whisper...'
+        : 'Checking English speech recognition for this iPad...');
     List<SpeechTimedWord> words;
-    try {
+    if (Platform.isWindows) {
+      words = await WindowsWhisperTranscriber.transcribe(
+        mediaUrl: mediaUrl, startSeconds: sampleStart,
+        durationSeconds: sampleLength, httpHeaders: _speechMediaHeaders,
+        audioTrackId: _selectedAudioTrackIndex,
+      );
+    } else try {
       words = await IosSpeechTranscriber.transcribe(
         mediaUrl: mediaUrl,
         startSeconds: sampleStart,
@@ -1124,7 +1180,12 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (!mounted || epoch != _audioMediaEpoch ||
           subtitlePath != _currentSubtitlePath ||
           mediaUrl != _speechMediaUrl) return;
-      final approved = await showDialog<bool>(
+      // Consent is stored persistently; timed checks never open dialogs.
+      final preferences = await SharedPreferences.getInstance();
+      var approved = preferences.getBool('ios_apple_speech_network_allowed');
+      if (approved != true && automatic) return;
+      if (approved != true) {
+        approved = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
@@ -1148,7 +1209,11 @@ class _PlayerScreenState extends State<PlayerScreen>
             ),
           ],
         ),
-      );
+        );
+        if (approved == true) {
+          await preferences.setBool('ios_apple_speech_network_allowed', true);
+        }
+      }
       if (!mounted || epoch != _audioMediaEpoch ||
           subtitlePath != _currentSubtitlePath ||
           mediaUrl != _speechMediaUrl) return;
@@ -1988,6 +2053,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _audioMediaEpoch++;
     ++_diagnosticsRevision;
     _diagnosticsTimer?.cancel();
+    _periodicAutoSyncTimer?.cancel();
     for (final s in _subscriptions) {
       s.cancel();
     }

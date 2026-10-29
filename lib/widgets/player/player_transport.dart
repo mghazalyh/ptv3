@@ -319,6 +319,7 @@ class PlayerTransport extends StatelessWidget {
                       icon: Icon(isAutoSyncBusy ? Icons.hourglass_top_rounded : Icons.sync_rounded),
                       tooltip: SubtitleAutoSyncPlatform.tooltipFor(
                         isIOS: !kIsWeb && Platform.isIOS,
+                        isWindows: !kIsWeb && Platform.isWindows,
                       ),
                       active: isAutoSyncBusy,
                       activeColor: PlayerTheme.accent,

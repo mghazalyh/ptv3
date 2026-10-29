@@ -1053,6 +1053,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       } else if (!automatic) {
         await _autoSyncByReleaseName(epoch);
       }
+    } on WindowsSpeechSyncFailure catch (error) {
+      if (mounted && epoch == _audioMediaEpoch) {
+        _showAutoSyncMessage('Windows Auto Sync: ${error.message} '
+            'Subtitle timing unchanged.');
+      }
     } on PlatformException catch (error) {
       if (mounted && epoch == _audioMediaEpoch) {
         _showAutoSyncMessage(error.message ??
@@ -1063,10 +1068,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         _showAutoSyncMessage('Speech recognition timed out. Timing was not changed.');
       }
     } catch (error) {
-      debugPrint('[PlayerSpeechSync] Alignment failed: ${error.runtimeType}');
+      // Errors may include authenticated stream URLs: never log raw details.
+      debugPrint('[PlayerSpeechSync] Failure type: ${error.runtimeType}');
       if (mounted && epoch == _audioMediaEpoch) {
-        _showAutoSyncMessage(
-          'Audio sync was not possible for this media. Try an MP4/HLS source or manual subtitle sync.');
+        _showAutoSyncMessage(Platform.isWindows
+            ? 'Windows Auto Sync could not complete (${error.runtimeType}). '
+                'Subtitle timing unchanged; try another seekable stream.'
+            : 'Speech Auto Sync could not process this media. '
+                'Subtitle timing unchanged.');
       }
     } finally {
       _syncIsAutomatic = false;

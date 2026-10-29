@@ -283,8 +283,7 @@ abstract final class PlayerSettings {
       }
 
       // 1. Audio Filter & Volume
-      await platform.setProperty('af',
-          PlayerPictureAudio.audioFilterChain(nightModeEnabled.value));
+      await _applyAudioWithFailOpen(player);
       await platform.setProperty('volume-max', '200');
       await platform.setProperty('brightness',
           PlayerPictureAudio.brightnessValue(extraBrightness.value).toString());
@@ -366,12 +365,7 @@ abstract final class PlayerSettings {
   /// subtitle styling, speed, track selection, or system brightness.
   static Future<void> applyPictureAudio(Player player) async {
     final dynamic platform = player.platform;
-    try {
-      await PlayerPictureAudio.applyAudio(
-          (key, value) => platform.setProperty(key, value), nightModeEnabled.value);
-    } catch (e) {
-      debugPrint('[PlayerSettings] Native night audio filter unavailable: $e');
-    }
+    await _applyAudioWithFailOpen(player);
     try {
       await PlayerPictureAudio.applyBrightness(
           (key, value) => platform.setProperty(key, value), extraBrightness.value);
@@ -380,13 +374,63 @@ abstract final class PlayerSettings {
     }
   }
 
+  /// Applying `af` can succeed even if MPV later fails to initialize its
+  /// runtime audio graph. Immediate property failures also fail open here.
+  static Future<void> _applyAudioWithFailOpen(Player player) async {
+    final dynamic platform = player.platform;
+    try {
+      await PlayerPictureAudio.applyAudio(
+        (key, value) => platform.setProperty(key, value),
+        nightModeEnabled.value,
+      );
+    } catch (error) {
+      debugPrint('[PlayerSettings] Audio filter rejected, restoring playback: $error');
+      if (nightModeEnabled.value) {
+        await recoverFailedNightMode(player: player);
+      } else {
+        await PlayerPictureAudio.restoreNormalAudio(
+          (key, value) => platform.setProperty(key, value),
+        );
+      }
+    }
+  }
+
+  /// Fail open and clear the persisted setting BEFORE touching the native
+  /// output. A failed native setter must never re-enable the broken filter on
+  /// the next episode or app restart.
+  static Future<void> recoverFailedNightMode({
+    Player? player,
+    Future<void> Function(String, String)? setProperty,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyNightMode, false);
+    nightModeEnabled.value = false;
+
+    final writer = setProperty ??
+        (player != null
+            ? (String key, String value) async {
+                final dynamic platform = player.platform;
+                await platform.setProperty(key, value);
+              }
+            : null);
+    if (writer != null) {
+      await PlayerPictureAudio.restoreNormalAudio(writer);
+    }
+  }
+
   /// Persist across episodes and app restarts; do not save an unsupported
   /// state when native mpv rejects the filter on an active player.
   static Future<void> setNightMode(bool enabled, {Player? player}) async {
     if (player != null) {
       final dynamic platform = player.platform;
-      await PlayerPictureAudio.applyAudio(
-          (key, value) => platform.setProperty(key, value), enabled);
+      try {
+        await PlayerPictureAudio.applyAudio(
+            (key, value) => platform.setProperty(key, value), enabled);
+      } catch (error) {
+        debugPrint('[PlayerSettings] Night Mode setter failed: $error');
+        await recoverFailedNightMode(player: player);
+        rethrow;
+      }
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyNightMode, enabled);

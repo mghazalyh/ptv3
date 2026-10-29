@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'audio_language_priority.dart';
+import 'player_picture_audio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
@@ -51,6 +52,13 @@ enum SubtitleStylePreset {
 /// defaults. Users cannot adjust these — MPV picks the best decoder based on
 /// hardware natively. Only subtitle styling remains user-configurable.
 abstract final class PlayerSettings {
+  // Global per-install playback effects. Defaults remain completely neutral.
+  static const _keyNightMode = 'player_global_night_mode';
+  static const _keyExtraBrightness = 'player_global_extra_brightness';
+
+  static final ValueNotifier<bool> nightModeEnabled = ValueNotifier<bool>(false);
+  static final ValueNotifier<double> extraBrightness = ValueNotifier<double>(0.0);
+
   // Subtitle Customization Keys
   static const _keySubStylePreset = 'player_sub_style_preset';
   static const _keySubFont = 'player_sub_font';
@@ -123,6 +131,10 @@ abstract final class PlayerSettings {
   /// Initializes subtitle preferences from disk and extracts the bundled font for libass.
   static Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
+
+    nightModeEnabled.value = prefs.getBool(_keyNightMode) ?? false;
+    extraBrightness.value = PlayerPictureAudio.brightnessValue(
+        prefs.getDouble(_keyExtraBrightness) ?? 0).toDouble();
 
     // Load Subtitle Customization Preferences
     final subPresetStr = prefs.getString(_keySubStylePreset);
@@ -271,8 +283,11 @@ abstract final class PlayerSettings {
       }
 
       // 1. Audio Filter & Volume
-      await platform.setProperty('af', 'scaletempo2=max-speed=8');
+      await platform.setProperty('af',
+          PlayerPictureAudio.audioFilterChain(nightModeEnabled.value));
       await platform.setProperty('volume-max', '200');
+      await platform.setProperty('brightness',
+          PlayerPictureAudio.brightnessValue(extraBrightness.value).toString());
 
       // 2. Hardware Decoder — let MPV pick natively
       await platform.setProperty('hwdec', 'auto-safe');
@@ -338,11 +353,59 @@ abstract final class PlayerSettings {
   /// Post-Open / Dynamic Properties: Subtitle styling and real-time tweaks that can be
   /// applied safely after media open or during live playback.
   static Future<void> applyPostOpenProperties(Player player) async {
+    // Media open can rebuild the native filter graph / video output.
+    await applyPictureAudio(player);
     try {
       await applySubtitleStyling(player);
     } catch (e) {
       debugPrint('[PlayerSettings] applyPostOpenProperties warning: $e');
     }
+  }
+
+  /// Reapply effects whenever a new media source is opened. Do not alter
+  /// subtitle styling, speed, track selection, or system brightness.
+  static Future<void> applyPictureAudio(Player player) async {
+    final dynamic platform = player.platform;
+    try {
+      await PlayerPictureAudio.applyAudio(
+          (key, value) => platform.setProperty(key, value), nightModeEnabled.value);
+    } catch (e) {
+      debugPrint('[PlayerSettings] Native night audio filter unavailable: $e');
+    }
+    try {
+      await PlayerPictureAudio.applyBrightness(
+          (key, value) => platform.setProperty(key, value), extraBrightness.value);
+    } catch (e) {
+      debugPrint('[PlayerSettings] Native video brightness unavailable: $e');
+    }
+  }
+
+  /// Persist across episodes and app restarts; do not save an unsupported
+  /// state when native mpv rejects the filter on an active player.
+  static Future<void> setNightMode(bool enabled, {Player? player}) async {
+    if (player != null) {
+      final dynamic platform = player.platform;
+      await PlayerPictureAudio.applyAudio(
+          (key, value) => platform.setProperty(key, value), enabled);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyNightMode, enabled);
+    nightModeEnabled.value = enabled;
+  }
+
+  /// Smooth live preview. Call setExtraBrightness once when dragging ends.
+  static Future<void> previewExtraBrightness(Player player, double value) async {
+    final dynamic platform = player.platform;
+    await PlayerPictureAudio.applyBrightness(
+        (key, text) => platform.setProperty(key, text), value);
+  }
+
+  static Future<void> setExtraBrightness(double value, {Player? player}) async {
+    final brightness = PlayerPictureAudio.brightnessValue(value).toDouble();
+    if (player != null) await previewExtraBrightness(player, brightness);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyExtraBrightness, brightness);
+    extraBrightness.value = brightness;
   }
 
   /// Automatically resolves all required Referer, Origin, and User-Agent headers for known streaming CDNs.

@@ -1,3 +1,3 @@
-• Fixed (iOS): Auto Sync now offers Apple’s online English speech recognition when offline recognition is unavailable on an iPad, instead of rejecting the device.
-• Privacy: Movie audio is sent to Apple only after you tap Allow; every attempt requires fresh consent. No microphone capture.
-• Supported: iOS 15+, external English subtitles, readable MP4/HLS/local audio. Internet and Speech permission needed for online fallback; some streams remain unsupported.
+• Fix (iOS): Auto Sync now retries audio extraction through a separate mpv decoder when Apple's exporter cannot read a playable stream (including some torrent/MKV sources).
+• It produces a temporary WAV sample for speech timing, then deletes it; playback continues unchanged.
+• Privacy: Apple's online recognition still requires explicit consent. iOS 15+, English subtitles, seekable audio and supported mpv PCM output required. Some protected/live sources may fail.

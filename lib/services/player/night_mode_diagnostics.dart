@@ -21,13 +21,13 @@ class NightModeDiagnostics {
   static final ValueNotifier<bool> debugModeEnabled = ValueNotifier<bool>(false);
 
   /// Persisted opt-in. If OFF we never create or append a diagnostic file.
-  static Future<void> initializeDebugMode() async {
+  static Future<void> initializeDebugMode({NightModeDiagnostics? logger}) async {
     final prefs = await SharedPreferences.getInstance();
     debugModeEnabled.value = prefs.getBool(debugModePreferenceKey) ?? false;
-    if (debugModeEnabled.value) await instance.start();
+    if (debugModeEnabled.value) await (logger ?? instance).start();
   }
 
-  static Future<void> setDebugMode(bool enabled) async {
+  static Future<void> setDebugMode(bool enabled, {NightModeDiagnostics? logger}) async {
     if (!enabled) {
       // Stop future MPV callbacks immediately, even while prefs are saving.
       debugModeEnabled.value = false;
@@ -36,7 +36,7 @@ class NightModeDiagnostics {
     await prefs.setBool(debugModePreferenceKey, enabled);
     if (enabled) {
       debugModeEnabled.value = true;
-      await instance.start();
+      await (logger ?? instance).start();
     }
   }
 

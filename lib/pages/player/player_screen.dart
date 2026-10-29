@@ -50,6 +50,8 @@ import '../../services/player/skip_segments_service.dart';
 import '../../widgets/player/player_aspect_menu.dart';
 import '../../widgets/player/player_audio_menu.dart';
 import '../../widgets/player/player_brightness_menu.dart';
+import '../../widgets/player/player_night_mode_recovery.dart';
+import '../../services/player/player_picture_audio.dart';
 import '../../widgets/player/player_subtitle_menu.dart';
 import '../../widgets/player/player_sub_style_modal.dart';
 import '../../widgets/player/player_skip_button.dart';
@@ -134,6 +136,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   Timer? _volumeHudTimer;
   double _playbackRate = 1.0;
   bool _nightModeApplying = false;
+  bool _nightModeRecoveryInProgress = false;
+  bool _nightModeRecoveryFailed = false;
+  DateTime? _nightModeLastFallbackAt;
   double? _brightnessPreview;
   Future<void> _brightnessWrites = Future<void>.value();
   BoxFit _videoFit = BoxFit.contain;
@@ -303,6 +308,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _initStream() async {
     ++_streamGeneration;
     _startPeriodicAutoSync();
+    _nightModeRecoveryFailed = false;
+    _nightModeLastFallbackAt = null;
     ++_diagnosticsRevision;
     _diagnosticsProperties = {};
     ++_skipMediaEpoch;
@@ -1496,10 +1503,98 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  /// Native libmpv may report success writing `af` but fail to initialize
+  /// FFmpeg's compressor only when a decoded audio stream arrives. Never
+  /// classify that as a broken movie/source or strand the Night Mode toggle.
+  Future<void> _recoverNightModeAudioFailure() async {
+    if (_nightModeRecoveryInProgress || !mounted) return;
+    final generation = _streamGeneration;
+    final playbackUrl = _speechMediaUrl;
+    final headers = _speechMediaHeaders == null
+        ? null
+        : Map<String, String>.from(_speechMediaHeaders!);
+    final resumeAt = _player.state.position > Duration.zero
+        ? _player.state.position
+        : _position;
+
+    _hideTimer?.cancel();
+    setState(() {
+      _nightModeRecoveryInProgress = true;
+      _nightModeRecoveryFailed = false;
+      _showControls = true;
+      _activeMenu = null;
+      _statusMessage = 'Restoring playback without Night Mode...';
+    });
+
+    try {
+      // The preference is disabled on disk before the native setter runs.
+      await PlayerSettings.recoverFailedNightMode(player: _player);
+      _nightModeLastFallbackAt = DateTime.now();
+      if (!mounted || generation != _streamGeneration) return;
+
+      if (playbackUrl != null && playbackUrl.isNotEmpty) {
+        // A libmpv filter initialization error may already have stopped
+        // playback. Reopen the SAME playable URL at its previous position
+        // without requesting a different stream/provider or new credentials.
+        await _player.open(
+          Media(
+            playbackUrl,
+            httpHeaders: headers,
+            start: resumeAt > Duration.zero ? resumeAt : null,
+          ),
+          play: true,
+        ).timeout(const Duration(seconds: 35));
+        if (!mounted || generation != _streamGeneration) return;
+        await PlayerSettings.applyPostOpenProperties(_player);
+        await _player.setRate(_playbackRate);
+        await _player.setVolume((_isMuted ? 0.0 : _volume) * 100.0);
+      } else {
+        await _player.play();
+      }
+
+      if (!mounted || generation != _streamGeneration) return;
+      setState(() {
+        _isLoading = false;
+        _showControls = true;
+        _nightModeRecoveryFailed = false;
+        _statusMessage = 'Night Mode disabled. Normal audio restored.';
+      });
+      _showAudioHudToast('NIGHT MODE OFF');
+    } catch (error) {
+      debugPrint('[PlayerScreen] Night Mode audio recovery failed: $error');
+      if (!mounted || generation != _streamGeneration) return;
+      setState(() {
+        _isLoading = false;
+        _showControls = true;
+        _nightModeRecoveryFailed = true;
+        _statusMessage = 'Night Mode is off. Retry normal audio playback.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _nightModeRecoveryInProgress = false);
+      }
+    }
+  }
+
   void _onControllerError(dynamic err) {
     if (!mounted) return;
     final errorMsg = err.toString();
     print('[PlayerScreen ERROR] Player error: $errorMsg');
+
+    if (PlayerPictureAudio.isNightModeFilterError(errorMsg)) {
+      if (PlayerSettings.nightModeEnabled.value) {
+        unawaited(_recoverNightModeAudioFailure());
+        return;
+      }
+      // Duplicate native events from the already-failed graph must not
+      // reclassify a recovered audio filter as a broken media source.
+      if (_nightModeRecoveryInProgress ||
+          (_nightModeLastFallbackAt != null &&
+              DateTime.now().difference(_nightModeLastFallbackAt!) <
+                  const Duration(seconds: 8))) {
+        return;
+      }
+    }
 
     if (!_isLoading && !_httpReconnecting &&
         PausedHttpRecovery.canRetryError(
@@ -2404,6 +2499,21 @@ class _PlayerScreenState extends State<PlayerScreen>
               behavior: HitTestBehavior.translucent,
               onTap: () => setState(() => _activeMenu = null),
               child: Container(color: Colors.transparent),
+            ),
+          ),
+
+        // Accessible independently of PlayerTransport, including when
+        // loading/error state hides the video controls entirely.
+        if ((_isLoading && PlayerSettings.nightModeEnabled.value) ||
+            _nightModeRecoveryFailed ||
+            _nightModeRecoveryInProgress)
+          Positioned(
+            bottom: 22,
+            left: 16,
+            right: 16,
+            child: PlayerNightModeRecovery(
+              isRecovering: _nightModeRecoveryInProgress,
+              onRetry: () => unawaited(_recoverNightModeAudioFailure()),
             ),
           ),
 

@@ -63,7 +63,7 @@ void main() {
         }
       },
     );
-    expect(written, ['af=scaletempo2=max-speed=8', 'af=']);
+    expect(written, ['audio-normalize-downmix=no', 'af=scaletempo2=max-speed=8', 'af=']);
     expect(PlayerSettings.nightModeEnabled.value, isFalse);
     expect(PlayerSettings.extraBrightness.value, 35.0);
     await PlayerSettings.initialize();

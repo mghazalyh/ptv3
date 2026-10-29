@@ -8,17 +8,18 @@ import 'mpv_speech_audio_capture.dart';
 
 /// English speech recognition of a short video-audio excerpt on iOS 15+.
 /// On-device is always preferred. If unsupported, a network request to
-/// Apple's speech service requires a separate user approval for each attempt.
+/// Apple's speech service requires explicit consent, saved by the Flutter player.
 /// No microphone capture, local transcript persistence, or app-operated server.
 abstract final class IosSpeechTranscriber {
   // Apple Speech recognition limits tasks to about 60 seconds.
   static const double maxSampleSeconds = 55.0;
+  static const onlineConsentKey = 'ios_apple_speech_network_allowed';
 
   static const MethodChannel _channel =
       MethodChannel('playtorrio/speech_subtitle_sync');
 
   /// Network processing is NEVER authorized by default. The player must
-  /// obtain explicit consent before passing [allowAppleNetworkRecognition].
+  /// obtain explicit saved consent before passing [allowAppleNetworkRecognition].
   static Map<String, dynamic> requestArguments({
     required String mediaUrl,
     required double startSeconds,

@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/player/ios_speech_transcriber.dart';
 
 import '../../services/addon/addon_manager.dart';
 import '../../services/theme/app_theme_service.dart';
@@ -42,6 +44,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _appBuild;
   bool _traktConnected = false;
   bool _simklConnected = false;
+  bool _appleSpeechOnlineConsent = false;
 
   @override
   void initState() {
@@ -54,6 +57,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final provider = await _debrid.getSelectedService();
     final traktAuth = await TraktService.instance.isAuthenticated();
     final simklAuth = await SimklService.instance.isAuthenticated();
+    final speechPrefs = await SharedPreferences.getInstance();
     final pkg = await PackageInfo.fromPlatform().catchError((_) => PackageInfo(
           appName: 'PlayTorrio',
           packageName: 'com.playtorrio',
@@ -69,6 +73,8 @@ class _SettingsPageState extends State<SettingsPage> {
         _appBuild = pkg.buildNumber;
         _traktConnected = traktAuth;
         _simklConnected = simklAuth;
+        _appleSpeechOnlineConsent = speechPrefs.getBool(
+            IosSpeechTranscriber.onlineConsentKey) ?? false;
       });
     }
   }
@@ -233,6 +239,30 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
 
               const SizedBox(height: 12),
+
+              // iOS-only opt-in for automatic network-assisted dialogue sync.
+              if (Platform.isIOS) ...[
+                _SettingsSwitchTile(
+                  icon: Icons.record_voice_over_rounded,
+                  iconColor: _appleSpeechOnlineConsent
+                      ? const Color(0xFF10B981) : Colors.white54,
+                  title: 'Apple Speech Online',
+                  subtitle: 'Remember permission for online subtitle alignment. '
+                      'When enabled, automatic checks may send up to 55 seconds '
+                      'of movie audio to Apple every 5 minutes if offline speech '
+                      'recognition fails. No microphone use.',
+                  value: _appleSpeechOnlineConsent,
+                  badgeText: _appleSpeechOnlineConsent ? 'Allowed' : 'Ask first',
+                  onChanged: (value) async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool(
+                        IosSpeechTranscriber.onlineConsentKey, value);
+                    if (mounted) setState(() =>
+                        _appleSpeechOnlineConsent = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // 3. Debrid & Cloud Streaming
               _SettingsCategoryTile(

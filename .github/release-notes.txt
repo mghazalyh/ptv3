@@ -1,6 +1,4 @@
-• Same Flutter source and commit for Windows x64 and iOS 15.
-• iOS Auto Sync: spoken-English timing using Apple Speech, with stream WAV fallback.
-• Windows Auto Sync: release-matched English subtitles and manual timing; no Apple Speech.
-• Fixed platform-aware Auto Sync tooltips and routing tests.
-• Preserves diagnostics and credits-skip safeguards.
-• iOS: 55-second samples; Apple network recognition requires consent per attempt. Unsupported streams may fail; iPad playback is not yet verified.
+• Windows: offline Whisper speech subtitle alignment. First tap asks to download a verified 148 MB English model. No microphone or cloud speech recognition.
+• iOS: remembers Apple online Speech consent after Allow; revoke in Settings.
+• Both: recheck external text subtitles every 5 minutes while playing, skipping paused/busy playback and never prompting during background checks.
+• At least two matching dialogue cues required; DRM/live/unsupported sources may not sync.

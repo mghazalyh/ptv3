@@ -1182,7 +1182,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           mediaUrl != _speechMediaUrl) return;
       // Consent is stored persistently; timed checks never open dialogs.
       final preferences = await SharedPreferences.getInstance();
-      var approved = preferences.getBool('ios_apple_speech_network_allowed');
+      var approved = preferences.getBool(IosSpeechTranscriber.onlineConsentKey);
       if (approved != true && automatic) return;
       if (approved != true) {
         approved = await showDialog<bool>(
@@ -1192,11 +1192,12 @@ class _PlayerScreenState extends State<PlayerScreen>
           title: const Text('Use Apple online Speech Recognition?'),
           content: const Text(
             'This iPad cannot recognize English speech entirely offline. '
-            'To align subtitles, Apple can process up to 55 seconds of this '
-            'movie\'s audio on its speech servers. Internet is required. '
-            'The microphone is not used.\n\n'
-            'Nothing will be sent unless you choose Allow. '
-            'This permission is for this Auto Sync attempt only.',
+            'When offline recognition fails, Apple may process up to 55 '
+            'seconds of movie audio. Your approval is remembered for future '
+            'Auto Sync checks, including automatic checks every 5 minutes. '
+            'You can revoke it in Settings (Apple Speech Online).\n\n'
+            'The microphone is never used. Nothing is sent to Apple online '
+            'unless you choose Allow.',
           ),
           actions: [
             TextButton(
@@ -1211,7 +1212,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         ),
         );
         if (approved == true) {
-          await preferences.setBool('ios_apple_speech_network_allowed', true);
+          await preferences.setBool(IosSpeechTranscriber.onlineConsentKey, true);
         }
       }
       if (!mounted || epoch != _audioMediaEpoch ||

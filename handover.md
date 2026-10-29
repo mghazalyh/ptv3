@@ -1,3 +1,11 @@
+## OPEN OWNER TASK — WINDOWS NIGHT MODE NATIVE LOGGING BUILD (2026-10-29 SGT)
+
+Owner tested Windows Build #150 and confirmed Night Mode immediately disables itself. Owner explicitly requests a **new installable Windows build that saves actionable diagnostic logs** for submission and later compressor repair. This is instrumentation only: no claim that Night Mode audio compression is fixed. Record this task BEFORE modifying code. Keep the ONE shared Flutter branch `parity-floating-player-both`, iOS unchanged and **one** Windows-only native release following passing Linux+Windows tests.
+
+**Required:** persistent Windows per-session diagnostic file with predictable location and accessible in-player path/copy/open-folder. Capture MPV/libavfilter diagnostics relevant to Night Mode initialization, MPV filter chain, available audio/format and attempt/fallback lifecycle, including errors emitted asynchronously rather than only setting `af`. Do not capture actual playback URLs, authentication headers, content names, subtitle text, tokens or secret settings. Include sufficient sanitization, bounded/rotated log retention and graceful file I/O failure handling. Regression tests for path, secure redaction and captured failure behavior. Record exact log file path, user reproduction instructions and Windows release identity in handover when complete. Preserve Night Mode fail-safe recovery, speed and subtitles. No iOS build; check no other native workflow active; deliver one verified Windows EXE + portable ZIP + checksums and accurate Telegram link fallback.
+
+**Task status:** OPEN, not yet implemented or built.
+
 ## VERIFIED COMPLETE — WINDOWS NIGHT MODE AUDIO FILTER CRASH + INACCESSIBLE CONTROLS (2026-10-29 SGT)
 
 **Owner device evidence:** On paired v1.1.15 Build #149, playing Krypton S2:E9 on Windows with Night Mode ON displays `Playback error: Audio filter initialized failed!`; the player then hides its bottom transport bar so Night Mode cannot easily be disabled. The owner explicitly requested **FIX IT NOW AND BUILD IT**. This is a NEW, open request, not an extension of the closed Build #149 work.

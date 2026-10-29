@@ -19,7 +19,7 @@ import wave
 
 COMPRESSOR_CHAIN = (
     "scaletempo2=max-speed=8,lavfi=[acompressor=threshold=0.10:"
-    "ratio=3:attack=20:release=300:makeup=1.4:knee=2.5]"
+    "ratio=3:attack=20:release=300:makeup=1.0:knee=2.5]"
 )
 MPV_EVENT_LOG_MESSAGE = 2
 MPV_EVENT_END_FILE = 7
@@ -77,7 +77,7 @@ def assert_project_chain(repo_root: Path) -> None:
     for expected in (
         "scaletempo2=max-speed=8",
         "acompressor=threshold=0.10:ratio=3:attack=20:",
-        "release=300:makeup=1.4:knee=2.5",
+        "release=300:makeup=1.0:knee=2.5",
     ):
         if expected not in source:
             raise RuntimeError("Native smoke chain differs from Flutter player policy")
@@ -144,6 +144,7 @@ def smoke(libmpv: Path, audio: Path) -> None:
             ("config", "no"),
             ("vo", "null"),
             ("ao", "null"),
+            ("audio-normalize-downmix", "yes"),
             ("af", COMPRESSOR_CHAIN),
         ):
             result = option(handle, key.encode("ascii"), value.encode("utf-8"))

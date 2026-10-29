@@ -94,8 +94,13 @@ def smoke(libmpv: Path, audio: Path) -> None:
         raise FileNotFoundError("Packaged libmpv or synthetic test audio missing")
 
     libdir = libmpv.resolve().parent
-    os.add_dll_directory(str(libdir))
-    mpv = ctypes.WinDLL(str(libmpv.resolve()))
+    # Keep the search-directory handle open for the entire MPV instance life.
+    dll_directory = os.add_dll_directory(str(libdir))
+    try:
+        mpv = ctypes.WinDLL(str(libmpv.resolve()))
+    except Exception:
+        dll_directory.close()
+        raise
 
     def bind(name, restype, *args):
         fn = getattr(mpv, name)
@@ -128,6 +133,7 @@ def smoke(libmpv: Path, audio: Path) -> None:
 
     handle = create()
     if not handle:
+        dll_directory.close()
         raise RuntimeError("libmpv could not create an MPV instance")
     errors = []
     compressor_seen = False
@@ -201,7 +207,10 @@ def smoke(libmpv: Path, audio: Path) -> None:
             "scaletempo2 + acompressor without an FFmpeg filter error"
         )
     finally:
-        destroy(handle)
+        try:
+            destroy(handle)
+        finally:
+            dll_directory.close()
 
 
 def main() -> None:

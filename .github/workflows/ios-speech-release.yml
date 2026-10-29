@@ -198,6 +198,9 @@ jobs:
       - name: Test spoken-word audio-to-subtitle timing
         run: flutter test test/speech_subtitle_alignment_test.dart
 
+      - name: Test Apple Speech online consent guard
+        run: flutter test test/ios_speech_network_consent_test.dart
+
       - name: Check iOS Speech transcription and permission wiring
         run: |
           python3 - <<'PY'
@@ -206,7 +209,13 @@ jobs:
           player=Path('lib/pages/player/player_screen.dart').read_text()
           plist=Path('ios/Runner/Info.plist').read_text()
           assert 'SFSpeechURLRecognitionRequest' in app
-          assert 'requiresOnDeviceRecognition = true' in app
+          assert 'request.requiresOnDeviceRecognition = onDeviceOnly' in app
+          assert 'if !onDeviceOnly && !allowAppleNetworkRecognition' in app
+          assert 'code: "network_required"' in app
+          assert 'allowAppleNetworkRecognition: allowAppleNetworkRecognition' in app
+          assert 'Use Apple online Speech Recognition?' in player
+          assert "if (approved != true)" in player
+          assert "allowAppleNetworkRecognition: true" in player
           assert 'NSSpeechRecognitionUsageDescription' in plist
           assert 'SpeechSubtitleAlignment.estimate(' in player
           assert '_applyLiveDelay(estimate.delaySeconds)' in player

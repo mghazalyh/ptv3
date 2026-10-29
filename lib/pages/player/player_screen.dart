@@ -27,6 +27,8 @@ import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/playback_autoselection.dart';
+import '../../services/player/ios_speech_transcriber.dart';
+import '../../services/player/speech_subtitle_alignment.dart';
 import '../../services/player/paused_http_recovery.dart';
 import '../../services/player/automatic_skip_policy.dart';
 import '../../services/player/playback_diagnostics_probe.dart';
@@ -152,6 +154,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _subtitleManuallySelected = false;
   bool _subtitleAutoPending = false;
   bool _autoSyncBusy = false;
+  String? _speechMediaUrl; // Active playable media; never logged or persisted.
   bool _nextEpisodeBusy = false;
   List<Video> _episodeCatalog = const [];
   bool _episodeCatalogComplete = false;
@@ -293,6 +296,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     ++_skipMediaEpoch;
     _httpVodUrl = null;
     _httpVodHeaders = null;
+    _speechMediaUrl = null;
     _httpPausedAt = null;
     _httpResumedAt = null;
     _httpReconnectAttempts = 0;
@@ -324,7 +328,8 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       // Handle offline downloaded file playback directly
       if (rawUrl != null && (File(rawUrl).existsSync() || _currentSource.name == 'Downloaded')) {
-        print('[PlayerScreen] Initializing offline local file playback: $rawUrl');
+        _speechMediaUrl = rawUrl;
+        print('[PlayerScreen] Initializing offline local file playback.');
         await PlayerSettings.applyPreOpenProperties(_player);
         await _player.open(Media(rawUrl), play: true);
         await PlayerSettings.applyPostOpenProperties(_player);
@@ -429,6 +434,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
 
       final cleanUri = Uri.parse(sanitizedUrlStr);
+      _speechMediaUrl = cleanUri.toString();
       print('[PlayerScreen] Opening direct network stream URL: $cleanUri (headers: ${playerHeaders.keys})');
 
       if (!mounted) return;
@@ -1002,36 +1008,137 @@ class _PlayerScreenState extends State<PlayerScreen>
     _player.setSubtitleTrack(SubtitleTrack.no());
   }
 
-  // One-tap release-aware subtitle replacement. No speculative audio offset:
-  // matching metadata is not proof of spoken-word synchronization.
+  // On iOS, compare recognized actual dialogue with external subtitle cues.
+  // Never invent a timing offset if two independent phrases cannot agree.
   Future<void> _autoSyncSubtitles() async {
     if (_autoSyncBusy || _isLoading) return;
     final epoch = _audioMediaEpoch;
     setState(() => _autoSyncBusy = true);
     try {
-      final ranked = PlaybackAutoselection.preferredExternal(
-        _subtitleGroups, mediaTitle: _currentSource.name ?? '',
-      );
-      final alternatives = ranked.where((v) =>
-        v.downloadUrl != _currentSubtitleVariant?.downloadUrl).take(6);
-      bool loaded = false;
-      for (final variant in alternatives) {
-        if (!mounted || epoch != _audioMediaEpoch) return;
-        loaded = await _loadSubtitle(variant, automatic: false,
-          expectedEpoch: epoch);
-        if (loaded) break;
+      if (Platform.isIOS) {
+        await _autoSyncToSpokenAudio(epoch);
+      } else {
+        await _autoSyncByReleaseName(epoch);
       }
+    } on PlatformException catch (error) {
       if (mounted && epoch == _audioMediaEpoch) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(loaded
-              ? 'Loaded a better release-matched subtitle. Check its timing.'
-              : 'No alternative English subtitle found. Use manual sync for timing.'),
-        ));
+        _showAutoSyncMessage(error.message ??
+            'Speech recognition unavailable. Subtitle timing was not changed.');
+      }
+    } on TimeoutException {
+      if (mounted && epoch == _audioMediaEpoch) {
+        _showAutoSyncMessage('Speech recognition timed out. Timing was not changed.');
+      }
+    } catch (error) {
+      debugPrint('[PlayerSpeechSync] Alignment failed: ${error.runtimeType}');
+      if (mounted && epoch == _audioMediaEpoch) {
+        _showAutoSyncMessage(
+          'Audio sync was not possible for this media. Try an MP4/HLS source or manual subtitle sync.');
       }
     } finally {
-      if (mounted && epoch == _audioMediaEpoch) {
-        setState(() => _autoSyncBusy = false);
+      if (mounted) setState(() => _autoSyncBusy = false);
+    }
+  }
+
+  void _showAutoSyncMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      duration: const Duration(seconds: 5),
+    ));
+  }
+
+  Future<void> _autoSyncToSpokenAudio(int epoch) async {
+    var cues = _currentCues;
+    if (_currentSubtitlePath == null || cues.length < 2) {
+      // Embedded subtitles do not expose timed text through media_kit.
+      // Find external English text rather than guessing based on track names.
+      final candidates = PlaybackAutoselection.preferredExternal(
+        _subtitleGroups, mediaTitle: _currentSource.name ?? '',
+      );
+      var loaded = false;
+      for (final variant in candidates.take(3)) {
+        if (!mounted || epoch != _audioMediaEpoch) return;
+        if (await _loadSubtitle(variant, automatic: false, expectedEpoch: epoch)) {
+          loaded = true;
+          break;
+        }
       }
+      if (!loaded || _currentCues.length < 2) {
+        _showAutoSyncMessage(
+          'Select or download an external English subtitle first; speech sync needs subtitle text.');
+        return;
+      }
+      cues = _currentCues;
+    }
+    final mediaUrl = _speechMediaUrl;
+    if (mediaUrl == null || mediaUrl.isEmpty) {
+      _showAutoSyncMessage('Audio for this stream is not available to the iOS speech recognizer.');
+      return;
+    }
+    final subtitlePath = _currentSubtitlePath;
+    final positionSeconds = _position.inMilliseconds / 1000.0;
+    final durationSeconds = _duration.inMilliseconds / 1000.0;
+    if (durationSeconds < 15) {
+      _showAutoSyncMessage('Speech sync needs a seekable movie or episode, not a live stream.');
+      return;
+    }
+    final maxStart = (durationSeconds - 75).clamp(0.0, durationSeconds);
+    final sampleStart = (positionSeconds - 20).clamp(0.0, maxStart).toDouble();
+    final sampleLength =
+        (durationSeconds - sampleStart).clamp(15.0, 75.0).toDouble();
+    _showAutoSyncMessage('Analyzing on-device English speech in a short movie excerpt...');
+    final words = await IosSpeechTranscriber.transcribe(
+      mediaUrl: mediaUrl,
+      startSeconds: sampleStart,
+      durationSeconds: sampleLength,
+    );
+    if (!mounted || epoch != _audioMediaEpoch ||
+        subtitlePath != _currentSubtitlePath ||
+        mediaUrl != _speechMediaUrl) return;
+    final estimate = SpeechSubtitleAlignment.estimate(
+      cues: cues,
+      speech: words,
+      sampleStartSeconds: sampleStart,
+      sampleEndSeconds: sampleStart + sampleLength,
+    );
+    if (estimate == null) {
+      _showAutoSyncMessage(
+        'Could not match enough spoken dialogue to subtitle lines. Timing left unchanged; try another scene.');
+      return;
+    }
+    if (!mounted || epoch != _audioMediaEpoch ||
+        subtitlePath != _currentSubtitlePath) return;
+    final applied = await _applyLiveDelay(estimate.delaySeconds);
+    if (applied && mounted && epoch == _audioMediaEpoch) {
+      setState(() {});
+      final offset = estimate.delaySeconds;
+      final direction = offset < 0 ? 'earlier' : 'later';
+      _showAutoSyncMessage(
+        'Aligned subtitles to spoken audio: ${offset.abs().toStringAsFixed(1)}s $direction '
+        'using ${estimate.supportingCues} matching dialogue lines.');
+    } else if (mounted && epoch == _audioMediaEpoch) {
+      _showAutoSyncMessage('Could not update subtitle timing in the player.');
+    }
+  }
+
+  Future<void> _autoSyncByReleaseName(int epoch) async {
+    final ranked = PlaybackAutoselection.preferredExternal(
+      _subtitleGroups, mediaTitle: _currentSource.name ?? '',
+    );
+    final alternatives = ranked.where((v) =>
+        v.downloadUrl != _currentSubtitleVariant?.downloadUrl).take(6);
+    bool loaded = false;
+    for (final variant in alternatives) {
+      if (!mounted || epoch != _audioMediaEpoch) return;
+      loaded = await _loadSubtitle(variant, automatic: false,
+          expectedEpoch: epoch);
+      if (loaded) break;
+    }
+    if (mounted && epoch == _audioMediaEpoch) {
+      _showAutoSyncMessage(loaded
+          ? 'Loaded a better release-matched subtitle. Check its timing.'
+          : 'No alternative English subtitle found. Use manual sync for timing.');
     }
   }
 
@@ -1129,13 +1236,16 @@ class _PlayerScreenState extends State<PlayerScreen>
     PlayerSettings.setSubScale(clamped, player: _player);
   }
 
-  Future<void> _applyLiveDelay(double delaySec) async {
-    _subtitleDelayMs = delaySec * 1000.0;
+  Future<bool> _applyLiveDelay(double delaySec) async {
+    if (!delaySec.isFinite || delaySec.abs() > 150) return false;
     final np = _player.platform as dynamic;
     try {
-      np.setProperty('sub-delay', delaySec.toString());
+      await np.setProperty('sub-delay', delaySec.toString());
+      _subtitleDelayMs = delaySec * 1000.0;
+      return true;
     } catch (e) {
-      print('[PlayerScreen] applyLiveDelay error: $e');
+      debugPrint('[PlayerScreen] applyLiveDelay failed: ${e.runtimeType}');
+      return false;
     }
   }
 

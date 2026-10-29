@@ -61,6 +61,7 @@ jobs:
             lib/pages/home/home_page.dart \
             lib/pages/details/details_page.dart \
             lib/pages/player/player_screen.dart \
+            lib/pages/settings/settings_page.dart \
             lib/services/player/player_settings.dart \
             lib/services/player/player_picture_audio.dart \
             lib/services/player/night_mode_diagnostics.dart \
@@ -176,7 +177,7 @@ jobs:
       - name: Analyze Windows player including iOS-guarded optional Speech code
         shell: pwsh
         run: |
-          flutter analyze --no-pub --no-fatal-infos lib/pages/player/player_screen.dart lib/widgets/player/player_transport.dart lib/services/player/subtitle_auto_sync_platform.dart lib/services/player/ios_speech_transcriber.dart lib/services/player/mpv_speech_audio_capture.dart lib/services/player/windows_whisper_transcriber.dart lib/services/player/ffmpeg_speech_audio_capture.dart lib/services/player/subtitle_auto_sync_policy.dart lib/services/player/player_picture_audio.dart lib/services/player/player_settings.dart lib/services/player/night_mode_diagnostics.dart lib/widgets/player/player_night_mode_recovery.dart
+          flutter analyze --no-pub --no-fatal-infos lib/pages/player/player_screen.dart lib/widgets/player/player_transport.dart lib/services/player/subtitle_auto_sync_platform.dart lib/services/player/ios_speech_transcriber.dart lib/services/player/mpv_speech_audio_capture.dart lib/services/player/windows_whisper_transcriber.dart lib/services/player/ffmpeg_speech_audio_capture.dart lib/services/player/subtitle_auto_sync_policy.dart lib/services/player/player_picture_audio.dart lib/services/player/player_settings.dart lib/services/player/night_mode_diagnostics.dart lib/widgets/player/player_night_mode_recovery.dart lib/pages/settings/settings_page.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test Windows release-matching and shared platform routing
         shell: pwsh

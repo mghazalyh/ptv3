@@ -1,11 +1,9 @@
-OWNER AUTHORIZED ONE Windows-only native PlayTorrio Night Mode diagnostics build to capture the real MPV/libavfilter failure seen after installing Build #150.
-Request: 2026-10-29 SGT.
-Unified Flutter working branch: parity-floating-player-both.
-Pre-release source SHA: 8112812b12cbf5648c396a80eac2ac3e35234494.
-Linux Flutter and Windows regression checks: https://github.com/mghazalyh/ptv3/actions/runs/40891646454 (both SUCCESS), including diagnostics file creation, native audio log filtering, privacy redaction and log rotation.
-Required package: ONE Windows x64 Setup EXE, Windows portable ZIP, checksum manifest, permanent GitHub Release, and truthful Telegram link/document status.
-Diagnostics: %LOCALAPPDATA%\PlayTorrio\logs\night-mode-diagnostics.log; copy file path from player document icon beside Night Mode; capture actual MPV audio filter warnings and toggle/recovery context without saving stream URLs or credentials.
-The app Night Mode compressor is NOT yet confirmed fixed; this build is to diagnose it.
-Owner write-ahead scope recorded at top of handover.md in commit 94d5330beb7ceddbfad9f96e476e58683048591e.
-Native Actions queued/in_progress/waiting/requested/pending checked ZERO immediately before this ONE release request.
-Windows-only. No iOS compilation, IPA, signing or paired release. Do not repeat this request for the same diagnostics build.
+OWNER AUTHORIZED ONE Windows-only PlayTorrio Night Mode native compressor FIX release, after uploading Build #151 log proving AVFilterGraph: No such filter: 'acompressor'.
+Date: 2026-10-29 SGT.
+Working branch: parity-floating-player-both; ONE shared Flutter player, unchanged iOS code.
+Verified app/native workflow implementation source: 512c3604fb7c0ceaef9d8a8a9bdb9515aabca4bc.
+Pre-release Linux+Windows checks: https://github.com/mghazalyh/ptv3/actions/runs/40898811944 (both COMPLETED/SUCCESS). Windows native preflight loaded real pinned libmpv DLL from upstream shinchiro 20261021 SHA256 efc719eff3dc5954b4a5efc800632808bcec01cc9034940dd14e5eb7fe9ea633; successfully decoded PCM with complete scaletempo2 + FFmpeg acompressor chain.
+Record scope BEFORE implementation at top of handover.md commit 979e31382df8e57e507d0952596549a6dba4ea7f. CI verified post-implementation checkpoint recorded in handover.
+ONE Windows native Build: exact released Windows x64 Setup EXE + portable ZIP with verified updated libmpv-2.dll and runtime source manifest; require native smoke testing *packaged DLL* with both PCM and SIX-CHANNEL E-AC3; fail if compressor unsupported or crashes. Preserve Whisper and FFmpeg, subtitles, speed, brightness, Windows diagnostics. Publish installer, ZIP, checksum manifest and permanent GitHub Release. Windows Telegram actual document or download-link fallback.
+Do not build, sign, upload or archive an iOS IPA for this Windows-only bug. Owner on-device output remains unverified until installed.
+All queued/in_progress/waiting/requested/pending GitHub Actions checked ZERO directly before requesting this ONE native workflow. Never request a duplicate.

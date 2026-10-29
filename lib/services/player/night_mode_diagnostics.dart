@@ -140,7 +140,7 @@ class NightModeDiagnostics {
         .replaceAll(RegExp(r'\b(?:authorization|bearer|cookie|api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|signature|referer|origin)\s*[:=]\s*[^\s,;]+', caseSensitive: false), '[REDACTED_CREDENTIAL]')
         .replaceAll(RegExp(r'\b(?:token|key|pass|auth|sig|signature|cookie)=[^\s&]+', caseSensitive: false), '[REDACTED_CREDENTIAL]')
         .replaceAll(RegExp(r'\b(?:[a-f0-9]{48,}|[a-z0-9_-]{80,})\b', caseSensitive: false), '[REDACTED_VALUE]')
-        .replaceAll(RegExp(r'(?:title|filename|path|url|uri)\s*[:=]\s*[^,;]+', caseSensitive: false), '[REDACTED_METADATA]');
+        .replaceAll(RegExp(r'(?:title|filename|path|url|uri)\s*[:=]\s*(?:\x22[^\x22]*\x22|\x27[^\x27]*\x27|[^\s,;]+)', caseSensitive: false), '[REDACTED_METADATA]');
     if (safe.length > 380) safe = '${safe.substring(0, 380)} [TRUNCATED]';
     return safe.trim();
   }

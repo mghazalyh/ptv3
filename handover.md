@@ -1,3 +1,11 @@
+## REQUIRED PLAYTORRIO ARCHITECTURE — ONE SHARED FLUTTER CODEBASE FOR iOS + WINDOWS
+
+**Owner's explicit standing requirement (2026-10-29):** PlayTorrio iOS and Windows must ALWAYS share the same GitHub repository, `parity-floating-player-both` source branch and Flutter source tree. Platform-specific features must be guarded, NOT implemented by creating a separate app, player, repository or permanent branch. Apple's native Speech implementation lives only under `ios/` and is never invoked on Windows. On Windows, Auto Sync continues to choose release-matched English subtitles, with manual subtitle-delay available; the tooltip must describe Windows' actual functionality. See `lib/services/player/subtitle_auto_sync_platform.dart` on the active branch.
+
+**Validation:** The active branch's `.github/workflows/playtorrio-fast-checks.yml` tests shared player and subtitle matching on Linux AND Windows, without packaging native Windows installers on each push. Windows binary builds only when the owner requests a Windows or paired native release; iOS-only requests build only iOS. A newer iOS IPA build number does NOT mean separate source trees. Build #149 iOS was successfully compiled, signed, uploaded and sent to Telegram (message 68), release `https://github.com/mghazalyh/ptv3/releases/tag/ios-speech-v1.1.15-run4`; last Windows binaries #145. No overlapping native releases or background ChatGPT automation.
+
+Follow the existing **authorized fix → exactly one tested, signed, delivered native build** owner instruction. Check active jobs before triggering and don't re-trigger already delivered #149. User can override these rules.
+
 ## TOP-PRIORITY OWNER DIRECTIVE — NATIVE FIX MEANS VERIFIED NATIVE RELEASE (2026-10-29)
 
 On PlayTorrio, when the owner asks a coding assistant to fix, implement or continue an **already-authorized native iOS/Windows issue**, **automatically perform one signed, tested release for the affected platform** after CI passes. The task is not complete merely because code is committed or Flutter CI passes. Do not ask for the owner to separately repeat "build it" unless they explicitly requested code-only work. Deliver actual installable files via Telegram (with accurate "What's new / Fixed" feature notes) and a permanent GitHub Release, and verify the signing, nonempty assets and checksums before claiming success.

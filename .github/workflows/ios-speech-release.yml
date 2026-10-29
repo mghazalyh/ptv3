@@ -145,7 +145,7 @@ jobs:
             lib/pages/details/details_page.dart
 
       - name: Analyze speech-timing services and player integration
-        run: flutter analyze --no-pub --no-fatal-infos lib/services/player/ios_speech_transcriber.dart lib/services/player/speech_subtitle_alignment.dart lib/pages/player/player_screen.dart
+        run: flutter analyze --no-pub --no-fatal-infos lib/services/player/ios_speech_transcriber.dart lib/services/player/mpv_speech_audio_capture.dart lib/services/player/speech_subtitle_alignment.dart lib/pages/player/player_screen.dart
 
       - name: Test GitHub library and cross-device playback progress
         run: |
@@ -201,6 +201,9 @@ jobs:
       - name: Test Apple Speech online consent guard
         run: flutter test test/ios_speech_network_consent_test.dart
 
+      - name: Test mpv decoded stream WAV format and safe native file handoff
+        run: flutter test test/mpv_speech_audio_capture_test.dart
+
       - name: Check iOS Speech transcription and permission wiring
         run: |
           python3 - <<'PY'
@@ -209,6 +212,12 @@ jobs:
           player=Path('lib/pages/player/player_screen.dart').read_text()
           plist=Path('ios/Runner/Info.plist').read_text()
           assert 'SFSpeechURLRecognitionRequest' in app
+          assert 'if let audioURL = decodedWav' in app
+          assert 'filename.hasPrefix("playtorrio-speech-")' in app
+          assert "error.code != 'audio_extract_failed'" in Path('lib/services/player/ios_speech_transcriber.dart').read_text()
+          assert "await wav.delete()" in Path('lib/services/player/ios_speech_transcriber.dart').read_text()
+          assert "await mpv.setProperty('ao', 'pcm')" in Path('lib/services/player/mpv_speech_audio_capture.dart').read_text()
+
           assert 'request.requiresOnDeviceRecognition = onDeviceOnly' in app
           assert 'if !onDeviceOnly && !allowAppleNetworkRecognition' in app
           assert 'code: "network_required"' in app

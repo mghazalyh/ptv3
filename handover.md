@@ -1,3 +1,11 @@
+## TOP-PRIORITY OWNER DIRECTIVE — NATIVE FIX MEANS VERIFIED NATIVE RELEASE (2026-10-29)
+
+On PlayTorrio, when the owner asks a coding assistant to fix, implement or continue an **already-authorized native iOS/Windows issue**, **automatically perform one signed, tested release for the affected platform** after CI passes. The task is not complete merely because code is committed or Flutter CI passes. Do not ask for the owner to separately repeat "build it" unless they explicitly requested code-only work. Deliver actual installable files via Telegram (with accurate "What's new / Fixed" feature notes) and a permanent GitHub Release, and verify the signing, nonempty assets and checksums before claiming success.
+
+**Prevent waste and duplication:** First check all queued/in-progress native jobs, never launch overlapping native builds or repeat a successful build for the same source fix, prefer iOS-only for iOS-only work and reuse successful Windows assets. Investigate failures and retry narrowly rather than launching blind extra runs. Source/documentation pushes are not independent authorization to build; the owner's fix request authorizes one scoped release. Never set up background ChatGPT automations or schedules. Avoid promising device-specific runtime functionality based solely on a signed IPA.
+
+**Active branch:** `parity-floating-player-both`; canonical detailed policy `.github/RELEASE_DELIVERY_POLICY.md` on that branch; release request for iOS speech fixes is `.github/ios-speech-release-request.txt`, paired Windows+iOS request `.github/release-request.txt`. For ongoing context consult active-branch `AGENTS.md`, `NEXT_SESSION.md` and `handover.md`. This default-branch mirror exists so **future assistants see the rule even before checking the working branch**. User instructions can override it.
+
 ## Future native release runner recovery policy (2026-10-29 SGT; documentation-only mirror)
 
 - Active working/release branch: `parity-floating-player-both`. Ordinary source merges and documentation commits DO NOT trigger native Windows or iOS builds; only `.github/release-request.txt` or manual dispatch explicitly request a paired release.

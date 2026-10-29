@@ -9,6 +9,9 @@ import 'speech_subtitle_alignment.dart';
 /// Apple's speech service requires a separate user approval for each attempt.
 /// No microphone capture, local transcript persistence, or app-operated server.
 abstract final class IosSpeechTranscriber {
+  // Apple Speech recognition limits tasks to about 60 seconds.
+  static const double maxSampleSeconds = 55.0;
+
   static const MethodChannel _channel =
       MethodChannel('playtorrio/speech_subtitle_sync');
 
@@ -37,7 +40,7 @@ abstract final class IosSpeechTranscriber {
     }
     if (mediaUrl.trim().isEmpty || !startSeconds.isFinite ||
         !durationSeconds.isFinite || startSeconds < 0 ||
-        durationSeconds < 15 || durationSeconds > 80) {
+        durationSeconds < 15 || durationSeconds > maxSampleSeconds) {
       throw ArgumentError('No valid media audio excerpt is available.');
     }
 

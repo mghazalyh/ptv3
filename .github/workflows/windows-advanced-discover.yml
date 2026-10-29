@@ -228,16 +228,17 @@ jobs:
           if ((Get-Item "$dest/libmpv-2.dll").Length -lt 5000000) {
             throw "Pinned libmpv is unexpectedly small; refusing packaging"
           }
-          @'
-          Windows playback library: libmpv-2.dll
-          Exact upstream mpv-winbuild-cmake release: 20261021
-          Source repository: https://github.com/shinchiro/mpv-winbuild-cmake
-          Corresponding mpv and FFmpeg source/build recipes: https://github.com/shinchiro/mpv-winbuild-cmake/tree/20261021
-          Binary archive: mpv-dev-x86_64-20261021-git-e471496c56.7z
-          Archive SHA256: efc719eff3dc5954b4a5efc800632808bcec01cc9034940dd14e5eb7fe9ea633
-          Reason: Windows libmpv must contain FFmpeg acompressor for Night Mode.
-          Real packaged DLL is tested separately on PCM and E-AC3; no silent fallback.
-          '@ | Set-Content -LiteralPath "$dest/MPV_RUNTIME_SOURCE.txt" -Encoding utf8
+          $runtimeManifest = @(
+            "Windows playback library: libmpv-2.dll"
+            "Exact upstream mpv-winbuild-cmake release: 20261021"
+            "Source repository: https://github.com/shinchiro/mpv-winbuild-cmake"
+            "Corresponding mpv and FFmpeg source/build recipes: https://github.com/shinchiro/mpv-winbuild-cmake/tree/20261021"
+            "Binary archive: mpv-dev-x86_64-20261021-git-e471496c56.7z"
+            "Archive SHA256: efc719eff3dc5954b4a5efc800632808bcec01cc9034940dd14e5eb7fe9ea633"
+            "Reason: Windows libmpv must contain FFmpeg acompressor for Night Mode."
+            "Real packaged DLL is tested separately on PCM and E-AC3; no silent fallback."
+          )
+          $runtimeManifest | Set-Content -LiteralPath "$dest/MPV_RUNTIME_SOURCE.txt" -Encoding utf8
           Write-Host "Pinned Windows libmpv verified, staged, full compressor smoke is mandatory."
 
       - name: Build and bundle offline whisper.cpp CPU CLI for Windows
@@ -307,12 +308,7 @@ jobs:
           New-Item -Force -ItemType Directory -Path $testDir | Out-Null
           $pcm = Join-Path $testDir "night-mode-test.wav"
           $eac3 = Join-Path $testDir "night-mode-test.eac3"
-          @'
-          import pathlib, sys
-          sys.path.insert(0, str(pathlib.Path(".github/scripts").resolve()))
-          from verify_night_mode_libmpv import synthesize_wav
-          synthesize_wav(pathlib.Path(sys.argv[1]))
-          '@ | python - "$pcm"
+          python .github/scripts/verify_night_mode_libmpv.py --generate-sample "$pcm"
           if ($LASTEXITCODE -ne 0) { throw "Could not generate test PCM sample" }
           python .github/scripts/verify_night_mode_libmpv.py --libmpv "$dll" --sample "$pcm"
           if ($LASTEXITCODE -ne 0) {

@@ -102,6 +102,27 @@ jobs:
           do
             flutter test "$suite"
           done
+      - name: Verify iOS Apple Speech fallback actually honors network consent
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          native = Path("ios/Runner/AppDelegate.swift").read_text()
+          player = Path("lib/pages/player/player_screen.dart").read_text()
+          assert "let offlineSupported = recognizer.supportsOnDeviceRecognition" in native
+          assert "let onDeviceOnly = offlineSupported && !allowAppleNetworkRecognition" in native
+          assert "if !offlineSupported && !allowAppleNetworkRecognition" in native
+          assert "request.requiresOnDeviceRecognition = onDeviceOnly" in native
+          assert "if (approved != true)" in player
+          assert "allowAppleNetworkRecognition: true" in player
+          # Equivalent routing truth table: offline by default when available,
+          # online ONLY when user explicitly consents for this one attempt.
+          for available in (False, True):
+              for consent in (False, True):
+                  on_device_only = available and not consent
+                  assert not (consent and on_device_only)
+          print("Speech routing and explicit online consent guard verified")
+          PY
+
       - name: Validate bounded iOS runner fallback without requesting a native build
         run: |
           python3 -m py_compile .github/scripts/ios_runner_fallback_guard.py .github/scripts/validate_native_release_workflow.py

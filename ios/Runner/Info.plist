@@ -10,7 +10,7 @@
 		<true/>
 	</dict>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>PlayTorrio analyzes a short excerpt of the video audio on your device to align external subtitles with spoken dialogue when you tap Auto Sync. No microphone recording is used.</string>
+	<string>When you tap Auto Sync, PlayTorrio analyzes up to 75 seconds of a movie's audio to align subtitles. It uses offline speech recognition when supported. If unavailable, the app asks before sending a short audio excerpt to Apple's speech-recognition servers. No microphone recording is used.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>PlayTorrio streams video and audio from local network services and torrent streaming engines.</string>
 	<key>UIBackgroundModes</key>

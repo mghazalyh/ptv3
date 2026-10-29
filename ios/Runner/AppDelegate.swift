@@ -67,7 +67,7 @@ private final class SpeechSubtitleSync {
       return
     }
     guard start.isFinite, duration.isFinite, start >= 0,
-          duration >= 15, duration <= 80 else {
+          duration >= 15, duration <= 55 else {
       callback(FlutterError(code: "invalid_range", message: "Invalid audio sample range.", details: nil))
       return
     }

@@ -1,11 +1,10 @@
-PlayTorrio explicit ONE-TIME paired native release — shared Flutter parity and platform-aware subtitle Auto Sync
+PlayTorrio explicit ONE-TIME paired Windows and iOS 15 release: offline Windows Whisper, remembered iOS Speech consent and 5-minute subtitle realignment.
 Date: 2026-10-29 SGT
 Branch: parity-floating-player-both
-Validated application + notes source: 061c56ebe305994719cc0c4b1f6a57c4d2d4fdd8
-Verified Flutter/Linux + Windows compatibility CI: https://github.com/mghazalyh/ptv3/actions/runs/40854917684 (both jobs SUCCESS)
-Latest iOS-only signed release: Build #149, run 40836405538 (completed). Latest Windows release: Build #145.
-Owner request: "ok build the ios n windows then to wnsure both build successfuly"
-Authorization: exactly ONE paired native Windows x64 Setup EXE + portable ZIP and ad hoc signed iOS 15 TrollStore IPA build on the SAME triggering Git commit. Retain iOS speech-based Auto Sync, Windows subtitle-release matching, platform-aware tooltips, manual timing and player safeguards. Windows must never invoke Apple Speech. Release notes live in .github/release-notes.txt (Telegram-safe length <= 500 characters).
-Trigger via this .github/release-request.txt update only; DO NOT trigger separate iOS-only or second paired build.
-After native compilation verify Windows installer/portable package, iOS 15 deployment target, signature, IPA integrity, Telegram sendDocument results, permanent GitHub Release and SHA256SUMS. No earlier release may be overwritten.
-No queued/in-progress native workflow at request time. Do not automatically rerun successful artifacts or enable schedules.
+Validated source with release notes: 4780f105d25073864635ec9db9adfde02ae336f6
+Passing Linux Flutter and Windows smoke CI: https://github.com/mghazalyh/ptv3/actions/runs/40861032799 (both jobs SUCCESS)
+Owner request: "please implement whisper on windows ... on ios ... ask once and remember ... auto run auto sync every 5 mins ... build it so i can test both"
+Build exactly ONE paired native Windows x64 setup EXE and portable ZIP (bundle CPU whisper.cpp CLI v1.9.5), and ONE ad hoc signed iOS 15 TrollStore IPA from the SAME triggering commit. Never build a platform fork. Windows first manual sync requests consent to download/verify the 148 MB base.en model once, then speech recognition is offline; no microphone. iOS Apple online service opt-in is remembered and revocable in Settings. Automatic rechecks occur at five-minute intervals only when playing with external text subtitles; no concurrent jobs or interrupting dialogs; unsupported media leaves subtitle timing unchanged.
+The checked 472-character Telegram-safe release notes are in .github/release-notes.txt.
+Verify actual native Windows build, bundled Whisper CLI execution, Windows installer/portable ZIP, iOS minimum target/signature/IPA archive, both Telegram document sends, and permanent GitHub Release with SHA256 checksums.
+No native workflow queued or in-progress at request time. Do not start another native workflow or duplicate this request. Future fixes must follow release delivery policy.

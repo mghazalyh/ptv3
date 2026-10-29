@@ -1107,6 +1107,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         durationSeconds: sampleLength,
         httpHeaders: _speechMediaHeaders,
         audioTrackId: _selectedAudioTrackIndex,
+        onPlaybackDecoderFallback: () {
+          if (mounted && epoch == _audioMediaEpoch) {
+            _showAutoSyncMessage(
+              'Decoding this stream\'s audio with the movie player. '
+              'This can take up to a minute; playback will continue.',
+            );
+          }
+        },
       );
     } on PlatformException catch (error) {
       if (error.code != 'network_required' &&
@@ -1156,6 +1164,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         allowAppleNetworkRecognition: true,
         httpHeaders: _speechMediaHeaders,
         audioTrackId: _selectedAudioTrackIndex,
+        onPlaybackDecoderFallback: () {
+          if (mounted && epoch == _audioMediaEpoch) {
+            _showAutoSyncMessage(
+              'Decoding this stream\'s audio with the movie player. '
+              'This can take up to a minute; playback will continue.',
+            );
+          }
+        },
       );
     }
     if (!mounted || epoch != _audioMediaEpoch ||

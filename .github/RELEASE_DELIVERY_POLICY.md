@@ -2,6 +2,9 @@
 
 **Current-state entrypoint:** [CURRENT_SESSION_HANDOVER.md](../CURRENT_SESSION_HANDOVER.md). Build #149 is complete; docs-only edits do not authorize a new native build.
 
+**Latest Windows-only release (2026-10-29):** PlayTorrio v1.1.15 Build #150, source SHA `935f4329e2bf58f7b3ab266e98ac7d35bf4a4d08`, native workflow [40885347268](https://github.com/mghazalyh/ptv3/actions/runs/40885347268) SUCCESS, [release build-v1.1.15-b150](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.15-b150) verified with Windows x64 Setup EXE, portable ZIP and checksums. Fixes runtime MPV Night Mode filter errors by persisting OFF, restoring normal audio and offering an accessible emergency retry control. Telegram sendMessage #77 was the download-link fallback because EXE exceeds bot attachment limit. iOS jobs explicitly skipped; prior paired Build #149 remains latest signed IPA. Do not retrigger this completed release. Current user-device proof pending.
+
+
 ## Mandatory: ONE Flutter codebase for Windows and iOS
 
 The owner's explicit requirement is that **Windows and iOS coexist on the same `parity-floating-player-both` branch and in the same Flutter source tree**. Never fork a separate iOS app, Windows repository, product branch or duplicate player to implement a platform-only feature. Keep the Windows desktop entrypoint, dependencies, playback, manual subtitle timing and release-matched subtitle option functional when adding iOS-only native services. Put Apple Speech/Swift code under `ios/` and guard channel invocation with an iOS-only branch. Windows must never call the Apple Speech method channel; its Auto Sync now uses offline whisper.cpp with FFmpeg/mpv audio extraction, word-timed dialogue matching and a Windows-accurate tooltip. Historical release-matching-only statements are superseded.

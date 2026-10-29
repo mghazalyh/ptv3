@@ -1,3 +1,3 @@
-• Fix (iOS): Auto Sync now retries audio extraction through a separate mpv decoder when Apple's exporter cannot read a playable stream (including some torrent/MKV sources).
-• It produces a temporary WAV sample for speech timing, then deletes it; playback continues unchanged.
-• Privacy: Apple's online recognition still requires explicit consent. iOS 15+, English subtitles, seekable audio and supported mpv PCM output required. Some protected/live sources may fail.
+• Fixed (iOS): After offline English speech fails, tapping Allow Apple service now actually enables online recognition for that attempt.
+• Keeps Build #148's mpv WAV stream-audio fallback, without stopping the movie.
+• Privacy: Sending a short sample to Apple requires consent each time. No microphone use; samples capped at 55 seconds. Protected/live streams or unsupported decoders may still prevent extraction.

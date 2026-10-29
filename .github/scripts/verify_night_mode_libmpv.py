@@ -118,6 +118,10 @@ def smoke(libmpv: Path, audio: Path) -> None:
         ctypes.c_char_p,
     )
     initialize = bind("mpv_initialize", ctypes.c_int, ctypes.c_void_p)
+    set_property = bind(
+        "mpv_set_property_string", ctypes.c_int,
+        ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p
+    )
     command = bind(
         "mpv_command", ctypes.c_int, ctypes.c_void_p,
         ctypes.POINTER(ctypes.c_char_p)
@@ -153,6 +157,16 @@ def smoke(libmpv: Path, audio: Path) -> None:
         result = initialize(handle)
         if result < 0:
             raise RuntimeError(f"libmpv initialization failed ({result})")
+        # Flutter writes this MPV option on a live player when toggling.
+        # Successful startup-only options are insufficient for that code path.
+        for requested in (b"no", b"yes"):
+            result = set_property(
+                handle, b"audio-normalize-downmix", requested
+            )
+            if result < 0:
+                raise RuntimeError(
+                    f"Live audio-normalize-downmix setter failed ({result})"
+                )
         result = logs(handle, b"v")
         if result < 0:
             raise RuntimeError(f"libmpv log subscription failed ({result})")

@@ -6,7 +6,17 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
 import 'mpv_speech_audio_capture.dart';
+import 'ffmpeg_speech_audio_capture.dart';
 import 'speech_subtitle_alignment.dart';
+
+/// Stage-specific, privacy-safe error shown in the Windows player.
+/// Never expose media URLs or bearer-like HTTP headers.
+class WindowsSpeechSyncFailure implements Exception {
+  final String message;
+  const WindowsSpeechSyncFailure(this.message);
+  @override
+  String toString() => message;
+}
 
 /// CPU-only whisper.cpp on Windows. The 148 MB English model is downloaded
 /// once after user approval and verified by SHA-256. No microphone or cloud ASR.
@@ -180,6 +190,18 @@ abstract final class WindowsWhisperTranscriber {
     return result.take(600).toList(growable: false);
   }
 
+  /// Do not include exception.toString(): media URLs can embed access tokens.
+  static String captureFailureReason(Object error) {
+    if (error is TimeoutException) return 'timed out';
+    if (error is FormatException) return 'invalid audio output';
+    final message = error.toString();
+    if (message.contains('decoder is missing')) return 'decoder not packaged';
+    if (message.contains('no usable')) return 'empty audio';
+    if (message.contains('exit')) return 'decoder could not read source';
+    if (message.contains('PCM')) return 'PCM output unavailable';
+    return 'source unreadable by decoder';
+  }
+
   static Future<List<SpeechTimedWord>> transcribe({
     required String mediaUrl,
     required double startSeconds,
@@ -196,28 +218,76 @@ abstract final class WindowsWhisperTranscriber {
     if (!await hasModel()) throw StateError('Download the English model first');
     File? raw, wav, json;
     try {
-      raw = await MpvSpeechAudioCapture.capture(
-        mediaUrl: mediaUrl, startSeconds: startSeconds,
-        durationSeconds: durationSeconds, httpHeaders: httpHeaders,
-        audioTrackId: audioTrackId,
-      );
-      wav = File(raw.path + '.whisper.wav');
-      await wav.writeAsBytes(whisperWave(await raw.readAsBytes()), flush: true);
+      // On Windows prefer separately bundled FFmpeg: seekable Torrentio/MKV
+      // audio often fails libmpv's PCM output despite normal movie playback.
+      // If FFmpeg cannot read this particular stream, retry with mpv.
+      try {
+        raw = await FfmpegSpeechAudioCapture.capture(
+          mediaUrl: mediaUrl, startSeconds: startSeconds,
+          durationSeconds: durationSeconds, httpHeaders: httpHeaders,
+        );
+      } catch (ffmpegError) {
+        try {
+          raw = await MpvSpeechAudioCapture.capture(
+            mediaUrl: mediaUrl, startSeconds: startSeconds,
+            durationSeconds: durationSeconds, httpHeaders: httpHeaders,
+            audioTrackId: audioTrackId,
+          );
+        } catch (mpvError) {
+          throw WindowsSpeechSyncFailure(
+            'could not extract stream audio (FFmpeg: '
+            '${captureFailureReason(ffmpegError)}; mpv: '
+            '${captureFailureReason(mpvError)}).',
+          );
+        }
+      }
+      if (raw == null) {
+        throw const WindowsSpeechSyncFailure('audio decoder returned no sample.');
+      }
+      if (raw.path.contains('playtorrio-ffmpeg-speech-')) {
+        // FFmpeg produces whisper-ready 16 kHz/mono/16-bit WAV directly.
+        wav = raw;
+      } else {
+        try {
+          wav = File(raw.path + '.whisper.wav');
+          await wav.writeAsBytes(
+              whisperWave(await raw.readAsBytes()), flush: true);
+        } on FormatException {
+          throw const WindowsSpeechSyncFailure(
+              'movie audio could not be converted to 16 kHz WAV.');
+        }
+      }
       final output = wav.path + '.result';
       json = File(output + '.json');
-      final process = await Process.start(cli.path, [
-        '-m', model.path, '-f', wav.path, '-l', 'en', '-ml', '1',
-        '-sow', '-oj', '-of', output, '-t', '4', '-np',
-      ], workingDirectory: cli.parent.path);
+      Process process;
+      try {
+        process = await Process.start(cli.path, [
+          '-m', model.path, '-f', wav.path, '-l', 'en', '-ml', '1',
+          '-sow', '-oj', '-of', output, '-t', '4', '-np',
+        ], workingDirectory: cli.parent.path);
+      } on ProcessException {
+        throw const WindowsSpeechSyncFailure(
+            'Whisper executable could not start (Windows runtime issue).');
+      }
       final out = process.stdout.drain<void>();
       final err = process.stderr.drain<void>();
       final exit = await process.exitCode.timeout(const Duration(minutes: 4),
-        onTimeout: () { process.kill(); throw TimeoutException('Whisper timed out'); });
+        onTimeout: () {
+          process.kill();
+          throw const WindowsSpeechSyncFailure(
+              'Whisper recognition timed out on this PC.');
+        });
       await Future.wait([out, err]);
       if (exit != 0 || !await json.exists()) {
-        throw StateError('Offline recognition could not process this audio');
+        throw WindowsSpeechSyncFailure(
+          'Whisper could not recognize this clip (exit $exit).');
       }
-      return parseJson(await json.readAsString(), startSeconds);
+      try {
+        return parseJson(await json.readAsString(), startSeconds);
+      } on FormatException {
+        throw const WindowsSpeechSyncFailure(
+            'Whisper returned an invalid transcript.');
+      }
     } finally {
       for (final file in [raw, wav, json]) {
         try { if (file != null && await file.exists()) await file.delete(); }

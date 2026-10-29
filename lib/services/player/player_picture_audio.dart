@@ -15,6 +15,30 @@ abstract final class PlayerPictureAudio {
   static String audioFilterChain(bool nightMode) =>
       nightMode ? '$normalAudioFilter,$nightCompressor' : normalAudioFilter;
 
+  /// libmpv can accept an `af` option and only fail when audio starts. The
+  /// media_kit error stream is therefore the source of truth for runtime
+  /// filter graph initialization failures.
+  static bool isNightModeFilterError(String error) {
+    final value = error.toLowerCase();
+    return value.contains('audio filter initialized failed') ||
+        value.contains('audio filter initialization failed') ||
+        value.contains('error initializing audio filters') ||
+        value.contains('failed to initialize audio filter') ||
+        value.contains('cannot initialize audio filter');
+  }
+
+  /// Restore the original speed filter. If even this is unavailable, remove
+  /// all audio filters rather than allowing playback to remain unusable.
+  static Future<void> restoreNormalAudio(
+    Future<void> Function(String, String) setProperty,
+  ) async {
+    try {
+      await setProperty('af', normalAudioFilter);
+    } catch (_) {
+      await setProperty('af', '');
+    }
+  }
+
   /// MPV brightness property is in -100..100. Only expose positive values.
   /// This adjusts video pixels, NOT the physical display backlight.
   static const int maxExtraBrightness = 80;

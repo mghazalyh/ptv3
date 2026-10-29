@@ -1,3 +1,9 @@
-• Fixed (iOS): After offline English speech fails, tapping Allow Apple service now actually enables online recognition for that attempt.
-• Keeps Build #148's mpv WAV stream-audio fallback, without stopping the movie.
-• Privacy: Sending a short sample to Apple requires consent each time. No microphone use; samples capped at 55 seconds. Protected/live streams or unsupported decoders may still prevent extraction.
+What's new / Fixed (paired Windows and iOS release)
+
+• Both Windows x64 and iOS 15 TrollStore packages are compiled from the SAME Flutter codebase, branch and source commit; no platform fork.
+• iOS: Auto Sync aligns external English subtitles against short samples of actual spoken audio using Apple Speech, with explicit permission for Apple network recognition where required.
+• iOS: Retains the WAV extraction fallback for streams that AVFoundation cannot export; failure to decode protected/live/unsupported sources remains possible.
+• Windows: Auto Sync continues to search for better English subtitles matched to the video release; manual subtitle delay adjustment remains available. Apple Speech is not called on Windows.
+• Fixed: The shared player's Auto Sync tooltip now describes the correct behavior on each platform; platform routing has dedicated regression tests.
+• Retained: Player diagnostics, source/track selection and automatic credits-skip safeguards.
+• Privacy / limits: No microphone capture. Speech samples are capped at 55 seconds. Apple's network recognition is used only with consent for the particular attempt. Actual alignment on an individual iPad/media source is not yet device-verified.

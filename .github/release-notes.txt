@@ -1,3 +1,1 @@
-• Night Mode: one-tap button beside Audio/Subtitles. Native-MPV compression softens loud peaks and helps quiet dialogue. Stays enabled globally until you switch it off.
-• Extra Brightness: in-player video-only slider (0–80), live preview and Reset. Remembers your setting across movies and restarts; never changes monitor backlight.
-• Both iOS 15 TrollStore and Windows x64 use the same Flutter player and native MPV settings. Some video/audio outputs may limit effects.
+Windows Night Mode fix: if libmpv rejects the audio compressor during playback, PlayTorrio automatically turns Night Mode OFF, saves the safe setting, restores normal audio and retries the same stream near the previous position. An emergency Disable Night Mode and Retry button remains available even when playback errors hide the usual controls. Existing subtitles, selected audio and playback speed are restored. Windows-only native release; iOS IPA unchanged.

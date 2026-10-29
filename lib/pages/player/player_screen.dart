@@ -985,6 +985,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _copyNightModeLogPath() async {
+    if (!NightModeDiagnostics.instance.isActive) return;
     final location = NightModeDiagnostics.instance.filePath;
     try {
       await NightModeDiagnostics.instance.flush();
@@ -1001,7 +1002,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _captureNightModeNativeState(String phase) async {
-    if (!Platform.isWindows) return;
+    if (!Platform.isWindows || !NightModeDiagnostics.instance.isActive) return;
     final log = NightModeDiagnostics.instance;
     await log.record('night-native-state', 'phase=$phase');
     final dynamic native = _player.platform;

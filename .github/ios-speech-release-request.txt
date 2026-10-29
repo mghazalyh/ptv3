@@ -1,5 +1,8 @@
-Explicit owner-requested one-time iOS-only speech-based subtitle timing release.
+Explicit one-time iOS-only speech subtitle timing compatibility fix build (owner reported "not available on this iPad").
 Date: 2026-10-29 SGT.
-Exact source commit prior to this request: face988ae7c5975b7db0a1fe792155bffd7229eb.
-Implement real spoken-English subtitle alignment using on-device Apple Speech recognition of bounded excerpts of the actual playable media audio; match multiple external subtitle phrases before adjusting mpv sub-delay. Preserve timing on unsupported media or weak recognition. Require Speech permission; no microphone capture or third-party audio upload. Update feature details in Telegram.
-Build signed iOS 15 TrollStore IPA with monotonically increasing bundle build number, test source and signing, send actual IPA as Telegram document, publish permanent unique GitHub Release with checksums. ONLY iOS, do NOT build Windows or start a second paired native run. Preserve Build #145 and all earlier releases. No automation scheduler.
+Source before this request: 85c92c235c40a4d56351fb424ba4fba099087eae.
+FIX: Build #146 wrongly required on-device English Speech recognition, which is not supported by some iOS 15 iPads. Try offline first; if unavailable or fails, prompt for separate explicit consent before invoking Apple's network speech service; no audio is uploaded to Apple if declined.
+Constrain sample to 55 seconds due to Apple's documented one-minute Speech recognition limit.
+Keep external English subtitle matching and no-unreliable-adjustment safety gate, use no microphone. Preserve user data and no spoken transcripts stored. Update Telegram What's new / Fixed details.
+Build EXACTLY ONE signed ad hoc iOS 15 TrollStore IPA (next build #147) with regression tests, privacy checks, native signing/IPA verification; deliver via Telegram and publish one permanent, uniquely tagged GitHub release and SHA256SUMS.
+Do NOT build Windows. Preserve existing Windows and signed Build #145 and #146 IPA releases. No automated scheduler or duplicate native runs.

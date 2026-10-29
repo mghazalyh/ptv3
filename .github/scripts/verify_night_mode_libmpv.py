@@ -210,10 +210,15 @@ def main() -> None:
     parser.add_argument("--sample", type=Path)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--generate-sample", type=Path)
     args = parser.parse_args()
     assert_project_chain(args.repo)
     if args.self_test:
         print("PASS: libmpv native test filter matches Flutter Night Mode")
+        return
+    if args.generate_sample is not None:
+        synthesize_wav(args.generate_sample)
+        print("PASS: generated local synthetic Windows audio sample")
         return
     if args.libmpv is None or args.sample is None:
         parser.error("--libmpv and --sample are required for Windows smoke")

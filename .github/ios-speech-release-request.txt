@@ -1,0 +1,5 @@
+Explicit owner-requested one-time iOS-only speech-based subtitle timing release.
+Date: 2026-10-29 SGT.
+Exact source commit prior to this request: face988ae7c5975b7db0a1fe792155bffd7229eb.
+Implement real spoken-English subtitle alignment using on-device Apple Speech recognition of bounded excerpts of the actual playable media audio; match multiple external subtitle phrases before adjusting mpv sub-delay. Preserve timing on unsupported media or weak recognition. Require Speech permission; no microphone capture or third-party audio upload. Update feature details in Telegram.
+Build signed iOS 15 TrollStore IPA with monotonically increasing bundle build number, test source and signing, send actual IPA as Telegram document, publish permanent unique GitHub Release with checksums. ONLY iOS, do NOT build Windows or start a second paired native run. Preserve Build #145 and all earlier releases. No automation scheduler.

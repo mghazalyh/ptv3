@@ -64,9 +64,8 @@ class MpvSpeechAudioCapture {
       await mpv.setProperty('vid', 'no');
       await mpv.setProperty('sid', 'no');
       await mpv.setProperty('length', durationSeconds.toStringAsFixed(3));
-      // The PCM writer does not need to match real-time speaker playback.
-      // It may decode quicker while the original movie keeps playing.
-      await mpv.setProperty('untimed', 'yes');
+      // Let the PCM output driver control pacing. Forcing untimed audio
+      // playback can drop samples on some streams and spoil transcription.
       if (audioTrackId != null && audioTrackId > 0) {
         await mpv.setProperty('aid', '$audioTrackId');
       }
@@ -91,6 +90,7 @@ class MpvSpeechAudioCapture {
         Media(
           mediaUrl,
           start: Duration(milliseconds: (startSeconds * 1000).round()),
+          end: Duration(milliseconds: (endSeconds * 1000).round()),
           httpHeaders: httpHeaders?.isEmpty == true ? null : httpHeaders,
         ),
         play: true,

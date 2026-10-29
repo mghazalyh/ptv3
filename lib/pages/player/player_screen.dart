@@ -49,6 +49,7 @@ import '../../models/player/skip_segment_model.dart';
 import '../../services/player/skip_segments_service.dart';
 import '../../widgets/player/player_aspect_menu.dart';
 import '../../widgets/player/player_audio_menu.dart';
+import '../../widgets/player/player_brightness_menu.dart';
 import '../../widgets/player/player_subtitle_menu.dart';
 import '../../widgets/player/player_sub_style_modal.dart';
 import '../../widgets/player/player_skip_button.dart';
@@ -114,7 +115,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   late AnimationController _logoAnimController;
 
   // Active Menu / Popover
-  String? _activeMenu; // 'subtitle' | 'audio' | 'speed' | 'aspect' | 'style' | null
+  String? _activeMenu; // 'subtitle' | 'audio' | 'brightness' | 'speed' | 'aspect' | 'style' | null
   bool _showSubSyncBar = false;
   bool _showTextSyncOverlay = false;
 
@@ -132,6 +133,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _showVolumeHud = false;
   Timer? _volumeHudTimer;
   double _playbackRate = 1.0;
+  bool _nightModeApplying = false;
+  double? _brightnessPreview;
+  Future<void> _brightnessWrites = Future<void>.value();
   BoxFit _videoFit = BoxFit.contain;
   List<PlayerAudioTrack> _audioTracks = [];
   int _selectedAudioTrackIndex = 0;
@@ -961,6 +965,64 @@ class _PlayerScreenState extends State<PlayerScreen>
       setState(() => _diagnosticsProperties = properties);
     } finally {
       _diagnosticsReading = false;
+    }
+  }
+
+  Future<void> _toggleNightMode() async {
+    if (_nightModeApplying || !mounted) return;
+    final wanted = !PlayerSettings.nightModeEnabled.value;
+    setState(() => _nightModeApplying = true);
+    try {
+      // Apply to this actual libmpv instance BEFORE persisting. Failure must
+      // not leave an enabled toggle that silently has no effect.
+      await PlayerSettings.setNightMode(wanted, player: _player);
+      if (mounted) {
+        setState(() {});
+        _showAudioHudToast(wanted ? 'NIGHT MODE ON' : 'NIGHT MODE OFF');
+      }
+    } catch (e) {
+      debugPrint('[PlayerScreen] Cannot apply Night Mode: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Night Mode is unavailable on this audio output.'),
+          duration: Duration(seconds: 3),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _nightModeApplying = false);
+    }
+  }
+
+  /// Serialize live brightness updates to avoid an older slider write
+  /// overtaking a newer value when the platform channel is busy.
+  void _previewVideoBrightness(double value) {
+    if (!mounted) return;
+    setState(() => _brightnessPreview = value);
+    _brightnessWrites = _brightnessWrites.catchError((Object e) {
+      debugPrint('[PlayerScreen] Brightness preview unavailable: $e');
+    }).then((_) async {
+      if (!mounted) return;
+      await PlayerSettings.previewExtraBrightness(_player, value);
+    });
+  }
+
+  Future<void> _commitVideoBrightness(double value) async {
+    try {
+      await _brightnessWrites.catchError((Object e) {
+        debugPrint('[PlayerScreen] Brightness preview failed: $e');
+      });
+      if (!mounted) return;
+      await PlayerSettings.setExtraBrightness(value, player: _player);
+      if (mounted) setState(() => _brightnessPreview = null);
+    } catch (e) {
+      debugPrint('[PlayerScreen] Cannot apply extra brightness: $e');
+      if (mounted) {
+        setState(() => _brightnessPreview = null);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('This video output does not support extra brightness.'),
+          duration: Duration(seconds: 3),
+        ));
+      }
     }
   }
 
@@ -2439,6 +2501,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                           isSubtitlesActive: _isSubtitleEnabled && _currentSubtitleVariant != null,
                           isSubSyncActive: _selectedEmbeddedSubtitleIndex == null && (_showSubSyncBar || _subtitleDelayMs != 0),
                           isAudioActive: _selectedAudioTrackIndex > 0,
+                          isNightModeEnabled: PlayerSettings.nightModeEnabled.value,
+                          extraBrightness: _brightnessPreview ?? PlayerSettings.extraBrightness.value,
+                          isBrightnessMenuActive: _activeMenu == 'brightness',
                           isDiagnosticsActive: _showDiagnostics,
                           isAutoSyncBusy: _autoSyncBusy,
                           onAutoSync: () => unawaited(_autoSyncSubtitles()),
@@ -2468,6 +2533,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                           onToggleAspectMenu: () => _toggleMenu('aspect'),
                           onToggleSpeedMenu: () => _toggleMenu('speed'),
                           onToggleAudioMenu: () => _toggleMenu('audio'),
+                          onToggleNightMode: _nightModeApplying
+                              ? null : () => unawaited(_toggleNightMode()),
+                          onToggleBrightnessMenu: () => _toggleMenu('brightness'),
                           onToggleSubtitleMenu: () => _toggleMenu('subtitle'),
                           onToggleSubSync: () {
                             if (_selectedEmbeddedSubtitleIndex != null) {
@@ -2612,6 +2680,20 @@ class _PlayerScreenState extends State<PlayerScreen>
                   } catch (_) {}
                   _showAudioHudToast('AUDIO SYNC: ${sec > 0 ? "+" : ""}${sec.toStringAsFixed(2)}s');
                 },
+                onClose: () => setState(() => _activeMenu = null),
+              ),
+            ),
+
+          // Native video-signal adjustment, just above the transport row.
+          if (_activeMenu == 'brightness' && !_isLoading)
+            Positioned(
+              bottom: MediaQuery.sizeOf(context).height < 500
+                  ? 46 : (MediaQuery.sizeOf(context).width < 680 ? 76 : 96),
+              right: MediaQuery.sizeOf(context).width < 680 ? 12 : 28,
+              child: PlayerBrightnessMenu(
+                brightness: _brightnessPreview ?? PlayerSettings.extraBrightness.value,
+                onChanged: _previewVideoBrightness,
+                onChangeEnd: (value) => unawaited(_commitVideoBrightness(value)),
                 onClose: () => setState(() => _activeMenu = null),
               ),
             ),

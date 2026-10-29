@@ -1,5 +1,12 @@
 # PlayTorrio release delivery: standing owner instruction
 
+## Mandatory: ONE Flutter codebase for Windows and iOS
+
+The owner's explicit requirement is that **Windows and iOS coexist on the same `parity-floating-player-both` branch and in the same Flutter source tree**. Never fork a separate iOS app, Windows repository, product branch or duplicate player to implement a platform-only feature. Keep the Windows desktop entrypoint, dependencies, playback, manual subtitle timing and release-matched subtitle option functional when adding iOS-only native services. Put Apple Speech/Swift code under `ios/` and guard channel invocation with an iOS-only branch. Windows must never call the Apple Speech method channel; its Auto Sync button performs release-matching and provides an accurate Windows tooltip.
+
+For every source change affecting shared playback, the Linux Flutter quality gate and the Windows-only **test/analyze** job in `.github/workflows/playtorrio-fast-checks.yml` must pass. The Windows job does NOT package or publish Windows binaries on ordinary code changes; a Windows native installer release only runs when the owner requests Windows/paired packaging. An iOS-only IPA may have a newer release/build number than Windows while the **shared codebase stays unified**. Subsequent paired releases must use that same branch/source commit on both platforms.
+
+
 **Priority owner directive (2026-10-29): implementing an authorized app fix includes building and delivering its installable native app, not just committing code.**
 
 This repository policy is read by every future assistant/developer working on PlayTorrio. It remains in version control across chat sessions and should be mirrored at the TOP of AGENTS.md, NEXT_SESSION.md, and handover.md. A new user instruction overrides this policy.
@@ -22,6 +29,6 @@ When the owner asks to **fix, implement, or continue an already-authorized nativ
 5. **Do not overclaim functionality.** A signed build does not prove a speech subtitle decoder works on the owner's individual iPad/stream; preserve this caveat and use device feedback for device-specific failures. Avoid leaking private playback URLs, tokens, or file content.
 6. **No empty future promises:** Do the currently available steps now; if a workflow is still running, report its current status and tracking link and say that no autonomous background notification will arrive from this chat.
 
-## Current specific authorized work (2026-10-29)
+## Current release status (2026-10-29)
 
-The owner previously asked to fix iOS speech-based subtitle alignment. Build #148 was signed, verified and delivered (run `40821991500`, Telegram document message 67, release `ios-speech-v1.1.15-run3`), but a follow-on fix was committed after #148: when offline recognition fails, explicit Apple-service consent must actually disable the native offline-only restriction. The source CI run `40831520647` passed. **The owner has now expressly reiterated that this follow-on fix should be built and delivered automatically. Trigger one iOS-only Build #149 from the validated latest source (after updating release notes and checking for active jobs), then verify Telegram and GitHub Release.** Never describe this fix as present in #148.
+The authorized post-#148 Apple Speech consent-routing fix was compiled, ad hoc signed and released as **iOS Build #149** (native workflow `40836405538`, release `ios-speech-v1.1.15-run4`). The Windows binaries remain Build #145; **this is NOT a split codebase**—both target the same `parity-floating-player-both` Flutter source. Changes after signed Build #149 to improve Windows Auto Sync tooltip, cross-platform capability routing, tests and project instructions are committed to the same branch but are not part of the already-signed #149 IPA. Do not trigger #149 again or silently claim post-release source changes are in the existing IPA. The Windows runtime compatibility test on `windows-latest` provides source coverage without packaging a native installer.

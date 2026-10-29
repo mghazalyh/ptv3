@@ -1,4 +1,5 @@
-• Windows: offline Whisper speech subtitle alignment. First tap asks to download a verified 148 MB English model. No microphone or cloud speech recognition.
-• iOS: remembers Apple online Speech consent after Allow; revoke in Settings.
-• Both: recheck external text subtitles every 5 minutes while playing, skipping paused/busy playback and never prompting during background checks.
-• At least two matching dialogue cues required; DRM/live/unsupported sources may not sync.
+• Windows Torrentio/MKV Auto Sync fix: bundled LGPL FFmpeg extracts digital audio; MPV remains fallback.
+• Failure messages now identify audio decoder/Whisper stage without exposing stream URLs.
+• Native Windows smoke test decodes actual container audio to Whisper-ready 16 kHz WAV.
+• Retains offline Whisper, remembered iOS Speech consent and automatic subtitle rechecks every 5 minutes.
+• DRM, unseekable or unsupported streams may still fail. No microphone.

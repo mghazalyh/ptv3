@@ -1,3 +1,3 @@
-• New: Auto Sync button beside Playback Diagnostics to try better-matched English subtitle releases.
-• Fixed: Invalid early Skip Credits markers no longer auto-skip into the next episode; automatic intro skipping stays enabled.
-• Note: Auto Sync selects subtitle files; speech-based timing alignment is not implemented yet.
+• New (iOS): Auto Sync listens to a short excerpt of actual movie audio using on-device Apple Speech, matches spoken English to subtitle lines, and adjusts their timing when multiple phrases agree.
+• Safety: No offset is applied when speech or matching is unreliable.
+• Note: Requires Speech permission and external English subtitles. iOS-readable MP4/HLS/local audio only; some MKV or protected streams cannot be analyzed.

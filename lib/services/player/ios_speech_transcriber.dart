@@ -40,6 +40,7 @@ abstract final class IosSpeechTranscriber {
     bool allowAppleNetworkRecognition = false,
     Map<String, String>? httpHeaders,
     int? audioTrackId,
+    void Function()? onPlaybackDecoderFallback,
   }) async {
     if (!Platform.isIOS) {
       throw UnsupportedError('Spoken-audio subtitle alignment requires iOS.');
@@ -69,6 +70,8 @@ abstract final class IosSpeechTranscriber {
     } on PlatformException catch (error) {
       if (error.code != 'audio_extract_failed' &&
           error.code != 'unsupported_media') rethrow;
+
+      onPlaybackDecoderFallback?.call();
 
       // AVFoundation cannot demux every stream libmpv is already playing
       // (e.g. MKV delivered by local torrent HTTP servers). Decode a bounded

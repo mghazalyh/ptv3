@@ -24,6 +24,9 @@ class PlayerTransport extends StatelessWidget {
   final bool isSubtitlesActive;
   final bool isSubSyncActive;
   final bool isAudioActive;
+  final bool isNightModeEnabled;
+  final double extraBrightness;
+  final bool isBrightnessMenuActive;
   final bool isDiagnosticsActive;
   final bool isAutoSyncBusy;
   final bool isEpisodesActive;
@@ -43,6 +46,8 @@ class PlayerTransport extends StatelessWidget {
   final VoidCallback onToggleAspectMenu;
   final VoidCallback onToggleSpeedMenu;
   final VoidCallback onToggleAudioMenu;
+  final VoidCallback? onToggleNightMode;
+  final VoidCallback? onToggleBrightnessMenu;
   final VoidCallback? onToggleDiagnostics;
   final VoidCallback? onAutoSync;
   final VoidCallback onToggleSubtitleMenu;
@@ -67,6 +72,9 @@ class PlayerTransport extends StatelessWidget {
     required this.isSubtitlesActive,
     required this.isSubSyncActive,
     required this.isAudioActive,
+    this.isNightModeEnabled = false,
+    this.extraBrightness = 0,
+    this.isBrightnessMenuActive = false,
     this.isDiagnosticsActive = false,
     this.isAutoSyncBusy = false,
     this.isEpisodesActive = false,
@@ -84,6 +92,8 @@ class PlayerTransport extends StatelessWidget {
     required this.onToggleAspectMenu,
     required this.onToggleSpeedMenu,
     required this.onToggleAudioMenu,
+    this.onToggleNightMode,
+    this.onToggleBrightnessMenu,
     this.onToggleDiagnostics,
     this.onAutoSync,
     required this.onToggleSubtitleMenu,
@@ -297,7 +307,39 @@ class PlayerTransport extends StatelessWidget {
 
                   SizedBox(width: gap),
 
-                  // Compact playback diagnostics toggle, alongside audio/subtitles.
+                  // Compact persistent Night Mode toggle, beside audio/subtitles.
+                   if (onToggleNightMode != null) ...[
+                     PlayerIconButton(
+                       key: const ValueKey('player-night-mode'),
+                       size: isCompact ? 30 : 32,
+                       iconSize: isCompact ? 16 : 18,
+                       icon: const Icon(Icons.nightlight_round),
+                       tooltip: isNightModeEnabled
+                           ? 'Night Mode On — tap to disable'
+                           : 'Night Mode — soften loud scenes and lift dialogue',
+                       active: isNightModeEnabled,
+                       activeColor: PlayerTheme.accent,
+                       onPressed: onToggleNightMode!,
+                     ),
+                     SizedBox(width: gap),
+                   ],
+
+                   // Brightness changes the video, not device backlight.
+                   if (onToggleBrightnessMenu != null) ...[
+                     PlayerIconButton(
+                       key: const ValueKey('player-extra-brightness'),
+                       size: isCompact ? 30 : 32,
+                       iconSize: isCompact ? 16 : 18,
+                       icon: const Icon(Icons.brightness_6_rounded),
+                       tooltip: 'Extra Brightness · +${extraBrightness.round()}',
+                       active: isBrightnessMenuActive || extraBrightness > 0,
+                       activeColor: PlayerTheme.accent,
+                       onPressed: onToggleBrightnessMenu!,
+                     ),
+                     SizedBox(width: gap),
+                   ],
+
+                   // Compact playback diagnostics toggle, alongside audio/subtitles.
                   if (onToggleDiagnostics != null) ...[
                     PlayerIconButton(
                       size: isCompact ? 30 : 32,

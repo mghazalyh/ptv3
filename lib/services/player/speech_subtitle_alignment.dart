@@ -81,15 +81,12 @@ abstract final class SpeechSubtitleAlignment {
       double? bestOffset;
       int bestLength = 0;
       double bestDistance = double.infinity;
-      for (var prefix = 0; prefix <= caption.length - 3; prefix++) {
-        final length = math.min(7, caption.length - prefix);
-        if (length < 3) continue;
-        final phrase = caption.sublist(prefix, prefix + length);
-        // Require sufficiently distinct speech; common filler phrases are
-        // especially prone to accidental matches.
+      // Shorter prefixes recover when a longer speech phrase contains a
+      // recognition error, while every vote still anchors at cue start.
+      for (var length = math.min(7, caption.length); length >= 3; length--) {
+        final phrase = caption.take(length).toList();
         if (phrase.toSet().length < 3 ||
             phrase.where((w) => w.length >= 4).length < 2) continue;
-
         for (var j = 0; j <= words.length - length; j++) {
           var same = true;
           for (var k = 0; k < length; k++) {
@@ -99,10 +96,6 @@ abstract final class SpeechSubtitleAlignment {
             }
           }
           if (!same) continue;
-          // A subtitle caption can span multiple words. A phrase that begins
-          // later in that cue has no reliable word-level subtitle timestamp.
-          // Anchor only the START of the caption to the first spoken word.
-          if (prefix != 0) continue;
           final offset = timestamps[j] - cue.start;
           if (offset.abs() > maxAdjustmentSeconds) continue;
           if (length > bestLength ||
@@ -112,6 +105,7 @@ abstract final class SpeechSubtitleAlignment {
             bestOffset = offset;
           }
         }
+        if (bestOffset != null) break;
       }
       if (bestOffset != null) offsets.add(bestOffset);
     }

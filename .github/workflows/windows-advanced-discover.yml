@@ -262,6 +262,36 @@ jobs:
           if ([BitConverter]::ToInt16($bytes, 34) -ne 16) { throw "Wrong Whisper sample format" }
           Write-Host "Real bundled FFmpeg decoded a seeked MKV-like audio source to valid Whisper WAV."
 
+      - name: End-to-end offline Whisper recognition regression using real English speech
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $model = Join-Path $env:RUNNER_TEMP "ggml-base.en.bin"
+          $url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+          Invoke-WebRequest -Uri $url -OutFile $model -MaximumRedirection 8
+          if ((Get-Item $model).Length -ne 147964211) { throw "English model has incorrect size" }
+          $sha = (Get-FileHash -LiteralPath $model -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002") {
+            throw "English model checksum mismatch"
+          }
+          $src = Join-Path $env:RUNNER_TEMP "whisper-src"
+          $speech = Join-Path $src "samples/jfk.wav"
+          if (!(Test-Path $speech)) { throw "Speech fixture missing from pinned whisper.cpp release" }
+          $output = Join-Path $env:RUNNER_TEMP "whisper-real-speech"
+          $cli = "build/windows/x64/runner/Release/whisper/whisper-cli.exe"
+          & $cli -m $model -f $speech -l en -ml 1 -sow -oj -of $output -t 4 -np
+          if ($LASTEXITCODE -ne 0) { throw "Whisper CLI could not recognize the real speech fixture" }
+          if (!(Test-Path "$output.json")) { throw "Whisper produced no timestamped JSON" }
+          $json = Get-Content "$output.json" -Raw | ConvertFrom-Json
+          $words = @($json.transcription)
+          if ($words.Count -lt 8) { throw "Whisper produced too few timed words" }
+          $spoken = ($words | ForEach-Object { $_.text }) -join ' '
+          if ($spoken -notmatch '(?i)country') { throw "Whisper failed to recognize the fixture's dialogue" }
+          if (@($words | Where-Object { $_.offsets.from -ge 0 }).Count -lt 8) {
+            throw "Whisper recognition timestamps are missing"
+          }
+          Write-Host "Real English speech was recognized offline with valid timed JSON; model SHA verified."
+
       - name: Package portable ZIP
         shell: pwsh
         run: |

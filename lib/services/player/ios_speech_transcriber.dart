@@ -12,6 +12,20 @@ abstract final class IosSpeechTranscriber {
   static const MethodChannel _channel =
       MethodChannel('playtorrio/speech_subtitle_sync');
 
+  /// Network processing is NEVER authorized by default. The player must
+  /// obtain explicit consent before passing [allowAppleNetworkRecognition].
+  static Map<String, dynamic> requestArguments({
+    required String mediaUrl,
+    required double startSeconds,
+    required double durationSeconds,
+    bool allowAppleNetworkRecognition = false,
+  }) => <String, dynamic>{
+    'mediaUrl': mediaUrl,
+    'startSeconds': startSeconds,
+    'durationSeconds': durationSeconds,
+    'allowAppleNetworkRecognition': allowAppleNetworkRecognition,
+  };
+
   static Future<List<SpeechTimedWord>> transcribe({
     required String mediaUrl,
     required double startSeconds,
@@ -29,12 +43,12 @@ abstract final class IosSpeechTranscriber {
 
     final response = await _channel.invokeMapMethod<String, dynamic>(
       'transcribeExcerpt',
-      <String, dynamic>{
-        'mediaUrl': mediaUrl,
-        'startSeconds': startSeconds,
-        'durationSeconds': durationSeconds,
-        'allowAppleNetworkRecognition': allowAppleNetworkRecognition,
-      },
+      requestArguments(
+        mediaUrl: mediaUrl,
+        startSeconds: startSeconds,
+        durationSeconds: durationSeconds,
+        allowAppleNetworkRecognition: allowAppleNetworkRecognition,
+      ),
     ).timeout(const Duration(seconds: 115));
 
     final raw = response?['words'];

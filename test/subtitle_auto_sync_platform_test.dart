@@ -9,7 +9,7 @@ void main() {
         contains('spoken English'));
   });
 
-  test('Windows retains release-matched subtitle selection, not Apple Speech',
+  test('Non-Windows platforms retain release-matched subtitle selection',
       () {
     expect(SubtitleAutoSyncPlatform.modeFor(isIOS: false),
         SubtitleAutoSyncMode.releaseMatching);
@@ -19,7 +19,7 @@ void main() {
     expect(tooltip, contains('manual timing'));
   });
 
-  test('Windows capability choice is stable across repeated Auto Sync taps',
+  test('Other platform fallback is stable across repeated Auto Sync taps',
       () {
     for (var attempt = 0; attempt < 5; attempt++) {
       expect(SubtitleAutoSyncPlatform.modeFor(isIOS: false),

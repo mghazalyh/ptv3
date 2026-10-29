@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 import '../../models/player/skip_segment_model.dart';
+import '../../services/player/subtitle_auto_sync_platform.dart';
 import '../../services/theme/glass_settings.dart';
 import 'player_glass.dart';
 import 'player_seek_bar.dart';
@@ -316,7 +317,9 @@ class PlayerTransport extends StatelessWidget {
                       size: isCompact ? 30 : 32,
                       iconSize: isCompact ? 15 : 17,
                       icon: Icon(isAutoSyncBusy ? Icons.hourglass_top_rounded : Icons.sync_rounded),
-                      tooltip: 'Auto Sync subtitles to spoken audio on iOS (external English tracks)',
+                      tooltip: SubtitleAutoSyncPlatform.tooltipFor(
+                        isIOS: !kIsWeb && Platform.isIOS,
+                      ),
                       active: isAutoSyncBusy,
                       activeColor: PlayerTheme.accent,
                       onPressed: onAutoSync!,

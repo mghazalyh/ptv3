@@ -197,3 +197,32 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/playback_autoselection_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Native Windows libmpv compressor preflight (no app package build)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $source = "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20261021/mpv-dev-x86_64-20261021-git-e471496c56.7z"
+          $sha = "efc719eff3dc5954b4a5efc800632808bcec01cc9034940dd14e5eb7fe9ea633"
+          $archive = Join-Path $env:RUNNER_TEMP "night-mode-full-filter-libmpv.7z"
+          $expanded = Join-Path $env:RUNNER_TEMP "night-mode-full-filter-libmpv"
+          Invoke-WebRequest -Uri $source -OutFile $archive -MaximumRedirection 8
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sha) {
+            throw "Pinned Windows libmpv preflight checksum mismatch"
+          }
+          $sevenZip = "C:/Program Files/7-Zip/7z.exe"
+          if (!(Test-Path $sevenZip)) {
+            $cmd = Get-Command 7z -ErrorAction SilentlyContinue
+            if ($null -eq $cmd) { throw "No 7-Zip executable available" }
+            $sevenZip = $cmd.Source
+          }
+          New-Item -Force -ItemType Directory -Path $expanded | Out-Null
+          & $sevenZip x "-o$expanded" "-y" $archive | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Pinned Windows libmpv extraction failed" }
+          $dlls = @(Get-ChildItem -LiteralPath $expanded -Recurse -File -Filter "libmpv-2.dll")
+          if ($dlls.Count -ne 1) { throw "Expected exactly one pinned libmpv-2.dll" }
+          $sample = Join-Path $env:RUNNER_TEMP "playtorrio-night-mode-synthetic.wav"
+          python .github/scripts/verify_night_mode_libmpv.py --generate-sample "$sample"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python .github/scripts/verify_night_mode_libmpv.py --libmpv $dlls[0].FullName --sample "$sample"
+          if ($LASTEXITCODE -ne 0) { throw "Full-filter Windows MPV failed actual native Night Mode playback" }
+

@@ -1007,7 +1007,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final dynamic native = _player.platform;
     for (final property in const <String>[
       'af', 'audio-codec-name', 'audio-params', 'audio-out-params',
-      'audio-filter', 'audio-device',
+      'audio-filter',
     ]) {
       try {
         final value = await native.getProperty(property);

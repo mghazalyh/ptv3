@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/player/ios_speech_transcriber.dart';
+import '../../services/player/night_mode_diagnostics.dart';
 
 import '../../services/addon/addon_manager.dart';
 import '../../services/theme/app_theme_service.dart';
@@ -239,6 +240,52 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
 
               const SizedBox(height: 12),
+
+              // Explicit Windows-only diagnostic opt-in. The toggle defaults
+              // OFF and never writes Night Mode log files unless enabled.
+              if (Platform.isWindows) ...[
+                ValueListenableBuilder<bool>(
+                  valueListenable: NightModeDiagnostics.debugModeEnabled,
+                  builder: (context, enabled, _) => Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF12151E),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: CheckboxListTile(
+                      key: const ValueKey('settings-debug-mode'),
+                      title: const Text('Debug Mode'),
+                      subtitle: const Text(
+                        'Off by default. When enabled, save Night Mode audio '
+                        'diagnostics and show its log-path button in the player. '
+                        'Turning this off stops collecting logs.',
+                      ),
+                      secondary: Icon(Icons.bug_report_outlined,
+                          color: enabled ? const Color(0xFFF59E0B) : Colors.white54),
+                      value: enabled,
+                      controlAffinity: ListTileControlAffinity.trailing,
+                      activeColor: const Color(0xFFF59E0B),
+                      onChanged: (value) async {
+                        if (value == null) return;
+                        try {
+                          await NightModeDiagnostics.setDebugMode(value);
+                        } catch (error) {
+                          debugPrint('[Settings] Debug Mode preference failed: $error');
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text(
+                                  'Could not save Debug Mode preference.')),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // iOS-only opt-in for automatic network-assisted dialogue sync.
               if (Platform.isIOS) ...[

@@ -1102,7 +1102,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         durationSeconds: sampleLength,
       );
     } on PlatformException catch (error) {
-      if (error.code != 'network_required') rethrow;
+      if (error.code != 'network_required' &&
+          error.code != 'offline_recognition_failed') rethrow;
       if (!mounted || epoch != _audioMediaEpoch ||
           subtitlePath != _currentSubtitlePath ||
           mediaUrl != _speechMediaUrl) return;

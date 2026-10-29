@@ -29,7 +29,8 @@ def should_recover(jobs, artifacts, target_job, artifact_name, released_assets):
     if any(a.get("name") == artifact_name and not a.get("expired", False)
            for a in artifacts):
         return False
-    if any(name.endswith("-iOS15-TrollStore.ipa") for name in released_assets):
+    if any(name.lower().endswith(".ipa") and "trollstore" in name.lower()
+           for name in released_assets):
         return False
     return True
 
@@ -94,8 +95,8 @@ def main():
     version = os.environ.get("APP_VERSION", "1.1.15")
     if not re.fullmatch(r"\d+\.\d+\.\d+", version):
         raise RuntimeError("Invalid app version")
-    artifact_name = f"PlayTorrio-iOS15-TrollStore-v{version}-build-{build_no}"
-    tag = f"build-v{version}-b{build_no}"
+    artifact_name = os.environ.get("ARTIFACT_NAME") or f"PlayTorrio-iOS15-TrollStore-v{version}-build-{build_no}"
+    tag = os.environ.get("RELEASE_TAG") or f"build-v{version}-b{build_no}"
 
     run = api(f"repos/{repo}/actions/runs/{run_id}")
     if (run.get("run_number") != build_no

@@ -192,6 +192,54 @@ jobs:
             throw "Windows executable was not created"
           }
 
+      - name: Pin full-featured Windows libmpv with FFmpeg acompressor
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          # The previous media_kit_libs_windows_video 1.0.11 libmpv had
+          # no FFmpeg acompressor. The owner-provided Build #151 log confirmed:
+          # AVFilterGraph: No such filter: 'acompressor'.
+          # Replace only the *packaged Windows* DLL, not the Flutter/iOS code.
+          $upstream = "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20261021/mpv-dev-x86_64-20261021-git-e471496c56.7z"
+          $expectedSha256 = "efc719eff3dc5954b4a5efc800632808bcec01cc9034940dd14e5eb7fe9ea633"
+          $archive = Join-Path $env:RUNNER_TEMP "playtorrio-libmpv-20261021.7z"
+          $expanded = Join-Path $env:RUNNER_TEMP "playtorrio-libmpv-20261021"
+          Invoke-WebRequest -Uri $upstream -OutFile $archive -MaximumRedirection 8
+          $actualSha256 = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualSha256 -ne $expectedSha256) {
+            throw "Pinned full-filter Windows libmpv archive SHA256 mismatch"
+          }
+          $sevenZip = "C:/Program Files/7-Zip/7z.exe"
+          if (!(Test-Path $sevenZip)) {
+            $cmd = Get-Command 7z -ErrorAction SilentlyContinue
+            if ($null -eq $cmd) { throw "7-Zip is required to inspect verified libmpv archive" }
+            $sevenZip = $cmd.Source
+          }
+          New-Item -Force -ItemType Directory -Path $expanded | Out-Null
+          & $sevenZip x "-o$expanded" "-y" $archive | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Failed to extract pinned libmpv archive" }
+          $dlls = @(Get-ChildItem -LiteralPath $expanded -Filter "libmpv-2.dll" -Recurse -File)
+          if ($dlls.Count -ne 1) {
+            throw "Expected exactly one libmpv-2.dll in pinned upstream archive, got $($dlls.Count)"
+          }
+          $dest = "build/windows/x64/runner/Release"
+          if (!(Test-Path "$dest/playtorrio.exe")) { throw "Windows executable missing" }
+          Copy-Item -LiteralPath $dlls[0].FullName -Destination "$dest/libmpv-2.dll" -Force
+          if ((Get-Item "$dest/libmpv-2.dll").Length -lt 5000000) {
+            throw "Pinned libmpv is unexpectedly small; refusing packaging"
+          }
+          @'
+          Windows playback library: libmpv-2.dll
+          Exact upstream mpv-winbuild-cmake release: 20261021
+          Source repository: https://github.com/shinchiro/mpv-winbuild-cmake
+          Corresponding mpv and FFmpeg source/build recipes: https://github.com/shinchiro/mpv-winbuild-cmake/tree/20261021
+          Binary archive: mpv-dev-x86_64-20261021-git-e471496c56.7z
+          Archive SHA256: efc719eff3dc5954b4a5efc800632808bcec01cc9034940dd14e5eb7fe9ea633
+          Reason: Windows libmpv must contain FFmpeg acompressor for Night Mode.
+          Real packaged DLL is tested separately on PCM and E-AC3; no silent fallback.
+          '@ | Set-Content -LiteralPath "$dest/MPV_RUNTIME_SOURCE.txt" -Encoding utf8
+          Write-Host "Pinned Windows libmpv verified, staged, full compressor smoke is mandatory."
+
       - name: Build and bundle offline whisper.cpp CPU CLI for Windows
         shell: pwsh
         run: |
@@ -248,6 +296,36 @@ jobs:
           '@ | Set-Content -LiteralPath "$dest/FFMPEG-PROVENANCE.txt" -Encoding utf8
           & "$dest/ffmpeg.exe" -version
           if ($LASTEXITCODE -ne 0) { throw "Bundled FFmpeg failed to start" }
+
+      - name: Verify the actual packaged libmpv can play PCM and E-AC3 through acompressor
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $dest = "build/windows/x64/runner/Release"
+          $dll = Join-Path $dest "libmpv-2.dll"
+          $testDir = Join-Path $env:RUNNER_TEMP "playtorrio-native-compressor-smoke"
+          New-Item -Force -ItemType Directory -Path $testDir | Out-Null
+          $pcm = Join-Path $testDir "night-mode-test.wav"
+          $eac3 = Join-Path $testDir "night-mode-test.eac3"
+          @'
+          import pathlib, sys
+          sys.path.insert(0, str(pathlib.Path(".github/scripts").resolve()))
+          from verify_night_mode_libmpv import synthesize_wav
+          synthesize_wav(pathlib.Path(sys.argv[1]))
+          '@ | python - "$pcm"
+          if ($LASTEXITCODE -ne 0) { throw "Could not generate test PCM sample" }
+          python .github/scripts/verify_night_mode_libmpv.py --libmpv "$dll" --sample "$pcm"
+          if ($LASTEXITCODE -ne 0) {
+            throw "PACKAGED Windows libmpv cannot initialize real Night Mode compressor on PCM"
+          }
+          $ffmpeg = Join-Path $dest "ffmpeg/ffmpeg.exe"
+          & $ffmpeg -hide_banner -loglevel error -y -i "$pcm" -ac 6 -ar 48000 -c:a eac3 -b:a 384k "$eac3"
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $eac3)) { throw "E-AC3 sample encoding failed" }
+          python .github/scripts/verify_night_mode_libmpv.py --libmpv "$dll" --sample "$eac3"
+          if ($LASTEXITCODE -ne 0) {
+            throw "PACKAGED Windows libmpv cannot initialize Night Mode on E-AC3"
+          }
+          Write-Host "PASS: exact shipped Windows libmpv supports scaletempo2 + FFmpeg acompressor for PCM and 6-channel E-AC3"
 
       - name: Native Windows FFmpeg decode-to-Whisper-WAV regression (no network/media credentials)
         shell: pwsh

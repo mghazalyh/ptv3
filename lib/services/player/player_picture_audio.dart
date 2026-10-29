@@ -33,6 +33,11 @@ abstract final class PlayerPictureAudio {
   static Future<void> restoreNormalAudio(
     Future<void> Function(String, String) setProperty,
   ) async {
+    // Return to default downmix behavior when a filter fails or Night Mode
+    // is turned OFF. A missing optional MPV property must not block recovery.
+    try {
+      await setProperty('audio-normalize-downmix', 'no');
+    } catch (_) {}
     try {
       await setProperty('af', normalAudioFilter);
     } catch (_) {

@@ -28,6 +28,7 @@ import '../../services/player/player_settings.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/playback_autoselection.dart';
 import '../../services/player/ios_speech_transcriber.dart';
+import '../../services/player/subtitle_auto_sync_platform.dart';
 import '../../services/player/speech_subtitle_alignment.dart';
 import '../../services/player/paused_http_recovery.dart';
 import '../../services/player/automatic_skip_policy.dart';
@@ -1023,7 +1024,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     final epoch = _audioMediaEpoch;
     setState(() => _autoSyncBusy = true);
     try {
-      if (Platform.isIOS) {
+      if (SubtitleAutoSyncPlatform.modeFor(isIOS: Platform.isIOS) ==
+          SubtitleAutoSyncMode.speechTiming) {
         await _autoSyncToSpokenAudio(epoch);
       } else {
         await _autoSyncByReleaseName(epoch);

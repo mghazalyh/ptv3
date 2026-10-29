@@ -1090,12 +1090,61 @@ class _PlayerScreenState extends State<PlayerScreen>
     final sampleStart = (positionSeconds - 20).clamp(0.0, maxStart).toDouble();
     final sampleLength =
         (durationSeconds - sampleStart).clamp(15.0, 75.0).toDouble();
-    _showAutoSyncMessage('Analyzing on-device English speech in a short movie excerpt...');
-    final words = await IosSpeechTranscriber.transcribe(
-      mediaUrl: mediaUrl,
-      startSeconds: sampleStart,
-      durationSeconds: sampleLength,
-    );
+    _showAutoSyncMessage('Checking English speech recognition for this iPad...');
+    List<SpeechTimedWord> words;
+    try {
+      words = await IosSpeechTranscriber.transcribe(
+        mediaUrl: mediaUrl,
+        startSeconds: sampleStart,
+        durationSeconds: sampleLength,
+      );
+    } on PlatformException catch (error) {
+      if (error.code != 'network_required') rethrow;
+      if (!mounted || epoch != _audioMediaEpoch ||
+          subtitlePath != _currentSubtitlePath ||
+          mediaUrl != _speechMediaUrl) return;
+      final approved = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Use Apple online Speech Recognition?'),
+          content: const Text(
+            'This iPad cannot recognize English speech entirely offline. '
+            'To align subtitles, Apple can process up to 75 seconds of this '
+            'movie\'s audio on its speech servers. Internet is required. '
+            'The microphone is not used.\n\n'
+            'Nothing will be sent unless you choose Allow. '
+            'This permission is for this Auto Sync attempt only.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Allow Apple service'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || epoch != _audioMediaEpoch ||
+          subtitlePath != _currentSubtitlePath ||
+          mediaUrl != _speechMediaUrl) return;
+      if (approved != true) {
+        _showAutoSyncMessage(
+          'Speech sync cancelled. No audio was sent to Apple; subtitle timing unchanged.',
+        );
+        return;
+      }
+      _showAutoSyncMessage('Sending a short movie-audio excerpt to Apple for this attempt...');
+      words = await IosSpeechTranscriber.transcribe(
+        mediaUrl: mediaUrl,
+        startSeconds: sampleStart,
+        durationSeconds: sampleLength,
+        allowAppleNetworkRecognition: true,
+      );
+    }
     if (!mounted || epoch != _audioMediaEpoch ||
         subtitlePath != _currentSubtitlePath ||
         mediaUrl != _speechMediaUrl) return;

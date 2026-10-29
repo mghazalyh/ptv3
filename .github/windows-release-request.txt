@@ -1,9 +1,10 @@
-OWNER AUTHORIZED ONE Windows-only PlayTorrio Night Mode native compressor FIX release, after uploading Build #151 log proving AVFilterGraph: No such filter: 'acompressor'.
+OWNER AUTHORIZED exactly ONE Windows-only PlayTorrio Night Mode clipping-headroom + Debug Mode native build.
 Date: 2026-10-29 SGT.
-Working branch: parity-floating-player-both; ONE shared Flutter player, unchanged iOS code.
-Verified app/native workflow implementation source: 512c3604fb7c0ceaef9d8a8a9bdb9515aabca4bc.
-Pre-release Linux+Windows checks: https://github.com/mghazalyh/ptv3/actions/runs/40898811944 (both COMPLETED/SUCCESS). Windows native preflight loaded real pinned libmpv DLL from upstream shinchiro 20261021 SHA256 efc719eff3dc5954b4a5efc800632808bcec01cc9034940dd14e5eb7fe9ea633; successfully decoded PCM with complete scaletempo2 + FFmpeg acompressor chain.
-Record scope BEFORE implementation at top of handover.md commit 979e31382df8e57e507d0952596549a6dba4ea7f. CI verified post-implementation checkpoint recorded in handover.
-ONE Windows native Build: exact released Windows x64 Setup EXE + portable ZIP with verified updated libmpv-2.dll and runtime source manifest; require native smoke testing *packaged DLL* with both PCM and SIX-CHANNEL E-AC3; fail if compressor unsupported or crashes. Preserve Whisper and FFmpeg, subtitles, speed, brightness, Windows diagnostics. Publish installer, ZIP, checksum manifest and permanent GitHub Release. Windows Telegram actual document or download-link fallback.
-Do not build, sign, upload or archive an iOS IPA for this Windows-only bug. Owner on-device output remains unverified until installed.
-All queued/in_progress/waiting/requested/pending GitHub Actions checked ZERO directly before requesting this ONE native workflow. Never request a duplicate.
+Source revision verified before release: 8f7576fd51632e3145603450c4d6ff69956ecc54.
+Linux and Windows gates BOTH COMPLETED/SUCCESS: https://github.com/mghazalyh/ptv3/actions/runs/40907187119, including native libmpv Windows live downmix-setting and compressor preflight.
+Write-ahead scope at TOP of handover.md from commit e7e9d610aaa62ebd1471782328b3aaffdb9c9956.
+Audio improvement: Night Mode acompressor 3:1 compression unchanged, makeup 1.4 -> 1.0; mpv audio-normalize-downmix=yes only when enabled, OFF sets no, recovery clears property.
+Windows Settings adds Debug Mode checkbox, OFF by default. OFF avoids creating/appending Night Mode diagnostics, no log-path icon in player or emergency UI; ON explicitly opts into logging and reveals the icon; setting persists. Existing logs not removed. Privacy redaction retained.
+ONE Windows x64 Setup EXE and portable ZIP with SHA256SUMS and permanent GitHub Release, plus Telegram direct attachment/link fallback. Windows-only. Native job must pass actual bundled libmpv PCM and 6-channel E-AC3 compressor smoke and bundled Whisper/FFmpeg tests. Existing iOS #149 IPA unchanged. Do not start a paired/iOS build.
+Checked all GitHub Actions queued/in_progress/waiting/requested/pending ZERO before this request.
+The change mitigates clipping risk; on-device acoustic response not yet verified. Do not duplicate this native release.

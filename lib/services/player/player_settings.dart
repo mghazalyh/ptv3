@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 import 'audio_language_priority.dart';
 import 'player_picture_audio.dart';
+import 'night_mode_diagnostics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
@@ -233,7 +235,8 @@ abstract final class PlayerSettings {
       libassAndroidFont: 'assets/fonts/Poppins-Medium.ttf',
       libassAndroidFontName: 'Poppins',
       bufferSize: 157286400, // 150MB — sensible default
-      logLevel: MPVLogLevel.warn,
+      // Native MPV debug stream is filtered and written to disk only on Windows.
+      logLevel: Platform.isWindows ? MPVLogLevel.debug : MPVLogLevel.warn,
     );
   }
 
@@ -378,6 +381,8 @@ abstract final class PlayerSettings {
   /// runtime audio graph. Immediate property failures also fail open here.
   static Future<void> _applyAudioWithFailOpen(Player player) async {
     final dynamic platform = player.platform;
+    unawaited(NightModeDiagnostics.instance.record('audio-apply',
+        'enabled=${nightModeEnabled.value} filter=${PlayerPictureAudio.audioFilterChain(nightModeEnabled.value)}'));
     try {
       await PlayerPictureAudio.applyAudio(
         (key, value) => platform.setProperty(key, value),
@@ -385,6 +390,7 @@ abstract final class PlayerSettings {
       );
     } catch (error) {
       debugPrint('[PlayerSettings] Audio filter rejected, restoring playback: $error');
+      unawaited(NightModeDiagnostics.instance.record('audio-apply-error', error.toString()));
       if (nightModeEnabled.value) {
         await recoverFailedNightMode(player: player);
       } else {
@@ -402,6 +408,7 @@ abstract final class PlayerSettings {
     Player? player,
     Future<void> Function(String, String)? setProperty,
   }) async {
+    unawaited(NightModeDiagnostics.instance.record('night-recovery', 'start; disable persisted Night Mode'));
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyNightMode, false);
     nightModeEnabled.value = false;
@@ -416,11 +423,14 @@ abstract final class PlayerSettings {
     if (writer != null) {
       await PlayerPictureAudio.restoreNormalAudio(writer);
     }
+    unawaited(NightModeDiagnostics.instance.record('night-recovery', 'persisted=OFF; normal filter restore attempted'));
   }
 
   /// Persist across episodes and app restarts; do not save an unsupported
   /// state when native mpv rejects the filter on an active player.
   static Future<void> setNightMode(bool enabled, {Player? player}) async {
+    unawaited(NightModeDiagnostics.instance.record('night-toggle',
+        'requested=${enabled ? 'ON' : 'OFF'} filter=${PlayerPictureAudio.audioFilterChain(enabled)}'));
     if (player != null) {
       final dynamic platform = player.platform;
       try {
@@ -428,6 +438,7 @@ abstract final class PlayerSettings {
             (key, value) => platform.setProperty(key, value), enabled);
       } catch (error) {
         debugPrint('[PlayerSettings] Night Mode setter failed: $error');
+        unawaited(NightModeDiagnostics.instance.record('night-toggle-error', error.toString()));
         await recoverFailedNightMode(player: player);
         rethrow;
       }
@@ -435,6 +446,7 @@ abstract final class PlayerSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyNightMode, enabled);
     nightModeEnabled.value = enabled;
+    unawaited(NightModeDiagnostics.instance.record('night-toggle', 'persisted=${enabled ? 'ON' : 'OFF'}; setter returned'));
   }
 
   /// Smooth live preview. Call setExtraBrightness once when dragging ends.

@@ -1,3 +1,4 @@
+import '../../services/player/night_mode_diagnostics.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -327,18 +328,28 @@ class PlayerTransport extends StatelessWidget {
                      SizedBox(width: gap),
                    ],
 
-                   // Windows diagnostic file is saved under LocalAppData.
-                   if (onCopyNightModeLogPath != null) ...[
-                     PlayerIconButton(
-                       key: const ValueKey('player-night-mode-log-path'),
-                       size: isCompact ? 30 : 32,
-                       iconSize: isCompact ? 15 : 17,
-                       icon: const Icon(Icons.description_outlined),
-                       tooltip: 'Copy Night Mode diagnostic log path',
-                       onPressed: onCopyNightModeLogPath!,
+                   // Debug Mode is an explicit Settings opt-in. Keep the icon
+                   // absent when OFF, including while a player remains open.
+                   if (onCopyNightModeLogPath != null)
+                     ValueListenableBuilder<bool>(
+                       valueListenable: NightModeDiagnostics.debugModeEnabled,
+                       builder: (context, enabled, _) => enabled
+                           ? Row(
+                               mainAxisSize: MainAxisSize.min,
+                               children: [
+                                 PlayerIconButton(
+                                   key: const ValueKey('player-night-mode-log-path'),
+                                   size: isCompact ? 30 : 32,
+                                   iconSize: isCompact ? 15 : 17,
+                                   icon: const Icon(Icons.description_outlined),
+                                   tooltip: 'Copy Night Mode diagnostic log path',
+                                   onPressed: onCopyNightModeLogPath!,
+                                 ),
+                                 SizedBox(width: gap),
+                               ],
+                             )
+                           : const SizedBox.shrink(),
                      ),
-                     SizedBox(width: gap),
-                   ],
 
                    // Brightness changes the video, not device backlight.
                    if (onToggleBrightnessMenu != null) ...[

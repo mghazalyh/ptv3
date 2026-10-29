@@ -4,8 +4,10 @@ import 'package:flutter/services.dart';
 
 import 'speech_subtitle_alignment.dart';
 
-/// Native on-device English speech recognition of a short actual movie-audio
-/// excerpt. Only supported by iOS 15+; no microphone or third-party upload.
+/// English speech recognition of a short video-audio excerpt on iOS 15+.
+/// On-device is always preferred. If unsupported, a network request to
+/// Apple's speech service requires a separate user approval for each attempt.
+/// No microphone capture, local transcript persistence, or app-operated server.
 abstract final class IosSpeechTranscriber {
   static const MethodChannel _channel =
       MethodChannel('playtorrio/speech_subtitle_sync');
@@ -14,6 +16,7 @@ abstract final class IosSpeechTranscriber {
     required String mediaUrl,
     required double startSeconds,
     required double durationSeconds,
+    bool allowAppleNetworkRecognition = false,
   }) async {
     if (!Platform.isIOS) {
       throw UnsupportedError('Spoken-audio subtitle alignment requires iOS.');
@@ -30,6 +33,7 @@ abstract final class IosSpeechTranscriber {
         'mediaUrl': mediaUrl,
         'startSeconds': startSeconds,
         'durationSeconds': durationSeconds,
+        'allowAppleNetworkRecognition': allowAppleNetworkRecognition,
       },
     ).timeout(const Duration(seconds: 115));
 

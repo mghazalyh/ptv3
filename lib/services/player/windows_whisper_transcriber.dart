@@ -241,9 +241,6 @@ abstract final class WindowsWhisperTranscriber {
           );
         }
       }
-      if (raw == null) {
-        throw const WindowsSpeechSyncFailure('audio decoder returned no sample.');
-      }
       if (raw.path.contains('playtorrio-ffmpeg-speech-')) {
         // FFmpeg produces whisper-ready 16 kHz/mono/16-bit WAV directly.
         wav = raw;

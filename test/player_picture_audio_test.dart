@@ -4,10 +4,108 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:playtorrio/services/player/player_picture_audio.dart';
 import 'package:playtorrio/services/player/player_settings.dart';
 import 'package:playtorrio/widgets/player/player_brightness_menu.dart';
+import 'package:playtorrio/widgets/player/player_night_mode_recovery.dart';
 import 'package:playtorrio/widgets/player/player_transport.dart';
+
+void _noOperation() {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('MPV runtime filter initialization errors are recognized', () {
+    expect(PlayerPictureAudio.isNightModeFilterError(
+        'Playback error: Audio filter initialized failed!'), isTrue);
+    expect(PlayerPictureAudio.isNightModeFilterError(
+        'Error initializing audio filters'), isTrue);
+    expect(PlayerPictureAudio.isNightModeFilterError(
+        'Failed to initialize audio filter'), isTrue);
+    expect(PlayerPictureAudio.isNightModeFilterError(
+        'Playback error: unsupported media format'), isFalse);
+    expect(PlayerPictureAudio.isNightModeFilterError(
+        'Failed to load subtitle'), isFalse);
+  });
+
+  test('Safe audio fallback retains speed filter and handles setter failure',
+      () async {
+    final written = <String>[];
+    await PlayerPictureAudio.restoreNormalAudio((key, value) async {
+      written.add('$key=$value');
+    });
+    expect(written, ['af=scaletempo2=max-speed=8']);
+
+    written.clear();
+    await PlayerPictureAudio.restoreNormalAudio((key, value) async {
+      written.add('$key=$value');
+      if (value == PlayerPictureAudio.normalAudioFilter) {
+        throw StateError('filter unsupported');
+      }
+    });
+    expect(written, ['af=scaletempo2=max-speed=8', 'af=']);
+  });
+
+  test('Late native error disables persisted Night Mode even on setter error',
+      () async {
+    SharedPreferences.setMockInitialValues({
+      'player_global_night_mode': true,
+      'player_global_extra_brightness': 35.0,
+    });
+    await PlayerSettings.initialize();
+    expect(PlayerSettings.nightModeEnabled.value, isTrue);
+    final written = <String>[];
+    await PlayerSettings.recoverFailedNightMode(
+      setProperty: (key, value) async {
+        written.add('$key=$value');
+        if (value == PlayerPictureAudio.normalAudioFilter) {
+          throw StateError('native speed filter also unavailable');
+        }
+      },
+    );
+    expect(written, ['af=scaletempo2=max-speed=8', 'af=']);
+    expect(PlayerSettings.nightModeEnabled.value, isFalse);
+    expect(PlayerSettings.extraBrightness.value, 35.0);
+    await PlayerSettings.initialize();
+    expect(PlayerSettings.nightModeEnabled.value, isFalse);
+  });
+
+  testWidgets('Emergency Night Mode button works without transport',
+      (tester) async {
+    var retried = false;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Stack(children: [
+          Positioned(
+            bottom: 24,
+            left: 16,
+            right: 16,
+            child: PlayerNightModeRecovery(
+              isRecovering: false,
+              onRetry: () => retried = true,
+            ),
+          ),
+        ]),
+      ),
+    ));
+    final button = find.byKey(
+        const ValueKey('player-night-mode-emergency-retry'));
+    expect(button, findsOneWidget);
+    await tester.tap(button);
+    expect(retried, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Recovery action is disabled while restoring audio',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(body: PlayerNightModeRecovery(
+        isRecovering: true,
+        onRetry: _noOperation,
+      )),
+    ));
+    final button = tester.widget<FilledButton>(
+        find.byKey(const ValueKey('player-night-mode-emergency-retry')));
+    expect(button.onPressed, isNull);
+    expect(find.text('Restoring normal audio...'), findsOneWidget);
+  });
 
   test('Night Mode preserves speed filter and adds exactly one compressor', () {
     expect(PlayerPictureAudio.audioFilterChain(false), 'scaletempo2=max-speed=8');

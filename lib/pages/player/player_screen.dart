@@ -1086,10 +1086,13 @@ class _PlayerScreenState extends State<PlayerScreen>
       _showAutoSyncMessage('Speech sync needs a seekable movie or episode, not a live stream.');
       return;
     }
-    final maxStart = (durationSeconds - 75).clamp(0.0, durationSeconds);
+    final maxStart = (durationSeconds - IosSpeechTranscriber.maxSampleSeconds)
+        .clamp(0.0, durationSeconds);
     final sampleStart = (positionSeconds - 20).clamp(0.0, maxStart).toDouble();
     final sampleLength =
-        (durationSeconds - sampleStart).clamp(15.0, 75.0).toDouble();
+        (durationSeconds - sampleStart)
+            .clamp(15.0, IosSpeechTranscriber.maxSampleSeconds)
+            .toDouble();
     _showAutoSyncMessage('Checking English speech recognition for this iPad...');
     List<SpeechTimedWord> words;
     try {
@@ -1110,7 +1113,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           title: const Text('Use Apple online Speech Recognition?'),
           content: const Text(
             'This iPad cannot recognize English speech entirely offline. '
-            'To align subtitles, Apple can process up to 75 seconds of this '
+            'To align subtitles, Apple can process up to 55 seconds of this '
             'movie\'s audio on its speech servers. Internet is required. '
             'The microphone is not used.\n\n'
             'Nothing will be sent unless you choose Allow. '

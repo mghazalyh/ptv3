@@ -35,10 +35,12 @@ import UIKit
         return
       }
       let allowAppleNetworkRecognition = arguments["allowAppleNetworkRecognition"] as? Bool ?? false
+      let audioFilePath = arguments["audioFilePath"] as? String
       self?.speechSync.transcribe(
         location: location,
         start: start,
         duration: duration,
+        audioFilePath: audioFilePath,
         allowAppleNetworkRecognition: allowAppleNetworkRecognition,
         callback: callback
       )
@@ -47,7 +49,8 @@ import UIKit
 }
 
 /// Uses Apple's Speech recognizer to transcribe a bounded video-audio excerpt.
-/// Prefers offline recognition. If unavailable, Apple's network-based
+/// Reads either AVFoundation-extracted M4A or libmpv-decoded WAV from the
+/// actual movie stream. Prefers offline recognition. Apple's network-based
 /// recognition is allowed ONLY after separate in-app opt-in for this attempt.
 /// The microphone is never captured and the app does not operate its own
 /// speech-recognition server. Unsupported audio leaves captions unchanged.
@@ -60,6 +63,7 @@ private final class SpeechSubtitleSync {
   private var excerptStart = 0.0
 
   func transcribe(location: String, start: Double, duration: Double,
+                  audioFilePath: String?,
                   allowAppleNetworkRecognition: Bool,
                   callback: @escaping FlutterResult) {
     guard pending == nil else {
@@ -83,6 +87,34 @@ private final class SpeechSubtitleSync {
                             message: "Speech sync needs a local file or directly readable HTTP video.",
                             details: nil))
       return
+    }
+
+    // Apple's exporter cannot demux every torrent/stream format mpv plays.
+    // For the isolated mpv PCM fallback, Speech recognizes the extracted WAV
+    // directly. Accept only our app's temporary WAV file, never an arbitrary
+    // path outside the sandbox; retain the file only until Flutter deletes it.
+    var decodedWav: URL? = nil
+    if let path = audioFilePath {
+      let candidate = URL(fileURLWithPath: path).standardizedFileURL
+      let appContainer = URL(fileURLWithPath: NSHomeDirectory(),
+                             isDirectory: true).standardizedFileURL
+      let filename = candidate.lastPathComponent
+      guard candidate.path.hasPrefix(appContainer.path + "/"),
+            filename.hasPrefix("playtorrio-speech-"),
+            candidate.pathExtension.lowercased() == "wav",
+            FileManager.default.fileExists(atPath: candidate.path),
+            let attrs = try? FileManager.default.attributesOfItem(atPath: candidate.path),
+            let length = attrs[.size] as? NSNumber,
+            length.int64Value > 65536,
+            length.int64Value < 96 * 1024 * 1024 else {
+        callback(FlutterError(
+          code: "invalid_audio_excerpt",
+          message: "The player did not export a valid temporary WAV sample.",
+          details: nil
+        ))
+        return
+      }
+      decodedWav = candidate
     }
 
     guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")) else {
@@ -126,8 +158,13 @@ private final class SpeechSubtitleSync {
             "Allow Speech Recognition in iOS Settings to align subtitles to spoken audio.")
           return
         }
-        self.exportExcerpt(mediaURL, start: start, duration: duration,
-                           recognizer: recognizer, onDeviceOnly: onDeviceOnly)
+        if let audioURL = decodedWav {
+          self.recognizeFile(audioURL, recognizer: recognizer,
+                             onDeviceOnly: onDeviceOnly)
+        } else {
+          self.exportExcerpt(mediaURL, start: start, duration: duration,
+                             recognizer: recognizer, onDeviceOnly: onDeviceOnly)
+        }
       }
     }
   }

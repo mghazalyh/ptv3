@@ -314,6 +314,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _currentSubtitlePath = null;
     _embeddedSubtitles = [];
     _currentCues = [];
+    _subtitleDelayMs = 0.0; // Do not leak speech alignment into the next episode.
     String? streamUrl;
 
     print('[PlayerScreen] Initializing playback:');
@@ -332,6 +333,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         print('[PlayerScreen] Initializing offline local file playback.');
         await PlayerSettings.applyPreOpenProperties(_player);
         await _player.open(Media(rawUrl), play: true);
+        await _applyLiveDelay(0.0);
         await PlayerSettings.applyPostOpenProperties(_player);
         _setSubtitleScale(_subtitleScale);
         _applyVolume(_isMuted ? 0.0 : _volume);
@@ -492,6 +494,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         play: true,
       );
 
+      await _applyLiveDelay(0.0);
       await PlayerSettings.applyPostOpenProperties(_player);
 
       _setSubtitleScale(_subtitleScale);

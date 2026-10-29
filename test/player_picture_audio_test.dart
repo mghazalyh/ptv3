@@ -70,6 +70,7 @@ void main() {
   testWidgets('Emergency Night Mode button works without transport',
       (tester) async {
     var retried = false;
+    var logCopied = false;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: Stack(children: [
@@ -80,6 +81,7 @@ void main() {
             child: PlayerNightModeRecovery(
               isRecovering: false,
               onRetry: () => retried = true,
+              onCopyLogPath: () => logCopied = true,
             ),
           ),
         ]),
@@ -90,6 +92,8 @@ void main() {
     expect(button, findsOneWidget);
     await tester.tap(button);
     expect(retried, isTrue);
+    await tester.tap(find.byKey(const ValueKey('player-night-mode-copy-log')));
+    expect(logCopied, isTrue);
     expect(tester.takeException(), isNull);
   });
 
@@ -162,6 +166,7 @@ void main() {
     });
     bool night = false;
     bool brightness = false;
+    bool logPathCopied = false;
     await tester.pumpWidget(MaterialApp(home: StatefulBuilder(
       builder: (context, update) => Scaffold(body: Stack(children: [
         Positioned(bottom: 0, left: 0, right: 0, child: PlayerTransport(
@@ -173,6 +178,7 @@ void main() {
           isNightModeEnabled: night,
           isBrightnessMenuActive: brightness,
           onToggleNightMode: () => update(() => night = !night),
+          onCopyNightModeLogPath: () => logPathCopied = true,
           onToggleBrightnessMenu: () =>
               update(() => brightness = !brightness),
           onPlayPause: () {}, onSeek: (_) {},
@@ -186,6 +192,7 @@ void main() {
     )));
     expect(find.byKey(const ValueKey('player-night-mode')), findsOneWidget);
     expect(find.byKey(const ValueKey('player-extra-brightness')), findsOneWidget);
+    expect(find.byKey(const ValueKey('player-night-mode-log-path')), findsOneWidget);
     expect(find.byTooltip('Audio Tracks'), findsOneWidget);
     expect(find.byTooltip('Subtitles'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('player-night-mode')));
@@ -194,6 +201,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('player-extra-brightness')));
     await tester.pump();
     expect(brightness, true);
+    await tester.tap(find.byKey(const ValueKey('player-night-mode-log-path')));
+    expect(logPathCopied, isTrue);
     expect(tester.takeException(), isNull);
   });
 

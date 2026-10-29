@@ -31,7 +31,9 @@ concurrency:
 jobs:
   archive-signed-ios:
     name: Retain signed iOS 15 IPA in a permanent GitHub Release
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == 'parity-floating-player-both'
+    # A Windows-only native run deliberately produces no IPA. Skip instead of
+    # reporting an archival failure and sending an erroneous Telegram warning.
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.head_branch == 'parity-floating-player-both' && !contains(github.event.workflow_run.head_commit.message, '[windows-only]')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 55
     env:

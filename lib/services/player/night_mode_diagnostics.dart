@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path/path.dart' as p;
 
 /// Disk-backed, privacy-filtered diagnostics for Windows MPV Night Mode.
@@ -13,7 +14,31 @@ class NightModeDiagnostics {
   static final NightModeDiagnostics instance = NightModeDiagnostics(
     directory: Directory(defaultDirectoryPath),
     enabled: !kIsWeb && Platform.isWindows,
+    requireDebugOptIn: true,
   );
+
+  static const String debugModePreferenceKey = 'player_debug_mode_enabled';
+  static final ValueNotifier<bool> debugModeEnabled = ValueNotifier<bool>(false);
+
+  /// Persisted opt-in. If OFF we never create or append a diagnostic file.
+  static Future<void> initializeDebugMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    debugModeEnabled.value = prefs.getBool(debugModePreferenceKey) ?? false;
+    if (debugModeEnabled.value) await instance.start();
+  }
+
+  static Future<void> setDebugMode(bool enabled) async {
+    if (!enabled) {
+      // Stop future MPV callbacks immediately, even while prefs are saving.
+      debugModeEnabled.value = false;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(debugModePreferenceKey, enabled);
+    if (enabled) {
+      debugModeEnabled.value = true;
+      await instance.start();
+    }
+  }
 
   static const int maxBytes = 512 * 1024;
   static const String filename = 'night-mode-diagnostics.log';
@@ -21,10 +46,17 @@ class NightModeDiagnostics {
 
   final Directory directory;
   final bool enabled;
+  final bool requireDebugOptIn;
+  bool get isActive => enabled &&
+      (!requireDebugOptIn || debugModeEnabled.value);
   Future<void> _pending = Future<void>.value();
   bool _started = false;
 
-  NightModeDiagnostics({required this.directory, required this.enabled});
+  NightModeDiagnostics({
+    required this.directory,
+    required this.enabled,
+    this.requireDebugOptIn = false,
+  });
 
   static String get defaultDirectoryPath {
     final env = Platform.environment;
@@ -42,7 +74,7 @@ class NightModeDiagnostics {
   String get previousFilePath => p.join(directory.path, previousFilename);
 
   Future<void> start() async {
-    if (!enabled || _started) return;
+    if (!isActive || _started) return;
     _started = true;
     try {
       await directory.create(recursive: true);
@@ -61,12 +93,14 @@ class NightModeDiagnostics {
 
   /// Asynchronous writes are serialized to prevent interleaved MPV callbacks.
   Future<void> record(String category, String detail) {
-    if (!enabled || !_started) return Future<void>.value();
+    if (!isActive || !_started) return Future<void>.value();
     final safeCategory = sanitize(category);
     final safeDetail = sanitize(detail);
     final line = '${DateTime.now().toUtc().toIso8601String()} '
         '[${safeCategory.isEmpty ? 'event' : safeCategory}] $safeDetail\n';
     _pending = _pending.then((_) async {
+      // Settings may have changed while this entry was waiting in the queue.
+      if (!isActive) return;
       try {
         await directory.create(recursive: true);
         await _rotateIfNeeded(incomingBytes: line.length * 4);
@@ -84,7 +118,7 @@ class NightModeDiagnostics {
     required String level,
     required String message,
   }) async {
-    if (!enabled || !shouldCaptureMpv(prefix, message)) return;
+    if (!isActive || !shouldCaptureMpv(prefix, message)) return;
     await record('mpv/${sanitize(prefix)}/${sanitize(level)}', message);
   }
 

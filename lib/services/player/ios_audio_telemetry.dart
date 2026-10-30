@@ -27,6 +27,8 @@ class IosAudioTelemetry {
   static const branch = 'main';
   static const prefix = 'playtorrio/diagnostics/ios/night-mode';
   static const maxEvents = 24;
+  static const maxPlaybackSamples = 24;
+  static const playbackSampleSeconds = 5;
   static const _minUploadInterval = Duration(seconds: 30);
   static const buildCommit = String.fromEnvironment(
       'PLAYTORRIO_COMMIT', defaultValue: 'unknown');
@@ -42,6 +44,8 @@ class IosAudioTelemetry {
   final ValueNotifier<String> status =
       ValueNotifier<String>('iOS audio telemetry OFF');
   final List<String> _events = [];
+  final List<Map<String, Object>> _performanceSamples = [];
+  final Map<String, int> _previousFrameCounters = {};
   bool _loaded = false;
   bool _uploading = false;
   DateTime? _lastUpload;
@@ -50,6 +54,10 @@ class IosAudioTelemetry {
   bool get isActive => (Platform.isIOS || forceTestPlatform) && enabled.value;
   @visibleForTesting
   List<String> get capturedCodes => List.unmodifiable(_events);
+
+  @visibleForTesting
+  List<Map<String, Object>> get capturedPerformanceSamples =>
+      List.unmodifiable(_performanceSamples);
 
   Future<void> initialize() async {
     if (_loaded) return;
@@ -67,6 +75,8 @@ class IosAudioTelemetry {
     enabled.value = value;
     if (!value) {
       _events.clear();
+      _performanceSamples.clear();
+      _previousFrameCounters.clear();
       status.value = 'iOS audio telemetry OFF';
     } else {
       status.value = 'Ready to send private Night Mode diagnostics';
@@ -123,6 +133,8 @@ class IosAudioTelemetry {
     'ios_probe_filter_setter_failed',
     'ios_probe_open_failed',
     'ios_probe_timeout',
+    'playback_frame_drops',
+    'playback_buffering',
   };
 
   void captureCode(String code) {
@@ -130,6 +142,64 @@ class IosAudioTelemetry {
     if (_events.length >= maxEvents) _events.removeAt(0);
     _events.add(code);
   }
+
+  /// Capture actual libmpv performance counters at most every five seconds
+  /// when iOS private diagnostics opt-in is enabled. Never forward raw native
+  /// logs, untrusted property names, URLs, paths or media metadata.
+  void capturePlaybackSample(
+    Map<String, Object?> properties, {bool buffering = false}
+  ) {
+    if (!isActive) return;
+    final sample = <String, Object>{
+      'utc': DateTime.now().toUtc().toIso8601String(),
+      'buffering': buffering,
+    };
+    for (final property in const <String>[
+      'frame-drop-count', 'decoder-frame-drop-count',
+      'vo-delayed-frame-count', 'mistimed-frame-count',
+    ]) {
+      final value = int.tryParse(properties[property]?.toString() ?? '');
+      if (value == null || value < 0 || value > 1000000000) continue;
+      final key = switch (property) {
+        'frame-drop-count' => 'voDropped',
+        'decoder-frame-drop-count' => 'decoderDropped',
+        'vo-delayed-frame-count' => 'lateFrames',
+        _ => 'mistimedFrames',
+      };
+      sample[key] = value;
+      final previous = _previousFrameCounters[property];
+      final delta = previous == null || value < previous ? 0 : value - previous;
+      sample['${key}Delta'] = delta;
+      _previousFrameCounters[property] = value;
+      if ((property == 'frame-drop-count' ||
+              property == 'decoder-frame-drop-count' ||
+              property == 'vo-delayed-frame-count') && delta >= 2) {
+        captureCode('playback_frame_drops');
+      }
+    }
+    for (final property in const <String>[
+      'avsync', 'demuxer-cache-duration',
+    ]) {
+      final value = double.tryParse(properties[property]?.toString() ?? '');
+      if (value == null || !value.isFinite || value.abs() > 3600) continue;
+      sample[property == 'avsync' ? 'avsyncSeconds' : 'cacheSeconds'] =
+          (value * 1000).round() / 1000;
+    }
+    // All reported values are fixed booleans/enums, not arbitrary native text.
+    final hwdec = properties['hwdec-current']?.toString().toLowerCase();
+    if (hwdec != null && const {
+      'no', 'videotoolbox', 'videotoolbox-copy', 'auto', 'unknown'
+    }.contains(hwdec)) {
+      sample['hardwareDecoder'] = hwdec;
+    }
+    if (buffering) captureCode('playback_buffering');
+    if (_performanceSamples.length >= maxPlaybackSamples) {
+      _performanceSamples.removeAt(0);
+    }
+    _performanceSamples.add(sample);
+  }
+
+  void resetPlaybackCounters() => _previousFrameCounters.clear();
 
   /// Report only whitelisted facts, never arbitrary native property values.
   static Map<String, String> safeAudioFields(Map<String, Object?> source) {
@@ -181,8 +251,8 @@ class IosAudioTelemetry {
     if (_uploading) return false;
     if (automatic && _lastUpload != null &&
         DateTime.now().difference(_lastUpload!) < _minUploadInterval) return false;
-    if (_events.isEmpty) {
-      status.value = 'No Night Mode errors captured yet';
+    if (_events.isEmpty && _performanceSamples.isEmpty) {
+      status.value = 'No audio or playback diagnostics captured yet';
       return false;
     }
     final token = await _accessToken();
@@ -196,6 +266,7 @@ class IosAudioTelemetry {
     final now = DateTime.now().toUtc();
     final safeReason = const {
       'night_mode_failed', 'preflight_failed', 'native_error', 'manual',
+      'playback_sample',
     }.contains(reason) ? reason : 'manual';
     final report = <String, Object>{
       'schema': 1,
@@ -209,6 +280,8 @@ class IosAudioTelemetry {
       'filterCandidates': const ['acompressor', 'compand'],
       'nativeErrorCodes': List<String>.from(_events),
       'audio': safeAudioFields(audio),
+      'sampleIntervalSeconds': playbackSampleSeconds,
+      'performanceSamples': List<Map<String, Object>>.from(_performanceSamples),
     };
     final remote = fileName(now, ++_counter);
     final uri = Uri.https('api.github.com',
@@ -233,6 +306,7 @@ class IosAudioTelemetry {
         return false;
       }
       _events.clear();
+      _performanceSamples.clear();
       status.value = 'Uploaded to private Torriodb: $remote';
       return true;
     } catch (_) {

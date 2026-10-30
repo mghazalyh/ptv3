@@ -33,6 +33,103 @@ void main() {
     telemetry.dispose();
   });
 
+  test('per-frame Windows diagnostics are opt-in with zero sampling when off',
+      () {
+    final telemetry = WindowsPlaybackTelemetry.forTesting(
+      client: MockClient((_) async => http.Response('{}', 201)),
+      tokenProvider: () async => 'test-only-placeholder',
+    )..forceTestPlatform = true;
+    telemetry.capturePlaybackSample({
+      'frame-drop-count': '25', 'avsync': '0.9',
+      'filename': 'sensitive show title',
+    }, buffering: true);
+    expect(telemetry.capturedSamples, isEmpty);
+    expect(telemetry.capturedFacts, isEmpty);
+    telemetry.dispose();
+  });
+
+  test('gaming frame loss is reported as bounded deltas, not URLs or titles',
+      () async {
+    Map<String, dynamic>? report;
+    final telemetry = WindowsPlaybackTelemetry.forTesting(
+      client: MockClient((request) async {
+        final payload = jsonDecode(request.body) as Map<String, dynamic>;
+        report = jsonDecode(utf8.decode(
+            base64Decode(payload['content'] as String))) as Map<String, dynamic>;
+        return http.Response('{}', 201);
+      }),
+      tokenProvider: () async => 'test-only-placeholder',
+    )..forceTestPlatform = true;
+    NightModeDiagnostics.debugModeEnabled.value = true;
+    telemetry.captureProperty('brightness-pipeline', 'flutter-color-matrix');
+    telemetry.capturePlaybackSample({
+      'frame-drop-count': '200',
+      'decoder-frame-drop-count': '1',
+      'vo-delayed-frame-count': '5',
+      'mistimed-frame-count': '0',
+      'avsync': '0.025',
+      'demuxer-cache-duration': '18.5',
+      'hwdec-current': 'd3d11va-copy',
+      'vf': '',
+      'framedrop': 'vo',
+      'video-sync': 'audio',
+      'path': 'private/movie/file.mkv',
+      'title': 'Secret TV title',
+    });
+    telemetry.capturePlaybackSample({
+      'frame-drop-count': '211',
+      'decoder-frame-drop-count': '1',
+      'vo-delayed-frame-count': '8',
+      'avsync': '0.18',
+      'demuxer-cache-duration': '0.2',
+      'hwdec-current': 'd3d11va-copy',
+      'vf': '',
+      'framedrop': 'vo',
+    }, buffering: true);
+    expect(telemetry.capturedSamples.last['voDroppedDelta'], 11);
+    expect(telemetry.capturedSamples.last['lateFramesDelta'], 3);
+    expect(telemetry.capturedSamples.last['cacheSeconds'], 0.2);
+    expect(await telemetry.upload(reason: 'playback_sample'), isTrue);
+    expect(report!['reason'], 'playback_sample');
+    expect(report!['sampleIntervalSeconds'], 5);
+    final samples = report!['performanceSamples'] as List<dynamic>;
+    expect(samples, hasLength(2));
+    final metrics = report!['capabilities'] as Map<String, dynamic>;
+    expect(metrics['videoEqFilterActive'], false);
+    expect(metrics['brightnessPipeline'], 'flutter-color-matrix');
+    expect(metrics['hardwareDecoder'], 'd3d11va-copy');
+    expect(metrics['frameDropMode'], 'vo');
+    expect((report!['codes'] as List), contains('render_stutter_detected'));
+    expect((report!['codes'] as List), contains('playback_buffering'));
+    final json = jsonEncode(report);
+    expect(json, isNot(contains('private/movie')));
+    expect(json, isNot(contains('Secret TV title')));
+    expect(telemetry.capturedSamples, isEmpty);
+    telemetry.dispose();
+  });
+
+  test('Windows performance sampler retains at most 24 consecutive samples',
+      () {
+    final telemetry = WindowsPlaybackTelemetry.forTesting(
+      client: MockClient((_) async => http.Response('{}', 201)),
+      tokenProvider: () async => 'test-only-placeholder',
+    )..forceTestPlatform = true;
+    NightModeDiagnostics.debugModeEnabled.value = true;
+    for (var i = 0; i < 40; i++) {
+      telemetry.capturePlaybackSample({
+        'frame-drop-count': '$i',
+        'avsync': 'NaN',
+        'demuxer-cache-duration': '-9999999999999',
+      });
+    }
+    expect(telemetry.capturedSamples.length, WindowsPlaybackTelemetry.maxSamples);
+    expect(telemetry.capturedSamples.first['voDropped'], 16);
+    expect(telemetry.capturedSamples.last['voDropped'], 39);
+    expect(telemetry.capturedSamples.last.containsKey('avsyncSeconds'), false);
+    expect(telemetry.capturedSamples.last.containsKey('cacheSeconds'), false);
+    telemetry.dispose();
+  });
+
   test('Windows report contains only safe and allowlisted capabilities',
       () async {
     Map<String, dynamic>? report;

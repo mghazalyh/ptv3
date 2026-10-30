@@ -189,7 +189,9 @@ jobs:
           if ($details.Contains("Navigator.pushReplacement(")) { throw "Nested details navigation replaces route" }
           if (!$discover.Contains("controller: _discoverScroll")) { throw "Discover scrolling was not carried over" }
           if ($discover.Contains("oldMaxExtent + 160.0")) { throw "Obsolete Load More forced scroll must stay removed" }
-          if (!$discover.Contains("if ((loading && !applied) || openingId != null)")) { throw "Load More must not shift the grid" }
+          if (!$discover.Contains("if (loading && !applied)")) { throw "Initial Discover loading indicator missing" }
+          if (!$discover.Contains("openingId == item.tmdbId")) { throw "Selected card spinner missing" }
+          if ($discover.Contains("if ((loading && !applied) || openingId != null)")) { throw "Global loading must not shift grid when opening a card" }
 
       - name: Build Windows executable
         shell: pwsh
@@ -623,7 +625,9 @@ jobs:
           assert 'Navigator.push(' in details
           assert 'controller: _discoverScroll' in discover
           assert '_discoverScroll.animateTo(' not in discover
-          assert 'if ((loading && !applied) || openingId != null)' in discover
+          assert 'if (loading && !applied)' in discover, 'Initial Discover loading indicator missing'
+          assert 'openingId == item.tmdbId' in discover, 'Selected-card spinner missing'
+          assert 'if ((loading && !applied) || openingId != null)' not in discover, 'Global spinner shifts the grid on card click'
           assert 'PageStorageKey' in discover
           print('Nested details history and stable pagination verified')
           PY

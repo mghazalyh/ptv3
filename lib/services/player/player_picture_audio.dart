@@ -78,17 +78,24 @@ abstract final class PlayerPictureAudio {
         ? verifiedFilterChain : audioFilterChain(nightMode, windows: windows));
   }
 
-  /// Native MPV brightness can be accepted but ignored by a video renderer.
-  /// On Windows force the pixel-level lavfi eq filter when brightness is
-  /// nonzero. Leave all other platforms on their existing MPV path.
-  static String windowsBrightnessFilter(double brightness) {
-    final level = brightnessValue(brightness);
-    if (level == 0) return '';
-    final amount = 0.25 * level / maxExtraBrightness;
-    final gamma = 1.0 + 0.35 * level / maxExtraBrightness;
-    return 'lavfi=[eq=brightness=${amount.toStringAsFixed(3)}:'
-        'gamma=${gamma.toStringAsFixed(3)}]';
+  /// Windows applies brightness on the Flutter video texture using a GPU
+  /// color matrix. Unlike FFmpeg eq in MPV's vf chain, this preserves the
+  /// native decode path and avoids a CPU-side per-frame filter under GPU load.
+  /// The matrix offset uses 0..255 channels and leaves alpha unchanged.
+  static List<double> windowsBrightnessColorMatrix(double brightness) {
+    final value = brightnessValue(brightness) / maxExtraBrightness;
+    final gain = 1.0 + 0.08 * value;
+    final lift = 42.0 * value;
+    return <double>[
+      gain, 0, 0, 0, lift,
+      0, gain, 0, 0, lift,
+      0, 0, gain, 0, lift,
+      0, 0, 0, 1, 0,
+    ];
   }
+
+  /// Compatibility helper: never add a CPU video filter on Windows.
+  static String windowsBrightnessFilter(double brightness) => '';
 
   static Future<void> applyBrightness(
     Future<void> Function(String, String) setProperty, double brightness, {
@@ -98,9 +105,10 @@ abstract final class PlayerPictureAudio {
       await setProperty('brightness', brightnessValue(brightness).toString());
       return;
     }
-    // Avoid doubling MPV equalizer and the video filter in a renderer that
-    // happens to support both. Reset filter on slider zero.
+    // Brightness is composited on the Flutter video surface, not in MPV.
+    // Clear older v154-v159 FFmpeg video filters when upgrading while a
+    // source is already open, and keep normal MPV brightness neutral.
     await setProperty('brightness', '0');
-    await setProperty('vf', windowsBrightnessFilter(brightness));
+    await setProperty('vf', '');
   }
 }

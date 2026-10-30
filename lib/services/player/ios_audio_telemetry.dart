@@ -34,6 +34,9 @@ class IosAudioTelemetry {
   static const buildRun = String.fromEnvironment(
       'PLAYTORRIO_RUN', defaultValue: 'unknown');
 
+  @visibleForTesting
+  bool forceTestPlatform = false;
+
   final http.Client _client;
   final Future<String?> Function()? _tokenProvider;
   final ValueNotifier<bool> enabled = ValueNotifier<bool>(false);
@@ -45,7 +48,7 @@ class IosAudioTelemetry {
   DateTime? _lastUpload;
   int _counter = 0;
 
-  bool get isActive => Platform.isIOS && enabled.value;
+  bool get isActive => (Platform.isIOS || forceTestPlatform) && enabled.value;
   @visibleForTesting
   List<String> get capturedCodes => List.unmodifiable(_events);
 

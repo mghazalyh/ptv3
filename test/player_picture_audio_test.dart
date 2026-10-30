@@ -153,7 +153,7 @@ void main() {
     expect(PlayerPictureAudio.brightnessValue(double.nan), 0);
   });
 
-  test('Windows Night Mode uses an explicit output limiter; iOS stays stable', () {
+  test('Windows Night Mode uses an explicit output limiter; iOS stays stable', () async {
     final windows = PlayerPictureAudio.audioFilterChain(true, windows: true);
     expect(windows, contains('acompressor=threshold=0.15:ratio=2.5'));
     expect(windows, contains('makeup=2.0'));

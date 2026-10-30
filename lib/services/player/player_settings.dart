@@ -3,6 +3,7 @@ import 'dart:io';
 import 'audio_language_priority.dart';
 import 'player_picture_audio.dart';
 import 'night_mode_diagnostics.dart';
+import 'windows_playback_telemetry.dart';
 import 'ios_night_mode_preflight.dart';
 import 'ios_audio_telemetry.dart';
 import 'package:flutter/material.dart';
@@ -497,6 +498,7 @@ abstract final class PlayerSettings {
       if (!Platform.isWindows) rethrow;
       unawaited(NightModeDiagnostics.instance.record('brightness-vf-error',
           'type=${error.runtimeType}'));
+      WindowsPlaybackTelemetry.instance.captureCode('brightness_vf_fallback');
       // If this mpv build rejects eq, keep the original UI functional.
       await platform.setProperty('brightness',
           PlayerPictureAudio.brightnessValue(brightness).toString());

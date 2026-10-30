@@ -48,6 +48,8 @@ class _Palette {
 
 class DetailsPage extends StatefulWidget {
   final Movie movie;
+  /// Discover opens details without an entrance fade/slide.
+  final bool disableEntranceAnimation;
 
   /// Optional "More Like This" row. Not every addon/catalog gives you
   /// recommendations for free — pass in whatever list of Movie you already
@@ -60,6 +62,7 @@ class DetailsPage extends StatefulWidget {
     super.key,
     required this.movie,
     this.relatedItems,
+    this.disableEntranceAnimation = false,
   });
 
   @override
@@ -139,6 +142,9 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         .animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
     _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
         .animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
+    // The Discover result route shows a normal static page; the default
+    // entrance animation was hiding fetched content then sliding it down.
+    if (widget.disableEntranceAnimation) _animController.value = 1.0;
 
     _castScrollController.addListener(_updateCastScrollButtons);
     _relatedScrollController.addListener(_updateRelatedScrollButtons);

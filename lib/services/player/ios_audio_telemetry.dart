@@ -107,8 +107,21 @@ class IosAudioTelemetry {
     if (code != null) captureCode(code);
   }
 
+  static const allowedCodes = <String>{
+    'missing_filter_acompressor',
+    'missing_filter_compand',
+    'missing_filter_scaletempo2',
+    'audio_filter_init_failed',
+    'filter_graph_failed',
+    'lavfi_create_failed',
+    'audio_filter_unsupported',
+    'ios_filter_preflight_failed',
+    'acompressor_supported',
+    'compand_supported',
+  };
+
   void captureCode(String code) {
-    if (!enabled.value || !RegExp(r'^[a-z0-9_]{1,64}$').hasMatch(code)) return;
+    if (!enabled.value || !allowedCodes.contains(code)) return;
     if (_events.length >= maxEvents) _events.removeAt(0);
     _events.add(code);
   }

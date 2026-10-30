@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/player/ios_speech_transcriber.dart';
 import '../../services/player/night_mode_diagnostics.dart';
+import '../../services/player/windows_playback_telemetry.dart';
 import '../../services/player/ios_audio_telemetry.dart';
 
 import '../../services/addon/addon_manager.dart';
@@ -261,7 +262,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       subtitle: const Text(
                         'Off by default. When enabled, save Night Mode audio '
                         'diagnostics and show its log-path button in the player. '
-                        'Turning this off stops collecting logs.',
+                        'When enabled, allowlisted player capability reports '
+                        'may be sent to your private TorriODB. '
+                        'Turning this off stops diagnostics.',
                       ),
                       secondary: Icon(Icons.bug_report_outlined,
                           color: enabled ? const Color(0xFFF59E0B) : Colors.white54),
@@ -272,6 +275,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         if (value == null) return;
                         try {
                           await NightModeDiagnostics.setDebugMode(value);
+                          if (value) {
+                            WindowsPlaybackTelemetry.instance.captureStorageState();
+                          }
                         } catch (error) {
                           debugPrint('[Settings] Debug Mode preference failed: $error');
                           if (mounted) {
@@ -284,6 +290,36 @@ class _SettingsPageState extends State<SettingsPage> {
                       },
                     ),
                   ),
+                ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: NightModeDiagnostics.debugModeEnabled,
+                  builder: (context, active, _) => active
+                      ? Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Column(children: [
+                            ValueListenableBuilder<String>(
+                              valueListenable: WindowsPlaybackTelemetry.instance.status,
+                              builder: (context, message, _) => Text(message,
+                                style: const TextStyle(
+                                  fontSize: 11, color: Colors.white70)),
+                            ),
+                            TextButton.icon(
+                              key: const ValueKey('settings-windows-send-telemetry'),
+                              icon: const Icon(Icons.cloud_upload_outlined),
+                              label: const Text('Upload Windows playback diagnostics'),
+                              onPressed: () async {
+                                await WindowsPlaybackTelemetry.instance.upload();
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(
+                                      WindowsPlaybackTelemetry.instance.status.value)),
+                                  );
+                                }
+                              },
+                            ),
+                          ]),
+                        )
+                      : const SizedBox.shrink(),
                 ),
                 const SizedBox(height: 12),
               ],

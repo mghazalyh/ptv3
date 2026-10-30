@@ -95,6 +95,7 @@ jobs:
           for suite in \
             test/series_run_service_test.dart \
             test/discover_year_pagination_widget_test.dart \
+            test/advanced_discover_text_ui_test.dart \
             test/tmdb_rate_limit_test.dart \
             test/tmdb_advanced_discover_test.dart \
             test/tmdb_text_filter_search_test.dart \
@@ -200,6 +201,8 @@ jobs:
           flutter test test/windows_whisper_transcriber_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/ffmpeg_speech_audio_capture_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/advanced_discover_text_ui_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/tmdb_rate_limit_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

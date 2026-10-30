@@ -32,6 +32,7 @@ import './services/player/player_settings.dart';
 import './services/download/download_service.dart';
 import './services/cache/storage_cache_service.dart';
 import './services/config/env_service.dart';
+import './services/config/windows_settings_recovery.dart';
 import './services/window/window_service.dart';
 import './services/p2p/p2p_settings_service.dart';
 import './services/discord/discord_rpc_service.dart';
@@ -44,6 +45,9 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+  // Prepare the stable Windows profile before any SharedPreferences or secure
+  // settings service reads its state. Never overwrite a populated profile.
+  if (Platform.isWindows) await WindowsSettingsRecovery.prepare();
   await NightModeDiagnostics.initializeDebugMode();
   if (Platform.isIOS) await IosAudioTelemetry.instance.initialize();
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -53,6 +57,13 @@ void main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await EnvService.initialize();
   await PlayerSettings.initialize();
+  if (Platform.isWindows && NightModeDiagnostics.instance.isActive) {
+    final audit = WindowsSettingsRecovery.lastAudit;
+    if (audit != null) {
+      unawaited(NightModeDiagnostics.instance.record('storage-profile',
+          'state=${audit.state} preferenceCount=${audit.preferenceCount}'));
+    }
+  }
   await Future.wait([
     AddonManager.instance.initialize(),
     AppThemeService.initialize(),

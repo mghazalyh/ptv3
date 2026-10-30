@@ -26,8 +26,8 @@ void main() {
     );
     expect(f.hasTitleQuery, isFalse);
     expect(f.buildUri().path, '/3/discover/tv');
-    expect(f.toQuery()['air_date.gte'], '2020-01-01');
-    expect(f.toQuery()['air_date.lte'], '2026-12-31');
+    expect(f.toQuery()['first_air_date.gte'], '2020-01-01');
+    expect(f.toQuery()['first_air_date.lte'], '2026-12-31');
     expect(f.toQuery()['with_origin_country'], 'US');
     expect(f.toQuery().containsKey('query'), isFalse);
   });
@@ -61,7 +61,7 @@ void main() {
     ).toQuery()['year'], '2013');
   });
 
-  test('one TV year includes older series with episodes that year', () async {
+  test('one TV year excludes older series and wrong-country results', () async {
     final urls = <Uri>[];
     final service = TmdbDiscoverService.instance;
     service.httpGetOverride = (uri, headers) async {
@@ -70,8 +70,8 @@ void main() {
         'page': 1, 'total_pages': 1, 'total_results': 2,
         'results': [
           {
-            'id': 20, 'name': 'Returning show',
-            'first_air_date': '2010-01-01',
+            'id': 20, 'name': 'New US show',
+            'first_air_date': '2026-01-01',
             'original_language': 'en', 'origin_country': ['US'],
             'popularity': 50, 'vote_count': 300, 'vote_average': 8.0,
           },
@@ -80,6 +80,12 @@ void main() {
             'first_air_date': '2026-05-10',
             'original_language': 'en', 'origin_country': ['KR'],
             'popularity': 200, 'vote_count': 300,
+          },
+          {
+            'id': 22, 'name': 'Old US show Farscape',
+            'first_air_date': '1999-03-19',
+            'original_language': 'en', 'origin_country': ['US'],
+            'popularity': 400, 'vote_count': 300,
           },
         ],
       }), 200);

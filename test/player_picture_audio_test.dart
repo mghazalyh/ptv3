@@ -153,6 +153,36 @@ void main() {
     expect(PlayerPictureAudio.brightnessValue(double.nan), 0);
   });
 
+  test('Windows Night Mode uses an explicit output limiter; iOS stays stable', () {
+    final windows = PlayerPictureAudio.audioFilterChain(true, windows: true);
+    expect(windows, contains('acompressor=threshold=0.10:ratio=4'));
+    expect(windows, contains('makeup=1.25'));
+    expect(windows, contains('alimiter=limit=0.95:level=0'));
+    expect(PlayerPictureAudio.audioFilterChain(true),
+        contains('release=300:makeup=1.0'));
+    expect(PlayerPictureAudio.audioFilterChain(false, windows: true),
+        'scaletempo2=max-speed=8');
+  });
+
+  test('Windows brightness generates video pixel EQ and resets cleanly', () async {
+    final writes = <String>[];
+    Future<void> write(String key, String value) async {
+      writes.add('$key=$value');
+    }
+    await PlayerPictureAudio.applyBrightness(write, 80, windows: true);
+    expect(writes, [
+      'brightness=0',
+      'vf=lavfi=[eq=brightness=0.250:gamma=1.350]',
+    ]);
+    writes.clear();
+    await PlayerPictureAudio.applyBrightness(write, 0, windows: true);
+    expect(writes, ['brightness=0', 'vf=']);
+    writes.clear();
+    await PlayerPictureAudio.applyBrightness(write, 80);
+    expect(writes, ['brightness=80']);
+    expect(PlayerPictureAudio.windowsBrightnessFilter(double.nan), isEmpty);
+  });
+
   test('Night Mode and brightness survive preference reloads', () async {
     SharedPreferences.setMockInitialValues({});
     await PlayerSettings.initialize();

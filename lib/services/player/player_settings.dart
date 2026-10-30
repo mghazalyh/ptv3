@@ -292,8 +292,7 @@ abstract final class PlayerSettings {
       // 1. Audio Filter & Volume
       await _applyAudioWithFailOpen(player);
       await platform.setProperty('volume-max', '200');
-      await platform.setProperty('brightness',
-          PlayerPictureAudio.brightnessValue(extraBrightness.value).toString());
+      await _applyBrightnessWithFallback(player, extraBrightness.value);
 
       // 2. Hardware Decoder — let MPV pick natively
       await platform.setProperty('hwdec', 'auto-safe');
@@ -374,8 +373,7 @@ abstract final class PlayerSettings {
     final dynamic platform = player.platform;
     await _applyAudioWithFailOpen(player);
     try {
-      await PlayerPictureAudio.applyBrightness(
-          (key, value) => platform.setProperty(key, value), extraBrightness.value);
+      await _applyBrightnessWithFallback(player, extraBrightness.value);
     } catch (e) {
       debugPrint('[PlayerSettings] Native video brightness unavailable: $e');
     }
@@ -399,12 +397,13 @@ abstract final class PlayerSettings {
       }
     }
     unawaited(NightModeDiagnostics.instance.record('audio-apply',
-        'enabled=${nightModeEnabled.value} filter=${PlayerPictureAudio.audioFilterChain(nightModeEnabled.value)}'));
+        'enabled=${nightModeEnabled.value} filter=${PlayerPictureAudio.audioFilterChain(nightModeEnabled.value, windows: Platform.isWindows)}'));
     try {
       await PlayerPictureAudio.applyAudio(
         (key, value) => platform.setProperty(key, value),
         nightModeEnabled.value,
         verifiedFilterChain: verifiedFilter,
+        windows: Platform.isWindows,
       );
     } catch (error) {
       debugPrint('[PlayerSettings] Audio filter rejected, restoring playback: $error');
@@ -459,13 +458,13 @@ abstract final class PlayerSettings {
       }
     }
     unawaited(NightModeDiagnostics.instance.record('night-toggle',
-        'requested=${enabled ? 'ON' : 'OFF'} filter=${PlayerPictureAudio.audioFilterChain(enabled)}'));
+        'requested=${enabled ? 'ON' : 'OFF'} filter=${PlayerPictureAudio.audioFilterChain(enabled, windows: Platform.isWindows)}'));
     if (player != null) {
       final dynamic platform = player.platform;
       try {
         await PlayerPictureAudio.applyAudio(
             (key, value) => platform.setProperty(key, value), enabled,
-            verifiedFilterChain: verifiedFilter);
+            verifiedFilterChain: verifiedFilter, windows: Platform.isWindows);
       } catch (error) {
         debugPrint('[PlayerSettings] Night Mode setter failed: $error');
         unawaited(NightModeDiagnostics.instance.record('night-toggle-error', error.toString()));
@@ -479,11 +478,34 @@ abstract final class PlayerSettings {
     unawaited(NightModeDiagnostics.instance.record('night-toggle', 'persisted=${enabled ? 'ON' : 'OFF'}; setter returned'));
   }
 
+  /// Apply the Windows software equalizer and fall back to MPV's video-output
+  /// equalizer only when the video filter is unsupported by this libmpv build.
+  /// The fallback must be visible in opt-in diagnostics, not silently ignored.
+  static Future<void> _applyBrightnessWithFallback(
+      Player player, double brightness) async {
+    final dynamic platform = player.platform;
+    try {
+      await PlayerPictureAudio.applyBrightness(
+          (key, value) => platform.setProperty(key, value), brightness,
+          windows: Platform.isWindows);
+      if (Platform.isWindows && NightModeDiagnostics.instance.isActive) {
+        unawaited(NightModeDiagnostics.instance.record('brightness-apply',
+            'level=${PlayerPictureAudio.brightnessValue(brightness)} '
+            'vf=${PlayerPictureAudio.windowsBrightnessFilter(brightness)}'));
+      }
+    } catch (error) {
+      if (!Platform.isWindows) rethrow;
+      unawaited(NightModeDiagnostics.instance.record('brightness-vf-error',
+          'type=${error.runtimeType}'));
+      // If this mpv build rejects eq, keep the original UI functional.
+      await platform.setProperty('brightness',
+          PlayerPictureAudio.brightnessValue(brightness).toString());
+    }
+  }
+
   /// Smooth live preview. Call setExtraBrightness once when dragging ends.
   static Future<void> previewExtraBrightness(Player player, double value) async {
-    final dynamic platform = player.platform;
-    await PlayerPictureAudio.applyBrightness(
-        (key, text) => platform.setProperty(key, text), value);
+    await _applyBrightnessWithFallback(player, value);
   }
 
   static Future<void> setExtraBrightness(double value, {Player? player}) async {

@@ -371,7 +371,6 @@ abstract final class PlayerSettings {
   /// Reapply effects whenever a new media source is opened. Do not alter
   /// subtitle styling, speed, track selection, or system brightness.
   static Future<void> applyPictureAudio(Player player) async {
-    final dynamic platform = player.platform;
     await _applyAudioWithFailOpen(player);
     try {
       await _applyBrightnessWithFallback(player, extraBrightness.value);

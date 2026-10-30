@@ -96,7 +96,7 @@ class DiscoverFilters {
         .contains(sort)) {
       throw const FormatException('Invalid sort order.');
     }
-    if (sort == 'trending.week' && !hasTitleQuery) {
+    if (sort == 'trending.week') {
       return {'page': '$page', 'language': 'en-US', 'include_adult': 'false'};
     }
     // TMDB search supports text and paging, but not discover-only
@@ -143,10 +143,10 @@ class DiscoverFilters {
   }
 
   Uri buildUri() => Uri.https('api.themoviedb.org',
-      hasTitleQuery
-        ? (type == DiscoverType.series ? '/3/search/tv' : '/3/search/movie')
-        : sort == 'trending.week'
-          ? (type == DiscoverType.series ? '/3/trending/tv/week' : '/3/trending/movie/week')
+      sort == 'trending.week'
+        ? (type == DiscoverType.series ? '/3/trending/tv/week' : '/3/trending/movie/week')
+        : hasTitleQuery
+          ? (type == DiscoverType.series ? '/3/search/tv' : '/3/search/movie')
           : (type == DiscoverType.series ? '/3/discover/tv' : '/3/discover/movie'),
       toQuery());
 }
@@ -427,6 +427,14 @@ class TmdbDiscoverService {
   static bool matchesTitleFilters(
       Map<String, dynamic> item, DiscoverFilters filters,
       {Map<String, dynamic>? movieDetails}) {
+    // TMDB trending does not support title-search parameters; intersect
+    // against title text locally without changing its ranked order.
+    if (filters.sort == 'trending.week' && filters.hasTitleQuery) {
+      final needle = filters.titleQuery.trim().toLowerCase();
+      final candidate = (filters.type == DiscoverType.series
+          ? item['name'] : item['title'])?.toString().toLowerCase() ?? '';
+      if (!candidate.contains(needle)) return false;
+    }
     if (filters.originalLanguage != null &&
         filters.originalLanguage!.isNotEmpty &&
         item['original_language']?.toString() != filters.originalLanguage) {
@@ -502,9 +510,9 @@ class TmdbDiscoverService {
     }
 
     final type = filters.type == DiscoverType.movie ? 'movie' : 'tv';
-    final trending = filters.sort == 'trending.week' && !filters.hasTitleQuery;
-    final endpoint = filters.hasTitleQuery ? 'search/$type' :
-        trending ? 'trending/$type/week' : 'discover/$type';
+    final trending = filters.sort == 'trending.week';
+    final endpoint = trending ? 'trending/$type/week' :
+        filters.hasTitleQuery ? 'search/$type' : 'discover/$type';
     final response = await _request(endpoint, filters.toQuery(), key);
     final allRows = (response['results'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>().toList();

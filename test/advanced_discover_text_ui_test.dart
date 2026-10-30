@@ -14,7 +14,14 @@ void main() {
     expect(ui, contains('Search Titles & Apply Filters'));
     expect(ui, isNot(contains('Started \$debut · Episodes')));
     expect(ui, isNot(contains('_discoverScroll.animateTo(')));
-    expect(ui, contains('if ((loading && !applied) || openingId != null)'));
+    // Show progress on the card immediately while resolving its metadata.
+    // A global spinner above the scrolled-away result grid was too late.
+    expect(ui, contains('if (loading && !applied)'));
+    expect(ui, contains('openingId == item.tmdbId'));
+    expect(ui, contains("ValueKey('discover-card-opening')"));
+    expect(ui, contains('disableEntranceAnimation: true'));
+    expect(ui, contains('PageRouteBuilder<void>'));
+    expect(ui, contains('_discoverScroll.jumpTo(offset.clamp('));
     final discover = File('lib/pages/discover/discover_page.dart')
         .readAsStringSync();
     expect(discover, contains('showSeriesRunYears: true'));

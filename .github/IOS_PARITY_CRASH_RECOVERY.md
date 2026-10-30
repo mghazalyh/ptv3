@@ -1,5 +1,8 @@
 # Recover PlayTorrio iOS parity and signed build (2026-10-31 SGT)
 
+**SIGNED iOS RELEASE STARTED:** Exactly one iOS-only workflow Run #7 https://github.com/mghazalyh/ptv3/actions/runs/41101432287 was triggered at source SHA 29f9d81ef8a054ef9349cef6a1d4314a87d0f901 by updating only .github/ios-speech-release-request.txt. Expected v1.1.15 Build #156 (149+7). As of this note primary Intel iOS job is QUEUED. NEVER re-trigger while run #7 queued/in_progress. Inspect its native pre-build tests and wait for success/failed outcome; if successful verify iOS15 TrollStore signed IPA, SHA256SUMS and Telegram sendDocument, then update handover. Linux/Windows fast checks on recent iOS source queued. Windows Build #160 already SUCCESS, do not rebuild.
+
+
 COPY THIS INTO A NEW CHAT IF THE CURRENT CHAT CRASHES:
 
 Continue owner-approved PlayTorrio iOS parity + signed IPA task; do not restart planning, do not ask again. Repo mghazalyh/ptv3, branch parity-floating-player-both. FIRST read CURRENT_SESSION_HANDOVER.md, TOP handover.md (write-ahead entry iOS PARITY dated 2026-10-31), .github/RELEASE_DELIVERY_POLICY.md and this file, then check HEAD and GitHub Actions. Owner explicitly requested to implement ALL safe current shared-platform improvements on iPad BEFORE building iOS. Windows Build #160 succeeded (GitHub Actions 41096140745) source 9db6ebbd678cc59685e4b3bf5935fffd07695465, so do NOT rebuild Windows. Last signed iOS Build #155 release https://github.com/mghazalyh/ptv3/releases/tag/ios-speech-v1.1.15-run6; iOS Night Mode actual native playback unverified. One shared Flutter codebase.

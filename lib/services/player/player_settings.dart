@@ -238,9 +238,12 @@ abstract final class PlayerSettings {
       libassAndroidFont: 'assets/fonts/Poppins-Medium.ttf',
       libassAndroidFontName: 'Poppins',
       bufferSize: 157286400, // 150MB — sensible default
-      // Native MPV debug stream is filtered and written to disk only on Windows.
-      logLevel: (Platform.isWindows && NightModeDiagnostics.debugModeEnabled.value) ||
-              (Platform.isIOS && IosAudioTelemetry.instance.isActive)
+      // Debug-level MPV logging generates per-frame/event traffic and file
+      // writes on Windows, precisely while its render budget is contested by
+      // a game. Keep native warnings/errors, and use lightweight 5-second
+      // allowlisted performance sampling for Windows Debug Mode instead.
+      // iOS audio preflight diagnostics retain their existing debug stream.
+      logLevel: Platform.isIOS && IosAudioTelemetry.instance.isActive
           ? MPVLogLevel.debug : MPVLogLevel.warn,
     );
   }

@@ -1,0 +1,74 @@
+name: PlayTorrio — Windows Telegram delivery recovery without rebuilding
+
+# Recovery of a released Windows-only artifact. Never invokes Flutter,
+# packages native binaries or edits the existing immutable GitHub release.
+on:
+  push:
+    branches:
+      - parity-floating-player-both
+    paths:
+      - '.github/windows-telegram-recovery-request.json'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  send-verified-release-link:
+    name: Verify existing Windows release and deliver direct Telegram link
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify source commit, original Windows-only build and published assets
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          REQUEST=.github/windows-telegram-recovery-request.json
+          VERSION=$(jq -er .version "$REQUEST")
+          NUMBER=$(jq -er .build "$REQUEST")
+          RUN_ID=$(jq -er .run_id "$REQUEST")
+          SHA=$(jq -er .source_sha "$REQUEST")
+          [[ "$VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]
+          [[ "$NUMBER" =~ ^[0-9]+$ ]]
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
+          ACTUAL_SHA=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq .head_sha)
+          ACTUAL_NUMBER=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq .run_number)
+          [[ "$SHA" == "$ACTUAL_SHA" ]]
+          [[ "$NUMBER" == "$ACTUAL_NUMBER" ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" \
+            | jq -e 'any(.jobs[]; (.name | startswith("Windows x64")) and .conclusion == "success")'
+          TAG="build-v$VERSION-b$NUMBER"
+          RELEASE=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --json targetCommitish,assets)
+          [[ "$(jq -r .targetCommitish <<< "$RELEASE")" == "$SHA" ]]
+          BASE="PlayTorrio-v$VERSION-build$NUMBER"
+          for ASSET in "$BASE-Windows-Setup.exe" "$BASE-Windows-x64-Portable.zip" "SHA256SUMS.txt"; do
+            jq -e --arg asset "$ASSET" 'any(.assets[]; .name == $asset and .size > 0)' <<< "$RELEASE"
+          done
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "number=$NUMBER"
+            echo "run_id=$RUN_ID"
+            echo "source_sha=$SHA"
+          } >> "$GITHUB_OUTPUT"
+          echo "Verified existing released Windows assets from original native run $RUN_ID"
+      - name: Deliver the already-published Windows download link (no rebuild)
+        shell: bash
+        env:
+          TAG: ${{ steps.verify.outputs.tag }}
+          VERSION: ${{ steps.verify.outputs.version }}
+          NUMBER: ${{ steps.verify.outputs.number }}
+          SOURCE_SHA: ${{ steps.verify.outputs.source_sha }}
+          RUN_ID: ${{ steps.verify.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          MESSAGE="PlayTorrio Windows v${VERSION} Build #${NUMBER} is published. Source: ${SOURCE_SHA:0:12}. Portable ZIP, Setup EXE, SHA256SUMS: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG . Native build: https://github.com/$GITHUB_REPOSITORY/actions/runs/$RUN_ID . iOS remains unchanged."
+          python3 .github/scripts/telegram_ci.py send-text --text "$MESSAGE"

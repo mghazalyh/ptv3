@@ -238,7 +238,8 @@ abstract final class PlayerSettings {
       libassAndroidFontName: 'Poppins',
       bufferSize: 157286400, // 150MB — sensible default
       // Native MPV debug stream is filtered and written to disk only on Windows.
-      logLevel: Platform.isWindows && NightModeDiagnostics.debugModeEnabled.value
+      logLevel: (Platform.isWindows && NightModeDiagnostics.debugModeEnabled.value) ||
+              (Platform.isIOS && IosAudioTelemetry.instance.isActive)
           ? MPVLogLevel.debug : MPVLogLevel.warn,
     );
   }

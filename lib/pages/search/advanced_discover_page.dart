@@ -482,8 +482,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
           ],
           const SizedBox(height: 20),
           if (applied) ...[
-            Text((_appliedFilters?.sort == 'trending.week' &&
-                    _appliedFilters?.hasTitleQuery == false)
+            Text((_appliedFilters?.sort == 'trending.week')
                 ? '${titles.length} matches on TMDB weekly trending '
                   'page $page/$totalPages'
                 : _appliedFilters?.hasTitleQuery == true

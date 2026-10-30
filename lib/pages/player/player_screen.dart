@@ -101,6 +101,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     configuration: PlayerSettings.getVideoControllerConfiguration(),
   );
   final List<StreamSubscription> _subscriptions = [];
+  Timer? _windowsPerformanceTimer;
+  bool _windowsPerformanceReading = false;
+  int _windowsPerformanceGeneration = -1;
 
   final ValueNotifier<Duration> _positionNotifier = ValueNotifier<Duration>(Duration.zero);
   final ValueNotifier<Duration?> _bufferNotifier = ValueNotifier<Duration?>(null);
@@ -221,6 +224,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     )..repeat(reverse: true);
 
     PlayerSettings.changeNotifier.addListener(_onPlayerSettingsChanged);
+    if (Platform.isWindows) {
+      NightModeDiagnostics.debugModeEnabled
+          .addListener(_updateWindowsPerformanceSampling);
+      _updateWindowsPerformanceSampling();
+    }
 
     _subscriptions.addAll([
       _player.stream.playing.listen((playing) {
@@ -948,6 +956,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (_isLoading || !mounted) return;
     final next = !_showDiagnostics;
     _diagnosticsTimer?.cancel();
+    _windowsPerformanceTimer?.cancel();
+    if (Platform.isWindows) {
+      NightModeDiagnostics.debugModeEnabled
+          .removeListener(_updateWindowsPerformanceSampling);
+    }
     ++_diagnosticsRevision;
     setState(() {
       _showDiagnostics = next;
@@ -1001,6 +1014,59 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
     } catch (error) {
       debugPrint('[PlayerScreen] Cannot copy diagnostic log path: $error');
+    }
+  }
+
+  /// Opt-in only. Sample native MPV counters outside the render callback
+  /// while video is playing. Upload short redacted batches to TorriODB so
+  /// a concurrent game can be correlated with dropped frames vs buffering.
+  void _updateWindowsPerformanceSampling() {
+    _windowsPerformanceTimer?.cancel();
+    _windowsPerformanceTimer = null;
+    if (!Platform.isWindows || !WindowsPlaybackTelemetry.instance.isActive ||
+        !mounted) return;
+    _windowsPerformanceTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => unawaited(_sampleWindowsPerformance()),
+    );
+  }
+
+  Future<void> _sampleWindowsPerformance() async {
+    if (!mounted || _windowsPerformanceReading || _isLoading ||
+        !_player.state.playing ||
+        !WindowsPlaybackTelemetry.instance.isActive) return;
+    _windowsPerformanceReading = true;
+    try {
+      if (_windowsPerformanceGeneration != _streamGeneration) {
+        _windowsPerformanceGeneration = _streamGeneration;
+        WindowsPlaybackTelemetry.instance.resetPlaybackCounters();
+      }
+      final dynamic native = _player.platform;
+      final properties = <String, Object?>{};
+      for (final key in const <String>[
+        'frame-drop-count', 'decoder-frame-drop-count',
+        'vo-delayed-frame-count', 'mistimed-frame-count',
+        'avsync', 'demuxer-cache-duration',
+        'hwdec-current', 'vf', 'framedrop', 'video-sync',
+      ]) {
+        if (!mounted || !WindowsPlaybackTelemetry.instance.isActive) break;
+        try {
+          properties[key] = await native.getProperty(key);
+        } catch (_) {
+          // A missing property varies by MPV video output; omit, don't
+          // mistakenly convert unsupported counters to zero.
+        }
+      }
+      if (!mounted || !WindowsPlaybackTelemetry.instance.isActive) return;
+      WindowsPlaybackTelemetry.instance.capturePlaybackSample(
+        properties, buffering: _player.state.buffering,
+      );
+      await WindowsPlaybackTelemetry.instance.upload(
+          reason: 'playback_sample', automatic: true);
+    } catch (error) {
+      debugPrint('[PlayerScreen] Windows performance sampling: ${error.runtimeType}');
+    } finally {
+      _windowsPerformanceReading = false;
     }
   }
 
@@ -2538,11 +2604,28 @@ class _PlayerScreenState extends State<PlayerScreen>
                   child: ValueListenableBuilder<int>(
                     valueListenable: PlayerSettings.changeNotifier,
                     builder: (context, _, __) {
-                      return mk.Video(
+                      final video = mk.Video(
                         controller: _videoController,
                         fit: _videoFit,
                         controls: mk.NoVideoControls,
                         subtitleViewConfiguration: PlayerSettings.getSubtitleViewConfiguration(),
+                      );
+                      // Do not feed video frames through FFmpeg eq when a
+                      // game is using the GPU. Apply the brightness lift on
+                      // the existing Flutter texture instead; the decoder
+                      // remains free to use hardware acceleration.
+                      final level = _brightnessPreview ??
+                          PlayerSettings.extraBrightness.value;
+                      if (!Platform.isWindows ||
+                          PlayerPictureAudio.brightnessValue(level) == 0) {
+                        return video;
+                      }
+                      return ColorFiltered(
+                        key: const ValueKey('windows-gpu-brightness'),
+                        colorFilter: ColorFilter.matrix(
+                          PlayerPictureAudio.windowsBrightnessColorMatrix(level),
+                        ),
+                        child: video,
                       );
                     },
                   ),

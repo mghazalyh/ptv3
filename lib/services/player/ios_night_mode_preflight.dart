@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 
 import 'ios_audio_telemetry.dart';

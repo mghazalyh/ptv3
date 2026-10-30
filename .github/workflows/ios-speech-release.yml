@@ -127,6 +127,8 @@ jobs:
             lib/pages/settings/updates_settings_page.dart \
             lib/services/player/player_settings.dart \
             lib/services/player/player_picture_audio.dart \
+            lib/services/player/ios_audio_telemetry.dart \
+            lib/services/player/ios_night_mode_preflight.dart \
             lib/services/player/night_mode_diagnostics.dart \
             lib/widgets/player/player_night_mode_recovery.dart \
             lib/pages/player/player_screen.dart \
@@ -278,6 +280,7 @@ jobs:
         run: |
           flutter test test/player_picture_audio_test.dart
           flutter test test/night_mode_diagnostics_test.dart
+          flutter test test/ios_audio_telemetry_test.dart
 
       - name: Build unsigned iOS 15 release
         run: flutter build ios --release --no-codesign --build-name=1.1.15 --build-number="$SPEECH_BUILD_NUMBER" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="$SPEECH_BUILD_NUMBER" --dart-define-from-file=.env

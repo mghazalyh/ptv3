@@ -35,7 +35,7 @@ void main() {
         'total_pages': 2,
         'total_results': 1,
         'results': [
-          {'id': 135, 'name': 'Returning TV', 'first_air_date': '2023-01-01'}
+          {'id': 135, 'name': 'Returning TV', 'first_air_date': '2026-01-01'}
         ],
       }), 200);
     };
@@ -47,7 +47,7 @@ void main() {
       service.browse(filter),
     ]);
     expect(calls, 1);
-    expect(results.every((x) => x.titles.first.premiereYear == 2023), isTrue);
+    expect(results.every((x) => x.titles.first.premiereYear == 2026), isTrue);
     await service.browse(filter);
     expect(calls, 1, reason: '15-minute discovery cache should be reused.');
     await service.browse(const DiscoverFilters(type: DiscoverType.series,

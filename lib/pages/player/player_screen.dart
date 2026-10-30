@@ -26,6 +26,7 @@ import '../../services/theme/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
+import '../../services/player/ios_audio_telemetry.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/playback_autoselection.dart';
 import '../../services/player/ios_speech_transcriber.dart';
@@ -286,6 +287,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       }),
       // Native MPV/libavfilter details arrive independently of player errors.
       _player.stream.log.listen((log) {
+        if (Platform.isIOS) IosAudioTelemetry.instance.captureNativeLog(log.text);
         unawaited(NightModeDiagnostics.instance.recordMpv(
           prefix: log.prefix,
           level: log.level,
@@ -1651,11 +1653,34 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  Future<void> _sendIosNightModeFailure() async {
+    if (!Platform.isIOS || !IosAudioTelemetry.instance.isActive) return;
+    final fields = <String, Object?>{};
+    final dynamic native = _player.platform;
+    for (final item in const <String, String>{
+      'audio-codec-name': 'codec',
+      'audio-params/channels': 'channels',
+      'audio-params/samplerate': 'sampleRate',
+    }.entries) {
+      try {
+        fields[item.value] = await native.getProperty(item.key);
+      } catch (_) {
+        // Optional native MPV properties differ between iOS library builds.
+      }
+    }
+    await IosAudioTelemetry.instance.upload(
+      reason: 'night_mode_failed', audio: fields, automatic: true);
+  }
+
   void _onControllerError(dynamic err) {
     if (!mounted) return;
     final errorMsg = err.toString();
     print('[PlayerScreen ERROR] Player error: $errorMsg');
     if (PlayerPictureAudio.isNightModeFilterError(errorMsg)) {
+      if (Platform.isIOS) {
+        IosAudioTelemetry.instance.captureNativeLog(errorMsg);
+        unawaited(_sendIosNightModeFailure());
+      }
       unawaited(NightModeDiagnostics.instance.record('mpv-error', errorMsg));
       unawaited(_captureNightModeNativeState('player-error-received'));
     }

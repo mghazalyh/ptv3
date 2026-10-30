@@ -27,6 +27,8 @@ class WindowsPlaybackTelemetry {
   static const repository = 'mghazalyh/torriodb';
   static const branch = 'main';
   static const maxEvents = 24;
+  static const maxSamples = 24;
+  static const automaticUploadInterval = Duration(seconds: 30);
 
   final http.Client _client;
   final Future<String?> Function()? _tokenProvider;
@@ -34,6 +36,8 @@ class WindowsPlaybackTelemetry {
       ValueNotifier<String>('Windows diagnostics OFF');
   final List<String> _events = [];
   final Map<String, Object> _facts = {};
+  final List<Map<String, Object>> _samples = [];
+  final Map<String, int> _previousFrameCounts = {};
   DateTime? _lastUpload;
   bool _uploading = false;
   int _counter = 0;
@@ -48,6 +52,10 @@ class WindowsPlaybackTelemetry {
   @visibleForTesting
   Map<String, Object> get capturedFacts => Map.unmodifiable(_facts);
 
+  @visibleForTesting
+  List<Map<String, Object>> get capturedSamples =>
+      List.unmodifiable(_samples);
+
   static const allowedEvents = <String>{
     'brightness_changed',
     'brightness_vf_fallback',
@@ -55,6 +63,8 @@ class WindowsPlaybackTelemetry {
     'night_mode_disabled',
     'audio_filter_failure',
     'settings_profile_recovered',
+    'render_stutter_detected',
+    'playback_buffering',
   };
 
   void captureCode(String code) {
@@ -113,6 +123,23 @@ class WindowsPlaybackTelemetry {
           _facts['hardwareDecoder'] = 'other';
         }
         break;
+      case 'framedrop':
+        if (const {'vo', 'decoder', 'decoder+vo', 'no'}.contains(text)) {
+          _facts['frameDropMode'] = text;
+        }
+        break;
+      case 'video-sync':
+        if (const {'audio', 'display-resample', 'display-vdrop',
+          'display-adrop', 'display-desync'}.contains(text)) {
+          _facts['videoSync'] = text;
+        }
+        break;
+      case 'brightness-pipeline':
+        if (text == 'flutter-color-matrix') {
+          _facts['brightnessPipeline'] = text;
+          _facts['videoEqFilterActive'] = false;
+        }
+        break;
       case 'audio-codec-name':
         if (const {'aac', 'eac3', 'ac3', 'mp3', 'flac', 'opus', 'alac',
           'pcm_s16le', 'dts', 'truehd'}.contains(text)) {
@@ -123,6 +150,64 @@ class WindowsPlaybackTelemetry {
         break;
     }
   }
+
+  /// Record only numeric, allowlisted native mpv playback performance
+  /// properties. Never transmit the media filename, URL, title or log output.
+  /// Cumulative frame counters are converted to per-sample deltas so it is
+  /// clear whether the game caused fresh missed frames.
+  void capturePlaybackSample(
+      Map<String, Object?> properties, {bool buffering = false}) {
+    if (!isActive) return;
+    final sample = <String, Object>{
+      'utc': DateTime.now().toUtc().toIso8601String(),
+      'buffering': buffering,
+    };
+
+    for (final property in const <String>[
+      'frame-drop-count', 'decoder-frame-drop-count',
+      'vo-delayed-frame-count', 'mistimed-frame-count',
+    ]) {
+      final value = int.tryParse(properties[property]?.toString() ?? '');
+      if (value == null || value < 0 || value > 1000000000) continue;
+      final key = switch (property) {
+        'frame-drop-count' => 'voDropped',
+        'decoder-frame-drop-count' => 'decoderDropped',
+        'vo-delayed-frame-count' => 'lateFrames',
+        _ => 'mistimedFrames',
+      };
+      sample[key] = value;
+      final previous = _previousFrameCounts[property];
+      final delta = previous == null || value < previous ? 0 : value - previous;
+      sample['${key}Delta'] = delta;
+      _previousFrameCounts[property] = value;
+      if ((property == 'frame-drop-count' ||
+          property == 'decoder-frame-drop-count' ||
+          property == 'vo-delayed-frame-count') && delta >= 2) {
+        captureCode('render_stutter_detected');
+      }
+    }
+
+    for (final property in const <String>[
+      'avsync', 'demuxer-cache-duration',
+    ]) {
+      final value = double.tryParse(properties[property]?.toString() ?? '');
+      if (value == null || !value.isFinite || value.abs() > 3600) continue;
+      sample[property == 'avsync' ? 'avsyncSeconds' : 'cacheSeconds'] =
+          (value * 1000).round() / 1000;
+    }
+
+    for (final property in const <String>[
+      'hwdec-current', 'vf', 'framedrop', 'video-sync',
+    ]) {
+      captureProperty(property, properties[property]);
+    }
+
+    if (buffering) captureCode('playback_buffering');
+    if (_samples.length >= maxSamples) _samples.removeAt(0);
+    _samples.add(sample);
+  }
+
+  void resetPlaybackCounters() => _previousFrameCounts.clear();
 
   Future<String?> _accessToken() async {
     if (_tokenProvider != null) return _tokenProvider();
@@ -141,11 +226,11 @@ class WindowsPlaybackTelemetry {
     }
     if (_uploading) return false;
     if (automatic && _lastUpload != null &&
-        DateTime.now().difference(_lastUpload!) < const Duration(minutes: 1)) {
+        DateTime.now().difference(_lastUpload!) < automaticUploadInterval) {
       return false;
     }
     captureStorageState();
-    if (_facts.isEmpty && _events.isEmpty) {
+    if (_facts.isEmpty && _events.isEmpty && _samples.isEmpty) {
       status.value = 'No playback diagnostics captured yet';
       return false;
     }
@@ -166,7 +251,7 @@ class WindowsPlaybackTelemetry {
     final now = DateTime.now().toUtc();
     final approvedReason = const {
       'manual', 'brightness_changed', 'night_mode_changed',
-      'audio_filter_failure',
+      'audio_filter_failure', 'playback_sample',
     }.contains(reason) ? reason : 'manual';
     final timestamp = now.toIso8601String()
         .replaceAll(':', '-').replaceAll('.', '-');
@@ -184,6 +269,8 @@ class WindowsPlaybackTelemetry {
       'reason': approvedReason,
       'codes': List<String>.from(_events),
       'capabilities': Map<String, Object>.from(_facts),
+      'sampleIntervalSeconds': 5,
+      'performanceSamples': List<Map<String, Object>>.from(_samples),
     };
 
     try {
@@ -207,6 +294,7 @@ class WindowsPlaybackTelemetry {
         return false;
       }
       _events.clear();
+      _samples.clear();
       status.value = 'Uploaded private diagnostics: $file';
       return true;
     } catch (_) {

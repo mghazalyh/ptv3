@@ -238,13 +238,10 @@ abstract final class PlayerSettings {
       libassAndroidFont: 'assets/fonts/Poppins-Medium.ttf',
       libassAndroidFontName: 'Poppins',
       bufferSize: 157286400, // 150MB — sensible default
-      // Debug-level MPV logging generates per-frame/event traffic and file
-      // writes on Windows, precisely while its render budget is contested by
-      // a game. Keep native warnings/errors, and use lightweight 5-second
-      // allowlisted performance sampling for Windows Debug Mode instead.
-      // iOS audio preflight diagnostics retain their existing debug stream.
-      logLevel: Platform.isIOS && IosAudioTelemetry.instance.isActive
-          ? MPVLogLevel.debug : MPVLogLevel.warn,
+      // Both platforms use the lightweight opt-in five-second MPV sampler.
+      // Verbose debug logs cost CPU even on iPad and can disturb rendering.
+      // Separate iOS synthetic-PCM Night Mode preflight keeps native errors.
+      logLevel: MPVLogLevel.warn,
     );
   }
 
@@ -317,16 +314,21 @@ abstract final class PlayerSettings {
 
       // 4. A/V sync — hardware audio clock is always the master timeline
       await platform.setProperty('video-sync', 'audio');
-      if (Platform.isWindows) {
-        // Prefer audio clock continuity under game-induced GPU contention.
-        // MPV's VO frame drop skips genuinely late frames without blindly
-        // discarding reference frames in the hardware decoder.
-        try {
-          await platform.setProperty('framedrop', 'vo');
-          await platform.setProperty('interpolation', 'no');
-        } catch (error) {
-          debugPrint('[PlayerSettings] Optional Windows VO tuning: '
-              '${error.runtimeType}');
+      if (Platform.isWindows || Platform.isIOS) {
+        // Prefer stable audio-clock playback over displaying already-late
+        // frames. VO-only late dropping keeps hardware decoder reference
+        // frames intact. Treat each optional setter independently: bundled
+        // iOS and Windows MPV builds do not expose identical options.
+        for (final option in const <String, String>{
+          'framedrop': 'vo',
+          'interpolation': 'no',
+        }.entries) {
+          try {
+            await platform.setProperty(option.key, option.value);
+          } catch (error) {
+            debugPrint('[PlayerSettings] Optional ${option.key} unsupported: '
+                '${error.runtimeType}');
+          }
         }
       }
 

@@ -115,6 +115,7 @@ abstract final class IosNightModePreflight {
     final subscriptions = <StreamSubscription<dynamic>>[];
     try {
       subscriptions.add(player.stream.error.listen((error) {
+        IosAudioTelemetry.instance.captureCode('ios_probe_audio_error');
         IosAudioTelemetry.instance.captureNativeLog(error.toString());
         if (!finished.isCompleted) finished.complete(false);
       }));
@@ -135,12 +136,30 @@ abstract final class IosNightModePreflight {
       } catch (_) {
         // Volume already muted; lack of null AO is not a filter failure.
       }
-      await native.setProperty('audio-normalize-downmix', 'yes');
-      await native.setProperty('af', filter);
-      await player.open(Media(sample.path), play: true)
-          .timeout(const Duration(seconds: 6));
+      try {
+        await native.setProperty('audio-normalize-downmix', 'yes');
+      } catch (_) {
+        IosAudioTelemetry.instance.captureCode('ios_probe_downmix_setter_failed');
+        return false;
+      }
+      try {
+        await native.setProperty('af', filter);
+      } catch (_) {
+        IosAudioTelemetry.instance.captureCode('ios_probe_filter_setter_failed');
+        return false;
+      }
+      try {
+        await player.open(Media(sample.path), play: true)
+            .timeout(const Duration(seconds: 6));
+      } catch (_) {
+        IosAudioTelemetry.instance.captureCode('ios_probe_open_failed');
+        return false;
+      }
       return await finished.future.timeout(
-          const Duration(seconds: 9), onTimeout: () => false);
+          const Duration(seconds: 9), onTimeout: () {
+        IosAudioTelemetry.instance.captureCode('ios_probe_timeout');
+        return false;
+      });
     } catch (_) {
       return false;
     } finally {

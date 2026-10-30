@@ -92,9 +92,12 @@ class DiscoverFilters {
     if (page < 1 || page > 500) {
       throw const FormatException('Invalid page number.');
     }
-    if (!const ['popularity.desc','vote_average.desc','vote_count.desc']
+    if (!const ['popularity.desc','vote_average.desc','vote_count.desc','trending.week']
         .contains(sort)) {
       throw const FormatException('Invalid sort order.');
+    }
+    if (sort == 'trending.week' && !hasTitleQuery) {
+      return {'page': '$page', 'language': 'en-US', 'include_adult': 'false'};
     }
     // TMDB search supports text and paging, but not discover-only
     // sort/country/language filters. Enforce those on the returned rows.
@@ -115,16 +118,16 @@ class DiscoverFilters {
       'page': '$page',
       'language': 'en-US',
       'include_adult': 'false',
-      'sort_by': sort,
+      'sort_by': sort == 'trending.week' ? 'popularity.desc' : sort,
       if (genreId != null) 'with_genres': '$genreId',
       if (sort == 'vote_average.desc') 'vote_count.gte': '100',
     };
     if (first != null && last != null) {
-      // A series from 2023 remains eligible if an episode aired in 2026.
-      // first_air_date would incorrectly remove all older shows.
+      // Recent years mean recent premieres, not late episodes or specials of
+      // older shows. Prevents Farscape (1999) in 2025–2026 results.
       if (type == DiscoverType.series) {
-        params['air_date.gte'] = '$first-01-01';
-        params['air_date.lte'] = '$last-12-31';
+        params['first_air_date.gte'] = '$first-01-01';
+        params['first_air_date.lte'] = '$last-12-31';
       } else {
         params['primary_release_date.gte'] = '$first-01-01';
         params['primary_release_date.lte'] = '$last-12-31';
@@ -142,7 +145,9 @@ class DiscoverFilters {
   Uri buildUri() => Uri.https('api.themoviedb.org',
       hasTitleQuery
         ? (type == DiscoverType.series ? '/3/search/tv' : '/3/search/movie')
-        : (type == DiscoverType.series ? '/3/discover/tv' : '/3/discover/movie'),
+        : sort == 'trending.week'
+          ? (type == DiscoverType.series ? '/3/trending/tv/week' : '/3/trending/movie/week')
+          : (type == DiscoverType.series ? '/3/discover/tv' : '/3/discover/movie'),
       toQuery());
 }
 
@@ -176,6 +181,7 @@ class DiscoverTitle {
   final DiscoverType type;
   final String? poster;
   final int? premiereYear;
+  final String? premiereDate;
   final double rating;
   final String overview;
   final List<int> genreIds;
@@ -188,12 +194,20 @@ class DiscoverTitle {
     required this.type,
     this.poster,
     this.premiereYear,
+    this.premiereDate,
     this.rating = 0,
     this.overview = '',
     this.genreIds = const [],
     this.originCountries = const [],
     this.originalLanguage,
   });
+
+  bool get isUnreleased {
+    final date = DateTime.tryParse(premiereDate ?? '');
+    if (date == null) return false;
+    final today = DateTime.now();
+    return date.isAfter(DateTime(today.year, today.month, today.day));
+  }
 
   factory DiscoverTitle.parse(Map<String, dynamic> json, DiscoverType type) {
     final tv = type == DiscoverType.series;
@@ -206,6 +220,7 @@ class DiscoverTitle {
       type: type,
       premiereYear: date.length >= 4
           ? int.tryParse(date.substring(0, 4)) : null,
+      premiereDate: date.isEmpty ? null : date,
       poster: posterPath.isEmpty
           ? null : 'https://image.tmdb.org/t/p/w342$posterPath',
       rating: (json['vote_average'] as num?)?.toDouble() ?? 0,
@@ -343,7 +358,8 @@ class TmdbDiscoverService {
     if (pending != null) return pending;
 
     final ttl = (endpoint.startsWith('discover/') ||
-        endpoint.startsWith('search/'))
+        endpoint.startsWith('search/') ||
+        endpoint.startsWith('trending/'))
         ? const Duration(minutes: 15) : const Duration(hours: 24);
     final request = _sendRequest(endpoint, params, storedKey);
     _inFlight[id] = request;
@@ -429,11 +445,9 @@ class TmdbDiscoverService {
 
     final first = filters.fromYear ?? filters.toYear;
     final last = filters.toYear ?? filters.fromYear;
-    // With exactly one TV year, /search/tv?year= filters against premiere
-    // AND episode-airing dates. Never discard returning older series because
-    // their first_air_date precedes the year the user searched.
-    if (first != null && last != null &&
-        !(filters.type == DiscoverType.series && first == last)) {
+    // Every year filter is enforced on the original premiere; a current
+    // episode does not make an old show a recent premiere.
+    if (first != null && last != null) {
       final field = filters.type == DiscoverType.series
           ? 'first_air_date' : 'release_date';
       final date = item[field]?.toString() ?? '';
@@ -488,13 +502,16 @@ class TmdbDiscoverService {
     }
 
     final type = filters.type == DiscoverType.movie ? 'movie' : 'tv';
-    final endpoint = filters.hasTitleQuery ? 'search/$type' : 'discover/$type';
+    final trending = filters.sort == 'trending.week' && !filters.hasTitleQuery;
+    final endpoint = filters.hasTitleQuery ? 'search/$type' :
+        trending ? 'trending/$type/week' : 'discover/$type';
     final response = await _request(endpoint, filters.toQuery(), key);
     final allRows = (response['results'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>().toList();
     List<Map<String, dynamic>> rows;
-    if (!filters.hasTitleQuery) {
-      rows = allRows;  // Existing server-filtered Discover remains untouched.
+    if (!filters.hasTitleQuery && !trending) {
+      rows = allRows.where((item) =>
+          matchesTitleFilters(item, filters)).toList();
     } else {
       rows = [];
       for (final item in allRows) {
@@ -522,7 +539,7 @@ class TmdbDiscoverService {
           rows.add(item);
         }
       }
-      rows = sortSearchedTitles(rows, filters.sort);
+      if (!trending) rows = sortSearchedTitles(rows, filters.sort);
     }
     final titles = rows
         .map((item) => DiscoverTitle.parse(item, filters.type))

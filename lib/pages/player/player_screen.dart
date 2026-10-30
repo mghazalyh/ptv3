@@ -1033,7 +1033,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _sampleWindowsPerformance() async {
     if (!mounted || _windowsPerformanceReading || _isLoading ||
-        !_player.state.playing ||
+        (!_player.state.playing && !_player.state.buffering) ||
         !WindowsPlaybackTelemetry.instance.isActive) return;
     _windowsPerformanceReading = true;
     try {

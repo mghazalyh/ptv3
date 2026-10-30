@@ -324,6 +324,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
                     key: ValueKey('series-run-${item.tmdbId}'),
                     tmdbId: item.tmdbId,
                     fallbackYear: item.premiereYear?.toString(),
+                    showUnreleased: !item.isUnreleased,
                     style: const TextStyle(
                         color: Colors.white60, fontSize: 10),
                   )

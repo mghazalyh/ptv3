@@ -155,13 +155,21 @@ void main() {
 
   test('Windows Night Mode uses an explicit output limiter; iOS stays stable', () {
     final windows = PlayerPictureAudio.audioFilterChain(true, windows: true);
-    expect(windows, contains('acompressor=threshold=0.10:ratio=4'));
-    expect(windows, contains('makeup=1.25'));
+    expect(windows, contains('acompressor=threshold=0.15:ratio=2.5'));
+    expect(windows, contains('makeup=2.0'));
     expect(windows, contains('alimiter=limit=0.95:level=0'));
     expect(PlayerPictureAudio.audioFilterChain(true),
         contains('release=300:makeup=1.0'));
     expect(PlayerPictureAudio.audioFilterChain(false, windows: true),
         'scaletempo2=max-speed=8');
+    expect(PlayerPictureAudio.downmixNormalization(true, windows: true), 'no');
+    expect(PlayerPictureAudio.downmixNormalization(true), 'yes');
+    final writes = <String>[];
+    await PlayerPictureAudio.applyAudio((k, v) async {
+      writes.add('$k=$v');
+    }, true, windows: true);
+    expect(writes.first, 'audio-normalize-downmix=no');
+    expect(writes.last, 'af=$windows');
   });
 
   test('Windows brightness generates video pixel EQ and resets cleanly', () async {

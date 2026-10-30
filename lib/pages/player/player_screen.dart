@@ -233,6 +233,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     _subscriptions.addAll([
       _player.stream.playing.listen((playing) {
         if (mounted) {
+          // The loading-logo ticker otherwise continues at display refresh
+          // for the entire movie, even while its widget is not in the tree.
+          // Stop it so Windows video and a concurrent game get that budget.
+          if (playing && _logoAnimController.isAnimating) {
+            _logoAnimController.stop(canceled: false);
+          }
           final justPaused = _isPlaying && !playing;
           final justResumed = !_isPlaying && playing;
           if (justPaused && !_httpReconnecting && !_player.state.buffering) {
@@ -326,6 +332,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _initStream() async {
+    if (!_logoAnimController.isAnimating) {
+      _logoAnimController.repeat(reverse: true);
+    }
     ++_streamGeneration;
     _startPeriodicAutoSync();
     _nightModeRecoveryFailed = false;

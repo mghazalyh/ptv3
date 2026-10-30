@@ -87,6 +87,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/tmdb_advanced_discover_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/tmdb_text_filter_search_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/tmdb_trending_strict_filters_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/series_run_service_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/discover_year_pagination_widget_test.dart

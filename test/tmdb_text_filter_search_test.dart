@@ -26,8 +26,8 @@ void main() {
     );
     expect(f.hasTitleQuery, isFalse);
     expect(f.buildUri().path, '/3/discover/tv');
-    expect(f.toQuery()['first_air_date.gte'], '2020-01-01');
-    expect(f.toQuery()['first_air_date.lte'], '2026-12-31');
+    expect(f.toQuery()['air_date.gte'], '2020-01-01');
+    expect(f.toQuery()['air_date.lte'], '2026-12-31');
     expect(f.toQuery()['with_origin_country'], 'US');
     expect(f.toQuery().containsKey('query'), isFalse);
   });
@@ -61,17 +61,31 @@ void main() {
     ).toQuery()['year'], '2013');
   });
 
-  test('one TV year excludes older series and wrong-country results', () async {
+  test('one TV year allows older returning series but rejects ended ones', () async {
     final urls = <Uri>[];
     final service = TmdbDiscoverService.instance;
     service.httpGetOverride = (uri, headers) async {
       urls.add(uri);
+      if (uri.path == '/3/tv/20') {
+        return http.Response(jsonEncode({
+          'first_air_date': '2010-01-01',
+          'last_air_date': '2026-04-01',
+          'status': 'Returning Series',
+        }), 200);
+      }
+      if (uri.path == '/3/tv/22') {
+        return http.Response(jsonEncode({
+          'first_air_date': '1999-03-19',
+          'last_air_date': '2004-10-18',
+          'status': 'Ended',
+        }), 200);
+      }
       return http.Response(jsonEncode({
         'page': 1, 'total_pages': 1, 'total_results': 2,
         'results': [
           {
-            'id': 20, 'name': 'New US show',
-            'first_air_date': '2026-01-01',
+            'id': 20, 'name': 'Returning US show',
+            'first_air_date': '2010-01-01',
             'original_language': 'en', 'origin_country': ['US'],
             'popularity': 50, 'vote_count': 300, 'vote_average': 8.0,
           },
@@ -99,9 +113,9 @@ void main() {
       originalLanguage: 'en',
     );
     final result = await service.browse(filters);
-    expect(urls, hasLength(1));
-    expect(urls.single.path, '/3/search/tv');
-    expect(urls.single.queryParameters['year'], '2026');
+    expect(urls.map((uri) => uri.path),
+        ['/3/search/tv', '/3/tv/20', '/3/tv/22']);
+    expect(urls.first.queryParameters['year'], '2026');
     expect(result.titles.map((e) => e.tmdbId), [20]);
     expect(result.totalPages, 1);
   });
@@ -154,11 +168,19 @@ void main() {
         reason: 'Pagination must stay attached to raw text-search pages.');
   });
 
-  test('multi-year TV text search applies original premiere year', () async {
+  test('multi-year TV text search accepts earlier premiere only with '
+      'relevant episode airing', () async {
     final calls = <String>[];
     final service = TmdbDiscoverService.instance;
     service.httpGetOverride = (uri, headers) async {
       calls.add(uri.path);
+      if (uri.path == '/3/tv/5') {
+        return http.Response(jsonEncode({
+          'last_air_date': '2010-01-01',
+          'first_air_date': '2007-06-01',
+          'status': 'Ended',
+        }), 200);
+      }
       return http.Response(jsonEncode({
         'page': 1, 'total_pages': 1, 'total_results': 3,
         'results': [
@@ -180,7 +202,7 @@ void main() {
       originalLanguage: 'en', sort: 'vote_average.desc',
     );
     final result = await service.browse(f);
-    expect(calls, ['/3/search/tv']);
+    expect(calls, ['/3/search/tv', '/3/tv/5']);
     expect(result.titles.map((x) => x.tmdbId), [4]);
   });
 

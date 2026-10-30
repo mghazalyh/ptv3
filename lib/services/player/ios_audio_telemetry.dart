@@ -118,6 +118,11 @@ class IosAudioTelemetry {
     'ios_filter_preflight_failed',
     'acompressor_supported',
     'compand_supported',
+    'ios_probe_audio_error',
+    'ios_probe_downmix_setter_failed',
+    'ios_probe_filter_setter_failed',
+    'ios_probe_open_failed',
+    'ios_probe_timeout',
   };
 
   void captureCode(String code) {

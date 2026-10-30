@@ -13,11 +13,13 @@ class SeriesRun {
   final int? startYear;
   final int? endYear;
   final bool finished;
+  final bool unreleased;
 
   const SeriesRun({
     this.startYear,
     this.endYear,
     this.finished = false,
+    this.unreleased = false,
   });
 
   static int? _parseYear(Object? value) {
@@ -31,6 +33,14 @@ class SeriesRun {
     final status = details['status']?.toString().trim().toLowerCase();
     final finished = status == 'ended' ||
         status == 'canceled' || status == 'cancelled';
+    final firstDate = DateTime.tryParse(
+        details['first_air_date']?.toString() ?? '');
+    final now = DateTime.now();
+    final futureFirstDate = firstDate != null &&
+        firstDate.isAfter(DateTime(now.year, now.month, now.day));
+    final unreleased = futureFirstDate ||
+        (firstDate == null &&
+         (status == 'planned' || status == 'in production'));
     final lastEpisode = details['last_episode_to_air'];
     final lastEpisodeDate = lastEpisode is Map
         ? lastEpisode['air_date'] : null;
@@ -39,6 +49,7 @@ class SeriesRun {
       endYear: _parseYear(details['last_air_date']) ??
           _parseYear(lastEpisodeDate),
       finished: finished,
+      unreleased: unreleased,
     );
   }
 

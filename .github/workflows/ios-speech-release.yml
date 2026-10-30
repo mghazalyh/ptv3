@@ -260,7 +260,9 @@ jobs:
           assert 'Navigator.push(' in details
           assert 'controller: _discoverScroll' in discover
           assert '_discoverScroll.animateTo(' not in discover
-          assert 'if ((loading && !applied) || openingId != null)' in discover
+          assert 'if (loading && !applied)' in discover, 'Initial loading feedback missing'
+          assert 'openingId == item.tmdbId' in discover, 'Per-card immediate spinner missing'
+          assert 'if ((loading && !applied) || openingId != null)' not in discover, 'Global loading would shift grid'
           assert 'PageStorageKey' in discover
           print('Nested details history and stable pagination verified')
           PY

@@ -341,13 +341,14 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Column(children: [
                       CheckboxListTile(
                         key: const ValueKey('settings-ios-torriodb-telemetry'),
-                        title: const Text('Private iOS Audio Diagnostics'),
+                        title: const Text('Private iOS Playback & Audio Diagnostics'),
                         subtitle: const Text(
-                          'OFF by default. When enabled, send only audio-filter '
-                          'failure codes, codec/channel format and build info to '
-                          'your private mghazalyh/torriodb GitHub repository. '
-                          'No stream URLs, movie names, headers or tokens are uploaded. '
-                          'Requires GitHub Library access with Contents write permission.',
+                          'OFF by default. When enabled, sample frame drops, A/V sync, '
+                          'hardware decoder and buffering every 5 seconds and '
+                          'batch private Torriodb reports about every 30 seconds, '
+                          'alongside audio-filter failure codes. No stream URLs, '
+                          'movie names, headers or tokens. Requires GitHub Library '
+                          'Contents write access.',
                         ),
                         secondary: Icon(Icons.bug_report_outlined,
                             color: enabled ? const Color(0xFFF59E0B) : Colors.white54),
@@ -372,7 +373,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             TextButton.icon(
                               key: const ValueKey('settings-ios-send-telemetry'),
                               icon: const Icon(Icons.cloud_upload_outlined),
-                              label: const Text('Upload captured Night Mode report'),
+                              label: const Text('Upload captured playback and audio report'),
                               onPressed: () async {
                                 await IosAudioTelemetry.instance.upload();
                                 if (mounted) {

@@ -25,6 +25,7 @@ COMPRESSOR_CHAIN = (
 MPV_EVENT_LOG_MESSAGE = 2
 MPV_EVENT_END_FILE = 7
 MPV_EVENT_AUDIO_RECONFIG = 18
+MPV_EVENT_VIDEO_RECONFIG = 17
 MPV_END_FILE_REASON_EOF = 0
 
 
@@ -88,7 +89,7 @@ def _decode(raw: bytes | None) -> str:
     return raw.decode("utf-8", errors="replace") if raw else ""
 
 
-def smoke(libmpv: Path, audio: Path) -> None:
+def smoke(libmpv: Path, audio: Path, *, video: bool = False) -> None:
     if sys.platform != "win32":
         raise RuntimeError("Native MPV smoke must run on Windows x64")
     if not libmpv.is_file() or not audio.is_file():
@@ -144,15 +145,25 @@ def smoke(libmpv: Path, audio: Path) -> None:
     compressor_seen = False
     limiter_seen = False
     audio_reconfigured = False
+    video_reconfigured = False
     completed = False
     try:
-        for key, value in (
+        options = [
             ("config", "no"),
             ("vo", "null"),
             ("ao", "null"),
-            ("audio-normalize-downmix", "yes"),
-            ("af", COMPRESSOR_CHAIN),
-        ):
+        ]
+        if video:
+            options.extend([
+                ("hwdec", "no"),
+                ("vf", "lavfi=[eq=brightness=0.250:gamma=1.350]"),
+            ])
+        else:
+            options.extend([
+                ("audio-normalize-downmix", "yes"),
+                ("af", COMPRESSOR_CHAIN),
+            ])
+        for key, value in options:
             result = option(handle, key.encode("ascii"), value.encode("utf-8"))
             if result < 0:
                 raise RuntimeError(f"libmpv rejected {key} option ({result})")
@@ -161,14 +172,21 @@ def smoke(libmpv: Path, audio: Path) -> None:
             raise RuntimeError(f"libmpv initialization failed ({result})")
         # Flutter writes this MPV option on a live player when toggling.
         # Successful startup-only options are insufficient for that code path.
-        for requested in (b"no", b"yes"):
+        if video:
             result = set_property(
-                handle, b"audio-normalize-downmix", requested
+                handle, b"vf", b"lavfi=[eq=brightness=0.125:gamma=1.175]"
             )
             if result < 0:
-                raise RuntimeError(
-                    f"Live audio-normalize-downmix setter failed ({result})"
+                raise RuntimeError(f"Live Windows video EQ filter setter failed ({result})")
+        else:
+            for requested in (b"no", b"yes"):
+                result = set_property(
+                    handle, b"audio-normalize-downmix", requested
                 )
+                if result < 0:
+                    raise RuntimeError(
+                        f"Live audio-normalize-downmix setter failed ({result})"
+                    )
         result = logs(handle, b"v")
         if result < 0:
             raise RuntimeError(f"libmpv log subscription failed ({result})")
@@ -203,6 +221,8 @@ def smoke(libmpv: Path, audio: Path) -> None:
                     errors.append(f"{prefix}: {message[:240]}")
             elif event.event_id == MPV_EVENT_AUDIO_RECONFIG:
                 audio_reconfigured = True
+            elif event.event_id == MPV_EVENT_VIDEO_RECONFIG:
+                video_reconfigured = True
             elif event.event_id == MPV_EVENT_END_FILE and event.data:
                 end = ctypes.cast(
                     event.data, ctypes.POINTER(MpvEventEndFile)
@@ -218,16 +238,21 @@ def smoke(libmpv: Path, audio: Path) -> None:
             raise RuntimeError("libmpv native Night Mode failed: " + " | ".join(errors))
         if not completed:
             raise RuntimeError("libmpv Night Mode sample never completed")
-        if not audio_reconfigured:
-            raise RuntimeError("No libmpv audio reconfiguration event occurred")
-        if not compressor_seen:
-            raise RuntimeError("No evidence that MPV configured acompressor")
-        if not limiter_seen:
-            raise RuntimeError("No evidence that MPV configured alimiter")
-        print(
-            "PASS: packaged libmpv decoded synthetic audio using "
-            "scaletempo2 + acompressor + alimiter without an FFmpeg filter error"
-        )
+        if video:
+            if not video_reconfigured:
+                raise RuntimeError("No libmpv video reconfiguration event occurred")
+            print("PASS: packaged libmpv decoded synthetic video with live lavfi EQ")
+        else:
+            if not audio_reconfigured:
+                raise RuntimeError("No libmpv audio reconfiguration event occurred")
+            if not compressor_seen:
+                raise RuntimeError("No evidence that MPV configured acompressor")
+            if not limiter_seen:
+                raise RuntimeError("No evidence that MPV configured alimiter")
+            print(
+                "PASS: packaged libmpv decoded synthetic audio using "
+                "scaletempo2 + acompressor + alimiter without an FFmpeg filter error"
+            )
     finally:
         try:
             destroy(handle)
@@ -242,6 +267,7 @@ def main() -> None:
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--generate-sample", type=Path)
+    parser.add_argument("--video-smoke", action="store_true")
     args = parser.parse_args()
     assert_project_chain(args.repo)
     if args.self_test:
@@ -253,7 +279,7 @@ def main() -> None:
         return
     if args.libmpv is None or args.sample is None:
         parser.error("--libmpv and --sample are required for Windows smoke")
-    smoke(args.libmpv, args.sample)
+    smoke(args.libmpv, args.sample, video=args.video_smoke)
 
 
 if __name__ == "__main__":

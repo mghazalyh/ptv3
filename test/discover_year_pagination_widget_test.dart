@@ -105,8 +105,8 @@ void main() {
     SharedPreferences.setMockInitialValues({
       'local_tmdb_discover_api_key': 'unit-test-key',
       'adv_discover_type': 'series',
-      'adv_discover_from': '2026',
-      'adv_discover_to': '2026',
+      'adv_discover_from': '2006',
+      'adv_discover_to': '2006',
     });
 
     final paths = <String>[];

@@ -87,6 +87,28 @@ void main() {
     expect(filters.withPage(2).toQuery()['page'], '2');
   });
 
+  test('trending title filter stays on trending endpoint, not popularity search',
+      () async {
+    TmdbDiscoverService.instance.httpGetOverride = (uri, headers) async {
+      expect(uri.path, '/3/trending/tv/week');
+      expect(uri.queryParameters.containsKey('query'), isFalse);
+      return http.Response(jsonEncode({
+        'page': 1, 'total_pages': 1, 'total_results': 2,
+        'results': [
+          {'id': 43, 'name': 'Elsewhere',
+            'first_air_date': '2026-01-01'},
+          {'id': 44, 'name': 'Blade Runner 2099',
+            'first_air_date': '2026-08-01'},
+        ],
+      }), 200);
+    };
+    const filters = DiscoverFilters(type: DiscoverType.series,
+      sort: 'trending.week', titleQuery: 'blade runner');
+    expect(filters.buildUri().path, '/3/trending/tv/week');
+    final result = await TmdbDiscoverService.instance.browse(filters);
+    expect(result.titles.map((x) => x.tmdbId), [44]);
+  });
+
   test('unreleased badge reflects a future date, not a speculative title', () {
     final futureYear = DateTime.now().year + 2;
     final future = DiscoverTitle.parse({

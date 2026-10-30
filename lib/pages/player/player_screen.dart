@@ -51,6 +51,7 @@ import '../../services/player/skip_segments_service.dart';
 import '../../widgets/player/player_aspect_menu.dart';
 import '../../widgets/player/player_audio_menu.dart';
 import '../../widgets/player/player_brightness_menu.dart';
+import '../../services/player/windows_playback_telemetry.dart';
 import '../../widgets/player/player_night_mode_recovery.dart';
 import '../../services/player/player_picture_audio.dart';
 import '../../services/player/night_mode_diagnostics.dart';
@@ -1015,6 +1016,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       try {
         final value = await native.getProperty(property);
         await log.record('night-mpv-property', '$property=$value');
+        WindowsPlaybackTelemetry.instance.captureProperty(property, value);
       } catch (error) {
         await log.record('night-mpv-property', '$property=unavailable (${error.runtimeType})');
       }
@@ -1030,7 +1032,12 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Apply to this actual libmpv instance BEFORE persisting. Failure must
       // not leave an enabled toggle that silently has no effect.
       await PlayerSettings.setNightMode(wanted, player: _player);
-      unawaited(_captureNightModeNativeState('after-toggle'));
+      unawaited(_captureNightModeNativeState('after-toggle').then((_) async {
+        WindowsPlaybackTelemetry.instance.captureCode(wanted
+            ? 'night_mode_enabled' : 'night_mode_disabled');
+        await WindowsPlaybackTelemetry.instance.upload(
+            reason: 'night_mode_changed', automatic: true);
+      }));
       if (mounted) {
         setState(() {});
         _showAudioHudToast(wanted ? 'NIGHT MODE ON' : 'NIGHT MODE OFF');
@@ -1073,11 +1080,15 @@ class _PlayerScreenState extends State<PlayerScreen>
       try {
         final actual = await native.getProperty(property);
         await log.record('brightness-mpv-property', '$property=$actual');
+        WindowsPlaybackTelemetry.instance.captureProperty(property, actual);
       } catch (error) {
         await log.record('brightness-mpv-property',
             '$property=unavailable (${error.runtimeType})');
       }
     }
+    WindowsPlaybackTelemetry.instance.captureCode('brightness_changed');
+    await WindowsPlaybackTelemetry.instance.upload(
+        reason: 'brightness_changed', automatic: true);
   }
 
   Future<void> _commitVideoBrightness(double value) async {
@@ -1699,6 +1710,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (Platform.isIOS) {
         IosAudioTelemetry.instance.captureNativeLog(errorMsg);
         unawaited(_sendIosNightModeFailure());
+      }
+      if (Platform.isWindows) {
+        WindowsPlaybackTelemetry.instance.captureCode('audio_filter_failure');
+        unawaited(WindowsPlaybackTelemetry.instance.upload(
+            reason: 'audio_filter_failure', automatic: true));
       }
       unawaited(NightModeDiagnostics.instance.record('mpv-error', errorMsg));
       unawaited(_captureNightModeNativeState('player-error-received'));

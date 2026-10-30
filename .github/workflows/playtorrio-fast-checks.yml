@@ -64,6 +64,8 @@ jobs:
             lib/pages/settings/settings_page.dart \
             lib/services/player/player_settings.dart \
             lib/services/player/player_picture_audio.dart \
+            lib/services/config/windows_settings_recovery.dart \
+            lib/services/player/windows_playback_telemetry.dart \
             lib/services/player/ios_audio_telemetry.dart \
             lib/services/player/ios_night_mode_preflight.dart \
             lib/services/player/night_mode_diagnostics.dart \
@@ -117,6 +119,8 @@ jobs:
             test/series_automatic_skip_test.dart \
             test/player_diagnostics_overlay_test.dart \
             test/player_picture_audio_test.dart \
+            test/windows_settings_recovery_test.dart \
+            test/windows_playback_telemetry_test.dart \
             test/night_mode_diagnostics_test.dart \
             test/ios_audio_telemetry_test.dart
           do

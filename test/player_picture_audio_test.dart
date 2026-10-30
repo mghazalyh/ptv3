@@ -172,23 +172,35 @@ void main() {
     expect(writes.last, 'af=$windows');
   });
 
-  test('Windows brightness generates video pixel EQ and resets cleanly', () async {
+  test('Windows uses GPU texture brightness and clears costly FFmpeg video filters', () async {
     final writes = <String>[];
     Future<void> write(String key, String value) async {
       writes.add('$key=$value');
     }
     await PlayerPictureAudio.applyBrightness(write, 80, windows: true);
-    expect(writes, [
-      'brightness=0',
-      'vf=lavfi=[eq=brightness=0.250:gamma=1.350]',
-    ]);
+    expect(writes, ['brightness=0', 'vf='],
+        reason: 'No CPU FFmpeg video filter should run under game contention');
     writes.clear();
     await PlayerPictureAudio.applyBrightness(write, 0, windows: true);
     expect(writes, ['brightness=0', 'vf=']);
     writes.clear();
     await PlayerPictureAudio.applyBrightness(write, 80);
-    expect(writes, ['brightness=80']);
-    expect(PlayerPictureAudio.windowsBrightnessFilter(double.nan), isEmpty);
+    expect(writes, ['brightness=80'],
+        reason: 'Keep original native iOS brightness untouched');
+    expect(PlayerPictureAudio.windowsBrightnessFilter(80), isEmpty);
+
+    final idle = PlayerPictureAudio.windowsBrightnessColorMatrix(0);
+    final full = PlayerPictureAudio.windowsBrightnessColorMatrix(80);
+    expect(idle, hasLength(20));
+    expect(idle[0], 1);
+    expect(idle[4], 0);
+    expect(idle[18], 1);
+    expect(full[0], closeTo(1.08, 0.0001));
+    expect(full[4], closeTo(42, 0.0001));
+    expect(full[9], closeTo(42, 0.0001));
+    expect(full[14], closeTo(42, 0.0001));
+    expect(full[18], 1);
+    expect(PlayerPictureAudio.windowsBrightnessColorMatrix(double.nan), idle);
   });
 
   test('Night Mode and brightness survive preference reloads', () async {

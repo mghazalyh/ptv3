@@ -59,11 +59,13 @@ abstract final class PlayerPictureAudio {
       nightMode ? 'yes' : 'no';
 
   static Future<void> applyAudio(
-    Future<void> Function(String, String) setProperty, bool nightMode,
-  ) async {
+    Future<void> Function(String, String) setProperty, bool nightMode, {
+    String? verifiedFilterChain,
+  }) async {
     await setProperty('audio-normalize-downmix',
         downmixNormalization(nightMode));
-    await setProperty('af', audioFilterChain(nightMode));
+    await setProperty('af', nightMode && verifiedFilterChain != null
+        ? verifiedFilterChain : audioFilterChain(nightMode));
   }
 
   static Future<void> applyBrightness(

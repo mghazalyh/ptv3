@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/player/ios_speech_transcriber.dart';
 import '../../services/player/night_mode_diagnostics.dart';
+import '../../services/player/ios_audio_telemetry.dart';
 
 import '../../services/addon/addon_manager.dart';
 import '../../services/theme/app_theme_service.dart';
@@ -282,6 +283,73 @@ class _SettingsPageState extends State<SettingsPage> {
                         }
                       },
                     ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // The owner explicitly opts into sending *only allowlisted*
+              // native filter error codes to their private Torriodb repo.
+              // Nothing is sent from iOS while this setting is OFF.
+              if (Platform.isIOS) ...[
+                ValueListenableBuilder<bool>(
+                  valueListenable: IosAudioTelemetry.instance.enabled,
+                  builder: (context, enabled, _) => Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF12151E),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: Column(children: [
+                      CheckboxListTile(
+                        key: const ValueKey('settings-ios-torriodb-telemetry'),
+                        title: const Text('Private iOS Audio Diagnostics'),
+                        subtitle: const Text(
+                          'OFF by default. When enabled, send only audio-filter '
+                          'failure codes, codec/channel format and build info to '
+                          'your private mghazalyh/torriodb GitHub repository. '
+                          'No stream URLs, movie names, headers or tokens are uploaded. '
+                          'Requires GitHub Library access with Contents write permission.',
+                        ),
+                        secondary: Icon(Icons.bug_report_outlined,
+                            color: enabled ? const Color(0xFFF59E0B) : Colors.white54),
+                        value: enabled,
+                        controlAffinity: ListTileControlAffinity.trailing,
+                        activeColor: const Color(0xFFF59E0B),
+                        onChanged: (value) async {
+                          if (value == null) return;
+                          await IosAudioTelemetry.instance.setEnabled(value);
+                        },
+                      ),
+                      if (enabled)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                          child: Column(children: [
+                            ValueListenableBuilder<String>(
+                              valueListenable: IosAudioTelemetry.instance.status,
+                              builder: (context, message, _) => Text(message,
+                                  style: const TextStyle(
+                                      fontSize: 11, color: Colors.white70)),
+                            ),
+                            TextButton.icon(
+                              key: const ValueKey('settings-ios-send-telemetry'),
+                              icon: const Icon(Icons.cloud_upload_outlined),
+                              label: const Text('Upload captured Night Mode report'),
+                              onPressed: () async {
+                                await IosAudioTelemetry.instance.upload();
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(
+                                        IosAudioTelemetry.instance.status.value)),
+                                  );
+                                }
+                              },
+                            ),
+                          ]),
+                        ),
+                    ]),
                   ),
                 ),
                 const SizedBox(height: 12),

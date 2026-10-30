@@ -37,6 +37,7 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
     'popularity.desc': 'Most popular',
     'vote_average.desc': 'Top rated',
     'vote_count.desc': 'Most reviewed',
+    'trending.week': 'Trending this week (TMDB)',
   };
   final service = TmdbDiscoverService.instance;
   final ScrollController _discoverScroll = ScrollController();
@@ -234,8 +235,20 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
             content: Text('No IMDb/Stremio match exists for this title.')));
         return;
       }
-      await Navigator.push(context, MaterialPageRoute<void>(
-          builder: (_) => DetailsPage(movie: movie)));
+      final offset = _discoverScroll.hasClients ? _discoverScroll.offset : null;
+      await Navigator.push(context, PageRouteBuilder<void>(
+        pageBuilder: (_, __, ___) =>
+            DetailsPage(movie: movie, disableEntranceAnimation: true),
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+      ));
+      if (mounted && offset != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_discoverScroll.hasClients) return;
+          _discoverScroll.jumpTo(offset.clamp(
+              0.0, _discoverScroll.position.maxScrollExtent).toDouble());
+        });
+      }
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Cannot open title. Check your connection.')));
@@ -286,7 +299,11 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: item.poster == null
+            Expanded(child: openingId == item.tmdbId
+                ? const Center(child: CircularProgressIndicator(
+                    key: ValueKey('discover-card-opening'),
+                    strokeWidth: 2.5))
+                : item.poster == null
                 ? const Center(child: Icon(Icons.movie_creation_outlined,
                     size: 40))
                 : CachedNetworkImage(
@@ -314,6 +331,11 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
                   Text(debut, maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                           color: Colors.white60, fontSize: 10)),
+                if (item.isUnreleased)
+                  const Text('UNRELEASED',
+                      key: ValueKey('discover-unreleased-badge'),
+                      style: TextStyle(color: Color(0xFFFBBF24),
+                          fontSize: 10, fontWeight: FontWeight.bold)),
                 if (item.rating > 0)
                   Text('★ ${item.rating.toStringAsFixed(1)}',
                       style: const TextStyle(color: Color(0xFFFFD166),
@@ -440,18 +462,10 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
           )),
           const SizedBox(height: 12),
           Text(type == DiscoverType.series
-              ? (titleController.text.trim().isNotEmpty &&
-                    (fromController.text.trim().isNotEmpty ||
-                     toController.text.trim().isNotEmpty) &&
-                    fromController.text.trim() != toController.text.trim()
-                ? 'With title text and a multi-year range, TV results use '
-                  'their premiere year. A single TV year includes episode '
-                  'airings; leave title blank for the original Discover '
-                  'episode-year range filters.'
-                : 'TV years use episodes airing during the selected range '
-                  'when browsing without a title. One-year title searches '
-                  'also include returning series.')
-              : 'Movie years use TMDB primary release dates.',
+              ? 'TV years filter by series premiere, not later episodes or '
+                'specials. Weekly trending results come from TMDB.'
+              : 'Movie years use original release dates. Weekly trending '
+                'results come from TMDB.',
             style: const TextStyle(color: Colors.white60, fontSize: 12)),
           const SizedBox(height: 5),
           const Text('Country = production origin; language = original '
@@ -461,20 +475,25 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
             const SizedBox(height: 12),
             Text(error!, style: const TextStyle(color: Colors.orangeAccent)),
           ],
-          if ((loading && !applied) || openingId != null) ...[
+          if (loading && !applied) ...[
             const SizedBox(height: 12),
             const LinearProgressIndicator(),
           ],
           const SizedBox(height: 20),
           if (applied) ...[
-            Text(_appliedFilters?.hasTitleQuery == true
-                ? (titles.isEmpty
-                    ? 'No matching titles on this search page'
-                    : '${titles.length} filtered titles shown · '
-                      'Search page $page/$totalPages')
-                : (totalResults == 0
-                    ? 'No matches; try different filters'
-                    : '$totalResults matches · Page $page/$totalPages'),
+            Text((_appliedFilters?.sort == 'trending.week' &&
+                    _appliedFilters?.hasTitleQuery == false)
+                ? '${titles.length} matches on TMDB weekly trending '
+                  'page $page/$totalPages'
+                : _appliedFilters?.hasTitleQuery == true
+                    ? (titles.isEmpty
+                        ? 'No matching titles on this search page'
+                        : '${titles.length} filtered titles · '
+                          'Search page $page/$totalPages')
+                    : (totalResults == 0
+                        ? 'No matches; try different filters'
+                        : '$totalResults candidates · ${titles.length} '
+                          'matching cards loaded · Page $page/$totalPages'),
               style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             GridView.builder(

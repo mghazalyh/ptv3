@@ -19,7 +19,8 @@ import wave
 
 COMPRESSOR_CHAIN = (
     "scaletempo2=max-speed=8,lavfi=[acompressor=threshold=0.10:"
-    "ratio=3:attack=20:release=300:makeup=1.0:knee=2.5]"
+    "ratio=4:attack=15:release=260:makeup=1.25:knee=2.5,"
+    "alimiter=limit=0.95:level=0]"
 )
 MPV_EVENT_LOG_MESSAGE = 2
 MPV_EVENT_END_FILE = 7
@@ -76,8 +77,8 @@ def assert_project_chain(repo_root: Path) -> None:
     )
     for expected in (
         "scaletempo2=max-speed=8",
-        "acompressor=threshold=0.10:ratio=3:attack=20:",
-        "release=300:makeup=1.0:knee=2.5",
+        "acompressor=threshold=0.10:ratio=4:attack=15:",
+        "release=260:makeup=1.25:knee=2.5,alimiter=limit=0.95:level=0",
     ):
         if expected not in source:
             raise RuntimeError("Native smoke chain differs from Flutter player policy")
@@ -141,6 +142,7 @@ def smoke(libmpv: Path, audio: Path) -> None:
         raise RuntimeError("libmpv could not create an MPV instance")
     errors = []
     compressor_seen = False
+    limiter_seen = False
     audio_reconfigured = False
     completed = False
     try:
@@ -189,6 +191,9 @@ def smoke(libmpv: Path, audio: Path) -> None:
                 if "acompressor" in message:
                     compressor_seen = True
                     print(f"[{prefix}] {message[:240]}")
+                if "alimiter" in message:
+                    limiter_seen = True
+                    print(f"[{prefix}] {message[:240]}")
                 if any(pattern in message.lower() for pattern in (
                     "no such filter", "audio filter initialized failed",
                     "creating filter 'lavfi' failed",
@@ -217,9 +222,11 @@ def smoke(libmpv: Path, audio: Path) -> None:
             raise RuntimeError("No libmpv audio reconfiguration event occurred")
         if not compressor_seen:
             raise RuntimeError("No evidence that MPV configured acompressor")
+        if not limiter_seen:
+            raise RuntimeError("No evidence that MPV configured alimiter")
         print(
             "PASS: packaged libmpv decoded synthetic audio using "
-            "scaletempo2 + acompressor without an FFmpeg filter error"
+            "scaletempo2 + acompressor + alimiter without an FFmpeg filter error"
         )
     finally:
         try:

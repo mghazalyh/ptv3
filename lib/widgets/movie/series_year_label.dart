@@ -9,6 +9,7 @@ class SeriesYearLabel extends StatefulWidget {
   final String? imdbId;
   final String? fallbackYear;
   final TextStyle? style;
+  final bool showUnreleased;
 
   const SeriesYearLabel({
     super.key,
@@ -16,6 +17,7 @@ class SeriesYearLabel extends StatefulWidget {
     this.imdbId,
     this.fallbackYear,
     this.style,
+    this.showUnreleased = false,
   });
 
   @override
@@ -54,11 +56,25 @@ class _SeriesYearLabelState extends State<SeriesYearLabel> {
       final fallback = widget.fallbackYear?.trim() ?? '';
       final label = snapshot.data?.displayYear(fallbackYear: fallback) ??
           (fallback.isEmpty ? 'Year unknown' : fallback);
-      return Text(
+      final year = Text(
         label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: widget.style,
+      );
+      if (!widget.showUnreleased || snapshot.data?.unreleased != true) {
+        return year;
+      }
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          year,
+          const Text('UNRELEASED',
+            key: ValueKey('discover-unreleased-verified'),
+            style: TextStyle(color: Color(0xFFFBBF24),
+                fontSize: 10, fontWeight: FontWeight.bold)),
+        ],
       );
     },
   );

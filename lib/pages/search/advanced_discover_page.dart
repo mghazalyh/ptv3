@@ -463,8 +463,9 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
           )),
           const SizedBox(height: 12),
           Text(type == DiscoverType.series
-              ? 'TV years filter by series premiere, not later episodes or '
-                'specials. Weekly trending results come from TMDB.'
+              ? 'TV years include series with real episodes or specials airing '
+                'during the selected range, regardless of premiere year. '
+                'Weekly trending results come from TMDB.'
               : 'Movie years use original release dates. Weekly trending '
                 'results come from TMDB.',
             style: const TextStyle(color: Colors.white60, fontSize: 12)),

@@ -77,6 +77,8 @@ void main() {
     await telemetry.setEnabled(true);
     telemetry.captureNativeLog(
       "No such filter: 'acompressor' https://secret.invalid/?token=SECRET");
+    telemetry.captureCode('private_user_title'); // Never accepted as a report field.
+    expect(telemetry.capturedCodes, isNot(contains('private_user_title')));
     telemetry.captureNativeLog(
       "Playback error: Audio filter initialized failed! The Legend of Vox Machina");
     final ok = await telemetry.upload(

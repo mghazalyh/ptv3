@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path/path.dart' as p;
+import '../config/windows_settings_recovery.dart';
 
 /// Disk-backed, privacy-filtered diagnostics for Windows MPV Night Mode.
 ///
@@ -24,7 +25,10 @@ class NightModeDiagnostics {
   static Future<void> initializeDebugMode({NightModeDiagnostics? logger}) async {
     final prefs = await SharedPreferences.getInstance();
     debugModeEnabled.value = prefs.getBool(debugModePreferenceKey) ?? false;
-    if (debugModeEnabled.value) await (logger ?? instance).start();
+    if (debugModeEnabled.value) {
+      await (logger ?? instance).start();
+      await _auditStorage(logger ?? instance);
+    }
   }
 
   static Future<void> setDebugMode(bool enabled, {NightModeDiagnostics? logger}) async {
@@ -37,7 +41,16 @@ class NightModeDiagnostics {
     if (enabled) {
       debugModeEnabled.value = true;
       await (logger ?? instance).start();
+      await _auditStorage(logger ?? instance);
     }
+  }
+
+  static Future<void> _auditStorage(NightModeDiagnostics logger) async {
+    final audit = WindowsSettingsRecovery.lastAudit;
+    if (audit == null) return;
+    await logger.record('storage-profile',
+        'state=${audit.state} preferenceCount=${audit.preferenceCount} '
+        'recovered=${audit.recovered}');
   }
 
   static const int maxBytes = 512 * 1024;

@@ -123,11 +123,11 @@ class DiscoverFilters {
       if (sort == 'vote_average.desc') 'vote_count.gte': '100',
     };
     if (first != null && last != null) {
-      // Recent years mean recent premieres, not late episodes or specials of
-      // older shows. Prevents Farscape (1999) in 2025–2026 results.
+      // TV years refer to ANY real episode or special air date, not the
+      // series premiere. Older shows with genuinely new episodes are eligible.
       if (type == DiscoverType.series) {
-        params['first_air_date.gte'] = '$first-01-01';
-        params['first_air_date.lte'] = '$last-12-31';
+        params['air_date.gte'] = '$first-01-01';
+        params['air_date.lte'] = '$last-12-31';
       } else {
         params['primary_release_date.gte'] = '$first-01-01';
         params['primary_release_date.lte'] = '$last-12-31';
@@ -453,14 +453,20 @@ class TmdbDiscoverService {
 
     final first = filters.fromYear ?? filters.toYear;
     final last = filters.toYear ?? filters.fromYear;
-    // Every year filter is enforced on the original premiere; a current
-    // episode does not make an old show a recent premiere.
     if (first != null && last != null) {
-      final field = filters.type == DiscoverType.series
-          ? 'first_air_date' : 'release_date';
-      final date = item[field]?.toString() ?? '';
-      final year = date.length >= 4 ? int.tryParse(date.substring(0, 4)) : null;
-      if (year == null || year < first || year > last) return false;
+      if (filters.type == DiscoverType.movie) {
+        final date = item['release_date']?.toString() ?? '';
+        final year = date.length >= 4 ? int.tryParse(date.substring(0, 4)) : null;
+        if (year == null || year < first || year > last) return false;
+      } else {
+        // Search/discover TV rows only expose the PREMIERE date. A 1999
+        // premiere says nothing about episodes in 2026. Skip only a show
+        // premiered AFTER the requested window, then check actual airing
+        // dates using its exact TMDB ID in _tvAiredInWindow.
+        final date = DateTime.tryParse(item['first_air_date']?.toString() ?? '');
+        final to = DateTime(last, 12, 31);
+        if (date != null && date.isAfter(to)) return false;
+      }
     }
 
     final country = filters.country;
@@ -503,6 +509,88 @@ class TmdbDiscoverService {
     return result;
   }
 
+  /// Verify a TV airing window from the EXACT TMDB ID, never from premiere
+  /// year alone. TMDB lists may contain historic shows for future air_date
+  /// searches; /tv/{id} last_air_date rejects those inexpensively. The
+  /// verified final episode or a season premiere inside the selected range
+  /// proves an episode aired then. For spans with newer episodes after the
+  /// range, inspect candidate seasons to avoid relying on a mere date span.
+  Future<bool> _tvAiredInWindow(
+      Map<String, dynamic> row, DiscoverFilters filters, String key) async {
+    final earliest = filters.fromYear ?? filters.toYear;
+    final latest = filters.toYear ?? filters.fromYear;
+    if (earliest == null || latest == null) return true;
+    final from = DateTime(earliest);
+    final to = DateTime(latest, 12, 31);
+    bool isInside(Object? value) {
+      final date = DateTime.tryParse(value?.toString() ?? '');
+      return date != null && !date.isBefore(from) && !date.isAfter(to);
+    }
+    final premiere = DateTime.tryParse(row['first_air_date']?.toString() ?? '');
+    if (premiere != null) {
+      if (premiere.isAfter(to)) return false;
+      if (!premiere.isBefore(from)) return true;
+    }
+
+    final id = (row['id'] as num?)?.toInt();
+    if (id == null || id <= 0) return false;
+    Map<String, dynamic> details;
+    try {
+      details = await _request('tv/$id', const {}, key);
+    } catch (error) {
+      debugPrint('Discover: TV air-date verification unavailable '
+          'for id=$id (${error.runtimeType})');
+      // Do not invent an episode airing when metadata verification fails.
+      return false;
+    }
+    if (isInside(details['first_air_date']) ||
+        isInside(details['last_air_date']) ||
+        isInside((details['last_episode_to_air'] is Map)
+            ? (details['last_episode_to_air'] as Map)['air_date'] : null)) {
+      return true;
+    }
+
+    final lastAir = DateTime.tryParse(
+        details['last_air_date']?.toString() ?? '');
+    if (lastAir != null && lastAir.isBefore(from)) return false;
+
+    final seasons = (details['seasons'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>().toList();
+    if (seasons.any((season) => isInside(season['air_date']))) {
+      // This is the first episode's actual air date, not the TV premiere.
+      return true;
+    }
+
+    // A season may start before the range and continue into it. Also inspect
+    // Season 0 specials, whose first special may have aired decades earlier.
+    // Prefer newest eligible seasons to minimize API traffic.
+    final candidates = seasons.where((season) {
+      final air = DateTime.tryParse(season['air_date']?.toString() ?? '');
+      return air == null || !air.isAfter(to);
+    }).toList()
+      ..sort((a, b) => (b['air_date']?.toString() ?? '')
+          .compareTo(a['air_date']?.toString() ?? ''));
+    final toCheck = <Map<String, dynamic>>[];
+    final special = candidates.where((s) => s['season_number'] == 0);
+    if (special.isNotEmpty) toCheck.add(special.first);
+    toCheck.addAll(candidates.where((s) => s['season_number'] != 0).take(4));
+    for (final season in toCheck) {
+      final number = (season['season_number'] as num?)?.toInt();
+      if (number == null || number < 0) continue;
+      try {
+        final data = await _request('tv/$id/season/$number', const {}, key);
+        final episodes = data['episodes'] as List<dynamic>? ?? const [];
+        if (episodes.whereType<Map>().any((ep) => isInside(ep['air_date']))) {
+          return true;
+        }
+      } catch (error) {
+        debugPrint('Discover: season airing verification unavailable '
+            'for id=$id S$number (${error.runtimeType})');
+      }
+    }
+    return false;
+  }
+
   Future<DiscoverResults> browse(DiscoverFilters filters) async {
     final key = await readKey();
     if (key.isEmpty) {
@@ -516,38 +604,37 @@ class TmdbDiscoverService {
     final response = await _request(endpoint, filters.toQuery(), key);
     final allRows = (response['results'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>().toList();
-    List<Map<String, dynamic>> rows;
-    if (!filters.hasTitleQuery && !trending) {
-      rows = allRows.where((item) =>
-          matchesTitleFilters(item, filters)).toList();
-    } else {
-      rows = [];
-      for (final item in allRows) {
-        // Skip country-only metadata requests for movies already excluded by
-        // language, premiere year, or minimum vote-count.
-        final preCountry = DiscoverFilters(
-          type: filters.type, titleQuery: filters.titleQuery,
-          fromYear: filters.fromYear, toYear: filters.toYear,
-          originalLanguage: filters.originalLanguage,
-          genreId: filters.genreId,
-          sort: filters.sort, page: filters.page,
-        );
-        if (!matchesTitleFilters(item, preCountry)) continue;
-        Map<String, dynamic>? details;
-        if (filters.type == DiscoverType.movie &&
-            filters.country != null && filters.country!.isNotEmpty &&
-            item['origin_country'] is! List) {
-          final id = (item['id'] as num?)?.toInt();
-          if (id == null || id <= 0) continue;
-          // Only paid-for by deliberate movie+country+text intersection.
-          // Maximum one paced/cached details lookup per search result (20).
-          details = await _request('movie/$id', const {}, key);
-        }
-        if (matchesTitleFilters(item, filters, movieDetails: details)) {
-          rows.add(item);
-        }
+    final rows = <Map<String, dynamic>>[];
+    final preCountry = DiscoverFilters(
+      type: filters.type, titleQuery: filters.titleQuery,
+      fromYear: filters.fromYear, toYear: filters.toYear,
+      originalLanguage: filters.originalLanguage,
+      genreId: filters.genreId, sort: filters.sort, page: filters.page,
+    );
+    for (final item in allRows) {
+      if (!matchesTitleFilters(item, preCountry)) continue;
+      if (filters.type == DiscoverType.series &&
+          (filters.fromYear != null || filters.toYear != null)) {
+        // Independent validation is essential. TMDB Discover sometimes
+        // returns long-ended shows for much later air_date ranges, and
+        // title/Trending endpoints do not apply multi-year air-date filters.
+        if (!await _tvAiredInWindow(item, filters, key)) continue;
       }
-      if (!trending) rows = sortSearchedTitles(rows, filters.sort);
+      Map<String, dynamic>? details;
+      if (filters.type == DiscoverType.movie &&
+          filters.country != null && filters.country!.isNotEmpty &&
+          item['origin_country'] is! List) {
+        final id = (item['id'] as num?)?.toInt();
+        if (id == null || id <= 0) continue;
+        details = await _request('movie/$id', const {}, key);
+      }
+      if (matchesTitleFilters(item, filters, movieDetails: details)) {
+        rows.add(item);
+      }
+    }
+    if (filters.hasTitleQuery && !trending) {
+      final sorted = sortSearchedTitles(rows, filters.sort);
+      rows..clear()..addAll(sorted);
     }
     final titles = rows
         .map((item) => DiscoverTitle.parse(item, filters.type))

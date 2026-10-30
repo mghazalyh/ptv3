@@ -270,6 +270,8 @@ jobs:
       - name: Test TMDB Discover filters and year matching
         run: |
           flutter test test/tmdb_advanced_discover_test.dart
+          flutter test test/tmdb_text_filter_search_test.dart
+          flutter test test/tmdb_trending_strict_filters_test.dart
           flutter test test/series_run_service_test.dart
           flutter test test/discover_year_pagination_widget_test.dart
 
@@ -283,6 +285,30 @@ jobs:
           flutter test test/player_picture_audio_test.dart
           flutter test test/night_mode_diagnostics_test.dart
           flutter test test/ios_audio_telemetry_test.dart
+
+      - name: Verify iPad playback performance and private telemetry parity
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          player = Path('lib/pages/player/player_screen.dart').read_text()
+          settings = Path('lib/services/player/player_settings.dart').read_text()
+          telemetry = Path('lib/services/player/ios_audio_telemetry.dart').read_text()
+          discover = Path('lib/pages/search/advanced_discover_page.dart').read_text()
+          assert 'IosAudioTelemetry.instance.capturePlaybackSample(' in player
+          assert 'IosAudioTelemetry.instance.upload(' in player
+          assert 'const Duration(seconds: 5)' in player
+          assert '_logoAnimController.stop(canceled: false)' in player
+          assert "await platform.setProperty('video-sync', 'audio')" in settings
+          assert "'framedrop': 'vo'" in settings
+          assert "'interpolation': 'no'" in settings
+          assert "MPVLogLevel.warn" in settings
+          assert 'playback_frame_drops' in telemetry
+          assert 'performanceSamples' in telemetry
+          assert 'if (!isActive) return;' in telemetry
+          assert '_minUploadInterval = Duration(seconds: 30)' in telemetry
+          assert 'openingId == item.tmdbId' in discover
+          assert 'showUnreleased:' in discover
+          PY
 
       - name: Build unsigned iOS 15 release
         run: flutter build ios --release --no-codesign --build-name=1.1.15 --build-number="$SPEECH_BUILD_NUMBER" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="$SPEECH_BUILD_NUMBER" --dart-define-from-file=.env

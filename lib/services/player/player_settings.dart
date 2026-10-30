@@ -3,6 +3,8 @@ import 'dart:io';
 import 'audio_language_priority.dart';
 import 'player_picture_audio.dart';
 import 'night_mode_diagnostics.dart';
+import 'ios_night_mode_preflight.dart';
+import 'ios_audio_telemetry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
@@ -382,12 +384,26 @@ abstract final class PlayerSettings {
   /// runtime audio graph. Immediate property failures also fail open here.
   static Future<void> _applyAudioWithFailOpen(Player player) async {
     final dynamic platform = player.platform;
+    String? verifiedFilter;
+    if (Platform.isIOS && nightModeEnabled.value) {
+      verifiedFilter = await IosNightModePreflight.ensure();
+      if (verifiedFilter == null) {
+        // The bundled iOS FFmpeg may lack BOTH supported compressor filters.
+        // Do not open the user's actual movie with a known-broken graph.
+        IosAudioTelemetry.instance.captureCode('ios_filter_preflight_failed');
+        unawaited(IosAudioTelemetry.instance.upload(
+          reason: 'preflight_failed', automatic: true));
+        await recoverFailedNightMode(player: player);
+        return;
+      }
+    }
     unawaited(NightModeDiagnostics.instance.record('audio-apply',
         'enabled=${nightModeEnabled.value} filter=${PlayerPictureAudio.audioFilterChain(nightModeEnabled.value)}'));
     try {
       await PlayerPictureAudio.applyAudio(
         (key, value) => platform.setProperty(key, value),
         nightModeEnabled.value,
+        verifiedFilterChain: verifiedFilter,
       );
     } catch (error) {
       debugPrint('[PlayerSettings] Audio filter rejected, restoring playback: $error');
@@ -430,13 +446,25 @@ abstract final class PlayerSettings {
   /// Persist across episodes and app restarts; do not save an unsupported
   /// state when native mpv rejects the filter on an active player.
   static Future<void> setNightMode(bool enabled, {Player? player}) async {
+    String? verifiedFilter;
+    if (enabled && Platform.isIOS) {
+      verifiedFilter = await IosNightModePreflight.ensure();
+      if (verifiedFilter == null) {
+        IosAudioTelemetry.instance.captureCode('ios_filter_preflight_failed');
+        unawaited(IosAudioTelemetry.instance.upload(
+          reason: 'preflight_failed', automatic: true));
+        await recoverFailedNightMode(player: player);
+        throw StateError('Night Mode is not supported by this iOS MPV audio build');
+      }
+    }
     unawaited(NightModeDiagnostics.instance.record('night-toggle',
         'requested=${enabled ? 'ON' : 'OFF'} filter=${PlayerPictureAudio.audioFilterChain(enabled)}'));
     if (player != null) {
       final dynamic platform = player.platform;
       try {
         await PlayerPictureAudio.applyAudio(
-            (key, value) => platform.setProperty(key, value), enabled);
+            (key, value) => platform.setProperty(key, value), enabled,
+            verifiedFilterChain: verifiedFilter);
       } catch (error) {
         debugPrint('[PlayerSettings] Night Mode setter failed: $error');
         unawaited(NightModeDiagnostics.instance.record('night-toggle-error', error.toString()));

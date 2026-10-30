@@ -95,6 +95,9 @@ jobs:
           for suite in \
             test/series_run_service_test.dart \
             test/discover_year_pagination_widget_test.dart \
+            test/tmdb_advanced_discover_test.dart \
+            test/tmdb_text_filter_search_test.dart \
+            test/tmdb_trending_strict_filters_test.dart \
             test/github_progress_merge_test.dart \
             test/github_progress_v1_compat_test.dart \
             test/github_sync_gate_test.dart \

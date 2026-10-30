@@ -314,6 +314,18 @@ abstract final class PlayerSettings {
 
       // 4. A/V sync — hardware audio clock is always the master timeline
       await platform.setProperty('video-sync', 'audio');
+      if (Platform.isWindows) {
+        // Prefer audio clock continuity under game-induced GPU contention.
+        // MPV's VO frame drop skips genuinely late frames without blindly
+        // discarding reference frames in the hardware decoder.
+        try {
+          await platform.setProperty('framedrop', 'vo');
+          await platform.setProperty('interpolation', 'no');
+        } catch (error) {
+          debugPrint('[PlayerSettings] Optional Windows VO tuning: '
+              '${error.runtimeType}');
+        }
+      }
 
       // ──────────────────────────────────────────────────────────────────────
       // TORRENT STREAMS: TorrServer is a local HTTP server that may have data
@@ -478,9 +490,9 @@ abstract final class PlayerSettings {
     unawaited(NightModeDiagnostics.instance.record('night-toggle', 'persisted=${enabled ? 'ON' : 'OFF'}; setter returned'));
   }
 
-  /// Apply the Windows software equalizer and fall back to MPV's video-output
-  /// equalizer only when the video filter is unsupported by this libmpv build.
-  /// The fallback must be visible in opt-in diagnostics, not silently ignored.
+  /// Windows brightness lives on the Flutter video texture. Keep libmpv's
+  /// video filter chain EMPTY so D3D11VA-copy isn't fed through extra FFmpeg
+  /// video processing while a game shares the GPU.
   static Future<void> _applyBrightnessWithFallback(
       Player player, double brightness) async {
     final dynamic platform = player.platform;
@@ -488,10 +500,14 @@ abstract final class PlayerSettings {
       await PlayerPictureAudio.applyBrightness(
           (key, value) => platform.setProperty(key, value), brightness,
           windows: Platform.isWindows);
-      if (Platform.isWindows && NightModeDiagnostics.instance.isActive) {
-        unawaited(NightModeDiagnostics.instance.record('brightness-apply',
-            'level=${PlayerPictureAudio.brightnessValue(brightness)} '
-            'vf=${PlayerPictureAudio.windowsBrightnessFilter(brightness)}'));
+      if (Platform.isWindows) {
+        WindowsPlaybackTelemetry.instance.captureProperty(
+            'brightness-pipeline', 'flutter-color-matrix');
+        if (NightModeDiagnostics.instance.isActive) {
+          unawaited(NightModeDiagnostics.instance.record('brightness-apply',
+              'level=${PlayerPictureAudio.brightnessValue(brightness)} '
+              'pipeline=flutter-color-matrix vf=cleared'));
+        }
       }
     } catch (error) {
       if (!Platform.isWindows) rethrow;
@@ -506,12 +522,23 @@ abstract final class PlayerSettings {
 
   /// Smooth live preview. Call setExtraBrightness once when dragging ends.
   static Future<void> previewExtraBrightness(Player player, double value) async {
+    if (Platform.isWindows) {
+      // The Flutter preview already adjusts the video texture. Do not issue
+      // native MPV filter changes for every slider tick.
+      return;
+    }
     await _applyBrightnessWithFallback(player, value);
   }
 
   static Future<void> setExtraBrightness(double value, {Player? player}) async {
     final brightness = PlayerPictureAudio.brightnessValue(value).toDouble();
-    if (player != null) await previewExtraBrightness(player, brightness);
+    if (player != null) {
+      if (Platform.isWindows) {
+        await _applyBrightnessWithFallback(player, brightness);
+      } else {
+        await previewExtraBrightness(player, brightness);
+      }
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_keyExtraBrightness, brightness);
     extraBrightness.value = brightness;

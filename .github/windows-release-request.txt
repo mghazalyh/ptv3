@@ -1,10 +1,7 @@
-OWNER AUTHORIZED exactly ONE Windows-only PlayTorrio Night Mode clipping-headroom + Debug Mode native build.
-Date: 2026-10-29 SGT.
-Source revision verified before release: 8f7576fd51632e3145603450c4d6ff69956ecc54.
-Linux and Windows gates BOTH COMPLETED/SUCCESS: https://github.com/mghazalyh/ptv3/actions/runs/40907187119, including native libmpv Windows live downmix-setting and compressor preflight.
-Write-ahead scope at TOP of handover.md from commit e7e9d610aaa62ebd1471782328b3aaffdb9c9956.
-Audio improvement: Night Mode acompressor 3:1 compression unchanged, makeup 1.4 -> 1.0; mpv audio-normalize-downmix=yes only when enabled, OFF sets no, recovery clears property.
-Windows Settings adds Debug Mode checkbox, OFF by default. OFF avoids creating/appending Night Mode diagnostics, no log-path icon in player or emergency UI; ON explicitly opts into logging and reveals the icon; setting persists. Existing logs not removed. Privacy redaction retained.
-ONE Windows x64 Setup EXE and portable ZIP with SHA256SUMS and permanent GitHub Release, plus Telegram direct attachment/link fallback. Windows-only. Native job must pass actual bundled libmpv PCM and 6-channel E-AC3 compressor smoke and bundled Whisper/FFmpeg tests. Existing iOS #149 IPA unchanged. Do not start a paired/iOS build.
-Checked all GitHub Actions queued/in_progress/waiting/requested/pending ZERO before this request.
-The change mitigates clipping risk; on-device acoustic response not yet verified. Do not duplicate this native release.
+OWNER AUTHORIZED ONE Windows-only PlayTorrio portable settings recovery, Night Mode, brightness and opt-in TorriODB telemetry release.
+Date: 2026-10-30 SGT.
+Write-ahead scope recorded at TOP of handover.md before implementation; source commit chain from cc f7241c through 3186e2b6d58be503dfdbd7c37f527682867562fe.
+Linux and Windows shared-source gates COMPLETED/SUCCESS: https://github.com/mghazalyh/ptv3/actions/runs/41065484039 (both jobs green).
+Current implementation: preserve populated Windows SharedPreferences and backup/recover known legacy profile paths; native Windows video software EQ brightness with fallback; 4:1 Night Mode compressor + bounded makeup 1.25 + limiter 0.95; opt-in Debug Mode local and private TorriODB allowed-code telemetry; no media URLs or credentials uploaded. Windows Debug Mode remains OFF by default. iOS native Build #155 is unchanged.
+Native Windows pipeline MUST pass bundled pinned libmpv 2-channel PCM, six-channel E-AC3 acompressor + alimiter and synthetic video EQ smoke, tests, analyzer, and bundle the same tested DLL in Windows Setup and portable ZIP; publish unique permanent release with SHA256SUMS, verify GitHub assets and Telegram link. Do not rebuild iOS or start duplicate native runs.
+Before request verified ZERO queued/in_progress/pending/waiting/requested workflows on working branch. This is exactly one native Windows release request, not an ongoing trigger.

@@ -1010,7 +1010,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final dynamic native = _player.platform;
     for (final property in const <String>[
       'af', 'audio-codec-name', 'audio-params', 'audio-out-params',
-      'audio-filter',
+      'audio-filter', 'audio-normalize-downmix', 'volume',
     ]) {
       try {
         final value = await native.getProperty(property);
@@ -1062,6 +1062,24 @@ class _PlayerScreenState extends State<PlayerScreen>
     });
   }
 
+  Future<void> _captureBrightnessNativeState(double level) async {
+    if (!Platform.isWindows || !NightModeDiagnostics.instance.isActive) return;
+    final log = NightModeDiagnostics.instance;
+    await log.record('brightness-state', 'requested=${level.round()}');
+    final dynamic native = _player.platform;
+    for (final property in const <String>[
+      'brightness', 'vf', 'vo', 'video-params', 'hwdec-current',
+    ]) {
+      try {
+        final actual = await native.getProperty(property);
+        await log.record('brightness-mpv-property', '$property=$actual');
+      } catch (error) {
+        await log.record('brightness-mpv-property',
+            '$property=unavailable (${error.runtimeType})');
+      }
+    }
+  }
+
   Future<void> _commitVideoBrightness(double value) async {
     try {
       await _brightnessWrites.catchError((Object e) {
@@ -1069,6 +1087,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       });
       if (!mounted) return;
       await PlayerSettings.setExtraBrightness(value, player: _player);
+      unawaited(_captureBrightnessNativeState(value));
       if (mounted) setState(() => _brightnessPreview = null);
     } catch (e) {
       debugPrint('[PlayerScreen] Cannot apply extra brightness: $e');

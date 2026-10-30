@@ -13,8 +13,17 @@ abstract final class PlayerPictureAudio {
       'lavfi=[acompressor=threshold=0.10:ratio=3:attack=20:'
       'release=300:makeup=1.0:knee=2.5]';
 
-  static String audioFilterChain(bool nightMode) =>
-      nightMode ? '$normalAudioFilter,$nightCompressor' : normalAudioFilter;
+  // Windows Build #153 removed makeup gain completely and can therefore
+  // sound much quieter than normal. The Windows-only bounded makeup and
+  // final limiter increase quiet detail without allowing the filtered output
+  // above 0.95 full-scale. iOS keeps its independent native preflight chain.
+  static const String windowsNightCompressor =
+      'lavfi=[acompressor=threshold=0.10:ratio=4:attack=15:'
+      'release=260:makeup=1.25:knee=2.5,alimiter=limit=0.95:level=0]';
+
+  static String audioFilterChain(bool nightMode, {bool windows = false}) =>
+      !nightMode ? normalAudioFilter :
+      '$normalAudioFilter,${windows ? windowsNightCompressor : nightCompressor}';
 
   /// libmpv can accept an `af` option and only fail when audio starts. The
   /// media_kit error stream is therefore the source of truth for runtime
@@ -61,14 +70,37 @@ abstract final class PlayerPictureAudio {
   static Future<void> applyAudio(
     Future<void> Function(String, String) setProperty, bool nightMode, {
     String? verifiedFilterChain,
+    bool windows = false,
   }) async {
     await setProperty('audio-normalize-downmix',
         downmixNormalization(nightMode));
     await setProperty('af', nightMode && verifiedFilterChain != null
-        ? verifiedFilterChain : audioFilterChain(nightMode));
+        ? verifiedFilterChain : audioFilterChain(nightMode, windows: windows));
+  }
+
+  /// Native MPV brightness can be accepted but ignored by a video renderer.
+  /// On Windows force the pixel-level lavfi eq filter when brightness is
+  /// nonzero. Leave all other platforms on their existing MPV path.
+  static String windowsBrightnessFilter(double brightness) {
+    final level = brightnessValue(brightness);
+    if (level == 0) return '';
+    final amount = 0.25 * level / maxExtraBrightness;
+    final gamma = 1.0 + 0.35 * level / maxExtraBrightness;
+    return 'lavfi=[eq=brightness=${amount.toStringAsFixed(3)}:'
+        'gamma=${gamma.toStringAsFixed(3)}]';
   }
 
   static Future<void> applyBrightness(
-    Future<void> Function(String, String) setProperty, double brightness,
-  ) => setProperty('brightness', brightnessValue(brightness).toString());
+    Future<void> Function(String, String) setProperty, double brightness, {
+    bool windows = false,
+  }) async {
+    if (!windows) {
+      await setProperty('brightness', brightnessValue(brightness).toString());
+      return;
+    }
+    // Avoid doubling MPV equalizer and the video filter in a renderer that
+    // happens to support both. Reset filter on slider zero.
+    await setProperty('brightness', '0');
+    await setProperty('vf', windowsBrightnessFilter(brightness));
+  }
 }

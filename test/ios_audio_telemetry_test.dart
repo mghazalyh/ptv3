@@ -118,6 +118,119 @@ void main() {
     expect(requests, hasLength(1));
   });
 
+  test('iOS performance sampling remains strictly OFF without opt in', () async {
+    SharedPreferences.setMockInitialValues({});
+    var calls = 0;
+    final telemetry = IosAudioTelemetry.forTesting(
+      client: MockClient((_) async {
+        calls++;
+        return http.Response('', 201);
+      }),
+      tokenProvider: () async => 'FAKE_TEST_TOKEN',
+    )..forceTestPlatform = true;
+    addTearDown(telemetry.dispose);
+    await telemetry.initialize();
+    telemetry.capturePlaybackSample({
+      'frame-drop-count': '59', 'avsync': '1.5',
+      'filename': 'private-show.mkv',
+    }, buffering: true);
+    expect(telemetry.capturedCodes, isEmpty);
+    expect(telemetry.capturedPerformanceSamples, isEmpty);
+    expect(await telemetry.upload(reason: 'playback_sample'), isFalse);
+    expect(calls, 0);
+  });
+
+  test('iOS samples real frame-drop deltas and uploads only allowlisted metrics',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    Map<String, dynamic>? uploaded;
+    final telemetry = IosAudioTelemetry.forTesting(
+      client: MockClient((request) async {
+        expect(request.url.host, 'api.github.com');
+        final payload = jsonDecode(request.body) as Map<String, dynamic>;
+        uploaded = jsonDecode(utf8.decode(
+            base64Decode(payload['content'] as String))) as Map<String, dynamic>;
+        return http.Response('{}', 201);
+      }),
+      tokenProvider: () async => 'FAKE_TEST_TOKEN',
+    )..forceTestPlatform = true;
+    addTearDown(telemetry.dispose);
+    await telemetry.initialize();
+    await telemetry.setEnabled(true);
+    telemetry.capturePlaybackSample({
+      'frame-drop-count': '120',
+      'decoder-frame-drop-count': '3',
+      'vo-delayed-frame-count': '20',
+      'avsync': '0.025',
+      'demuxer-cache-duration': '12.5',
+      'hwdec-current': 'videotoolbox',
+      'path': '/private/var/mobile/movie.mkv',
+      'url': 'https://private.invalid/video?token=SECRET',
+      'title': 'PRIVATE_MOVIE',
+    });
+    telemetry.capturePlaybackSample({
+      'frame-drop-count': '131',
+      'decoder-frame-drop-count': '4',
+      'vo-delayed-frame-count': '25',
+      'avsync': '0.15',
+      'demuxer-cache-duration': '0.5',
+      'hwdec-current': 'videotoolbox',
+    }, buffering: true);
+    expect(telemetry.capturedPerformanceSamples.last['voDroppedDelta'], 11);
+    expect(telemetry.capturedPerformanceSamples.last['decoderDroppedDelta'], 1);
+    expect(telemetry.capturedPerformanceSamples.last['lateFramesDelta'], 5);
+    expect(await telemetry.upload(reason: 'playback_sample', automatic: true), true);
+    expect(uploaded!['platform'], 'ios');
+    expect(uploaded!['reason'], 'playback_sample');
+    expect(uploaded!['sampleIntervalSeconds'], 5);
+    final samples = uploaded!['performanceSamples'] as List<dynamic>;
+    expect(samples, hasLength(2));
+    expect(samples.last['buffering'], true);
+    expect(samples.last['cacheSeconds'], 0.5);
+    expect(samples.last['hardwareDecoder'], 'videotoolbox');
+    expect(uploaded!['nativeErrorCodes'],
+        containsAll(['playback_frame_drops', 'playback_buffering']));
+    final json = jsonEncode(uploaded);
+    for (final forbidden in [
+      'PRIVATE_MOVIE', 'private.invalid', 'SECRET',
+      'private/var', 'FAKE_TEST_TOKEN',
+    ]) {
+      expect(json, isNot(contains(forbidden)));
+    }
+    expect(telemetry.capturedPerformanceSamples, isEmpty);
+    expect(telemetry.capturedCodes, isEmpty);
+  });
+
+  test('iOS playback sample cap and toggle OFF clear samples and counters',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final telemetry = IosAudioTelemetry.forTesting(
+      client: MockClient((_) async => http.Response('{}', 201)),
+      tokenProvider: () async => 'FAKE_TEST_TOKEN',
+    )..forceTestPlatform = true;
+    addTearDown(telemetry.dispose);
+    await telemetry.initialize();
+    await telemetry.setEnabled(true);
+    for (var i = 0; i < 40; i++) {
+      telemetry.capturePlaybackSample({
+        'frame-drop-count': '$i',
+        'avsync': 'NaN',
+        'demuxer-cache-duration': '-5000000000',
+      });
+    }
+    expect(telemetry.capturedPerformanceSamples,
+        hasLength(IosAudioTelemetry.maxPlaybackSamples));
+    expect(telemetry.capturedPerformanceSamples.first['voDropped'], 16);
+    expect(telemetry.capturedPerformanceSamples.last['voDropped'], 39);
+    expect(telemetry.capturedPerformanceSamples.last.containsKey('avsyncSeconds'), false);
+    expect(telemetry.capturedPerformanceSamples.last.containsKey('cacheSeconds'), false);
+    await telemetry.setEnabled(false);
+    expect(telemetry.capturedPerformanceSamples, isEmpty);
+    await telemetry.setEnabled(true);
+    telemetry.capturePlaybackSample({'frame-drop-count': '1'});
+    expect(telemetry.capturedPerformanceSamples.last['voDroppedDelta'], 0);
+  });
+
   test('Missing token never makes a remote call; reports useful status', () async {
     SharedPreferences.setMockInitialValues({});
     var calls = 0;

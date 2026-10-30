@@ -107,7 +107,6 @@ class IosAudioTelemetry {
     if (code != null) captureCode(code);
   }
 
-  @visibleForTesting
   void captureCode(String code) {
     if (!enabled.value || !RegExp(r'^[a-z0-9_]{1,64}$').hasMatch(code)) return;
     if (_events.length >= maxEvents) _events.removeAt(0);

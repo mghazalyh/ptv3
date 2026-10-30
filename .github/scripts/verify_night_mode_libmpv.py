@@ -156,7 +156,8 @@ def smoke(libmpv: Path, audio: Path, *, video: bool = False) -> None:
         if video:
             options.extend([
                 ("hwdec", "no"),
-                ("vf", "lavfi=[eq=brightness=0.250:gamma=1.350]"),
+                ("framedrop", "vo"),
+                ("vf", ""),
             ])
         else:
             options.extend([
@@ -173,11 +174,14 @@ def smoke(libmpv: Path, audio: Path, *, video: bool = False) -> None:
         # Flutter writes this MPV option on a live player when toggling.
         # Successful startup-only options are insufficient for that code path.
         if video:
-            result = set_property(
-                handle, b"vf", b"lavfi=[eq=brightness=0.125:gamma=1.175]"
-            )
+            # The actual Windows player MUST clear old software EQ filters
+            # on an already-open source; brightness is a Flutter color matrix.
+            result = set_property(handle, b"vf", b"")
             if result < 0:
-                raise RuntimeError(f"Live Windows video EQ filter setter failed ({result})")
+                raise RuntimeError(f"Live Windows video filter-clear failed ({result})")
+            result = set_property(handle, b"framedrop", b"vo")
+            if result < 0:
+                raise RuntimeError(f"Live Windows VO frame-drop setter failed ({result})")
         else:
             for requested in (b"no", b"yes"):
                 result = set_property(
@@ -241,7 +245,7 @@ def smoke(libmpv: Path, audio: Path, *, video: bool = False) -> None:
         if video:
             if not video_reconfigured:
                 raise RuntimeError("No libmpv video reconfiguration event occurred")
-            print("PASS: packaged libmpv decoded synthetic video with live lavfi EQ")
+            print("PASS: packaged libmpv decoded synthetic video with empty vf and VO frame-drop")
         else:
             if not audio_reconfigured:
                 raise RuntimeError("No libmpv audio reconfiguration event occurred")

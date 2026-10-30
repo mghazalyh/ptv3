@@ -40,8 +40,8 @@ void main() {
         fromYear: 2020,
         toYear: 2026,
       ).toQuery();
-      expect(q['air_date.gte'], '2020-01-01');
-      expect(q['air_date.lte'], '2026-12-31');
+      expect(q['first_air_date.gte'], '2020-01-01');
+      expect(q['first_air_date.lte'], '2026-12-31');
     });
 
     test('start-only exact year equals end-only exact year', () {

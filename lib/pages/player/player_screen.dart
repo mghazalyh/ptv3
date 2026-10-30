@@ -101,9 +101,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     configuration: PlayerSettings.getVideoControllerConfiguration(),
   );
   final List<StreamSubscription> _subscriptions = [];
-  Timer? _windowsPerformanceTimer;
-  bool _windowsPerformanceReading = false;
-  int _windowsPerformanceGeneration = -1;
+  Timer? _playbackPerformanceTimer;
+  bool _playbackPerformanceReading = false;
+  int _playbackPerformanceGeneration = -1;
 
   final ValueNotifier<Duration> _positionNotifier = ValueNotifier<Duration>(Duration.zero);
   final ValueNotifier<Duration?> _bufferNotifier = ValueNotifier<Duration?>(null);
@@ -226,9 +226,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     PlayerSettings.changeNotifier.addListener(_onPlayerSettingsChanged);
     if (Platform.isWindows) {
       NightModeDiagnostics.debugModeEnabled
-          .addListener(_updateWindowsPerformanceSampling);
-      _updateWindowsPerformanceSampling();
+          .addListener(_updatePlaybackPerformanceSampling);
+    } else if (Platform.isIOS) {
+      IosAudioTelemetry.instance.enabled
+          .addListener(_updatePlaybackPerformanceSampling);
     }
+    _updatePlaybackPerformanceSampling();
 
     _subscriptions.addAll([
       _player.stream.playing.listen((playing) {
@@ -965,10 +968,13 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (_isLoading || !mounted) return;
     final next = !_showDiagnostics;
     _diagnosticsTimer?.cancel();
-    _windowsPerformanceTimer?.cancel();
+    _playbackPerformanceTimer?.cancel();
     if (Platform.isWindows) {
       NightModeDiagnostics.debugModeEnabled
-          .removeListener(_updateWindowsPerformanceSampling);
+          .removeListener(_updatePlaybackPerformanceSampling);
+    } else if (Platform.isIOS) {
+      IosAudioTelemetry.instance.enabled
+          .removeListener(_updatePlaybackPerformanceSampling);
     }
     ++_diagnosticsRevision;
     setState(() {
@@ -1026,29 +1032,36 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
-  /// Opt-in only. Sample native MPV counters outside the render callback
-  /// while video is playing. Upload short redacted batches to TorriODB so
-  /// a concurrent game can be correlated with dropped frames vs buffering.
-  void _updateWindowsPerformanceSampling() {
-    _windowsPerformanceTimer?.cancel();
-    _windowsPerformanceTimer = null;
-    if (!Platform.isWindows || !WindowsPlaybackTelemetry.instance.isActive ||
-        !mounted) return;
-    _windowsPerformanceTimer = Timer.periodic(
+  /// Shared iOS/Windows lightweight MPV diagnostics. Never run polling
+  /// unless the owner enabled the platform's private telemetry setting.
+  bool get _performanceTelemetryActive =>
+      (Platform.isWindows && WindowsPlaybackTelemetry.instance.isActive) ||
+      (Platform.isIOS && IosAudioTelemetry.instance.isActive);
+
+  void _updatePlaybackPerformanceSampling() {
+    _playbackPerformanceTimer?.cancel();
+    _playbackPerformanceTimer = null;
+    if (!mounted || !_performanceTelemetryActive) return;
+    _playbackPerformanceTimer = Timer.periodic(
       const Duration(seconds: 5),
-      (_) => unawaited(_sampleWindowsPerformance()),
+      (_) => unawaited(_samplePlaybackPerformance()),
     );
   }
 
-  Future<void> _sampleWindowsPerformance() async {
-    if (!mounted || _windowsPerformanceReading || _isLoading ||
+  Future<void> _samplePlaybackPerformance() async {
+    if (!mounted || _playbackPerformanceReading || _isLoading ||
         (!_player.state.playing && !_player.state.buffering) ||
-        !WindowsPlaybackTelemetry.instance.isActive) return;
-    _windowsPerformanceReading = true;
+        !_performanceTelemetryActive) return;
+    _playbackPerformanceReading = true;
+    final generation = _streamGeneration;
     try {
-      if (_windowsPerformanceGeneration != _streamGeneration) {
-        _windowsPerformanceGeneration = _streamGeneration;
-        WindowsPlaybackTelemetry.instance.resetPlaybackCounters();
+      if (_playbackPerformanceGeneration != generation) {
+        _playbackPerformanceGeneration = generation;
+        if (Platform.isWindows) {
+          WindowsPlaybackTelemetry.instance.resetPlaybackCounters();
+        } else if (Platform.isIOS) {
+          IosAudioTelemetry.instance.resetPlaybackCounters();
+        }
       }
       final dynamic native = _player.platform;
       final properties = <String, Object?>{};
@@ -1058,24 +1071,34 @@ class _PlayerScreenState extends State<PlayerScreen>
         'avsync', 'demuxer-cache-duration',
         'hwdec-current', 'vf', 'framedrop', 'video-sync',
       ]) {
-        if (!mounted || !WindowsPlaybackTelemetry.instance.isActive) break;
+        if (!mounted || !_performanceTelemetryActive ||
+            generation != _streamGeneration) break;
         try {
           properties[key] = await native.getProperty(key);
         } catch (_) {
-          // A missing property varies by MPV video output; omit, don't
-          // mistakenly convert unsupported counters to zero.
+          // Native libraries expose different counters. Missing metrics
+          // are omitted rather than reported as falsely healthy zeros.
         }
       }
-      if (!mounted || !WindowsPlaybackTelemetry.instance.isActive) return;
-      WindowsPlaybackTelemetry.instance.capturePlaybackSample(
-        properties, buffering: _player.state.buffering,
-      );
-      await WindowsPlaybackTelemetry.instance.upload(
-          reason: 'playback_sample', automatic: true);
+      if (!mounted || !_performanceTelemetryActive ||
+          generation != _streamGeneration) return;
+      if (Platform.isWindows) {
+        WindowsPlaybackTelemetry.instance.capturePlaybackSample(
+          properties, buffering: _player.state.buffering,
+        );
+        await WindowsPlaybackTelemetry.instance.upload(
+            reason: 'playback_sample', automatic: true);
+      } else if (Platform.isIOS) {
+        IosAudioTelemetry.instance.capturePlaybackSample(
+          properties, buffering: _player.state.buffering,
+        );
+        await IosAudioTelemetry.instance.upload(
+            reason: 'playback_sample', automatic: true);
+      }
     } catch (error) {
-      debugPrint('[PlayerScreen] Windows performance sampling: ${error.runtimeType}');
+      debugPrint('[PlayerScreen] Playback performance sample: ${error.runtimeType}');
     } finally {
-      _windowsPerformanceReading = false;
+      _playbackPerformanceReading = false;
     }
   }
 

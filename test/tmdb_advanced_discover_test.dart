@@ -3,7 +3,7 @@ import 'package:playtorrio/services/metadata/tmdb_discover_service.dart';
 
 void main() {
   group('TMDB structured discovery', () {
-    test('TV show premiered 2023 can qualify by 2026 episode air dates', () {
+    test('TV dates require original premiere in selected range', () {
       final filters = DiscoverFilters(
         type: DiscoverType.series,
         fromYear: 2026,
@@ -12,9 +12,9 @@ void main() {
         originalLanguage: 'en',
       );
       final q = filters.toQuery();
-      expect(q['air_date.gte'], '2026-01-01');
-      expect(q['air_date.lte'], '2026-12-31');
-      expect(q.containsKey('first_air_date.gte'), isFalse);
+      expect(q['first_air_date.gte'], '2026-01-01');
+      expect(q['first_air_date.lte'], '2026-12-31');
+      expect(q.containsKey('air_date.gte'), isFalse);
       expect(q.containsKey('first_air_date_year'), isFalse);
       expect(q['with_origin_country'], 'US');
       expect(q['with_original_language'], 'en');
@@ -34,7 +34,7 @@ void main() {
       expect(filters.buildUri().path, '/3/discover/movie');
     });
 
-    test('TV season span 2020–2026 covers both endpoints', () {
+    test('TV premiere range 2020–2026 covers both endpoints', () {
       final q = const DiscoverFilters(
         type: DiscoverType.series,
         fromYear: 2020,
@@ -121,6 +121,7 @@ void main() {
       }, DiscoverType.series);
       expect(item.premiereYear, 2023);
       expect(item.type, DiscoverType.series);
+      expect(item.premiereDate, '2023-07-01');
       expect(item.poster, contains('/t/p/w342/poster.jpg'));
     });
   });

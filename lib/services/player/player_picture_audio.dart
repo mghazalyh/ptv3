@@ -13,13 +13,13 @@ abstract final class PlayerPictureAudio {
       'lavfi=[acompressor=threshold=0.10:ratio=3:attack=20:'
       'release=300:makeup=1.0:knee=2.5]';
 
-  // Windows Build #153 removed makeup gain completely and can therefore
-  // sound much quieter than normal. The Windows-only bounded makeup and
-  // final limiter increase quiet detail without allowing the filtered output
-  // above 0.95 full-scale. iOS keeps its independent native preflight chain.
+  // Physical Windows Build #154 E-AC3 feedback: dialogue becomes quieter
+  // even with acompressor + limiter active. Use gentler compression, lift
+  // dialogue with +6dB makeup, and retain a hard final limiter.
+  // This remains independent from the iOS native preflight chain.
   static const String windowsNightCompressor =
-      'lavfi=[acompressor=threshold=0.10:ratio=4:attack=15:'
-      'release=260:makeup=1.25:knee=2.5,alimiter=limit=0.95:level=0]';
+      'lavfi=[acompressor=threshold=0.15:ratio=2.5:attack=15:'
+      'release=220:makeup=2.0:knee=2.5,alimiter=limit=0.95:level=0]';
 
   static String audioFilterChain(bool nightMode, {bool windows = false}) =>
       !nightMode ? normalAudioFilter :
@@ -64,8 +64,8 @@ abstract final class PlayerPictureAudio {
 
   /// MPV's native surround-to-stereo remix can otherwise exceed full scale.
   /// Keep the normal listening path unchanged when Night Mode is disabled.
-  static String downmixNormalization(bool nightMode) =>
-      nightMode ? 'yes' : 'no';
+  static String downmixNormalization(bool nightMode, {bool windows = false}) =>
+      nightMode && !windows ? 'yes' : 'no';
 
   static Future<void> applyAudio(
     Future<void> Function(String, String) setProperty, bool nightMode, {
@@ -73,7 +73,7 @@ abstract final class PlayerPictureAudio {
     bool windows = false,
   }) async {
     await setProperty('audio-normalize-downmix',
-        downmixNormalization(nightMode));
+        downmixNormalization(nightMode, windows: windows));
     await setProperty('af', nightMode && verifiedFilterChain != null
         ? verifiedFilterChain : audioFilterChain(nightMode, windows: windows));
   }

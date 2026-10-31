@@ -67,6 +67,9 @@ class WindowsPlaybackTelemetry {
     'flutter_frame_stutter',
     'texture_pressure_reduced',
     'video_resync_requested',
+    'source_retry_requested',
+    'source_fallback_attempted',
+    'source_recovery_exhausted',
     'playback_buffering',
   };
 

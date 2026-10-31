@@ -38,6 +38,7 @@ import '../../services/player/subtitle_auto_sync_policy.dart';
 import '../../services/player/subtitle_auto_sync_platform.dart';
 import '../../services/player/speech_subtitle_alignment.dart';
 import '../../services/player/paused_http_recovery.dart';
+import '../../services/player/playback_source_recovery.dart';
 import '../../services/player/automatic_skip_policy.dart';
 import '../../services/player/playback_diagnostics_probe.dart';
 import '../../services/metadata/metadata_service.dart';
@@ -74,6 +75,7 @@ import '../../utils/navigation/media_details_navigation.dart';
 
 class PlayerScreen extends StatefulWidget {
   final StreamSource source;
+  final List<StreamSource> availableSources;
   final String title;
   final String? backdropUrl;
   final String? logoUrl;
@@ -84,6 +86,7 @@ class PlayerScreen extends StatefulWidget {
   const PlayerScreen({
     super.key,
     required this.source,
+    this.availableSources = const <StreamSource>[],
     required this.title,
     this.backdropUrl,
     this.logoUrl,
@@ -211,6 +214,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   Video? _sourcesEpisode;
   String? _sourcesErrorMessage;
   final Map<String, List<StreamSource>> _cachedSourcesByEpisode = {};
+  final PlaybackSourceRecovery _sourceRecovery = PlaybackSourceRecovery();
+  final List<StreamSource> _recoveryCandidates = <StreamSource>[];
+  bool _sourceRecoveryBusy = false;
+  bool _sourceFailureDuringRecovery = false;
+  int _sourceRecoveryEpoch = 0;
+  DateTime? _sourceOpeningAt;
+  Timer? _sourceOpeningWatchdog;
+  Duration _sourceOpeningBaseline = Duration.zero;
   String? _httpVodUrl;
   Map<String, String>? _httpVodHeaders;
   DateTime? _httpPausedAt;
@@ -223,6 +234,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   void initState() {
     super.initState();
     _currentSource = widget.source;
+    _recoveryCandidates.addAll(widget.availableSources);
+    if (widget.episode != null) {
+      _recoveryCandidates.addAll(widget.episode!.streams);
+    }
     _currentEpisode = widget.episode;
     _currentTitle = widget.title;
     _episodeCatalog = widget.detail?.videos ?? const <Video>[];
@@ -274,6 +289,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       _player.stream.position.listen((pos) {
         _position = pos;
         _positionNotifier.value = pos;
+        if (_sourceOpeningWatchdog != null &&
+            pos > _sourceOpeningBaseline + const Duration(milliseconds: 700)) {
+          _sourceOpeningWatchdog?.cancel();
+          _sourceOpeningWatchdog = null;
+        }
         // A full minute of healthy playback restores future recovery budget.
         if (!_httpReconnecting && _httpResumedAt != null &&
             _player.state.playing &&
@@ -352,6 +372,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       _logoAnimController.repeat(reverse: true);
     }
     ++_streamGeneration;
+    _sourceOpeningWatchdog?.cancel();
+    _sourceOpeningWatchdog = null;
+    _sourceOpeningAt = DateTime.now();
     _startPeriodicAutoSync();
     _nightModeRecoveryFailed = false;
     _nightModeLastFallbackAt = null;
@@ -387,7 +410,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     print('[PlayerScreen]   Source Name: ${_currentSource.name}');
     print('[PlayerScreen]   Addon Name: ${_currentSource.addonName}');
     print('[PlayerScreen]   Source Title: ${_currentSource.title}');
-    print('[PlayerScreen]   Raw URL: ${_currentSource.url}');
+    // Do not write authenticated resolver URLs or TorBox tokens to logs.
 
     try {
       final rawUrl = _currentSource.url;
@@ -458,7 +481,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           }
 
           streamUrl = debridFiles.first.downloadUrl;
-          print('[PlayerScreen] Debrid resolved stream URL: $streamUrl');
+          debugPrint('[PlayerScreen] Debrid resolved a media stream');
         } else {
           // Do not silently start local P2P when the user disabled the
           // built-in source. This does not affect Torrentio/TorBox HTTP URLs.
@@ -502,7 +525,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       final cleanUri = Uri.parse(sanitizedUrlStr);
       _speechMediaUrl = cleanUri.toString();
-      print('[PlayerScreen] Opening direct network stream URL: $cleanUri (headers: ${playerHeaders.keys})');
+      debugPrint('[PlayerScreen] Opening network stream (source: ${_currentSource.addonName})');
 
       if (!mounted) return;
       final epLabel = _currentEpisode != null
@@ -568,7 +591,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _setSubtitleScale(_subtitleScale);
       _applyVolume(_isMuted ? 0.0 : _volume);
 
-      print('[PlayerScreen SUCCESS] Player opened media successfully for $streamUrl');
+      debugPrint('[PlayerScreen] Native open returned for ${_currentSource.addonName}');
 
       _updateMediaTracks(_player.state.tracks);
       _scheduleAudioProbes(audioEpoch);
@@ -579,6 +602,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       });
 
       _player.play();
+      _startSourceOpeningWatchdog(_streamGeneration);
       _preferEnglishAudioTrack();
       unawaited(_autoEnableEnglishEmbedded(audioEpoch));
       _startHideControlsTimer();
@@ -618,11 +642,19 @@ class _PlayerScreenState extends State<PlayerScreen>
         _savePlaybackProgress();
       });
     } catch (e, stackTrace) {
-      print('[PlayerScreen ERROR] Failed to initialize stream URL: "$streamUrl"');
-      print('[PlayerScreen ERROR] Exception: $e');
-      print('[PlayerScreen ERROR] StackTrace:\n$stackTrace');
+      // Authenticated Torbox resolver URLs and exception strings can contain
+      // secret tokens. Report only the exception type, never a URL or stack.
+      debugPrint('[PlayerScreen] Media opening failed: ${e.runtimeType}');
 
       if (!mounted) return;
+      if (_sourceRecoveryBusy) {
+        _sourceFailureDuringRecovery = true;
+        return;
+      }
+      if (_canAutoRecoverSource()) {
+        unawaited(_recoverFailedSource());
+        return;
+      }
 
       // If we have an episode context (TV show), reopen the sources panel with error notice!
       if (_currentEpisode != null && widget.detail?.videos.isNotEmpty == true) {
@@ -635,7 +667,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         return;
       }
 
-      String displayMessage = 'Error: $e';
+      String displayMessage = 'Could not open this source (${e.runtimeType}).';
       if (e is PlatformException &&
           (e.message?.contains('invalid or unsupported media') ?? false)) {
         displayMessage =
@@ -1883,10 +1915,155 @@ class _PlayerScreenState extends State<PlayerScreen>
       reason: 'night_mode_failed', audio: fields, automatic: true);
   }
 
+  bool _canAutoRecoverSource() {
+    if (_currentEpisode == null || !PlaybackSourceRecovery.isHttpCandidate(_currentSource)) {
+      return false;
+    }
+    final started = _sourceOpeningAt;
+    // Limit automatic source changes to initial opening / early playback.
+    // Never restart an episode that has already played for several minutes.
+    return started != null &&
+        DateTime.now().difference(started) <= const Duration(seconds: 95);
+  }
+
+  void _startSourceOpeningWatchdog(int generation) {
+    _sourceOpeningWatchdog?.cancel();
+    if (!_canAutoRecoverSource()) return;
+    _sourceOpeningBaseline = _player.state.position;
+    _sourceOpeningWatchdog = Timer(const Duration(seconds: 30), () {
+      if (!mounted || generation != _streamGeneration ||
+          _player.state.position >
+              _sourceOpeningBaseline + const Duration(milliseconds: 700)) return;
+      debugPrint('[PlayerScreen] No stream progress within opening window');
+      if (_sourceRecoveryBusy) {
+        _sourceFailureDuringRecovery = true;
+      } else {
+        unawaited(_recoverFailedSource());
+      }
+    });
+  }
+
+  Future<List<StreamSource>> _loadRecoveryCandidates(Video episode) async {
+    final key = '${episode.season ?? 1}:${episode.episode ?? 1}';
+    final existing = <StreamSource>[
+      ..._recoveryCandidates,
+      ...?_cachedSourcesByEpisode[key],
+      ...episode.streams,
+    ];
+    if (PlaybackSourceRecovery.hasAlternative(_currentSource, existing,
+        attemptedKeys: _sourceRecovery.failedKeys)) return existing;
+    final detail = widget.detail;
+    final id = episode.id.isNotEmpty
+        ? episode.id
+        : '${detail?.id ?? ''}:${episode.season ?? 1}:${episode.episode ?? 1}';
+    if (id.isEmpty || id.startsWith(':')) return existing;
+    try {
+      final fetched = await StreamService.fetchStreamsForTargetAddon(
+        targetAddonName: _currentSource.addonName,
+        type: detail?.type ?? 'series',
+        id: id,
+        title: detail?.name ?? widget.title,
+        year: int.tryParse(detail?.year ?? ''),
+        season: episode.season,
+        episode: episode.episode,
+      ).take(32).toList().timeout(const Duration(seconds: 12));
+      if (mounted) {
+        _cachedSourcesByEpisode[key] = fetched;
+        _recoveryCandidates.addAll(fetched);
+      }
+      return [...existing, ...fetched];
+    } catch (error) {
+      debugPrint('[PlayerScreen] Alternate source lookup unavailable: ${error.runtimeType}');
+      return existing;
+    }
+  }
+
+  Future<void> _recoverFailedSource() async {
+    if (!mounted || !_canAutoRecoverSource()) return;
+    if (_sourceRecoveryBusy) {
+      _sourceFailureDuringRecovery = true;
+      return;
+    }
+    final episode = _currentEpisode!;
+    final epoch = _sourceRecoveryEpoch;
+    _sourceRecoveryBusy = true;
+    _sourceOpeningWatchdog?.cancel();
+    _sourceOpeningWatchdog = null;
+    try {
+      var candidates = <StreamSource>[
+        ..._recoveryCandidates,
+        ...episode.streams,
+      ];
+      while (mounted && epoch == _sourceRecoveryEpoch) {
+        final action = _sourceRecovery.next(_currentSource, candidates);
+        if (action == null) {
+          if (!_sourceRecovery.hasQueriedAlternatives) {
+            _sourceRecovery.hasQueriedAlternatives = true;
+            candidates = await _loadRecoveryCandidates(episode);
+            if (!mounted || epoch != _sourceRecoveryEpoch) return;
+            if (PlaybackSourceRecovery.hasAlternative(_currentSource, candidates,
+                attemptedKeys: _sourceRecovery.failedKeys)) {
+              continue;
+            }
+          }
+          WindowsPlaybackTelemetry.instance.captureCode('source_recovery_exhausted');
+          // The source picker retains manual choice when every safe automatic
+          // direct HTTP candidate has failed, instead of looping forever.
+          if (mounted) setState(() {
+            _isLoading = false;
+            _showSourcesPanel = true;
+            _sourcesEpisode = episode;
+            _sourcesErrorMessage =
+                'Automatic retries were unsuccessful. Choose a source below.';
+          });
+          return;
+        }
+        if (action.retrySameSource) {
+          WindowsPlaybackTelemetry.instance.captureCode('source_retry_requested');
+        } else {
+          WindowsPlaybackTelemetry.instance.captureCode('source_fallback_attempted');
+        }
+        if (!mounted || epoch != _sourceRecoveryEpoch) return;
+        setState(() {
+          _isLoading = true;
+          _showSourcesPanel = false;
+          _statusMessage = action.retrySameSource
+              ? 'Retrying stream connection...'
+              : 'Trying next available source...';
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
+        if (!mounted || epoch != _sourceRecoveryEpoch) return;
+        _sourceFailureDuringRecovery = false;
+        if (action.retrySameSource) {
+          await _initStream();
+        } else {
+          await _switchStream(action.source, episode, automaticRecovery: true);
+        }
+        if (!mounted || epoch != _sourceRecoveryEpoch) return;
+        if (_sourceFailureDuringRecovery) {
+          candidates = await _loadRecoveryCandidates(episode);
+          continue;
+        }
+        return;
+      }
+    } catch (error) {
+      debugPrint('[PlayerScreen] Automatic source recovery failed: ${error.runtimeType}');
+      if (mounted && epoch == _sourceRecoveryEpoch) setState(() {
+        _isLoading = false;
+        _showSourcesPanel = true;
+        _sourcesEpisode = episode;
+        _sourcesErrorMessage = 'Automatic recovery failed. Choose another source.';
+      });
+    } finally {
+      _sourceRecoveryBusy = false;
+    }
+  }
+
   void _onControllerError(dynamic err) {
     if (!mounted) return;
     final errorMsg = err.toString();
-    print('[PlayerScreen ERROR] Player error: $errorMsg');
+    // MPV errors often include signed resolver URLs; never log them.
+    debugPrint('[PlayerScreen] Native playback error received');
     if (PlayerPictureAudio.isNightModeFilterError(errorMsg)) {
       if (Platform.isIOS) {
         IosAudioTelemetry.instance.captureNativeLog(errorMsg);
@@ -1943,19 +2120,27 @@ class _PlayerScreenState extends State<PlayerScreen>
       return;
     }
 
-    if (_currentEpisode != null && widget.detail?.videos.isNotEmpty == true) {
+    if (_sourceRecoveryBusy) {
+      _sourceFailureDuringRecovery = true;
+      return;
+    }
+    if (_canAutoRecoverSource()) {
+      unawaited(_recoverFailedSource());
+      return;
+    }
+    if (_currentEpisode != null) {
       setState(() {
         _isLoading = false;
         _showSourcesPanel = true;
         _sourcesEpisode = _currentEpisode;
-        _sourcesErrorMessage = 'Playback error: $errorMsg. Please select another source below.';
+        _sourcesErrorMessage = 'This source failed to open. Please select another source.';
       });
       return;
     }
 
     setState(() {
       _isLoading = true;
-      _statusMessage = 'Playback error: $errorMsg';
+      _statusMessage = 'Unable to open this source.';
     });
   }
 
@@ -2249,6 +2434,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _playNewSource(StreamSource newSource, Video episode) {
+    _sourceRecoveryEpoch++;
+    _sourceRecovery.reset();
+    _sourceOpeningWatchdog?.cancel();
+    _sourceOpeningWatchdog = null;
     setState(() {
       _showSourcesPanel = false;
       _showEpisodesPanel = false;
@@ -2257,9 +2446,16 @@ class _PlayerScreenState extends State<PlayerScreen>
     unawaited(_switchStream(newSource, episode));
   }
 
-  Future<void> _switchStream(StreamSource newSource, Video newEpisode) async {
+  Future<void> _switchStream(StreamSource newSource, Video newEpisode,
+      {bool automaticRecovery = false}) async {
     _progressSaveTimer?.cancel();
-    _savePlaybackProgress();
+    if (!automaticRecovery) {
+      _sourceRecoveryEpoch++;
+      _sourceRecovery.reset();
+      _recoveryCandidates.clear();
+      _recoveryCandidates.addAll(newEpisode.streams);
+      _savePlaybackProgress();
+    }
 
     setState(() {
       _currentSource = newSource;
@@ -2541,6 +2737,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     ++_diagnosticsRevision;
     _diagnosticsTimer?.cancel();
     _playbackPerformanceTimer?.cancel();
+    _sourceOpeningWatchdog?.cancel();
+    ++_sourceRecoveryEpoch;
     if (_frameTimingsRegistered) {
       SchedulerBinding.instance.removeTimingsCallback(_onFlutterFrameTimings);
       _frameTimingsRegistered = false;
@@ -3276,6 +3474,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                       cachedSources: _cachedSourcesByEpisode['${_sourcesEpisode!.season ?? 1}:${_sourcesEpisode!.episode ?? 1}'],
                       onSourcesLoaded: (sources) {
                         _cachedSourcesByEpisode['${_sourcesEpisode!.season ?? 1}:${_sourcesEpisode!.episode ?? 1}'] = sources;
+                        if (_sourcesEpisode?.season == _currentEpisode?.season &&
+                            _sourcesEpisode?.episode == _currentEpisode?.episode) {
+                          _recoveryCandidates.addAll(sources);
+                        }
                       },
                       onPlaySource: _playNewSource,
                       onBackToEpisodes: _onBackToEpisodes,

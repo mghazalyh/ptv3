@@ -507,6 +507,7 @@ class _WatchScreenState extends State<WatchScreen>
                       padding: const EdgeInsets.only(bottom: _S.xs),
                       child: _SourceCard(
                         source: filtered[index],
+                        availableSources: filtered,
                         backdropUrl:
                             widget.detail.background ?? widget.detail.poster,
                         logoUrl: widget.detail.logo,
@@ -1047,6 +1048,7 @@ class _WatchScreenState extends State<WatchScreen>
         }
         return _SourceCard(
           source: sources[index],
+          availableSources: sources,
           backdropUrl: widget.detail.background ?? widget.detail.poster,
           logoUrl: widget.detail.logo,
           detail: widget.detail,
@@ -1501,6 +1503,7 @@ class _WatchScreenState extends State<WatchScreen>
 // ─────────────────────────────────────────────────────────────────────────────
 class _SourceCard extends StatefulWidget {
   final StreamSource source;
+  final List<StreamSource> availableSources;
   final String? backdropUrl;
   final String? logoUrl;
   final MovieDetail detail;
@@ -1509,6 +1512,7 @@ class _SourceCard extends StatefulWidget {
 
   const _SourceCard({
     required this.source,
+    required this.availableSources,
     this.backdropUrl,
     this.logoUrl,
     required this.detail,
@@ -1612,6 +1616,7 @@ class _SourceCardState extends State<_SourceCard> {
                 MaterialPageRoute(
                   builder: (_) => PlayerScreen(
                     source: s,
+                    availableSources: widget.availableSources,
                     title: s.displayTitle,
                     backdropUrl: widget.backdropUrl,
                     logoUrl: widget.logoUrl,

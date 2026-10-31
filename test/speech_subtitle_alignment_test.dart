@@ -110,6 +110,36 @@ void main() {
     expect(result!.delaySeconds, closeTo(4, 0.15));
   });
 
+  test('recovers multiple cues when Whisper drops their quiet lead-in', () {
+    final result = SpeechSubtitleAlignment.estimate(
+      cues: cues(),
+      speech: [
+        ...spoken('should probably leave this place now', 14.27),
+        ...spoken('think we are already much too late', 34.27),
+        ...spoken('deserves to know what happened here', 60.54),
+      ],
+      sampleStartSeconds: 0,
+      sampleEndSeconds: 80,
+    );
+    expect(result, isNotNull);
+    expect(result!.supportingCues, 3);
+    expect(result.delaySeconds, closeTo(4.0, 0.4));
+  });
+
+  test('leading-word recovery still rejects one coincidental cue', () {
+    final result = SpeechSubtitleAlignment.estimate(
+      cues: cues(),
+      speech: [
+        ...spoken('should probably leave this place now', 14.27),
+        ...spoken('There is no other way to find the truth', 34),
+        ...spoken('Another unexpected thing happens far away', 60),
+      ],
+      sampleStartSeconds: 0,
+      sampleEndSeconds: 80,
+    );
+    expect(result, isNull);
+  });
+
   test('rejects impossible offsets beyond the bounded range', () {
     final result = SpeechSubtitleAlignment.estimate(
       cues: cues(),

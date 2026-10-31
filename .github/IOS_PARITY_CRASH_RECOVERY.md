@@ -1,3 +1,11 @@
+# VERIFIED COMPLETION — SUPERSEDES QUEUED RUN INSTRUCTIONS
+
+**VERIFIED SIGNED iOS PARITY BUILD #156 (2026-10-31 SGT):** Exactly one [iOS-only Run #7](https://github.com/mghazalyh/ptv3/actions/runs/41101432287) SUCCESS on pinned SHA `29f9d81ef8a054ef9349cef6a1d4314a87d0f901`, first attempt, macos-15-intel. [Permanent release ios-speech-v1.1.15-run7](https://github.com/mghazalyh/ptv3/releases/tag/ios-speech-v1.1.15-run7) has signed iOS15/iPad `PlayTorrio-v1.1.15-build156-iOS15-TrollStore.ipa` **47,644,761 bytes, SHA256 `fc9ca0dfdd7d6ca2676bde54dd678fed40d6dc11faf1fcc8cb186184868e8dca`** and `SHA256SUMS.txt` **115 bytes, SHA256 `f3bb88bf2bc474253ebaedb27c36aacd5d54b97429361d54231ad82b0a3ebbfb`**. Native tests, ad hoc signature, minimum iOS 15.0, iPad family, CFBundleVersion 156 and archive passed. Telegram **sendDocument actual IPA message #88** SUCCESS. [Linux + Windows source checks 41101432273](https://github.com/mghazalyh/ptv3/actions/runs/41101432273) both SUCCESS. Windows native Build #160 untouched. Physical iPad Night Mode and performance NOT yet verified. **TASK CLOSED; DO NOT RETRIGGER.** Complete evidence at top of handover.md.
+
+The historical recovery instructions below reflect the earlier queued state. Run #7 is already SUCCESS and must not be repeated.
+
+---
+
 # Recover PlayTorrio iOS parity and signed build (2026-10-31 SGT)
 
 **SIGNED iOS RELEASE STARTED:** Exactly one iOS-only workflow Run #7 https://github.com/mghazalyh/ptv3/actions/runs/41101432287 was triggered at source SHA 29f9d81ef8a054ef9349cef6a1d4314a87d0f901 by updating only .github/ios-speech-release-request.txt. Expected v1.1.15 Build #156 (149+7). As of this note primary Intel iOS job is QUEUED. NEVER re-trigger while run #7 queued/in_progress. Inspect its native pre-build tests and wait for success/failed outcome; if successful verify iOS15 TrollStore signed IPA, SHA256SUMS and Telegram sendDocument, then update handover. Linux/Windows fast checks on recent iOS source queued. Windows Build #160 already SUCCESS, do not rebuild.

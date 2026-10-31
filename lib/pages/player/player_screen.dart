@@ -655,7 +655,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _progressSaveTimer = Timer.periodic(const Duration(seconds: 5), (_) {
         _savePlaybackProgress();
       });
-    } catch (e, stackTrace) {
+    } catch (e) {
       _sourceNativeOpening = false;
       // Authenticated Torbox resolver URLs and exception strings can contain
       // secret tokens. Report only the exception type, never a URL or stack.

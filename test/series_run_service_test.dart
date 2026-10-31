@@ -211,7 +211,9 @@ void main() {
 
     // Complete the asynchronous verified-ID request before pumping the
     // FutureBuilder; pumpAndSettle does not wait for network Futures.
-    final verified = await SeriesRunService.instance.resolve(tmdbId: 101);
+    final verified = await tester.runAsync(
+      () => SeriesRunService.instance.resolve(tmdbId: 101),
+    );
     expect(verified?.displayYear(), '2006 - 2010');
 
     await tester.pumpWidget(const MaterialApp(
@@ -244,7 +246,9 @@ void main() {
 
     // Complete the asynchronous verified-ID request before pumping the
     // FutureBuilder; pumpAndSettle does not wait for network Futures.
-    final verified = await SeriesRunService.instance.resolve(tmdbId: 102);
+    final verified = await tester.runAsync(
+      () => SeriesRunService.instance.resolve(tmdbId: 102),
+    );
     expect(verified?.displayYear(), '2016');
 
     await tester.pumpWidget(const MaterialApp(
@@ -308,7 +312,9 @@ void main() {
 
     // Complete the asynchronous verified-ID request before pumping the
     // FutureBuilder; pumpAndSettle does not wait for network Futures.
-    final verified = await SeriesRunService.instance.resolve(tmdbId: 103);
+    final verified = await tester.runAsync(
+      () => SeriesRunService.instance.resolve(tmdbId: 103),
+    );
     expect(verified?.displayYear(), '2008 - 2014');
 
     await tester.pumpWidget(MaterialApp(

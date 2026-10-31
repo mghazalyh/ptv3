@@ -962,6 +962,111 @@ class TmdbDiscoverService {
     return recommendations.take(18).toList();
   }
 
+  /// Explicit See All pagination for an EXACT verified TMDB source identity.
+  /// Recommendations and similar are separate ranked feeds; never replace a
+  /// personalized row with Cinemeta's generic popular catalog.
+  /// The first call reuses page 1 to recover titles withheld by the 18-card
+  /// Home preview. Subsequent clicks continue with later provider pages.
+  Future<({List<DiscoverTitle> items, bool hasMore})> moreRelatedTitles({
+    required String title,
+    required DiscoverType type,
+    required int page,
+    int? startYear,
+    String? imdbId,
+    int? tmdbId,
+  }) async {
+    if (page < 1 || page > 10 ||
+        (type != DiscoverType.movie && type != DiscoverType.series)) {
+      return (items: <DiscoverTitle>[], hasMore: false);
+    }
+    final key = await readKey();
+    if (key.trim().isEmpty) {
+      throw const FormatException('Configure the TMDB key in Discover first.');
+    }
+    final isSeries = type == DiscoverType.series;
+    final kind = isSeries ? 'tv' : 'movie';
+    int? id = tmdbId != null && tmdbId > 0 ? tmdbId : null;
+    if (id == null && imdbId != null &&
+        RegExp(r'^tt\\d+
+  Future<Movie?> resolveMovie(DiscoverTitle title) async {
+    final key = await readKey();
+    if (key.isEmpty) return null;
+    try {
+      final type = title.type == DiscoverType.movie ? 'movie' : 'tv';
+      final response = await _request(
+        '$type/${title.tmdbId}/external_ids', const {}, key);
+      final imdbId = response['imdb_id']?.toString() ?? '';
+      if (RegExp(r'^tt\d+$').hasMatch(imdbId)) {
+        return Movie(
+          id: imdbId,
+          name: title.title,
+          poster: title.poster,
+          year: title.premiereYear?.toString(),
+          type: title.type == DiscoverType.movie ? 'movie' : 'series',
+          addonBaseUrl: 'https://v3-cinemeta.strem.io',
+          imdbRating: title.rating == 0 ? null :
+              title.rating.toStringAsFixed(1),
+        );
+      }
+    } catch (_) {
+      // Search by title when TMDB has no IMDb ID; do not expose API URLs.
+    }
+    return MetadataService.findMovieByTitle(
+      title: title.title,
+      type: title.type == DiscoverType.movie ? 'movie' : 'series',
+      year: title.premiereYear,
+    );
+  }
+}
+
+class _DiscoverCacheEntry {
+  final Map<String, dynamic> value;
+  final DateTime expires;
+  const _DiscoverCacheEntry(this.value, this.expires);
+}
+).hasMatch(imdbId)) {
+      final found = await _request('find/$imdbId',
+          const {'external_source': 'imdb_id'}, key);
+      id = isSeries
+          ? selectSeriesId(found['tv_results'] as List<dynamic>? ?? const [],
+              title, startYear)
+          : selectMovieId(found['movie_results'] as List<dynamic>? ?? const [],
+              title, startYear);
+    }
+    if (id == null) {
+      final found = await _request(isSeries ? 'search/tv' : 'search/movie', {
+        'query': title,
+        if (startYear != null)
+          isSeries ? 'first_air_date_year' : 'year': '$startYear',
+      }, key);
+      id = isSeries
+          ? selectSeriesId(found['results'] as List<dynamic>? ?? const [],
+              title, startYear)
+          : selectMovieId(found['results'] as List<dynamic>? ?? const [],
+              title, startYear);
+    }
+    if (id == null || id <= 0) {
+      return (items: <DiscoverTitle>[], hasMore: false);
+    }
+    final seen = <int>{id};
+    final items = <DiscoverTitle>[];
+    var hasMore = false;
+    for (final route in <String>['recommendations', 'similar']) {
+      final response = await _request('$kind/$id/$route',
+          {'page': '$page'}, key);
+      final totalPages = (response['total_pages'] as num?)?.toInt() ?? 1;
+      if (page < totalPages.clamp(1, 500)) hasMore = true;
+      for (final raw in response['results'] as List<dynamic>? ?? const []) {
+        if (raw is! Map<String, dynamic>) continue;
+        final item = DiscoverTitle.parse(raw, type);
+        if (item.tmdbId <= 0 || item.title.trim().isEmpty ||
+            item.poster == null || !seen.add(item.tmdbId)) continue;
+        items.add(item);
+      }
+    }
+    return (items: items, hasMore: hasMore && page < 10);
+  }
+
   /// Convert a TMDB result to IMDb/Cinemeta for existing Torrentio playback.
   Future<Movie?> resolveMovie(DiscoverTitle title) async {
     final key = await readKey();

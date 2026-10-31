@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:playtorrio/services/metadata/series_run_service.dart';
 import 'package:playtorrio/widgets/movie/similar_year_type_label.dart';
+import 'package:playtorrio/widgets/movie/movie_card.dart';
+import 'package:playtorrio/models/movie/movie.dart';
 import 'package:playtorrio/services/metadata/tmdb_discover_service.dart';
 
 void main() {
@@ -281,5 +283,43 @@ void main() {
     expect(find.text('2021 · Movie'), findsOneWidget);
     expect(find.text('2020 · Series'), findsOneWidget);
     expect(requests, 0);
+  });
+
+  testWidgets('Home TMDB related series card displays verified end year',
+      (tester) async {
+    TmdbDiscoverService.instance.httpGetOverride = (uri, headers) async {
+      expect(uri.path, '/3/tv/103');
+      return http.Response(jsonEncode({
+        'first_air_date': '2008-09-07',
+        'last_air_date': '2014-08-24',
+        'status': 'Ended',
+      }), 200);
+    };
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 220,
+          height: 430,
+          child: MovieCard(
+            movie: Movie(
+              id: 'tmdb_103',
+              name: 'Completed drama',
+              type: 'series',
+              year: '2008',
+              tmdbId: 103,
+              recommendationSource: 'TMDB',
+              originCountries: const ['US'],
+              originalLanguage: 'en',
+              addonBaseUrl: '',
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byType(SimilarYearTypeLabel), findsOneWidget);
+    expect(find.text('2008 - 2014'), findsOneWidget);
+    expect(find.text(' · Series'), findsOneWidget);
   });
 }

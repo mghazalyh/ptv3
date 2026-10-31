@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../models/movie/movie.dart';
 import '../../pages/details/details_page.dart';
 import 'series_year_label.dart';
+import 'similar_year_type_label.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/home/home_page_settings.dart';
 import '../../services/metadata/title_origin_language_service.dart';
@@ -192,6 +193,16 @@ class _MovieCardState extends State<MovieCard> {
                       color: Colors.white.withOpacity(0.52),
                       fontWeight: FontWeight.w600,
                     ),
+                  )
+                else if (movie.recommendationSource == 'TMDB' &&
+                    Movie.canonicalType(movie.type) == 'series' &&
+                    movie.tmdbId != null &&
+                    movie.tmdbId! > 0)
+                  SimilarYearTypeLabel(
+                    key: ValueKey('home-related-run-${movie.tmdbId}'),
+                    mediaType: 'series',
+                    premiereYear: int.tryParse(movie.year ?? ''),
+                    tmdbId: movie.tmdbId,
                   )
                 else
                 Row(

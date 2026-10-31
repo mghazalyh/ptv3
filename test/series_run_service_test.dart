@@ -1,9 +1,11 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:playtorrio/services/metadata/series_run_service.dart';
+import 'package:playtorrio/widgets/movie/similar_year_type_label.dart';
 import 'package:playtorrio/services/metadata/tmdb_discover_service.dart';
 
 void main() {
@@ -191,5 +193,93 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final run = await SeriesRunService.instance.resolve(tmdbId: 123);
     expect(run, isNull);
+  });
+
+  testWidgets('related TMDB ended series shows verified end year and type',
+      (tester) async {
+    final paths = <String>[];
+    TmdbDiscoverService.instance.httpGetOverride = (uri, headers) async {
+      paths.add(uri.path);
+      return http.Response(jsonEncode({
+        'first_air_date': '2006-09-25',
+        'last_air_date': '2010-02-08',
+        'status': 'Ended',
+      }), 200);
+    };
+
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 160,
+          child: SimilarYearTypeLabel(
+            mediaType: 'series',
+            premiereYear: 2006,
+            tmdbId: 101,
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('2006 - 2010'), findsOneWidget);
+    expect(find.text(' · Series'), findsOneWidget);
+    expect(paths, ['/3/tv/101']);
+  });
+
+  testWidgets('related TMDB ongoing series does not invent ending year',
+      (tester) async {
+    TmdbDiscoverService.instance.httpGetOverride = (uri, headers) async {
+      return http.Response(jsonEncode({
+        'first_air_date': '2016-07-15',
+        'last_air_date': '2026-10-01',
+        'status': 'Returning Series',
+      }), 200);
+    };
+
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 160,
+          child: SimilarYearTypeLabel(
+            mediaType: 'series',
+            premiereYear: 2016,
+            tmdbId: 102,
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('2016'), findsOneWidget);
+    expect(find.text(' · Series'), findsOneWidget);
+    expect(find.textContaining('2016 -'), findsNothing);
+  });
+
+  testWidgets('related films and unresolved IDs retain existing labels',
+      (tester) async {
+    var requests = 0;
+    TmdbDiscoverService.instance.httpGetOverride = (uri, headers) async {
+      requests++;
+      return http.Response('{}', 200);
+    };
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: Column(
+          children: [
+            SimilarYearTypeLabel(
+              mediaType: 'movie',
+              premiereYear: 2021,
+              tmdbId: 222,
+            ),
+            SimilarYearTypeLabel(
+              mediaType: 'series',
+              premiereYear: 2020,
+            ),
+          ],
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('2021 · Movie'), findsOneWidget);
+    expect(find.text('2020 · Series'), findsOneWidget);
+    expect(requests, 0);
   });
 }

@@ -8,6 +8,7 @@ import '../../models/movie/video.dart';
 import '../../models/movie/movie_detail.dart';
 import '../../models/my_list/my_list_item.dart';
 import '../../services/metadata/bestsimilar_scraper.dart';
+import '../../widgets/movie/similar_year_type_label.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/metadata/similar_recommendations_service.dart';
 import '../../services/metadata/tmdb_discover_service.dart';
@@ -1732,17 +1733,10 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                               const SizedBox(height: 2),
                               // Year + verified media type, then metadata
                               // visible BEFORE opening a recommendation.
-                              Text(
-                                [
-                                  if (item.year != null) '${item.year}',
-                                  Movie.typeLabel(item.mediaType),
-                                ].join(' · '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 11,
-                                ),
+                              SimilarYearTypeLabel(
+                                mediaType: item.mediaType,
+                                premiereYear: item.year,
+                                tmdbId: item.tmdbId,
                               ),
                               const SizedBox(height: 4),
                               Text(

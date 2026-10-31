@@ -19,8 +19,8 @@ from urllib.parse import unquote, urlparse
 VERSION = "0.6.8"
 DEFAULT_SHA256 = "d428641cc6c100de8234eae04e229966e46949eb73fcabd526a008a02e9bf968"
 FILTER_SHA256 = "b6b6458e796b8dea24c7eb827a61ccd3302c6cde435cc600815be19e2005542b"
-DEFAULT_ARCHIVE = "libmpv-xcframeworks_0.6.8_ios-universal-video-default.tar.gz"
-FILTER_ARCHIVE = "libmpv-xcframeworks_0.6.8_ios-universal-video-encodersgpl.tar.gz"
+DEFAULT_ARCHIVE = "libmpv-xcframeworks_${MPV_XCFRAMEWORKS_VERSION}_ios-universal-video-default.tar.gz"
+FILTER_ARCHIVE = "libmpv-xcframeworks_${MPV_XCFRAMEWORKS_VERSION}_ios-universal-video-encodersgpl.tar.gz"
 PACKAGE_NAME = "media_kit_libs_ios_video"
 REQUIRED_FILTERS = ("acompressor", "compand", "alimiter")
 

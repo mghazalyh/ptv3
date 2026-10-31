@@ -962,11 +962,9 @@ class TmdbDiscoverService {
     return recommendations.take(18).toList();
   }
 
-  /// Explicit See All pagination for an EXACT verified TMDB source identity.
-  /// Recommendations and similar are separate ranked feeds; never replace a
-  /// personalized row with Cinemeta's generic popular catalog.
-  /// The first call reuses page 1 to recover titles withheld by the 18-card
-  /// Home preview. Subsequent clicks continue with later provider pages.
+  /// Exact-source TMDB pagination for personalized See All pages.
+  /// Requesting page 1 exposes recommendations withheld by the Home preview
+  /// and distinct similar titles; later pages continue both provider feeds.
   Future<({List<DiscoverTitle> items, bool hasMore})> moreRelatedTitles({
     required String title,
     required DiscoverType type,
@@ -975,8 +973,7 @@ class TmdbDiscoverService {
     String? imdbId,
     int? tmdbId,
   }) async {
-    if (page < 1 || page > 10 ||
-        (type != DiscoverType.movie && type != DiscoverType.series)) {
+    if (page < 1 || page > 10) {
       return (items: <DiscoverTitle>[], hasMore: false);
     }
     final key = await readKey();
@@ -987,44 +984,7 @@ class TmdbDiscoverService {
     final kind = isSeries ? 'tv' : 'movie';
     int? id = tmdbId != null && tmdbId > 0 ? tmdbId : null;
     if (id == null && imdbId != null &&
-        RegExp(r'^tt\\d+
-  Future<Movie?> resolveMovie(DiscoverTitle title) async {
-    final key = await readKey();
-    if (key.isEmpty) return null;
-    try {
-      final type = title.type == DiscoverType.movie ? 'movie' : 'tv';
-      final response = await _request(
-        '$type/${title.tmdbId}/external_ids', const {}, key);
-      final imdbId = response['imdb_id']?.toString() ?? '';
-      if (RegExp(r'^tt\d+$').hasMatch(imdbId)) {
-        return Movie(
-          id: imdbId,
-          name: title.title,
-          poster: title.poster,
-          year: title.premiereYear?.toString(),
-          type: title.type == DiscoverType.movie ? 'movie' : 'series',
-          addonBaseUrl: 'https://v3-cinemeta.strem.io',
-          imdbRating: title.rating == 0 ? null :
-              title.rating.toStringAsFixed(1),
-        );
-      }
-    } catch (_) {
-      // Search by title when TMDB has no IMDb ID; do not expose API URLs.
-    }
-    return MetadataService.findMovieByTitle(
-      title: title.title,
-      type: title.type == DiscoverType.movie ? 'movie' : 'series',
-      year: title.premiereYear,
-    );
-  }
-}
-
-class _DiscoverCacheEntry {
-  final Map<String, dynamic> value;
-  final DateTime expires;
-  const _DiscoverCacheEntry(this.value, this.expires);
-}
-).hasMatch(imdbId)) {
+        RegExp(r'^tt\d+$').hasMatch(imdbId)) {
       final found = await _request('find/$imdbId',
           const {'external_source': 'imdb_id'}, key);
       id = isSeries

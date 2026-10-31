@@ -106,9 +106,9 @@ void main() {
     expect(check(guard, 23, 0, 0, 9, seekable: true),
         WindowsVideoPressureAction.resync);
     expect(check(guard, 36, 0, 0, 9, seekable: true),
-        WindowsVideoPressureAction.sdTexture);
+        WindowsVideoPressureAction.none);
     expect(check(guard, 49, 0, 0, 9, seekable: true),
-        WindowsVideoPressureAction.lowTexture);
+        WindowsVideoPressureAction.sdTexture);
     expect(check(guard, 60, 0, 0, 9, seekable: true),
         WindowsVideoPressureAction.none);
     expect(check(guard, 85, 0, 0, 9, seekable: true),

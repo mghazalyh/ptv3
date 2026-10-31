@@ -120,7 +120,7 @@ def self_test() -> None:
         cfg.write_text(json.dumps({"packages": [
             {"name": PACKAGE_NAME, "rootUri": package.as_uri()}
         ]}), encoding="utf-8")
-        assert find_ios_package(cfg) == package
+        assert find_ios_package(cfg) == package.resolve()
         prepare(package)
         assert (package / "ios" / "Makefile").read_text(encoding="utf-8") == patched
     print("iOS Night Mode native libmpv pin self-test PASSED")

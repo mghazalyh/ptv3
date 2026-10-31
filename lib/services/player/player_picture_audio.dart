@@ -72,8 +72,15 @@ abstract final class PlayerPictureAudio {
     String? verifiedFilterChain,
     bool windows = false,
   }) async {
-    await setProperty('audio-normalize-downmix',
-        downmixNormalization(nightMode, windows: windows));
+    // Optional in bundled iOS libmpv: rejecting this setter must not reject
+    // a compressor which has passed native PCM decoding. Actual 'af' failures
+    // still propagate to PlayerSettings' fail-open recovery.
+    try {
+      await setProperty('audio-normalize-downmix',
+          downmixNormalization(nightMode, windows: windows));
+    } catch (_) {
+      // The native audio graph itself is validated by 'af' and the preflight.
+    }
     await setProperty('af', nightMode && verifiedFilterChain != null
         ? verifiedFilterChain : audioFilterChain(nightMode, windows: windows));
   }

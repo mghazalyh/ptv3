@@ -15,6 +15,18 @@ void main() {
   setUp(() => NightModeDiagnostics.debugModeEnabled.value = false);
   tearDown(() => NightModeDiagnostics.debugModeEnabled.value = false);
 
+  test('unsupported optional downmix does not suppress verified iOS audio compression', () async {
+    final calls = <String>[];
+    const verified = 'scaletempo2=max-speed=8,lavfi=[compand=points=-20/-20|0/-13]';
+    await PlayerPictureAudio.applyAudio((key, value) async {
+      if (key == 'audio-normalize-downmix') {
+        throw StateError('optional setter missing from bundled iOS libmpv');
+      }
+      calls.add('$key=$value');
+    }, true, verifiedFilterChain: verified);
+    expect(calls, ['af=$verified']);
+  });
+
   test('MPV runtime filter initialization errors are recognized', () {
     expect(PlayerPictureAudio.isNightModeFilterError(
         'Playback error: Audio filter initialized failed!'), isTrue);

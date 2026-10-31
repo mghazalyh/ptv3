@@ -141,7 +141,7 @@ class WindowsPlaybackTelemetry {
         }
         break;
       case 'video-texture-tier':
-        if (const {'native', 'hd', 'sd'}.contains(text)) {
+        if (const {'native', 'hd', 'sd', 'low'}.contains(text)) {
           _facts['videoTextureTier'] = text;
         }
         break;

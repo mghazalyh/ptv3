@@ -1207,6 +1207,13 @@ class _PlayerScreenState extends State<PlayerScreen>
           WindowsPlaybackTelemetry.instance.captureProperty('video-texture-tier', 'sd');
           debugPrint('[PlayerScreen] Windows gaming: render texture limited to 540p');
           break;
+        case WindowsVideoPressureAction.lowTexture:
+          await _videoController.setSize(width: 640, height: 360)
+              .timeout(const Duration(seconds: 5));
+          WindowsPlaybackTelemetry.instance.captureCode('texture_pressure_reduced');
+          WindowsPlaybackTelemetry.instance.captureProperty('video-texture-tier', 'low');
+          debugPrint('[PlayerScreen] Windows gaming: render texture limited to 360p');
+          break;
         case WindowsVideoPressureAction.resync:
           // Flush an unrecoverably stale MPV presentation queue at most once
           // per minute, never during opening/buffering or near end of media.

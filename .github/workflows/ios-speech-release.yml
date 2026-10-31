@@ -285,6 +285,7 @@ jobs:
           flutter test test/player_picture_audio_test.dart
           flutter test test/night_mode_diagnostics_test.dart
           flutter test test/ios_audio_telemetry_test.dart
+          flutter test test/playback_frame_health_test.dart
 
       - name: Verify iPad playback performance and private telemetry parity
         run: |

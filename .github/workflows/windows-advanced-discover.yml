@@ -119,6 +119,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/windows_playback_telemetry_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/playback_frame_health_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/ios_audio_telemetry_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/night_mode_diagnostics_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/playback_autoselection_test.dart
@@ -642,6 +646,12 @@ jobs:
         run: |
           flutter test test/tmdb_rate_limit_test.dart
           flutter test test/similar_recommendations_test.dart
+
+      - name: Verify native iOS Night Mode and shared video frame pacing regressions
+        run: |
+          flutter test test/ios_audio_telemetry_test.dart
+          flutter test test/playback_frame_health_test.dart
+          flutter test test/player_picture_audio_test.dart
 
       - name: Build unsigned iOS 15 release
         run: flutter build ios --release --no-codesign --build-name=1.1.15 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env

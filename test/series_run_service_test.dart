@@ -209,6 +209,11 @@ void main() {
       }), 200);
     };
 
+    // Complete the asynchronous verified-ID request before pumping the
+    // FutureBuilder; pumpAndSettle does not wait for network Futures.
+    final verified = await SeriesRunService.instance.resolve(tmdbId: 101);
+    expect(verified?.displayYear(), '2006 - 2010');
+
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(
         body: SizedBox(
@@ -236,6 +241,11 @@ void main() {
         'status': 'Returning Series',
       }), 200);
     };
+
+    // Complete the asynchronous verified-ID request before pumping the
+    // FutureBuilder; pumpAndSettle does not wait for network Futures.
+    final verified = await SeriesRunService.instance.resolve(tmdbId: 102);
+    expect(verified?.displayYear(), '2016');
 
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(
@@ -295,6 +305,11 @@ void main() {
         'status': 'Ended',
       }), 200);
     };
+
+    // Complete the asynchronous verified-ID request before pumping the
+    // FutureBuilder; pumpAndSettle does not wait for network Futures.
+    final verified = await SeriesRunService.instance.resolve(tmdbId: 103);
+    expect(verified?.displayYear(), '2008 - 2014');
 
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(

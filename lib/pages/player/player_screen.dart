@@ -218,6 +218,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   final List<StreamSource> _recoveryCandidates = <StreamSource>[];
   bool _sourceRecoveryBusy = false;
   bool _sourceFailureDuringRecovery = false;
+  bool _sourceNativeOpening = false;
+  bool _sourceErrorWhileOpening = false;
   int _sourceRecoveryEpoch = 0;
   DateTime? _sourceOpeningAt;
   Timer? _sourceOpeningWatchdog;
@@ -368,6 +370,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _initStream() async {
+    _sourceNativeOpening = true;
+    _sourceErrorWhileOpening = false;
     if (!_logoAnimController.isAnimating) {
       _logoAnimController.repeat(reverse: true);
     }
@@ -603,6 +607,16 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       _player.play();
       _startSourceOpeningWatchdog(_streamGeneration);
+      _sourceNativeOpening = false;
+      if (_sourceErrorWhileOpening) {
+        _sourceErrorWhileOpening = false;
+        if (_sourceRecoveryBusy) {
+          _sourceFailureDuringRecovery = true;
+        } else {
+          unawaited(_recoverFailedSource());
+        }
+        return;
+      }
       _preferEnglishAudioTrack();
       unawaited(_autoEnableEnglishEmbedded(audioEpoch));
       _startHideControlsTimer();
@@ -642,6 +656,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         _savePlaybackProgress();
       });
     } catch (e, stackTrace) {
+      _sourceNativeOpening = false;
       // Authenticated Torbox resolver URLs and exception strings can contain
       // secret tokens. Report only the exception type, never a URL or stack.
       debugPrint('[PlayerScreen] Media opening failed: ${e.runtimeType}');
@@ -1916,7 +1931,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   bool _canAutoRecoverSource() {
-    if (_currentEpisode == null || !PlaybackSourceRecovery.isHttpCandidate(_currentSource)) {
+    if (!Platform.isWindows || _currentEpisode == null ||
+        !PlaybackSourceRecovery.isHttpCandidate(_currentSource)) {
       return false;
     }
     final started = _sourceOpeningAt;
@@ -1932,6 +1948,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _sourceOpeningBaseline = _player.state.position;
     _sourceOpeningWatchdog = Timer(const Duration(seconds: 30), () {
       if (!mounted || generation != _streamGeneration ||
+          (!_player.state.playing && !_player.state.buffering) ||
           _player.state.position >
               _sourceOpeningBaseline + const Duration(milliseconds: 700)) return;
       debugPrint('[PlayerScreen] No stream progress within opening window');
@@ -2122,6 +2139,10 @@ class _PlayerScreenState extends State<PlayerScreen>
 
     if (_sourceRecoveryBusy) {
       _sourceFailureDuringRecovery = true;
+      return;
+    }
+    if (_canAutoRecoverSource() && _sourceNativeOpening) {
+      _sourceErrorWhileOpening = true;
       return;
     }
     if (_canAutoRecoverSource()) {

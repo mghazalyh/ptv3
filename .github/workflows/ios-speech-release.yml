@@ -50,6 +50,12 @@ jobs:
           touch .env
           flutter pub get
 
+      - name: Prepare and verify real iOS FFmpeg audio compressor framework
+        run: |
+          python3 .github/scripts/prepare_ios_night_mode_libmpv.py --self-test
+          python3 .github/scripts/prepare_ios_night_mode_libmpv.py
+          python3 .github/scripts/prepare_ios_night_mode_libmpv.py --verify
+
       - name: Restore iOS TorrServerKit framework
         run: |
           mkdir -p "$RUNNER_TEMP/torrserver-ios15"
@@ -314,7 +320,10 @@ jobs:
           PY
 
       - name: Build unsigned iOS 15 release
-        run: flutter build ios --release --no-codesign --build-name=1.1.15 --build-number="$SPEECH_BUILD_NUMBER" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="$SPEECH_BUILD_NUMBER" --dart-define-from-file=.env
+        run: flutter build ios --no-pub --release --no-codesign --build-name=1.1.15 --build-number="$SPEECH_BUILD_NUMBER" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="$SPEECH_BUILD_NUMBER" --dart-define-from-file=.env
+
+      - name: Reverify FFmpeg compressor framework before signing
+        run: python3 .github/scripts/prepare_ios_night_mode_libmpv.py --verify
 
       - name: Verify minimum iOS 15
         run: |

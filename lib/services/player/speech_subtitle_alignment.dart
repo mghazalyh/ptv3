@@ -81,28 +81,38 @@ abstract final class SpeechSubtitleAlignment {
       double? bestOffset;
       int bestLength = 0;
       double bestDistance = double.infinity;
-      // Shorter prefixes recover when a longer speech phrase contains a
-      // recognition error, while every vote still anchors at cue start.
-      for (var length = math.min(7, caption.length); length >= 3; length--) {
-        final phrase = caption.take(length).toList();
-        if (phrase.toSet().length < 3 ||
-            phrase.where((w) => w.length >= 4).length < 2) continue;
-        for (var j = 0; j <= words.length - length; j++) {
-          var same = true;
-          for (var k = 0; k < length; k++) {
-            if (words[j + k] != phrase[k]) {
-              same = false;
-              break;
+      // Whisper often omits a quiet article, speaker lead-in or the first
+      // one or two subtitle words. Match a phrase anywhere near the START of
+      // the cue rather than requiring the exact first three spoken words.
+      // Correct the anchor by the skipped word count; never use distant
+      // middle-of-line fragments or permit a single-cue timing guess.
+      final maxLeadingWords = math.min(3, caption.length - 3);
+      for (var length = math.min(7, caption.length);
+          length >= 3; length--) {
+        for (var leading = 0; leading <= maxLeadingWords; leading++) {
+          if (leading + length > caption.length) continue;
+          final phrase = caption.skip(leading).take(length).toList();
+          if (phrase.toSet().length < 3 ||
+              phrase.where((w) => w.length >= 4).length < 2) continue;
+          for (var j = 0; j <= words.length - length; j++) {
+            var same = true;
+            for (var k = 0; k < length; k++) {
+              if (words[j + k] != phrase[k]) {
+                same = false;
+                break;
+              }
             }
-          }
-          if (!same) continue;
-          final offset = timestamps[j] - cue.start;
-          if (offset.abs() > maxAdjustmentSeconds) continue;
-          if (length > bestLength ||
-              (length == bestLength && offset.abs() < bestDistance)) {
-            bestLength = length;
-            bestDistance = offset.abs();
-            bestOffset = offset;
+            if (!same) continue;
+            // Estimate a skipped prefix at a conservative speaking pace.
+            // Multiple independent cues must still cluster within 1.8 s.
+            final offset = timestamps[j] - cue.start - leading * 0.27;
+            if (offset.abs() > maxAdjustmentSeconds) continue;
+            if (length > bestLength ||
+                (length == bestLength && offset.abs() < bestDistance)) {
+              bestLength = length;
+              bestDistance = offset.abs();
+              bestOffset = offset;
+            }
           }
         }
         if (bestOffset != null) break;

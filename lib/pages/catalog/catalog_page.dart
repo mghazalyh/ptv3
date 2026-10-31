@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../models/movie/movie.dart';
 import '../../models/movie/movie_section.dart';
 import '../../services/metadata/metadata_service.dart';
+import '../../services/metadata/tmdb_discover_service.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/movie/movie_card.dart';
 
@@ -24,6 +25,7 @@ class _CatalogPageState extends State<CatalogPage> {
   bool _isLoading = false;
   bool _hasMore = false;
   int _remoteOffset = 0;
+  int _relatedPage = 1;
   int _requestSerial = 0;
 
   // The Home row is the authoritative first page. A synthetic list, missing
@@ -43,6 +45,10 @@ class _CatalogPageState extends State<CatalogPage> {
 
   bool get _canPage => !_isSynthetic &&
       _hasValidSource && widget.section.catalog.supportsSkip;
+  // Only curated TMDB rows with the exact watched source may page TMDB.
+  bool get _canRelatedPage => _isSynthetic &&
+      widget.section.relatedSourceTitle?.trim().isNotEmpty == true &&
+      widget.section.movies.any((m) => m.recommendationSource == 'TMDB');
   bool get _isSnapshot => !_canPage;
   String? _error;
 
@@ -63,7 +69,7 @@ class _CatalogPageState extends State<CatalogPage> {
     super.initState();
     _items.addAll(widget.section.movies);
     _remoteOffset = _items.length;
-    _hasMore = _canPage;
+    _hasMore = _canPage || _canRelatedPage;
     _genreScrollController.addListener(_updateGenreScrollButtons);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateGenreScrollButtons();
@@ -104,6 +110,77 @@ class _CatalogPageState extends State<CatalogPage> {
 
   Future<void> _loadItems({bool refresh = false}) async {
     if (!mounted) return;
+
+    // Curated TMDB cards page only their original verified watched title.
+    // The existing snapshot stays intact when the provider is unavailable.
+    if (_canRelatedPage) {
+      if (refresh) {
+        ++_requestSerial;
+        setState(() {
+          _items..clear()..addAll(widget.section.movies);
+          _relatedPage = 1;
+          _hasMore = true;
+          _isLoading = false;
+          _error = null;
+        });
+        return;
+      }
+      if (!_hasMore || _isLoading) return;
+      final serial = ++_requestSerial;
+      setState(() { _isLoading = true; _error = null; });
+      try {
+        final known = _items.map((m) => 'tmdb:' +
+            (m.tmdbId?.toString() ?? m.id)).toSet();
+        final more = <Movie>[];
+        var hasMore = false;
+        var attempts = 0;
+        do {
+          final page = await TmdbDiscoverService.instance.moreRelatedTitles(
+            title: widget.section.relatedSourceTitle!,
+            startYear: widget.section.relatedSourceYear,
+            imdbId: widget.section.relatedSourceImdbId,
+            tmdbId: widget.section.relatedSourceTmdbId,
+            type: Movie.canonicalType(widget.section.contentType) == 'series'
+                ? DiscoverType.series : DiscoverType.movie,
+            page: _relatedPage,
+          );
+          if (!mounted || serial != _requestSerial) return;
+          ++_relatedPage;
+          hasMore = page.hasMore;
+          for (final item in page.items) {
+            if (!known.add('tmdb:' + item.tmdbId.toString())) continue;
+            more.add(Movie(
+              id: 'tmdb_${item.tmdbId}', name: item.title,
+              type: item.type == DiscoverType.series ? 'series' : 'movie',
+              poster: item.poster, year: item.premiereYear?.toString(),
+              addonBaseUrl: 'https://v3-cinemeta.strem.io',
+              imdbRating: item.rating > 0
+                  ? item.rating.toStringAsFixed(1) : null,
+              tmdbId: item.tmdbId,
+              originCountries: item.originCountries,
+              originalLanguage: item.originalLanguage,
+              recommendationSource: 'TMDB',
+            ));
+          }
+          ++attempts;
+          // Home shows 18 results; page 1 may be mostly duplicates.
+        } while (more.isEmpty && hasMore && attempts < 2);
+        if (!mounted || serial != _requestSerial) return;
+        setState(() {
+          _items.addAll(more);
+          _hasMore = hasMore && _relatedPage <= 10;
+          _isLoading = false;
+        });
+      } catch (error) {
+        debugPrint('[Catalog] TMDB recommendation page: ${error.runtimeType}');
+        if (!mounted || serial != _requestSerial) return;
+        setState(() {
+          _error = 'More recommendations are unavailable; existing titles are unchanged.';
+          _isLoading = false;
+        });
+      }
+      return;
+    }
 
     // No network fallback to a "top" Cinemeta catalog, or to the wrong
     // addon, for recommendations and non-paginated source sections.
@@ -287,7 +364,10 @@ class _CatalogPageState extends State<CatalogPage> {
                           ),
                   );
                 }
-                return MovieCard(movie: visibleItems[index]);
+                return MovieCard(
+                  movie: visibleItems[index],
+                  showSeriesRunYears: _canRelatedPage,
+                );
               },
             ),
 

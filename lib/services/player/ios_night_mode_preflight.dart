@@ -129,6 +129,16 @@ abstract final class IosNightModePreflight {
       subscriptions.add(player.stream.completed.listen((value) {
         if (value && !finished.isCompleted) finished.complete(true);
       }));
+      // Some iOS audio-only/null-output backends never emit EOF completion
+      // for the short WAV even after successfully decoding and filtering.
+      // Real position progress after graph initialization is sufficient proof
+      // that the candidate filter is usable (before any stream error).
+      subscriptions.add(player.stream.position.listen((position) {
+        if (position >= const Duration(milliseconds: 450) &&
+            !finished.isCompleted) {
+          finished.complete(true);
+        }
+      }));
       final dynamic native = player.platform;
       await player.setVolume(0);
       try {
@@ -136,11 +146,12 @@ abstract final class IosNightModePreflight {
       } catch (_) {
         // Volume already muted; lack of null AO is not a filter failure.
       }
+      // This is optional in the iOS bundled libmpv. Unsupported downmix
+      // normalization is NOT evidence that a compressor is unsupported.
       try {
         await native.setProperty('audio-normalize-downmix', 'yes');
       } catch (_) {
         IosAudioTelemetry.instance.captureCode('ios_probe_downmix_setter_failed');
-        return false;
       }
       try {
         await native.setProperty('af', filter);
@@ -160,7 +171,9 @@ abstract final class IosNightModePreflight {
         IosAudioTelemetry.instance.captureCode('ios_probe_timeout');
         return false;
       });
-    } catch (_) {
+    } catch (error) {
+      debugPrint('[iOS Night Mode probe] Failed: ${error.runtimeType}');
+      IosAudioTelemetry.instance.captureCode('ios_probe_unexpected_error');
       return false;
     } finally {
       for (final sub in subscriptions) {

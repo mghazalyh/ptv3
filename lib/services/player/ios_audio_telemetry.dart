@@ -133,12 +133,17 @@ class IosAudioTelemetry {
     'ios_probe_filter_setter_failed',
     'ios_probe_open_failed',
     'ios_probe_timeout',
+    'ios_probe_unexpected_error',
+    'flutter_frame_stutter',
     'playback_frame_drops',
     'playback_buffering',
   };
 
   void captureCode(String code) {
     if (!enabled.value || !allowedCodes.contains(code)) return;
+    // A single failure can be observed by preflight AND its caller. Preserve
+    // distinct error reasons instead of duplicating the same status code.
+    if (_events.contains(code)) return;
     if (_events.length >= maxEvents) _events.removeAt(0);
     _events.add(code);
   }
@@ -191,6 +196,23 @@ class IosAudioTelemetry {
       'no', 'videotoolbox', 'videotoolbox-copy', 'auto', 'unknown'
     }.contains(hwdec)) {
       sample['hardwareDecoder'] = hwdec;
+    }
+    for (final property in const <String>[
+      'flutter-frame-count', 'flutter-slow-build-count',
+      'flutter-slow-raster-count', 'flutter-worst-raster-ms',
+    ]) {
+      final value = int.tryParse(properties[property]?.toString() ?? '');
+      if (value == null || value < 0 || value > 100000) continue;
+      final name = switch (property) {
+        'flutter-frame-count' => 'flutterFrames',
+        'flutter-slow-build-count' => 'flutterSlowBuildFrames',
+        'flutter-slow-raster-count' => 'flutterSlowRasterFrames',
+        _ => 'flutterWorstRasterMs',
+      };
+      sample[name] = value;
+      if (property == 'flutter-slow-raster-count' && value >= 2) {
+        captureCode('flutter_frame_stutter');
+      }
     }
     if (buffering) captureCode('playback_buffering');
     if (_performanceSamples.length >= maxPlaybackSamples) {

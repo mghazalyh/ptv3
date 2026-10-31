@@ -73,6 +73,10 @@ void main() {
       'vf': '',
       'framedrop': 'vo',
       'video-sync': 'audio',
+      'flutter-frame-count': '220',
+      'flutter-slow-build-count': '2',
+      'flutter-slow-raster-count': '7',
+      'flutter-worst-raster-ms': '89',
       'path': 'private/movie/file.mkv',
       'title': 'Secret TV title',
     });
@@ -88,6 +92,8 @@ void main() {
     }, buffering: true);
     expect(telemetry.capturedSamples.last['voDroppedDelta'], 11);
     expect(telemetry.capturedSamples.last['lateFramesDelta'], 3);
+    expect(telemetry.capturedSamples.first['flutterSlowRasterFrames'], 7);
+    expect(telemetry.capturedSamples.first['flutterWorstRasterMs'], 89);
     expect(telemetry.capturedSamples.last['cacheSeconds'], 0.2);
     expect(await telemetry.upload(reason: 'playback_sample'), isTrue);
     expect(report!['reason'], 'playback_sample');
@@ -100,6 +106,7 @@ void main() {
     expect(metrics['hardwareDecoder'], 'd3d11va-copy');
     expect(metrics['frameDropMode'], 'vo');
     expect((report!['codes'] as List), contains('render_stutter_detected'));
+    expect((report!['codes'] as List), contains('flutter_frame_stutter'));
     expect((report!['codes'] as List), contains('playback_buffering'));
     final json = jsonEncode(report);
     expect(json, isNot(contains('private/movie')));

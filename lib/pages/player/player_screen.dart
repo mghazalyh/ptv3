@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +23,7 @@ import '../../services/continue_watching/watched_history_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/p2p/p2p_settings_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
+import '../../services/player/playback_frame_health.dart';
 import '../../services/theme/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
@@ -104,6 +106,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   Timer? _playbackPerformanceTimer;
   bool _playbackPerformanceReading = false;
   int _playbackPerformanceGeneration = -1;
+  final PlaybackFrameHealth _frameHealth = PlaybackFrameHealth();
+  bool _frameTimingsRegistered = false;
+
+  void _onFlutterFrameTimings(List<FrameTiming> frames) {
+    if (_performanceTelemetryActive && _player.state.playing) {
+      _frameHealth.observe(frames);
+    }
+  }
 
   final ValueNotifier<Duration> _positionNotifier = ValueNotifier<Duration>(Duration.zero);
   final ValueNotifier<Duration?> _bufferNotifier = ValueNotifier<Duration?>(null);
@@ -968,14 +978,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (_isLoading || !mounted) return;
     final next = !_showDiagnostics;
     _diagnosticsTimer?.cancel();
-    _playbackPerformanceTimer?.cancel();
-    if (Platform.isWindows) {
-      NightModeDiagnostics.debugModeEnabled
-          .removeListener(_updatePlaybackPerformanceSampling);
-    } else if (Platform.isIOS) {
-      IosAudioTelemetry.instance.enabled
-          .removeListener(_updatePlaybackPerformanceSampling);
-    }
+    // The overlay and private performance recorder have independent lifecycles.
+    // Turning the overlay on must not permanently disable opt-in samples.
     ++_diagnosticsRevision;
     setState(() {
       _showDiagnostics = next;
@@ -1041,7 +1045,18 @@ class _PlayerScreenState extends State<PlayerScreen>
   void _updatePlaybackPerformanceSampling() {
     _playbackPerformanceTimer?.cancel();
     _playbackPerformanceTimer = null;
-    if (!mounted || !_performanceTelemetryActive) return;
+    if (!mounted || !_performanceTelemetryActive) {
+      if (_frameTimingsRegistered) {
+        SchedulerBinding.instance.removeTimingsCallback(_onFlutterFrameTimings);
+        _frameTimingsRegistered = false;
+      }
+      _frameHealth.reset();
+      return;
+    }
+    if (!_frameTimingsRegistered) {
+      SchedulerBinding.instance.addTimingsCallback(_onFlutterFrameTimings);
+      _frameTimingsRegistered = true;
+    }
     _playbackPerformanceTimer = Timer.periodic(
       const Duration(seconds: 5),
       (_) => unawaited(_samplePlaybackPerformance()),
@@ -1057,6 +1072,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     try {
       if (_playbackPerformanceGeneration != generation) {
         _playbackPerformanceGeneration = generation;
+        _frameHealth.reset();
         if (Platform.isWindows) {
           WindowsPlaybackTelemetry.instance.resetPlaybackCounters();
         } else if (Platform.isIOS) {
@@ -1082,6 +1098,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
       if (!mounted || !_performanceTelemetryActive ||
           generation != _streamGeneration) return;
+      // Aggregate real Flutter compositor build/raster timings, not just MPV
+      // decode counters. The latter can read zero while the UI misses frames.
+      properties.addAll(_frameHealth.takeSnapshot());
       if (Platform.isWindows) {
         WindowsPlaybackTelemetry.instance.capturePlaybackSample(
           properties, buffering: _player.state.buffering,
@@ -2457,6 +2476,18 @@ class _PlayerScreenState extends State<PlayerScreen>
     _audioMediaEpoch++;
     ++_diagnosticsRevision;
     _diagnosticsTimer?.cancel();
+    _playbackPerformanceTimer?.cancel();
+    if (_frameTimingsRegistered) {
+      SchedulerBinding.instance.removeTimingsCallback(_onFlutterFrameTimings);
+      _frameTimingsRegistered = false;
+    }
+    if (Platform.isWindows) {
+      NightModeDiagnostics.debugModeEnabled
+          .removeListener(_updatePlaybackPerformanceSampling);
+    } else if (Platform.isIOS) {
+      IosAudioTelemetry.instance.enabled
+          .removeListener(_updatePlaybackPerformanceSampling);
+    }
     _periodicAutoSyncTimer?.cancel();
     for (final s in _subscriptions) {
       s.cancel();
@@ -3449,7 +3480,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     return ValueListenableBuilder<bool>(
       valueListenable: GlassSettings.enabled,
       builder: (context, enabled, _) {
-        if (enabled) {
+        // Refresh-rate glass capture competes with hardware video texture
+        // compositing when a game (or any other GPU load) is active. Keep the
+        // glass on paused screens, but render controls without capture during
+        // active playback on both Windows and iOS.
+        if (enabled && !_isPlaying) {
           return LiquidGlassView(
             realTimeCapture: _showControls && !_isLoading,
             useSync: true,

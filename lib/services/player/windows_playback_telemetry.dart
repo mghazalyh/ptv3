@@ -64,6 +64,7 @@ class WindowsPlaybackTelemetry {
     'audio_filter_failure',
     'settings_profile_recovered',
     'render_stutter_detected',
+    'flutter_frame_stutter',
     'playback_buffering',
   };
 
@@ -196,6 +197,23 @@ class WindowsPlaybackTelemetry {
           (value * 1000).round() / 1000;
     }
 
+    for (final property in const <String>[
+      'flutter-frame-count', 'flutter-slow-build-count',
+      'flutter-slow-raster-count', 'flutter-worst-raster-ms',
+    ]) {
+      final value = int.tryParse(properties[property]?.toString() ?? '');
+      if (value == null || value < 0 || value > 100000) continue;
+      final name = switch (property) {
+        'flutter-frame-count' => 'flutterFrames',
+        'flutter-slow-build-count' => 'flutterSlowBuildFrames',
+        'flutter-slow-raster-count' => 'flutterSlowRasterFrames',
+        _ => 'flutterWorstRasterMs',
+      };
+      sample[name] = value;
+      if (property == 'flutter-slow-raster-count' && value >= 2) {
+        captureCode('flutter_frame_stutter');
+      }
+    }
     for (final property in const <String>[
       'hwdec-current', 'vf', 'framedrop', 'video-sync',
     ]) {

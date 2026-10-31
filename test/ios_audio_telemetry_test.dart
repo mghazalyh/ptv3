@@ -251,6 +251,30 @@ void main() {
     expect(telemetry.capturedCodes, isNotEmpty);
   });
 
+  test('iOS frame raster stalls are recorded without private media values', () async {
+    SharedPreferences.setMockInitialValues({});
+    final telemetry = IosAudioTelemetry.forTesting(
+      client: MockClient((_) async => http.Response('{}', 201)),
+      tokenProvider: () async => 'test-only-placeholder',
+    )..forceTestPlatform = true;
+    addTearDown(telemetry.dispose);
+    await telemetry.initialize();
+    await telemetry.setEnabled(true);
+    telemetry.capturePlaybackSample({
+      'frame-drop-count': '0',
+      'avsync': '0.0',
+      'flutter-frame-count': '180',
+      'flutter-slow-raster-count': '4',
+      'flutter-worst-raster-ms': '94',
+      'title': 'private playback title',
+    });
+    expect(telemetry.capturedPerformanceSamples.single['flutterSlowRasterFrames'], 4);
+    expect(telemetry.capturedPerformanceSamples.single['flutterWorstRasterMs'], 94);
+    expect(telemetry.capturedCodes, contains('flutter_frame_stutter'));
+    expect(telemetry.capturedPerformanceSamples.single.toString(),
+        isNot(contains('private playback title')));
+  });
+
   test('iOS preflight alternative preserves speed and actual compression', () {
     expect(IosNightModePreflight.compand, contains('compand='));
     expect(IosNightModePreflight.compand, contains('points='));

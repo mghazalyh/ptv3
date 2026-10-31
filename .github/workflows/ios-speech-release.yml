@@ -304,6 +304,8 @@ jobs:
           assert "'interpolation': 'no'" in settings
           assert "MPVLogLevel.warn" in settings
           assert 'playback_frame_drops' in telemetry
+          assert 'slowBuild >= 3' in telemetry
+          assert 'worstRasterMs >= 75' in telemetry
           assert 'performanceSamples' in telemetry
           assert 'if (!isActive) return;' in telemetry
           assert '_minUploadInterval = Duration(seconds: 30)' in telemetry
@@ -473,7 +475,7 @@ jobs:
           {
             printf 'PlayTorrio iOS 15 — Latest Shared Features — Build %s\n\n' "$BUILD_NUMBER"
             printf 'Source revision: %s\n' "$GITHUB_SHA"
-            printf '%s\n' 'iOS-only release from the latest shared Flutter source; Windows Build #153 stays unchanged.'
+            printf '%s\n' 'iOS-only release from the latest shared Flutter source; Windows Build #166 stays unchanged.'
             printf "\nWhat's new / Fixed:\n"
             cat .github/release-notes.txt
           } > release-notes.md

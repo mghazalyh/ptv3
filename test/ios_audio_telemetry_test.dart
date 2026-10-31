@@ -275,6 +275,58 @@ void main() {
         isNot(contains('private playback title')));
   });
 
+  test('isolated 81 ms raster stall is diagnosed without VO drops or title leakage',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final telemetry = IosAudioTelemetry.forTesting(
+      client: MockClient((_) async => http.Response('{}', 201)),
+      tokenProvider: () async => 'test-only-placeholder',
+    )..forceTestPlatform = true;
+    addTearDown(telemetry.dispose);
+    await telemetry.initialize();
+    await telemetry.setEnabled(true);
+    telemetry.capturePlaybackSample({
+      'frame-drop-count': '0',
+      'flutter-slow-raster-count': '1',
+      'flutter-worst-raster-ms': '81',
+      'title': 'PRIVATE_MOVIE',
+      'url': 'https://PRIVATE_HOST/token',
+    });
+    expect(telemetry.capturedCodes, contains('flutter_frame_stutter'));
+    expect(telemetry.capturedPerformanceSamples.single['voDroppedDelta'], 0);
+    expect(telemetry.capturedPerformanceSamples.single.toString(),
+        isNot(contains('PRIVATE_MOVIE')));
+    expect(telemetry.capturedPerformanceSamples.single.toString(),
+        isNot(contains('PRIVATE_HOST')));
+  });
+
+  test('small single stall is ignored but repeated build stalls are diagnosed',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final telemetry = IosAudioTelemetry.forTesting(
+      client: MockClient((_) async => http.Response('{}', 201)),
+      tokenProvider: () async => 'test-only-placeholder',
+    )..forceTestPlatform = true;
+    addTearDown(telemetry.dispose);
+    await telemetry.initialize();
+    await telemetry.setEnabled(true);
+    telemetry.capturePlaybackSample({
+      'flutter-slow-raster-count': '1',
+      'flutter-worst-raster-ms': '40',
+      'flutter-slow-build-count': '0',
+    });
+    expect(telemetry.capturedCodes, isNot(contains('flutter_frame_stutter')));
+    telemetry.capturePlaybackSample({
+      'flutter-slow-raster-count': '0',
+      'flutter-worst-raster-ms': '10',
+      'flutter-slow-build-count': '3',
+    });
+    expect(telemetry.capturedCodes, contains('flutter_frame_stutter'));
+    await telemetry.setEnabled(false);
+    expect(telemetry.capturedCodes, isEmpty);
+    expect(telemetry.capturedPerformanceSamples, isEmpty);
+  });
+
   test('iOS preflight alternative preserves speed and actual compression', () {
     expect(IosNightModePreflight.compand, contains('compand='));
     expect(IosNightModePreflight.compand, contains('points='));

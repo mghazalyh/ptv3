@@ -210,9 +210,17 @@ class IosAudioTelemetry {
         _ => 'flutterWorstRasterMs',
       };
       sample[name] = value;
-      if (property == 'flutter-slow-raster-count' && value >= 2) {
-        captureCode('flutter_frame_stutter');
-      }
+    }
+    // A single severe raster stall is perceptible even when no video frame
+    // drops. Repeated slow Flutter builds also disrupt iPad composition.
+    // Diagnostics remain strictly opt-in; don't apply Windows GPU scaling.
+    final slowRaster = sample['flutterSlowRasterFrames'] as int? ?? 0;
+    final worstRasterMs = sample['flutterWorstRasterMs'] as int? ?? 0;
+    final slowBuild = sample['flutterSlowBuildFrames'] as int? ?? 0;
+    if (slowRaster >= 2 ||
+        (slowRaster >= 1 && worstRasterMs >= 75) ||
+        slowBuild >= 3) {
+      captureCode('flutter_frame_stutter');
     }
     if (buffering) captureCode('playback_buffering');
     if (_performanceSamples.length >= maxPlaybackSamples) {

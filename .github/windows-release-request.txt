@@ -1,5 +1,7 @@
-OWNER REQUESTED ONE WINDOWS-ONLY PLAYTORRIO v1.1.15 BUILD #165 — 2026-11-01 SGT.
-Fix two Windows screenshot-reported issues: (1) Watch/Details Auto Sync rejects legitimate dialogue after Whisper omits brief cue leading words; preserve multi-cue agreement and do not guess offsets. (2) Recently watched TMDB recommendations See All stops at the initial 18 items because curated lists cannot page; permit explicit bounded TMDB recommendations+similar pagination from the exact verified watched title with de-duplication, preserving source integrity and original snapshot.
-Application source SHA: 8dfcbf1f490d4954b5c0ce477ccf530aa2238c98.
-Linux full Flutter analyzer and critical regression suite PASS, Windows compatibility PASS from fast gate 41223783897; that gate's ONLY failed last step was a release-notes-too-long Telegram self-test, subsequently repaired by shortening .github/release-notes.txt to 429 characters at commit 47b031e981896e675a119990dacffae2f91ac9f9. Followup fast gate 41224224300 started for final notes.
-Native release scope: Windows Setup EXE, Windows x64 portable ZIP and SHA256SUMS; Windows-only commit marker [windows-only] prevents iOS jobs. Publish permanent release and Telegram Windows delivery; never rerun successful native binaries. Real PC speech match and expanded recommendations await owner testing.
+OWNER-REQUESTED WINDOWS-ONLY PlayTorrio v1.1.15 Build #166 — 2026-11-01 SGT.
+Reported issue: gaming while streaming still produces intermittent visible jerks despite improved Build #165 performance.
+Evidence: private Build #165 telemetry sample at 2026-10-31T18:36:39Z recorded 7 new MPV drops and an 81 ms Flutter raster stall with healthy ~15 s cache, zero A/V drift and no evidence of texture reduction. Previous guard required at least two consecutive bad samples and missed that burst.
+Fix source SHA: 6b9d94428989084c193dd709ae55e91623cdd9b5. React promptly to severe single-sample stalls, progressively scale Windows GPU textures to 720p / 540p / 360p only when repeated pressure warrants it; preserve hardware decode and simultaneous gaming, never throttle games. Keep bounded resync and buffering safeguards.
+Final source gates: workflow 41231093484, Linux analyzer/tests SUCCESS and Windows compatibility SUCCESS.
+Release only Windows Setup EXE, Windows portable ZIP, SHA256SUMS and Telegram Windows GitHub link. Preserve iOS. Literal [windows-only] in release request commit message is mandatory.
+Do not rebuild successful native binaries or publish unverified release assets.

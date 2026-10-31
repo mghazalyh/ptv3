@@ -61,6 +61,74 @@ void main() {
       '/3/movie/100/recommendations', '/3/movie/100/similar']));
   });
 
+  test('See All pages only the exact source TMDB recommendations', () async {
+    final requests = <String>[];
+    service.httpGetOverride = (uri, headers) async {
+      requests.add('${uri.path}?${uri.queryParameters['page'] ?? ''}');
+      if (uri.path == '/3/tv/42/recommendations') {
+        final page = uri.queryParameters['page'];
+        return http.Response(jsonEncode({
+          'total_pages': 2,
+          'results': [
+            {
+              'id': page == '1' ? 201 : 203,
+              'name': page == '1' ? 'Series One' : 'Series Three',
+              'first_air_date': '2020-01-01',
+              'poster_path': '/one.jpg',
+            },
+          ],
+        }), 200);
+      }
+      if (uri.path == '/3/tv/42/similar') {
+        return http.Response(jsonEncode({
+          'total_pages': 1,
+          'results': [
+            {'id': 202, 'name': 'Series Two', 'poster_path': '/two.jpg',
+              'first_air_date': '2018-03-02'},
+          ],
+        }), 200);
+      }
+      return http.Response('{}', 404);
+    };
+    final first = await service.moreRelatedTitles(
+      title: 'Exact Source', type: DiscoverType.series,
+      tmdbId: 42, page: 1);
+    expect(first.items.map((x) => x.tmdbId), [201, 202]);
+    expect(first.hasMore, isTrue);
+    final second = await service.moreRelatedTitles(
+      title: 'Exact Source', type: DiscoverType.series,
+      tmdbId: 42, page: 2);
+    expect(second.items.map((x) => x.tmdbId), [203, 202]);
+    expect(second.hasMore, isFalse);
+    expect(requests, containsAll([
+      '/3/tv/42/recommendations?1', '/3/tv/42/similar?1',
+      '/3/tv/42/recommendations?2', '/3/tv/42/similar?2',
+    ]));
+    expect(requests.where((p) => p.contains('search/') ||
+        p.contains('catalog/')), isEmpty);
+  });
+
+  test('See All refuses an ambiguous source rather than generic suggestions',
+      () async {
+    var requestedRecommendations = false;
+    service.httpGetOverride = (uri, headers) async {
+      if (uri.path.contains('recommendations') ||
+          uri.path.contains('/similar')) {
+        requestedRecommendations = true;
+      }
+      return http.Response(jsonEncode({'results': [
+        {'id': 7, 'name': 'Wrong Title', 'first_air_date': '2019-01-01'}
+      ]}), 200);
+    };
+    final page = await service.moreRelatedTitles(
+      title: 'Real Title', type: DiscoverType.series, page: 1,
+      startYear: 2019,
+    );
+    expect(page.items, isEmpty);
+    expect(page.hasMore, isFalse);
+    expect(requestedRecommendations, isFalse);
+  });
+
   test('never fetch TMDB suggestions for ambiguous source identity', () async {
     var calledRecommendations = false;
     service.httpGetOverride = (uri, headers) async {

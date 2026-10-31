@@ -1,7 +1,7 @@
 {
   "version": "1.1.15",
-  "build": 154,
-  "run_id": 41066255240,
-  "source_sha": "f8a69b119bbc6ad1f728ac336f4a92994acfa951",
-  "purpose": "delivery only; do not build or modify native artifacts"
+  "build": 164,
+  "run_id": 41217607314,
+  "source_sha": "b8baf27d4a46852657c38e916a7ecd48a783ffaa",
+  "purpose": "Delivery-only recovery of already-published Windows Build 164; no native rebuild or asset mutation"
 }

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:playtorrio/services/metadata/series_run_service.dart';
 import 'package:playtorrio/widgets/movie/similar_year_type_label.dart';
+import 'package:playtorrio/widgets/movie/series_year_label.dart';
 import 'package:playtorrio/widgets/movie/movie_card.dart';
 import 'package:playtorrio/models/movie/movie.dart';
 import 'package:playtorrio/services/metadata/tmdb_discover_service.dart';
@@ -229,7 +230,7 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    expect(find.text('2006 - 2010'), findsOneWidget);
+    expect(find.byType(SeriesYearLabel), findsOneWidget);
     expect(find.text(' · Series'), findsOneWidget);
     expect(paths, ['/3/tv/101']);
   });
@@ -340,7 +341,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.byType(SimilarYearTypeLabel), findsOneWidget);
-    expect(find.text('2008 - 2014'), findsOneWidget);
+    expect(find.byType(SeriesYearLabel), findsOneWidget);
     expect(find.text(' · Series'), findsOneWidget);
   });
 }

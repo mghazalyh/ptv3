@@ -394,7 +394,17 @@ class _HomePageState extends State<HomePage> {
                   if (index == _sections.length + 2) {
                     return SizedBox(height: 110.0 + MediaQuery.paddingOf(context).bottom);
                   }
-                  return MovieSliderSection(section: _sections[index - 2]);
+                  final section = _sections[index - 2];
+                  // Personalized TMDB recommendations share Search/Discover's
+                  // verified completed-series year range (e.g. 2006 - 2010).
+                  // Avoid extra metadata lookups for unrelated Home catalogs.
+                  final hasTmdbRecommendations = section.movies.any(
+                    (movie) => movie.recommendationSource == 'TMDB',
+                  );
+                  return MovieSliderSection(
+                    section: section,
+                    showSeriesRunYears: hasTmdbRecommendations,
+                  );
                 },
               ),
             ),

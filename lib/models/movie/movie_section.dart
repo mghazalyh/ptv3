@@ -14,6 +14,13 @@ class MovieSection {
   /// must show these exact items instead of fetching a synthetic catalog ID.
   final bool isCurated;
 
+  /// Exact source identity for expanding TMDB curated recommendations.
+  /// Never treat these as a Stremio catalog or paginate generic addons.
+  final String? relatedSourceTitle;
+  final int? relatedSourceYear;
+  final String? relatedSourceImdbId;
+  final int? relatedSourceTmdbId;
+
   MovieSection({
     required this.title,
     required this.subtitle,
@@ -22,5 +29,9 @@ class MovieSection {
     required this.catalog,
     required this.movies,
     this.isCurated = false,
+    this.relatedSourceTitle,
+    this.relatedSourceYear,
+    this.relatedSourceImdbId,
+    this.relatedSourceTmdbId,
   });
 }

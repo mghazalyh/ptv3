@@ -35,8 +35,16 @@ class WindowsVideoPressureGuard {
         ? number.abs() : 0.0;
     final stressed = recentDrops >= 4 ||
         (raster >= 4 && raster <= 100000) || sync >= 1.5;
-    _pressureSamples = stressed ? (_pressureSamples + 1).clamp(0, 100) : 0;
-    _syncSamples = sync >= 3 ? (_syncSamples + 1).clamp(0, 100) : 0;
+    if (stressed) {
+      if (_pressureSamples < 100) _pressureSamples++;
+    } else {
+      _pressureSamples = 0;
+    }
+    if (sync >= 3) {
+      if (_syncSamples < 100) _syncSamples++;
+    } else {
+      _syncSamples = 0;
+    }
     if (_lastAction != null &&
         now.difference(_lastAction!) < minActionInterval) {
       return WindowsVideoPressureAction.none;
@@ -53,6 +61,7 @@ class WindowsVideoPressureGuard {
       _lastResync = now;
       _lastAction = now;
       _syncSamples = 0;
+      _pressureSamples = 0;
       return WindowsVideoPressureAction.resync;
     }
     if (_pressureSamples >= 2 && _tier == 1) {

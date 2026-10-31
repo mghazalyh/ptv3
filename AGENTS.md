@@ -1,4 +1,4 @@
-> **CURRENT START-HERE HANDOVER (2026-10-29):** Read [CURRENT_SESSION_HANDOVER.md](CURRENT_SESSION_HANDOVER.md) FIRST for the definitive repository state, the completed paired Build #149, Night Mode/brightness features, exact downloads, release/no-duplicate rules and no open task. This document's historical sections contain superseded release snapshots. **No new build is authorized by this docs-only handover.**
+> **CURRENT START-HERE HANDOVER (2026-10-31):** Read [CURRENT_SESSION_HANDOVER.md](CURRENT_SESSION_HANDOVER.md) FIRST. Latest completed paired Windows+iOS 15 signed Build **#161** at [immutable GitHub release](https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.15-b161); native [41185137431](https://github.com/mghazalyh/ptv3/actions/runs/41185137431) SUCCESS, Telegram Windows link #90 and iOS IPA document #91. No duplicate native build is authorized. Device-level game+video stutter and iPad playback remain unverified. Historical sections below superseded.
 
 ## REQUIRED ARCHITECTURE — SINGLE FLUTTER SOURCE FOR WINDOWS + iOS (2026-10-29)
 

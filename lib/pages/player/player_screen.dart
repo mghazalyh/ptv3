@@ -24,6 +24,7 @@ import '../../services/debrid/debrid_service.dart';
 import '../../services/p2p/p2p_settings_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
 import '../../services/player/playback_frame_health.dart';
+import '../../services/player/windows_video_pressure_guard.dart';
 import '../../services/theme/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
@@ -107,10 +108,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _playbackPerformanceReading = false;
   int _playbackPerformanceGeneration = -1;
   final PlaybackFrameHealth _frameHealth = PlaybackFrameHealth();
+  final WindowsVideoPressureGuard _windowsPressure = WindowsVideoPressureGuard();
+  bool _windowsRecoveryBusy = false;
   bool _frameTimingsRegistered = false;
 
   void _onFlutterFrameTimings(List<FrameTiming> frames) {
-    if (_performanceTelemetryActive && _player.state.playing) {
+    if (_performanceSamplingEnabled && _player.state.playing) {
       _frameHealth.observe(frames);
     }
   }
@@ -1042,10 +1045,15 @@ class _PlayerScreenState extends State<PlayerScreen>
       (Platform.isWindows && WindowsPlaybackTelemetry.instance.isActive) ||
       (Platform.isIOS && IosAudioTelemetry.instance.isActive);
 
+  // Local Windows frame pacing operates without cloud diagnostics opt-in.
+  // Private telemetry and uploads still require the explicit Debug Mode.
+  bool get _performanceSamplingEnabled =>
+      Platform.isWindows || _performanceTelemetryActive;
+
   void _updatePlaybackPerformanceSampling() {
     _playbackPerformanceTimer?.cancel();
     _playbackPerformanceTimer = null;
-    if (!mounted || !_performanceTelemetryActive) {
+    if (!mounted || !_performanceSamplingEnabled) {
       if (_frameTimingsRegistered) {
         SchedulerBinding.instance.removeTimingsCallback(_onFlutterFrameTimings);
         _frameTimingsRegistered = false;
@@ -1066,7 +1074,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _samplePlaybackPerformance() async {
     if (!mounted || _playbackPerformanceReading || _isLoading ||
         (!_player.state.playing && !_player.state.buffering) ||
-        !_performanceTelemetryActive) return;
+        !_performanceSamplingEnabled) return;
     _playbackPerformanceReading = true;
     final generation = _streamGeneration;
     try {
@@ -1087,7 +1095,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         'avsync', 'demuxer-cache-duration',
         'hwdec-current', 'vf', 'framedrop', 'video-sync',
       ]) {
-        if (!mounted || !_performanceTelemetryActive ||
+        if (!mounted || !_performanceSamplingEnabled ||
             generation != _streamGeneration) break;
         try {
           properties[key] = await native.getProperty(key);
@@ -1096,17 +1104,19 @@ class _PlayerScreenState extends State<PlayerScreen>
           // are omitted rather than reported as falsely healthy zeros.
         }
       }
-      if (!mounted || !_performanceTelemetryActive ||
+      if (!mounted || !_performanceSamplingEnabled ||
           generation != _streamGeneration) return;
       // Aggregate real Flutter compositor build/raster timings, not just MPV
       // decode counters. The latter can read zero while the UI misses frames.
       properties.addAll(_frameHealth.takeSnapshot());
       if (Platform.isWindows) {
-        WindowsPlaybackTelemetry.instance.capturePlaybackSample(
-          properties, buffering: _player.state.buffering,
-        );
-        await WindowsPlaybackTelemetry.instance.upload(
-            reason: 'playback_sample', automatic: true);
+        await _recoverWindowsRendering(properties, generation);
+        if (WindowsPlaybackTelemetry.instance.isActive) {
+          WindowsPlaybackTelemetry.instance.capturePlaybackSample(
+              properties, buffering: _player.state.buffering);
+          await WindowsPlaybackTelemetry.instance.upload(
+              reason: 'playback_sample', automatic: true);
+        }
       } else if (Platform.isIOS) {
         IosAudioTelemetry.instance.capturePlaybackSample(
           properties, buffering: _player.state.buffering,
@@ -1118,6 +1128,60 @@ class _PlayerScreenState extends State<PlayerScreen>
       debugPrint('[PlayerScreen] Playback performance sample: ${error.runtimeType}');
     } finally {
       _playbackPerformanceReading = false;
+    }
+  }
+
+  Future<void> _recoverWindowsRendering(
+      Map<String, Object?> metrics, int generation) async {
+    if (!Platform.isWindows || !mounted || _windowsRecoveryBusy ||
+        generation != _streamGeneration) return;
+    final action = _windowsPressure.evaluate(metrics,
+      now: DateTime.now(), playing: _player.state.playing,
+      buffering: _player.state.buffering,
+      seekable: _diagnosticsSourceKind() != 'Other' &&
+          _currentSource.infoHash?.isNotEmpty != true);
+    if (action == WindowsVideoPressureAction.none) return;
+    _windowsRecoveryBusy = true;
+    try {
+      switch (action) {
+        case WindowsVideoPressureAction.none:
+          return;
+        case WindowsVideoPressureAction.hdTexture:
+          await _videoController.setSize(width: 1280, height: 720)
+              .timeout(const Duration(seconds: 5));
+          WindowsPlaybackTelemetry.instance.captureCode('texture_pressure_reduced');
+          WindowsPlaybackTelemetry.instance.captureProperty('video-texture-tier', 'hd');
+          debugPrint('[PlayerScreen] Windows gaming: render texture limited to 720p');
+          break;
+        case WindowsVideoPressureAction.sdTexture:
+          await _videoController.setSize(width: 960, height: 540)
+              .timeout(const Duration(seconds: 5));
+          WindowsPlaybackTelemetry.instance.captureCode('texture_pressure_reduced');
+          WindowsPlaybackTelemetry.instance.captureProperty('video-texture-tier', 'sd');
+          debugPrint('[PlayerScreen] Windows gaming: render texture limited to 540p');
+          break;
+        case WindowsVideoPressureAction.resync:
+          // Flush an unrecoverably stale MPV presentation queue at most once
+          // per minute, never during opening/buffering or near end of media.
+          final position = _player.state.position;
+          final duration = _player.state.duration;
+          if (position < const Duration(seconds: 10) ||
+              (duration > Duration.zero &&
+                  position >= duration - const Duration(seconds: 5))) {
+            _windowsPressure.actionFailed(action);
+            return;
+          }
+          await _player.seek(position).timeout(const Duration(seconds: 8));
+          WindowsPlaybackTelemetry.instance.resetPlaybackCounters();
+          WindowsPlaybackTelemetry.instance.captureCode('video_resync_requested');
+          debugPrint('[PlayerScreen] Windows gaming: A/V presentation queue resynced');
+          break;
+      }
+    } catch (error) {
+      _windowsPressure.actionFailed(action);
+      debugPrint('[PlayerScreen] Windows gaming recovery: ${error.runtimeType}');
+    } finally {
+      _windowsRecoveryBusy = false;
     }
   }
 

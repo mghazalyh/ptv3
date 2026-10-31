@@ -65,6 +65,8 @@ class WindowsPlaybackTelemetry {
     'settings_profile_recovered',
     'render_stutter_detected',
     'flutter_frame_stutter',
+    'texture_pressure_reduced',
+    'video_resync_requested',
     'playback_buffering',
   };
 
@@ -133,6 +135,11 @@ class WindowsPlaybackTelemetry {
         if (const {'audio', 'display-resample', 'display-vdrop',
           'display-adrop', 'display-desync'}.contains(text)) {
           _facts['videoSync'] = text;
+        }
+        break;
+      case 'video-texture-tier':
+        if (const {'native', 'hd', 'sd'}.contains(text)) {
+          _facts['videoTextureTier'] = text;
         }
         break;
       case 'brightness-pipeline':

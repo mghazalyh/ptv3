@@ -436,6 +436,10 @@ abstract final class HomePageSettings {
           genres: const [], supportsSearch: false, supportsSkip: false,
         ),
         movies: movies, isCurated: true,
+        relatedSourceTitle: sourceTitle,
+        relatedSourceYear: year,
+        relatedSourceImdbId: imdbId,
+        relatedSourceTmdbId: tmdbId ?? tvdb?.tmdbId,
       );
     } catch (error) {
       debugPrint('[Home] personalized provider failed: ${error.runtimeType}');
@@ -538,6 +542,10 @@ abstract final class HomePageSettings {
         title: row.title, subtitle: row.subtitle, contentType: row.contentType,
         addonBaseUrl: row.addonBaseUrl, catalog: row.catalog,
         movies: uniqueMovies, isCurated: true,
+        relatedSourceTitle: row.relatedSourceTitle,
+        relatedSourceYear: row.relatedSourceYear,
+        relatedSourceImdbId: row.relatedSourceImdbId,
+        relatedSourceTmdbId: row.relatedSourceTmdbId,
       ));
     }
     if (sections.isNotEmpty) {

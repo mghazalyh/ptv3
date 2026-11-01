@@ -37,6 +37,7 @@ import '../../services/player/windows_whisper_transcriber.dart';
 import '../../services/player/subtitle_auto_sync_policy.dart';
 import '../../services/player/subtitle_auto_sync_platform.dart';
 import '../../services/player/speech_subtitle_alignment.dart';
+import '../../services/player/player_debug_telemetry.dart';
 import '../../services/player/paused_http_recovery.dart';
 import '../../services/player/playback_source_recovery.dart';
 import '../../services/player/automatic_skip_policy.dart';
@@ -1428,6 +1429,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final epoch = _audioMediaEpoch;
     _syncIsAutomatic = automatic;
     setState(() => _autoSyncBusy = true);
+    PlayerDebugTelemetry.record('sync_started');
     try {
       if (SubtitleAutoSyncPlatform.modeFor(
             isIOS: Platform.isIOS, isWindows: Platform.isWindows) ==
@@ -1437,21 +1439,25 @@ class _PlayerScreenState extends State<PlayerScreen>
         await _autoSyncByReleaseName(epoch);
       }
     } on WindowsSpeechSyncFailure catch (error) {
+      PlayerDebugTelemetry.record('sync_unexpected_failure', failure: true);
       if (mounted && epoch == _audioMediaEpoch) {
         _showAutoSyncMessage('Windows Auto Sync: ${error.message} '
             'Subtitle timing unchanged.');
       }
     } on PlatformException catch (error) {
+      PlayerDebugTelemetry.record('sync_platform_failed', failure: true);
       if (mounted && epoch == _audioMediaEpoch) {
         _showAutoSyncMessage(error.message ??
             'Speech recognition unavailable. Subtitle timing was not changed.');
       }
     } on TimeoutException {
+      PlayerDebugTelemetry.record('sync_timeout', failure: true);
       if (mounted && epoch == _audioMediaEpoch) {
         _showAutoSyncMessage('Speech recognition timed out. Timing was not changed.');
       }
     } catch (error) {
       // Errors may include authenticated stream URLs: never log raw details.
+      PlayerDebugTelemetry.record('sync_unexpected_failure', failure: true);
       debugPrint('[PlayerSpeechSync] Failure type: ${error.runtimeType}');
       if (mounted && epoch == _audioMediaEpoch) {
         _showAutoSyncMessage(Platform.isWindows
@@ -1491,6 +1497,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
       }
       if (!loaded || _currentCues.length < 2) {
+        PlayerDebugTelemetry.record('sync_no_subtitles', failure: true);
         _showAutoSyncMessage(
           'Select or download an external English subtitle first; speech sync needs subtitle text.');
         return;
@@ -1499,6 +1506,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     final mediaUrl = _speechMediaUrl;
     if (mediaUrl == null || mediaUrl.isEmpty) {
+      PlayerDebugTelemetry.record('sync_no_audio_source', failure: true);
       _showAutoSyncMessage('Audio for this stream is not available to the iOS speech recognizer.');
       return;
     }
@@ -1506,6 +1514,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final positionSeconds = _position.inMilliseconds / 1000.0;
     final durationSeconds = _duration.inMilliseconds / 1000.0;
     if (durationSeconds < 15) {
+      PlayerDebugTelemetry.record('sync_unseekable_source', failure: true);
       _showAutoSyncMessage('Speech sync needs a seekable movie or episode, not a live stream.');
       return;
     }
@@ -1517,6 +1526,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             .clamp(15.0, IosSpeechTranscriber.maxSampleSeconds)
             .toDouble();
     if (Platform.isWindows && !await WindowsWhisperTranscriber.hasModel()) {
+      PlayerDebugTelemetry.record('sync_model_missing');
       // A background timer must never interrupt playback with a download.
       if (automatic) return;
       final approved = await showDialog<bool>(
@@ -1537,7 +1547,12 @@ class _PlayerScreenState extends State<PlayerScreen>
       );
       if (approved != true || !mounted || epoch != _audioMediaEpoch) return;
       _showAutoSyncMessage('Downloading offline English model (148 MB) once...');
-      await WindowsWhisperTranscriber.ensureModel();
+      try {
+        await WindowsWhisperTranscriber.ensureModel();
+      } catch (_) {
+        PlayerDebugTelemetry.record('sync_model_download_failed', failure: true);
+        rethrow;
+      }
       if (!mounted || epoch != _audioMediaEpoch) return;
     }
     _showAutoSyncMessage(Platform.isWindows
@@ -1549,6 +1564,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         mediaUrl: mediaUrl, startSeconds: sampleStart,
         durationSeconds: sampleLength, httpHeaders: _speechMediaHeaders,
         audioTrackId: _selectedAudioTrackIndex,
+        onDiagnostic: PlayerDebugTelemetry.record,
       );
     } else try {
       words = await IosSpeechTranscriber.transcribe(
@@ -1575,7 +1591,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Consent is stored persistently; timed checks never open dialogs.
       final preferences = await SharedPreferences.getInstance();
       var approved = preferences.getBool(IosSpeechTranscriber.onlineConsentKey);
-      if (approved != true && automatic) return;
+      if (approved != true && automatic) {
+        PlayerDebugTelemetry.record('sync_cancelled');
+        return;
+      }
       if (approved != true) {
         approved = await showDialog<bool>(
         context: context,
@@ -1611,11 +1630,13 @@ class _PlayerScreenState extends State<PlayerScreen>
           subtitlePath != _currentSubtitlePath ||
           mediaUrl != _speechMediaUrl) return;
       if (approved != true) {
+        PlayerDebugTelemetry.record('sync_cancelled');
         _showAutoSyncMessage(
           'Speech sync cancelled. No audio was sent to Apple; subtitle timing unchanged.',
         );
         return;
       }
+      PlayerDebugTelemetry.record('sync_online_speech_started');
       _showAutoSyncMessage('Sending a short movie-audio excerpt to Apple for this attempt...');
       words = await IosSpeechTranscriber.transcribe(
         mediaUrl: mediaUrl,
@@ -1637,6 +1658,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (!mounted || epoch != _audioMediaEpoch ||
         subtitlePath != _currentSubtitlePath ||
         mediaUrl != _speechMediaUrl) return;
+    PlayerDebugTelemetry.record('sync_recognition_finished');
+    PlayerDebugTelemetry.record('sync_alignment_started');
     final estimate = SpeechSubtitleAlignment.estimate(
       cues: cues,
       speech: words,
@@ -1644,21 +1667,25 @@ class _PlayerScreenState extends State<PlayerScreen>
       sampleEndSeconds: sampleStart + sampleLength,
     );
     if (estimate == null) {
+      PlayerDebugTelemetry.record('sync_alignment_no_match', failure: true);
       _showAutoSyncMessage(
         'Could not match enough spoken dialogue to subtitle lines. Timing left unchanged; try another scene.');
       return;
     }
     if (!mounted || epoch != _audioMediaEpoch ||
         subtitlePath != _currentSubtitlePath) return;
+    PlayerDebugTelemetry.record('sync_alignment_matched');
     final applied = await _applyLiveDelay(estimate.delaySeconds);
     if (applied && mounted && epoch == _audioMediaEpoch) {
       setState(() {});
+      PlayerDebugTelemetry.record('sync_completed');
       final offset = estimate.delaySeconds;
       final direction = offset < 0 ? 'earlier' : 'later';
       _showAutoSyncMessage(
         'Aligned subtitles to spoken audio: ${offset.abs().toStringAsFixed(1)}s $direction '
         'using ${estimate.supportingCues} matching dialogue lines.');
     } else if (mounted && epoch == _audioMediaEpoch) {
+      PlayerDebugTelemetry.record('sync_apply_failed', failure: true);
       _showAutoSyncMessage('Could not update subtitle timing in the player.');
     }
   }

@@ -53,4 +53,12 @@ void main() {
     expect(() => WindowsWhisperTranscriber.parseJson('{}', 0),
         throwsFormatException);
   });
+  test('selected non-default MPV audio track cannot be silently mapped to first FFmpeg track', () {
+    expect(WindowsWhisperTranscriber.useSelectedTrackCapture(null), false);
+    expect(WindowsWhisperTranscriber.useSelectedTrackCapture(0), false);
+    expect(WindowsWhisperTranscriber.useSelectedTrackCapture(1), false);
+    expect(WindowsWhisperTranscriber.useSelectedTrackCapture(2), true);
+    expect(WindowsWhisperTranscriber.useSelectedTrackCapture(4), true);
+  });
+
 }

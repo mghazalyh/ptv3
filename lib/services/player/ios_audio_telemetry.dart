@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../my_list/github_library_cloud.dart';
+import 'player_diagnostic_codes.dart';
 
 /// Explicitly opt-in, strictly allowlisted MPV filter diagnostics for the
 /// owner's PRIVATE GitHub database. Never uploads raw MPV lines, media URLs,
@@ -137,6 +138,7 @@ class IosAudioTelemetry {
     'flutter_frame_stutter',
     'playback_frame_drops',
     'playback_buffering',
+    ...PlayerDiagnosticCodes.events,
   };
 
   void captureCode(String code) {
@@ -296,7 +298,7 @@ class IosAudioTelemetry {
     final now = DateTime.now().toUtc();
     final safeReason = const {
       'night_mode_failed', 'preflight_failed', 'native_error', 'manual',
-      'playback_sample',
+      'playback_sample', 'sync_failure',
     }.contains(reason) ? reason : 'manual';
     final report = <String, Object>{
       'schema': 1,

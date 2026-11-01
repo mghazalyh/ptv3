@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../config/windows_settings_recovery.dart';
 import '../my_list/github_library_cloud.dart';
 import 'night_mode_diagnostics.dart';
+import 'player_diagnostic_codes.dart';
 
 /// Strictly allowlisted Windows player capability diagnostics.
 /// No MPV raw logs, paths, URLs, titles, credentials or library records.
@@ -71,6 +72,7 @@ class WindowsPlaybackTelemetry {
     'source_fallback_attempted',
     'source_recovery_exhausted',
     'playback_buffering',
+    ...PlayerDiagnosticCodes.events,
   };
 
   void captureCode(String code) {
@@ -279,7 +281,7 @@ class WindowsPlaybackTelemetry {
     final now = DateTime.now().toUtc();
     final approvedReason = const {
       'manual', 'brightness_changed', 'night_mode_changed',
-      'audio_filter_failure', 'playback_sample',
+      'audio_filter_failure', 'playback_sample',, 'sync_failure',
     }.contains(reason) ? reason : 'manual';
     final timestamp = now.toIso8601String()
         .replaceAll(':', '-').replaceAll('.', '-');

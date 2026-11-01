@@ -178,4 +178,28 @@ void main() {
     expect(facts['audioCodec'], 'eac3');
     telemetry.dispose();
   });
+  test('consented Windows Auto Sync failures upload bounded stage codes only', () async {
+    Map<String, dynamic>? report;
+    final telemetry = WindowsPlaybackTelemetry.forTesting(
+      client: MockClient((request) async {
+        final wrapper = jsonDecode(request.body) as Map<String, dynamic>;
+        report = jsonDecode(utf8.decode(base64Decode(
+          wrapper['content'] as String))) as Map<String, dynamic>;
+        return http.Response('{}', 201);
+      }),
+      tokenProvider: () async => 'test-only-placeholder',
+    )..forceTestPlatform = true;
+    NightModeDiagnostics.debugModeEnabled.value = true;
+    telemetry.captureCode('sync_ffmpeg_failed');
+    telemetry.captureCode('sync_alignment_no_match');
+    telemetry.captureCode('https://private.invalid/media?token=SECRET');
+    expect(await telemetry.upload(reason: 'sync_failure', automatic: true), true);
+    expect(report!['reason'], 'sync_failure');
+    expect(report!['codes'], ['sync_ffmpeg_failed', 'sync_alignment_no_match']);
+    final payload = jsonEncode(report);
+    expect(payload, isNot(contains('private.invalid')));
+    expect(payload, isNot(contains('SECRET')));
+    telemetry.dispose();
+  });
+
 }

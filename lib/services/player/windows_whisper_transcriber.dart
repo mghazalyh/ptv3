@@ -202,45 +202,84 @@ abstract final class WindowsWhisperTranscriber {
     return 'source unreadable by decoder';
   }
 
+  /// mpv track IDs are not FFmpeg audio-stream ordinals. Never decode
+  /// FFmpeg's first track when the player explicitly selected another.
+  static bool useSelectedTrackCapture(int? audioTrackId) =>
+      audioTrackId != null && audioTrackId > 1;
+
   static Future<List<SpeechTimedWord>> transcribe({
     required String mediaUrl,
     required double startSeconds,
     required double durationSeconds,
     Map<String, String>? httpHeaders,
     int? audioTrackId,
+    void Function(String, {bool? failure})? onDiagnostic,
   }) async {
     if (!Platform.isWindows) throw UnsupportedError('Windows only');
     final cli = executable();
     if (!await cli.exists()) {
+      onDiagnostic?.call('sync_whisper_missing', failure: true);
       throw StateError('Offline Whisper executable is missing from Windows package');
     }
     final model = await _modelFile();
-    if (!await hasModel()) throw StateError('Download the English model first');
+    if (!await hasModel()) {
+      onDiagnostic?.call('sync_model_missing', failure: true);
+      throw StateError('Download the English model first');
+    }
     File? raw, wav, json;
     try {
-      // On Windows prefer separately bundled FFmpeg: seekable Torrentio/MKV
-      // audio often fails libmpv's PCM output despite normal movie playback.
-      // If FFmpeg cannot read this particular stream, retry with mpv.
-      try {
-        raw = await FfmpegSpeechAudioCapture.capture(
-          mediaUrl: mediaUrl, startSeconds: startSeconds,
-          durationSeconds: durationSeconds, httpHeaders: httpHeaders,
-        );
-      } catch (ffmpegError) {
+      // mpv track IDs are not FFmpeg -map 0:a:N indices. If playback
+      // selected a non-default track, use mpv with the exact active MPV
+      // audio track ID instead of silently recognizing another language.
+      if (useSelectedTrackCapture(audioTrackId)) {
+        onDiagnostic?.call('sync_selected_track_mpv');
+        onDiagnostic?.call('sync_mpv_started');
         try {
           raw = await MpvSpeechAudioCapture.capture(
-            mediaUrl: mediaUrl, startSeconds: startSeconds,
-            durationSeconds: durationSeconds, httpHeaders: httpHeaders,
+            mediaUrl: mediaUrl,
+            startSeconds: startSeconds,
+            durationSeconds: durationSeconds,
+            httpHeaders: httpHeaders,
             audioTrackId: audioTrackId,
           );
-        } catch (mpvError) {
+        } catch (error) {
+          onDiagnostic?.call('sync_mpv_failed', failure: true);
           throw WindowsSpeechSyncFailure(
-            'could not extract stream audio (FFmpeg: '
-            '${captureFailureReason(ffmpegError)}; mpv: '
-            '${captureFailureReason(mpvError)}).',
+            'could not extract selected audio track (mpv: '
+            '${captureFailureReason(error)}).',
           );
         }
+      } else {
+        onDiagnostic?.call('sync_ffmpeg_started');
+        try {
+          raw = await FfmpegSpeechAudioCapture.capture(
+            mediaUrl: mediaUrl,
+            startSeconds: startSeconds,
+            durationSeconds: durationSeconds,
+            httpHeaders: httpHeaders,
+          );
+        } catch (ffmpegError) {
+          onDiagnostic?.call('sync_ffmpeg_failed');
+          onDiagnostic?.call('sync_mpv_started');
+          try {
+            raw = await MpvSpeechAudioCapture.capture(
+              mediaUrl: mediaUrl,
+              startSeconds: startSeconds,
+              durationSeconds: durationSeconds,
+              httpHeaders: httpHeaders,
+              audioTrackId: audioTrackId,
+            );
+          } catch (mpvError) {
+            onDiagnostic?.call('sync_mpv_failed', failure: true);
+            throw WindowsSpeechSyncFailure(
+              'could not extract stream audio (FFmpeg: '
+              '${captureFailureReason(ffmpegError)}; mpv: '
+              '${captureFailureReason(mpvError)}).',
+            );
+          }
+        }
       }
+      onDiagnostic?.call('sync_audio_captured');
       if (raw.path.contains('playtorrio-ffmpeg-speech-')) {
         // FFmpeg produces whisper-ready 16 kHz/mono/16-bit WAV directly.
         wav = raw;
@@ -250,6 +289,7 @@ abstract final class WindowsWhisperTranscriber {
           await wav.writeAsBytes(
               whisperWave(await raw.readAsBytes()), flush: true);
         } on FormatException {
+          onDiagnostic?.call('sync_audio_conversion_failed', failure: true);
           throw const WindowsSpeechSyncFailure(
               'movie audio could not be converted to 16 kHz WAV.');
         }
@@ -257,12 +297,14 @@ abstract final class WindowsWhisperTranscriber {
       final output = wav.path + '.result';
       json = File(output + '.json');
       Process process;
+      onDiagnostic?.call('sync_whisper_started');
       try {
         process = await Process.start(cli.path, [
           '-m', model.path, '-f', wav.path, '-l', 'en', '-ml', '1',
           '-sow', '-oj', '-of', output, '-t', '4', '-np',
         ], workingDirectory: cli.parent.path);
       } on ProcessException {
+        onDiagnostic?.call('sync_whisper_start_failed', failure: true);
         throw const WindowsSpeechSyncFailure(
             'Whisper executable could not start (Windows runtime issue).');
       }
@@ -271,17 +313,22 @@ abstract final class WindowsWhisperTranscriber {
       final exit = await process.exitCode.timeout(const Duration(minutes: 4),
         onTimeout: () {
           process.kill();
+          onDiagnostic?.call('sync_whisper_timeout', failure: true);
           throw const WindowsSpeechSyncFailure(
               'Whisper recognition timed out on this PC.');
         });
       await Future.wait([out, err]);
       if (exit != 0 || !await json.exists()) {
+        onDiagnostic?.call('sync_whisper_failed', failure: true);
         throw WindowsSpeechSyncFailure(
           'Whisper could not recognize this clip (exit $exit).');
       }
       try {
-        return parseJson(await json.readAsString(), startSeconds);
+        final words = parseJson(await json.readAsString(), startSeconds);
+        onDiagnostic?.call('sync_recognition_finished');
+        return words;
       } on FormatException {
+        onDiagnostic?.call('sync_whisper_invalid_result', failure: true);
         throw const WindowsSpeechSyncFailure(
             'Whisper returned an invalid transcript.');
       }

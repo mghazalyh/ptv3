@@ -332,4 +332,29 @@ void main() {
     expect(IosNightModePreflight.compand, contains('points='));
     expect(IosNightModePreflight.compand, isNot(contains('acompressor')));
   });
+  test('iOS Auto Sync code upload is opt in and carries no private media data', () async {
+    SharedPreferences.setMockInitialValues({});
+    Map<String, dynamic>? report;
+    final telemetry = IosAudioTelemetry.forTesting(
+      client: MockClient((request) async {
+        final wrapper = jsonDecode(request.body) as Map<String, dynamic>;
+        report = jsonDecode(utf8.decode(base64Decode(
+          wrapper['content'] as String))) as Map<String, dynamic>;
+        return http.Response('{}', 201);
+      }),
+      tokenProvider: () async => 'test-only-placeholder',
+    )..forceTestPlatform = true;
+    addTearDown(telemetry.dispose);
+    await telemetry.initialize();
+    telemetry.captureCode('sync_alignment_no_match');
+    expect(telemetry.capturedCodes, isEmpty);
+    await telemetry.setEnabled(true);
+    telemetry.captureCode('sync_alignment_no_match');
+    telemetry.captureCode('secret-media-title');
+    expect(await telemetry.upload(reason: 'sync_failure', automatic: true), true);
+    expect(report!['reason'], 'sync_failure');
+    expect(report!['nativeErrorCodes'], ['sync_alignment_no_match']);
+    expect(jsonEncode(report), isNot(contains('secret-media-title')));
+  });
+
 }

@@ -1,0 +1,37 @@
+/// Fixed, non-identifying diagnostic event vocabulary shared by Windows and iOS.
+/// No media names, URLs, timestamps from filenames, transcripts, or raw errors.
+abstract final class PlayerDiagnosticCodes {
+  static const events = <String>{
+    'sync_started',
+    'sync_no_subtitles',
+    'sync_no_audio_source',
+    'sync_unseekable_source',
+    'sync_model_missing',
+    'sync_model_download_failed',
+    'sync_ffmpeg_started',
+    'sync_ffmpeg_failed',
+    'sync_mpv_started',
+    'sync_mpv_failed',
+    'sync_selected_track_mpv',
+    'sync_audio_captured',
+    'sync_audio_conversion_failed',
+    'sync_whisper_missing',
+    'sync_whisper_started',
+    'sync_whisper_start_failed',
+    'sync_whisper_timeout',
+    'sync_whisper_failed',
+    'sync_whisper_invalid_result',
+    'sync_recognition_finished',
+    'sync_alignment_started',
+    'sync_alignment_no_match',
+    'sync_alignment_matched',
+    'sync_apply_failed',
+    'sync_completed',
+    'sync_platform_failed',
+    'sync_timeout',
+    'sync_unexpected_failure',
+    'sync_cancelled',
+    'sync_online_speech_started',
+    'sync_online_speech_failed',
+  };
+}

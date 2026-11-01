@@ -85,6 +85,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   bool _isFetchingSimilar = false;
   bool _similarFromTmdb = false;
   int? _similarTvdbId;
+  int? _similarVerifiedTvdbTmdbId;
   static const int _similarPageSize = 8;
   int _similarVisibleCount = _similarPageSize;
   int _similarTmdbPage = 1;
@@ -382,6 +383,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         _similarItems = result.items;
         _similarFromTmdb = result.fromTmdb;
         _similarTvdbId = result.tvdbId;
+        _similarVerifiedTvdbTmdbId = result.verifiedTvdbTmdbId;
         _similarHasMore = result.hasMore;
         _similarTmdbPage = 1;
         _similarVisibleCount = _similarPageSize;
@@ -422,6 +424,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       final nextPage = _similarTmdbPage + 1;
       final response = await SimilarRecommendationsService.loadMore(
         detail: _detail!, isSeries: _isSeries, page: nextPage,
+        verifiedTvdbTmdbId: _similarVerifiedTvdbTmdbId,
       );
       if (!mounted) return;
       // Deduplicate the two TMDB feeds and records from previous pages.

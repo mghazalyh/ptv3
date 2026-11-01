@@ -35,6 +35,7 @@ import '../../services/player/playback_autoselection.dart';
 import '../../services/player/ios_speech_transcriber.dart';
 import '../../services/player/windows_whisper_transcriber.dart';
 import '../../services/player/subtitle_auto_sync_policy.dart';
+import '../../services/player/subtitle_rate_correction.dart';
 import '../../services/player/subtitle_auto_sync_platform.dart';
 import '../../services/player/speech_subtitle_alignment.dart';
 import '../../services/player/player_debug_telemetry.dart';
@@ -192,6 +193,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _autoSyncBusy = false;
   bool _syncIsAutomatic = false;
   Timer? _periodicAutoSyncTimer;
+  DateTime? _nextAutoSyncDueAt;
+  bool _autoSyncSucceeded = false;
+  SubtitleTimingAnchor? _subtitleRateAnchor;
+  double _subtitleSpeed = 1.0;
   String? _speechMediaUrl; // Active playable media; never logged or persisted.
   Map<String, String>? _speechMediaHeaders; // Same header set as the mpv movie player.
   bool _nextEpisodeBusy = false;
@@ -381,6 +386,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     _sourceOpeningWatchdog = null;
     _sourceOpeningAt = DateTime.now();
     _startPeriodicAutoSync();
+    _subtitleRateAnchor = null;
+    _subtitleSpeed = 1.0;
     _nightModeRecoveryFailed = false;
     _nightModeLastFallbackAt = null;
     ++_diagnosticsRevision;
@@ -591,6 +598,12 @@ class _PlayerScreenState extends State<PlayerScreen>
       );
 
       await _applyLiveDelay(0.0);
+      // Reused libmpv players must not carry a rate correction to another media.
+      try {
+        await (_player.platform as dynamic).setProperty('sub-speed', '1.0');
+      } catch (error) {
+        debugPrint('[PlayerSpeechSync] Reset native subtitle speed failed: ${error.runtimeType}');
+      }
       await PlayerSettings.applyPostOpenProperties(_player);
 
       _setSubtitleScale(_subtitleScale);
@@ -1407,18 +1420,35 @@ class _PlayerScreenState extends State<PlayerScreen>
     _player.setSubtitleTrack(SubtitleTrack.no());
   }
 
-  // Recheck speech every five minutes while video with EXTERNAL subtitles
-  // is playing. Never prompt, change subtitle source, or overlap attempts.
+  // Poll the five-minute deadline every 30 seconds. A skipped check due
+  // to buffering, pause, missing cues or an active sync is retried on resume,
+  // instead of silently waiting another full five minutes.
   void _startPeriodicAutoSync() {
     _periodicAutoSyncTimer?.cancel();
-    _periodicAutoSyncTimer = Timer.periodic(SubtitleAutoSyncPolicy.interval, (_) {
-      if (!mounted || !SubtitleAutoSyncPolicy.shouldRun(
-        isPlaying: _isPlaying, isLoading: _isLoading, isBusy: _autoSyncBusy,
+    _nextAutoSyncDueAt = DateTime.now().add(SubtitleAutoSyncPolicy.interval);
+    _periodicAutoSyncTimer = Timer.periodic(
+        SubtitleAutoSyncPolicy.pollInterval, (_) {
+      if (!mounted) return;
+      final now = DateTime.now();
+      if (now.isBefore(_nextAutoSyncDueAt ??
+          now.add(SubtitleAutoSyncPolicy.interval))) return;
+      PlayerDebugTelemetry.record('sync_timer_due');
+      final reason = SubtitleAutoSyncPolicy.skipReason(
+        isPlaying: _isPlaying && !_player.state.buffering,
+        isLoading: _isLoading, isBusy: _autoSyncBusy,
         hasExternalCues: _isSubtitleEnabled &&
             _currentSubtitlePath != null && _currentCues.length >= 2,
         hasAudioSource: _speechMediaUrl?.isNotEmpty == true,
         isSupported: Platform.isIOS || Platform.isWindows,
-      )) return;
+      );
+      if (reason != null) {
+        PlayerDebugTelemetry.record(reason);
+        return;
+      }
+      PlayerDebugTelemetry.record('sync_timer_attempt');
+      // The completed attempt decides the next deadline (5m on success,
+      // 2m on no-match/error). Do not overlap a running Whisper invocation.
+      _nextAutoSyncDueAt = now.add(SubtitleAutoSyncPolicy.interval);
       unawaited(_autoSyncSubtitles(automatic: true));
     });
   }
@@ -1428,7 +1458,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (_autoSyncBusy || _isLoading) return;
     final epoch = _audioMediaEpoch;
     _syncIsAutomatic = automatic;
+    _autoSyncSucceeded = false;
     setState(() => _autoSyncBusy = true);
+    if (!automatic) PlayerDebugTelemetry.record('sync_manual_requested');
     PlayerDebugTelemetry.record('sync_started');
     try {
       if (SubtitleAutoSyncPlatform.modeFor(
@@ -1467,6 +1499,11 @@ class _PlayerScreenState extends State<PlayerScreen>
                 'Subtitle timing unchanged.');
       }
     } finally {
+      if (mounted && epoch == _audioMediaEpoch) {
+        _nextAutoSyncDueAt = DateTime.now().add(_autoSyncSucceeded
+            ? SubtitleAutoSyncPolicy.interval
+            : SubtitleAutoSyncPolicy.failedRetryInterval);
+      }
       _syncIsAutomatic = false;
       if (mounted) setState(() => _autoSyncBusy = false);
     }
@@ -1665,6 +1702,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       speech: words,
       sampleStartSeconds: sampleStart,
       sampleEndSeconds: sampleStart + sampleLength,
+      subtitleSpeed: _subtitleSpeed,
     );
     if (estimate == null) {
       PlayerDebugTelemetry.record('sync_alignment_no_match', failure: true);
@@ -1675,11 +1713,68 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (!mounted || epoch != _audioMediaEpoch ||
         subtitlePath != _currentSubtitlePath) return;
     PlayerDebugTelemetry.record('sync_alignment_matched');
-    final applied = await _applyLiveDelay(estimate.delaySeconds);
+    final anchor = SubtitleTimingAnchor(
+      cueSeconds: estimate.cueAnchorSeconds,
+      spokenSeconds: estimate.cueAnchorSeconds * _subtitleSpeed +
+          estimate.delaySeconds,
+      supportingCues: estimate.supportingCues,
+      spreadSeconds: estimate.spreadSeconds,
+    );
+    var desiredDelay = estimate.delaySeconds;
+    final originalSpeed = _subtitleSpeed;
+    var rateApplied = false;
+    final previousAnchor = _subtitleRateAnchor;
+    if (Platform.isWindows && previousAnchor != null &&
+        anchor.cueSeconds > previousAnchor.cueSeconds) {
+      final correction = SubtitleRateCorrection.estimate(
+          previousAnchor, anchor);
+      if (correction != null &&
+          (correction.speed - _subtitleSpeed).abs() > 0.002) {
+        // A rate mismatch changes as the movie progresses. Only actual
+        // multi-cue dialogue matches minutes apart may change sub-speed.
+        try {
+          await (_player.platform as dynamic).setProperty(
+              'sub-speed', correction.speed.toStringAsFixed(8));
+          if (!mounted || epoch != _audioMediaEpoch ||
+              subtitlePath != _currentSubtitlePath) return;
+          rateApplied = true;
+          _subtitleSpeed = correction.speed;
+          desiredDelay = correction.delaySeconds;
+          PlayerDebugTelemetry.record('sync_rate_corrected');
+        } catch (error) {
+          PlayerDebugTelemetry.record('sync_rate_apply_failed', failure: true);
+          debugPrint('[PlayerSpeechSync] Subtitle rate unsupported: ${error.runtimeType}');
+        }
+      } else if (correction == null &&
+          anchor.cueSeconds - previousAnchor.cueSeconds >=
+              SubtitleRateCorrection.minSeparationSeconds) {
+        PlayerDebugTelemetry.record('sync_rate_rejected');
+      }
+    }
+    if (!mounted || epoch != _audioMediaEpoch ||
+        subtitlePath != _currentSubtitlePath) return;
+    final applied = await _applyLiveDelay(desiredDelay);
+    if (!applied && rateApplied) {
+      try {
+        await (_player.platform as dynamic).setProperty(
+            'sub-speed', originalSpeed.toStringAsFixed(8));
+      } catch (error) {
+        debugPrint('[PlayerSpeechSync] Subtitle rate rollback failed: ${error.runtimeType}');
+      }
+      _subtitleSpeed = originalSpeed;
+    }
     if (applied && mounted && epoch == _audioMediaEpoch) {
+      if (anchor.isReliable &&
+          (previousAnchor == null ||
+           anchor.cueSeconds < previousAnchor.cueSeconds ||
+           anchor.cueSeconds - previousAnchor.cueSeconds >=
+               SubtitleRateCorrection.minSeparationSeconds)) {
+        _subtitleRateAnchor = anchor;
+      }
+      _autoSyncSucceeded = true;
       setState(() {});
       PlayerDebugTelemetry.record('sync_completed');
-      final offset = estimate.delaySeconds;
+      final offset = desiredDelay;
       final direction = offset < 0 ? 'earlier' : 'later';
       _showAutoSyncMessage(
         'Aligned subtitles to spoken audio: ${offset.abs().toStringAsFixed(1)}s $direction '
@@ -1748,6 +1843,17 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (!mounted || epoch != _audioMediaEpoch ||
           (automatic && (_subtitleManuallySelected || _isSubtitleEnabled))) {
         return false;
+      }
+      if (_currentSubtitlePath != path) {
+        // The original cue timebase is different after a subtitle switch.
+        _subtitleRateAnchor = null;
+        _subtitleSpeed = 1.0;
+        try {
+          await (_player.platform as dynamic).setProperty('sub-speed', '1.0');
+        } catch (error) {
+          debugPrint('[PlayerSpeechSync] Subtitle speed reset failed: ${error.runtimeType}');
+        }
+        await _applyLiveDelay(0.0);
       }
       await _player.setSubtitleTrack(SubtitleTrack.uri(
           _resolveSubtitleUri(path), title: variant.language));
@@ -1818,6 +1924,13 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _saveTextSyncedCues(List<SubCue> syncedCues, double offsetSec) async {
+    _subtitleRateAnchor = null;
+    _subtitleSpeed = 1.0;
+    try {
+      await (_player.platform as dynamic).setProperty('sub-speed', '1.0');
+    } catch (error) {
+      debugPrint('[PlayerSpeechSync] Text sync speed reset failed: ${error.runtimeType}');
+    }
     _currentCues = syncedCues;
     _subtitleDelayMs = 0.0; // Reset live delay since timestamps are now permanently baked into cues
     if (_currentSubtitlePath != null) {

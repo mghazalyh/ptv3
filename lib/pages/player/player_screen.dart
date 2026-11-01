@@ -1958,9 +1958,40 @@ class _PlayerScreenState extends State<PlayerScreen>
       } else {
         PlayerDebugTelemetry.record('subtitle_track_unknown');
       }
-      PlayerDebugTelemetry.record(PlayerSettings.useLibass.value
-          ? 'subtitle_native_renderer_active'
-          : 'subtitle_flutter_renderer_active');
+      if (PlayerSettings.useLibass.value) {
+        // A saved preference is not proof that MPV can render this track.
+        bool? visible;
+        try {
+          final state = (await native.getProperty('sub-visibility'))
+              ?.toString().toLowerCase();
+          visible = state == 'yes' ? true : state == 'no' ? false : null;
+          if (visible == false) {
+            await native.setProperty('sub-visibility', 'yes');
+            final after = (await native.getProperty('sub-visibility'))
+                ?.toString().toLowerCase();
+            visible = after == 'yes' ? true : after == 'no' ? false : null;
+          }
+        } catch (error) {
+          debugPrint('[PlayerSubtitles] Renderer probe: ${error.runtimeType}');
+        }
+        if (visible == false) {
+          PlayerDebugTelemetry.record('subtitle_renderer_hidden', failure: true);
+          if (!automatic && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Player subtitle rendering is disabled'),
+            ));
+          }
+          return false;
+        }
+        PlayerDebugTelemetry.record(visible == true
+            ? 'subtitle_native_renderer_active'
+            : 'subtitle_renderer_unknown');
+      } else if (PlayerSettings.getSubtitleViewConfiguration().visible) {
+        PlayerDebugTelemetry.record('subtitle_flutter_renderer_active');
+      } else {
+        PlayerDebugTelemetry.record('subtitle_renderer_hidden', failure: true);
+        return false;
+      }
 
       setState(() {
         _currentSubtitleVariant = variant;

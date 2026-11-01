@@ -972,6 +972,7 @@ class TmdbDiscoverService {
     int? startYear,
     String? imdbId,
     int? tmdbId,
+    int? verifiedTvdbTmdbId,
   }) async {
     if (page < 1 || page > 10) {
       return (items: <DiscoverTitle>[], hasMore: false);
@@ -982,7 +983,9 @@ class TmdbDiscoverService {
     }
     final isSeries = type == DiscoverType.series;
     final kind = isSeries ? 'tv' : 'movie';
-    int? id = tmdbId != null && tmdbId > 0 ? tmdbId : null;
+    int? id = tmdbId != null && tmdbId > 0 ? tmdbId :
+        isSeries && verifiedTvdbTmdbId != null && verifiedTvdbTmdbId > 0
+            ? verifiedTvdbTmdbId : null;
     if (id == null && imdbId != null &&
         RegExp(r'^tt\d+$').hasMatch(imdbId)) {
       final found = await _request('find/$imdbId',

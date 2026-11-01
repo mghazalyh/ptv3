@@ -21,7 +21,10 @@ jobs:
     # Reuse the exact same, source-pinned tests/build/signing steps on backup runners.
     steps: &speech_ios_steps
       - name: Compute monotonic iOS build number
-        run: echo "SPEECH_BUILD_NUMBER=$((149 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+        # The preceding paired IPA was Build #170. iOS-only Run #14 must
+        # be Build #171, not #163, or the installed iPad build is downgraded.
+        # Keep this offset aligned whenever a future paired build overtakes it.
+        run: echo "SPEECH_BUILD_NUMBER=$((157 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
       - name: Checkout source (recoverable network step)
         id: ios_checkout
         uses: actions/checkout@v4
@@ -473,7 +476,7 @@ jobs:
       - name: Verify signed IPA and publish permanent version-specific release
         run: |
           set -euo pipefail
-          BUILD_NUMBER=$((149 + GITHUB_RUN_NUMBER))
+          BUILD_NUMBER=$((157 + GITHUB_RUN_NUMBER))
           TAG="ios-speech-v1.1.15-run$GITHUB_RUN_NUMBER"
           ASSET="PlayTorrio-v1.1.15-build$BUILD_NUMBER-iOS15-TrollStore.ipa"
           test -s packages/ios15/PlayTorrio-iOS15-TrollStore.ipa
@@ -487,14 +490,14 @@ jobs:
               info=plistlib.loads(z.read('Payload/Runner.app/Info.plist'))
               assert tuple(map(int,info['MinimumOSVersion'].split('.'))) <= (15,0)
               assert 2 in info['UIDeviceFamily']
-              assert info['CFBundleVersion']==str(149+int(os.environ['GITHUB_RUN_NUMBER']))
+              assert info['CFBundleVersion']==str(157+int(os.environ['GITHUB_RUN_NUMBER']))
           print('Ad hoc signed iOS 15 IPA verified')
           PY
           (cd release && sha256sum PlayTorrio-* > SHA256SUMS.txt)
           {
             printf 'PlayTorrio iOS 15 — Latest Shared Features — Build %s\n\n' "$BUILD_NUMBER"
             printf 'Source revision: %s\n' "$GITHUB_SHA"
-            printf '%s\n' 'iOS-only release from the latest shared Flutter source; Windows Build #166 stays unchanged.'
+            printf '%s\n' 'iOS-only Night Mode compressor packaging repair from shared source; Windows Build #170 stays unchanged.'
             printf "\nWhat's new / Fixed:\n"
             cat .github/release-notes.txt
           } > release-notes.md
@@ -544,7 +547,7 @@ jobs:
       - name: Send current-feature iOS 15 TrollStore IPA
         run: |
           set -euo pipefail
-          export BUILD_NUMBER=$((149 + GITHUB_RUN_NUMBER))
+          export BUILD_NUMBER=$((157 + GITHUB_RUN_NUMBER))
           IPA="packages/ios15/PlayTorrio-iOS15-TrollStore.ipa"
           test -s "$IPA"
           if [ "$(stat -c%s "$IPA")" -ge 50000000 ]; then

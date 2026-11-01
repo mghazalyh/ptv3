@@ -281,7 +281,7 @@ class WindowsPlaybackTelemetry {
     final now = DateTime.now().toUtc();
     final approvedReason = const {
       'manual', 'brightness_changed', 'night_mode_changed',
-      'audio_filter_failure', 'playback_sample',, 'sync_failure',
+      'audio_filter_failure', 'playback_sample', 'sync_failure',
     }.contains(reason) ? reason : 'manual';
     final timestamp = now.toIso8601String()
         .replaceAll(':', '-').replaceAll('.', '-');

@@ -187,3 +187,25 @@ jobs:
           LINK="https://github.com/$GITHUB_REPOSITORY/releases/download/ios-speech-v1.1.15-run16/PlayTorrio-v1.1.15-build173-iOS15-TrollStore.ipa"
           MSG="PlayTorrio v1.1.15 signed iOS 15 TrollStore Build #173 is published from the ORIGINAL signed native artifact with no rebuild. Its IPA is 53,628,172 bytes, too large for the Telegram bot document limit. Download verified release: $LINK . SHA256: 921cc73a7864acfd9df7e24a9fe3eda479720ccf25986b2ec9eff70d4024765b . Subtitle visibility and Night Mode must still be tested on device."
           python3 .github/scripts/telegram_ci.py send-text --text "$MSG"
+
+  telegram-on-publish-failure:
+    name: Alert Telegram if signed IPA publication is blocked
+    needs: [publish]
+    if: ${{ always() && needs.publish.result != 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report delivery-only recovery failure and existing signed artifact
+        shell: bash
+        env:
+          RESULT: ${{ needs.publish.result }}
+        run: |
+          set -euo pipefail
+          MESSAGE="PlayTorrio iOS Build #173 signed IPA publication recovery: $RESULT. The original native signing completed successfully; DO NOT rebuild. Existing GitHub Actions artifact #13085144098: https://github.com/$GITHUB_REPOSITORY/actions/runs/41310388291/artifacts/13085144098 . It expires 2026-11-04 13:27 UTC. Recovery run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID . GitHub Release/Telegram IPA delivery remain unverified."
+          python3 .github/scripts/telegram_ci.py send-text --text "$MESSAGE"

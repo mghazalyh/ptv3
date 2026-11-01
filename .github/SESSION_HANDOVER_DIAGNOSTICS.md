@@ -1,0 +1,3 @@
+# Emergency session handover: diagnostics and dual release
+
+Owner requested automatic privacy-safe opt-in diagnostics uploads on Windows and iOS and new native releases for both platforms. First address Windows subtitle Auto Sync; FFmpeg uses 0:a:0 regardless of player-selected audio track and telemetry does not record extractor, recognition, matcher or timing errors. Add bounded stage codes and automatic uploads while diagnostics permission is enabled, with no subtitle text, URLs, tokens or transcripts. Preserve Windows Build 166 and iOS Build 159's filter-enabled libmpv fix. Analyze/test, request Windows and iOS builds separately, verify GitHub assets and Telegram. Check existing run status before retries.

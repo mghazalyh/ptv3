@@ -41,6 +41,7 @@ import '../../services/player/speech_subtitle_alignment.dart';
 import '../../services/player/player_debug_telemetry.dart';
 import '../../services/player/paused_http_recovery.dart';
 import '../../services/player/playback_source_recovery.dart';
+import '../../services/player/debrid_source_readiness.dart';
 import '../../services/player/automatic_skip_policy.dart';
 import '../../services/player/playback_diagnostics_probe.dart';
 import '../../services/metadata/metadata_service.dart';
@@ -229,6 +230,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   int _sourceRecoveryEpoch = 0;
   DateTime? _sourceOpeningAt;
   Timer? _sourceOpeningWatchdog;
+  Timer? _debridPlaceholderCheck;
+  bool _debridPlaceholderRecoveryRequested = false;
   Duration _sourceOpeningBaseline = Duration.zero;
   String? _httpVodUrl;
   Map<String, String>? _httpVodHeaders;
@@ -316,6 +319,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (mounted) {
           setState(() => _duration = dur);
           _updateDiscordRpc();
+          _scheduleDebridPlaceholderCheck(dur);
         }
       }),
       _player.stream.buffer.listen((buf) {
@@ -358,6 +362,13 @@ class _PlayerScreenState extends State<PlayerScreen>
       }),
       _player.stream.completed.listen((completed) {
         if (completed && mounted && !_isLoading) {
+          // TorBox status stubs are 20-30 second playable videos; they must
+          // never trigger automatic navigation to the following TV episode.
+          if (_debridPlaceholderRecoveryRequested ||
+              _isDebridPlaceholderDuration(_player.state.duration)) {
+            _recoverDebridPlaceholder();
+            return;
+          }
           _savePlaybackProgress();
           if (_lastAutoplayEpoch != _audioMediaEpoch) {
             _lastAutoplayEpoch = _audioMediaEpoch;
@@ -384,6 +395,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     ++_streamGeneration;
     _sourceOpeningWatchdog?.cancel();
     _sourceOpeningWatchdog = null;
+    _debridPlaceholderCheck?.cancel();
+    _debridPlaceholderCheck = null;
+    _debridPlaceholderRecoveryRequested = false;
     _sourceOpeningAt = DateTime.now();
     _startPeriodicAutoSync();
     _subtitleRateAnchor = null;
@@ -425,6 +439,19 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Do not write authenticated resolver URLs or TorBox tokens to logs.
 
     try {
+      // The source provider explicitly says this debrid item is still
+      // downloading. Skip its 29-second progress/status video entirely.
+      if (DebridSourceReadiness.isExplicitlyPending(_currentSource) &&
+          _canAutoRecoverSource()) {
+        PlayerDebugTelemetry.record('source_debrid_pending');
+        if (_sourceRecoveryBusy) {
+          _sourceFailureDuringRecovery = true;
+        } else {
+          unawaited(_recoverFailedSource(
+            skipCurrentRetry: true, followPickerOrder: true));
+        }
+        return;
+      }
       final rawUrl = _currentSource.url;
 
       // Handle offline downloaded file playback directly
@@ -2092,7 +2119,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   bool _canAutoRecoverSource() {
-    if (!Platform.isWindows || _currentEpisode == null ||
+    if (!(Platform.isWindows || Platform.isIOS) || _currentEpisode == null ||
         !PlaybackSourceRecovery.isHttpCandidate(_currentSource)) {
       return false;
     }
@@ -2101,6 +2128,47 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Never restart an episode that has already played for several minutes.
     return started != null &&
         DateTime.now().difference(started) <= const Duration(seconds: 95);
+  }
+
+  bool _isDebridPlaceholderDuration(Duration duration) =>
+      DebridSourceReadiness.isShortStatusClip(
+        source: _currentSource,
+        duration: duration,
+        isEpisode: _currentEpisode != null,
+      );
+
+  void _scheduleDebridPlaceholderCheck(Duration duration) {
+    if (_debridPlaceholderCheck != null ||
+        _debridPlaceholderRecoveryRequested ||
+        !_canAutoRecoverSource() ||
+        !_isDebridPlaceholderDuration(duration)) return;
+    final generation = _streamGeneration;
+    // Allow MPV metadata to settle. A temporary incorrect duration must
+    // not redirect actual movie playback.
+    _debridPlaceholderCheck = Timer(const Duration(seconds: 2), () {
+      _debridPlaceholderCheck = null;
+      if (!mounted || generation != _streamGeneration ||
+          !_canAutoRecoverSource() || _isLoading || _sourceNativeOpening ||
+          !_isDebridPlaceholderDuration(_player.state.duration)) return;
+      _recoverDebridPlaceholder();
+    });
+  }
+
+  void _recoverDebridPlaceholder() {
+    if (_debridPlaceholderRecoveryRequested || !_canAutoRecoverSource()) return;
+    _debridPlaceholderRecoveryRequested = true;
+    _debridPlaceholderCheck?.cancel();
+    _debridPlaceholderCheck = null;
+    _sourceOpeningWatchdog?.cancel();
+    _sourceOpeningWatchdog = null;
+    PlayerDebugTelemetry.record('source_debrid_placeholder', failure: true);
+    debugPrint('[PlayerScreen] Short debrid status clip; trying next episode source');
+    if (_sourceRecoveryBusy) {
+      _sourceFailureDuringRecovery = true;
+    } else {
+      unawaited(_recoverFailedSource(
+        skipCurrentRetry: true, followPickerOrder: true));
+    }
   }
 
   void _startSourceOpeningWatchdog(int generation) {
@@ -2156,7 +2224,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
-  Future<void> _recoverFailedSource() async {
+  Future<void> _recoverFailedSource({
+    bool skipCurrentRetry = false,
+    bool followPickerOrder = false,
+  }) async {
     if (!mounted || !_canAutoRecoverSource()) return;
     if (_sourceRecoveryBusy) {
       _sourceFailureDuringRecovery = true;
@@ -2173,7 +2244,16 @@ class _PlayerScreenState extends State<PlayerScreen>
         ...episode.streams,
       ];
       while (mounted && epoch == _sourceRecoveryEpoch) {
-        final action = _sourceRecovery.next(_currentSource, candidates);
+        final action = _sourceRecovery.next(
+          _currentSource,
+          candidates,
+          skipCurrentRetry: skipCurrentRetry ||
+              DebridSourceReadiness.isExplicitlyPending(_currentSource) ||
+              _debridPlaceholderRecoveryRequested,
+          followPickerOrder: followPickerOrder ||
+              _debridPlaceholderRecoveryRequested ||
+              DebridSourceReadiness.isExplicitlyPending(_currentSource),
+        );
         if (action == null) {
           if (!_sourceRecovery.hasQueriedAlternatives) {
             _sourceRecovery.hasQueriedAlternatives = true;
@@ -2185,6 +2265,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             }
           }
           WindowsPlaybackTelemetry.instance.captureCode('source_recovery_exhausted');
+          PlayerDebugTelemetry.record('source_auto_exhausted', failure: true);
           // The source picker retains manual choice when every safe automatic
           // direct HTTP candidate has failed, instead of looping forever.
           if (mounted) setState(() {
@@ -2200,6 +2281,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           WindowsPlaybackTelemetry.instance.captureCode('source_retry_requested');
         } else {
           WindowsPlaybackTelemetry.instance.captureCode('source_fallback_attempted');
+          PlayerDebugTelemetry.record('source_auto_next');
         }
         if (!mounted || epoch != _sourceRecoveryEpoch) return;
         setState(() {
@@ -2920,6 +3002,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _diagnosticsTimer?.cancel();
     _playbackPerformanceTimer?.cancel();
     _sourceOpeningWatchdog?.cancel();
+    _debridPlaceholderCheck?.cancel();
     ++_sourceRecoveryEpoch;
     if (_frameTimingsRegistered) {
       SchedulerBinding.instance.removeTimingsCallback(_onFlutterFrameTimings);

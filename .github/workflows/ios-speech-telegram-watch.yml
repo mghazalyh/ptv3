@@ -1,0 +1,30 @@
+name: 'PlayTorrio iOS-only Telegram status and failure alerts'
+on:
+  push:
+    branches:
+      - parity-floating-player-both
+    paths:
+      - '.github/ios-speech-release-request.txt'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: playtorrio-ios-telegram-watch-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  watch-ios-only-release:
+    name: 'Alert Telegram periodically, on errors, and on final outcome'
+    runs-on: ubuntu-latest
+    timeout-minutes: 260
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate iOS-only notification logic
+        run: |
+          python3 .github/scripts/telegram_ci.py --self-test
+          python3 .github/scripts/watch_ios_speech_release.py --self-test
+      - name: Send 15-minute iOS build status and failure alerts
+        run: python3 -u .github/scripts/watch_ios_speech_release.py

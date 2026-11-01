@@ -1,3 +1,15 @@
+# Update: replacement Windows #168 + iOS #162 RUNNING, 2026-11-01 SGT
+
+Owner asked "progress?" after prior release request, and authorized builds earlier. Both initial native release workflows failed during prebuild Flutter test compilation BEFORE native compilation: Windows #167 run 41273349520 and iOS Run #12 Build #161 run 41273398260. Exact same syntax error: `lib/services/player/windows_playback_telemetry.dart:284` contained `'playback_sample',, 'sync_failure'`. Fixed in source commit `fa1a1037229957a4ab9342d0d716c4b60b1fb0c3` to one comma.
+
+New replacement native release requests accepted and started:
+- Windows **Build #168** Run **41274584648**, https://github.com/mghazalyh/ptv3/actions/runs/41274584648, [windows-only] trigger commit `cdf45959c1001f41cedd1707c9496c55f1f629bc`.
+- iOS **Run #13 / Build #162** Run **41274623547**, https://github.com/mghazalyh/ptv3/actions/runs/41274623547, trigger commit `9c858bfd865344e9bce0eb6b292860accb3208c7`.
+- Both were **in_progress**, and no successful release, checksum or Telegram delivery is yet claimed. User expressly requested **no ongoing monitoring**; avoid polling and duplicate native builds. Check final status only when owner returns.
+- Source commits `cff5f6ebd0044f4205598f9630651ac45ea918c3` etc contain shared stage allowlist and automatic failure uploads under platform existing opt-in, Windows track correction, iOS oversized Telegram link fallback. iOS audio compressor preserved.
+
+## Earlier handover follows
+
 # Active build handover — 2026-11-01 SGT
 
 User explicitly requested: trigger both native builds and do NOT wait to monitor them. Both requested workflows HAVE STARTED and are running; do not trigger duplicates.

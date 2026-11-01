@@ -1,0 +1,12 @@
+{
+  "purpose": "publish-existing-signed-ios173-only",
+  "run_id": 41310388291,
+  "artifact_id": 13085144098,
+  "source_sha": "ea9467fa856fddc0eecbaa44cf077a407e871fd1",
+  "artifact_sha256": "279119c7b362111c611806387117f7b34d453b3e05dd6f31697b864a23c34601",
+  "ipa_sha256": "921cc73a7864acfd9df7e24a9fe3eda479720ccf25986b2ec9eff70d4024765b",
+  "expected_ipa_name": "PlayTorrio-v1.1.15-build173-iOS15-TrollStore.ipa",
+  "release_tag": "ios-speech-v1.1.15-run16",
+  "native_rebuild": false,
+  "reason": "Original iOS-only Run 16 native signed IPA succeeded; publisher 403. Reuse existing artifact and release to Telegram only after checksummed GitHub publication."
+}

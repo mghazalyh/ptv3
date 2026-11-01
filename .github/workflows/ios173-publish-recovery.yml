@@ -25,6 +25,7 @@ jobs:
       # intermittent GITHUB_TOKEN release-creation integration restriction.
       # Without that secret this uses the normal contents:write token.
       GH_TOKEN: ${{ secrets.PLAYTORRIO_RELEASE_TOKEN || github.token }}
+      REQUIRE_AUTHORIZED_RELEASE_TOKEN: ${{ secrets.PLAYTORRIO_RELEASE_TOKEN != '' }}
       ORIGINAL_RUN: '41310388291'
       ORIGINAL_SHA: 'ea9467fa856fddc0eecbaa44cf077a407e871fd1'
       ORIGINAL_ARTIFACT_ID: '13085144098'
@@ -37,6 +38,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Require source-tag release credential with workflow modification authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$REQUIRE_AUTHORIZED_RELEASE_TOKEN" != "true" ]; then
+            echo "::error::Build 173 original source differs in .github/workflows from default branch. The GitHub Actions GITHUB_TOKEN cannot create the pinned original tag/release (HTTP 403). Configure repository secret PLAYTORRIO_RELEASE_TOKEN with repository Contents: write and Workflows: write, then authorize a new ARTIFACT-ONLY recovery attempt. Never rebuild the already-signed IPA."
+            exit 1
+          fi
       - name: Verify one-time request and previously successful signed native job
         shell: bash
         run: |

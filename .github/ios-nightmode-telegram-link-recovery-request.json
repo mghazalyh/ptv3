@@ -1,0 +1,9 @@
+{
+  "run_id": "41239363420",
+  "source_sha": "75911eb6c1edff656c3aa81963c36ba644f90c7a",
+  "tag": "ios-speech-v1.1.15-run10",
+  "asset": "PlayTorrio-v1.1.15-build159-iOS15-TrollStore.ipa",
+  "sha256": "sha256:e13fc0e1835adfdefaff37bb874aca14a195ac3367ee94fa8ce3e88267d45506",
+  "build": 159,
+  "delivery": "telegram_sendMessage_link_only_no_native_rebuild"
+}

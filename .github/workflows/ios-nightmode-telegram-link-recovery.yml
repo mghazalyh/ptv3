@@ -1,0 +1,70 @@
+name: PlayTorrio iOS Night Mode Telegram release link recovery
+# Delivery-only recovery. Never invokes Flutter, Xcode, or another iOS build.
+on:
+  push:
+    branches: [parity-floating-player-both]
+    paths:
+      - '.github/ios-nightmode-telegram-link-recovery-request.json'
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: playtorrio-ios-nightmode-delivery-only
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    name: Validate published Build 159 and send its Telegram download link
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify original successful iOS build and immutable published IPA
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          REQUEST=.github/ios-nightmode-telegram-link-recovery-request.json
+          RUN_ID=$(jq -er .run_id "$REQUEST")
+          SOURCE_SHA=$(jq -er .source_sha "$REQUEST")
+          TAG=$(jq -er .tag "$REQUEST")
+          ASSET=$(jq -er .asset "$REQUEST")
+          DIGEST=$(jq -er .sha256 "$REQUEST")
+          BUILD=$(jq -er .build "$REQUEST")
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$BUILD" =~ ^[0-9]+$ ]]
+          [[ "$TAG" == "ios-speech-v1.1.15-run10" ]]
+          [[ "$ASSET" == "PlayTorrio-v1.1.15-build159-iOS15-TrollStore.ipa" ]]
+          [[ "$RUN_ID" == "41239363420" ]]
+          [[ "$BUILD" == "159" ]]
+          SOURCE_REAL=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq '.head_sha')
+          RUN_NUMBER=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq '.run_number')
+          [[ "$SOURCE_REAL" == "$SOURCE_SHA" ]]
+          [[ "$RUN_NUMBER" == "10" ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" > /tmp/original-ios-jobs.json
+          jq -e 'any(.jobs[]; .name == "iOS Speech — primary Intel" and .conclusion == "success")' /tmp/original-ios-jobs.json
+          jq -e 'any(.jobs[]; .name == "Publish signed speech-sync iOS 15 IPA and checksums" and .conclusion == "success")' /tmp/original-ios-jobs.json
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > /tmp/original-ios-release.json
+          jq -e --arg sha "$SOURCE_SHA" '.target_commitish == $sha and .draft == false and .prerelease == false' /tmp/original-ios-release.json
+          jq -e --arg name "$ASSET" --arg digest "$DIGEST"             'any(.assets[]; .name == $name and .size > 50000000 and .digest == $digest)' /tmp/original-ios-release.json
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+          echo "Published, signed Build 159 IPA and original macOS success verified. No recompilation."
+      - name: Send official Build 159 download link without oversized attachment
+        shell: bash
+        env:
+          TAG: ${{ steps.validate.outputs.tag }}
+          ASSET: ${{ steps.validate.outputs.asset }}
+        run: |
+          set -euo pipefail
+          LINK="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$ASSET"
+          MSG="PlayTorrio iOS 15 Night Mode fix: signed Build #159 is ready. Your previous diagnostics still came from Build #157, which lacks the audio compressors. Build #159 includes verified iOS arm64 acompressor/compand/alimiter filters. The 53.6 MB IPA exceeds Telegram bot attachment limits, so download it from this verified GitHub Release: $LINK . Install through TrollStore. No Windows rebuild."
+          python3 .github/scripts/telegram_ci.py send-text --text "$MSG"

@@ -3,6 +3,18 @@
 abstract final class PlayerDiagnosticCodes {
   static const events = <String>{
     'sync_started',
+    'sync_manual_requested',
+    'sync_timer_due',
+    'sync_timer_attempt',
+    'sync_timer_unsupported',
+    'sync_timer_paused',
+    'sync_timer_loading',
+    'sync_timer_busy',
+    'sync_timer_no_cues',
+    'sync_timer_no_source',
+    'sync_rate_corrected',
+    'sync_rate_rejected',
+    'sync_rate_apply_failed',
     'sync_no_subtitles',
     'sync_no_audio_source',
     'sync_unseekable_source',

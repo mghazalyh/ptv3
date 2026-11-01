@@ -206,6 +206,11 @@ jobs:
       - name: Test player and Continue Watching Show Details actions
         run: flutter test test/show_details_navigation_test.dart
 
+      - name: Test shared debrid placeholder source fallback on iOS
+        run: |
+          flutter test test/playback_source_recovery_test.dart
+          flutter test test/debrid_source_readiness_test.dart
+
       - name: Test spoken-word audio-to-subtitle timing
         run: flutter test test/speech_subtitle_alignment_test.dart
 

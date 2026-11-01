@@ -107,7 +107,7 @@ abstract final class PlayerSettings {
   static final ValueNotifier<double> subPos = ValueNotifier<double>(100.0);
   static final ValueNotifier<String> subAlignX = ValueNotifier<String>('center');
   static final ValueNotifier<String> subAssOverride = ValueNotifier<String>('no');
-  static final ValueNotifier<bool> useLibass = ValueNotifier<bool>(false);
+  static final ValueNotifier<bool> useLibass = ValueNotifier<bool>(Platform.isWindows || Platform.isIOS);
   static final ValueNotifier<int> changeNotifier = ValueNotifier<int>(0);
 
   // Extracted font paths for libass font fallback
@@ -164,7 +164,7 @@ abstract final class PlayerSettings {
     subPos.value = prefs.getDouble(_keySubPos) ?? 100.0;
     subAlignX.value = prefs.getString(_keySubAlignX) ?? 'center';
     subAssOverride.value = prefs.getString(_keySubAssOverride) ?? 'no';
-    useLibass.value = prefs.getBool(_keyUseLibass) ?? false;
+    useLibass.value = prefs.getBool(_keyUseLibass) ?? (Platform.isWindows || Platform.isIOS);
 
     // Extract bundled font for libass fallback
     await _extractLibassFontFallback();
@@ -1000,7 +1000,7 @@ abstract final class PlayerSettings {
     await prefs.remove(_keySubAssOverride);
     await prefs.remove(_keyUseLibass);
 
-    useLibass.value = false;
+    useLibass.value = Platform.isWindows || Platform.isIOS;
     subStylePreset.value = SubtitleStylePreset.classicWhite;
     subFont.value = 'Poppins';
     subFontSize.value = 32;

@@ -11,10 +11,12 @@ class SimilarRecommendationsResult {
   final List<BSItem> items;
   final bool fromTmdb;
   final int? tvdbId;
+  final int? verifiedTvdbTmdbId;
   final bool hasMore;
 
   const SimilarRecommendationsResult(this.items,
-      {this.fromTmdb = false, this.tvdbId, this.hasMore = false});
+      {this.fromTmdb = false, this.tvdbId, this.verifiedTvdbTmdbId,
+       this.hasMore = false});
 }
 
 /// On-demand related titles for the opened details page. No polling, no
@@ -200,6 +202,7 @@ abstract final class SimilarRecommendationsService {
       return SimilarRecommendationsResult(cards,
           fromTmdb: cards.isNotEmpty,
           tvdbId: tvdb?.id,
+          verifiedTvdbTmdbId: tvdb?.tmdbId,
           hasMore: page.hasMore);
     } catch (error) {
       debugPrint('[Similar] ${kind} fallback unavailable: ${error.runtimeType}');
@@ -213,6 +216,7 @@ abstract final class SimilarRecommendationsService {
     required MovieDetail detail,
     required bool isSeries,
     required int page,
+    int? verifiedTvdbTmdbId,
   }) async {
     final type = isSeries ? DiscoverType.series : DiscoverType.movie;
     try {
@@ -223,6 +227,7 @@ abstract final class SimilarRecommendationsService {
         startYear: firstReleaseYear(detail.year),
         imdbId: detail.id.startsWith('tt') ? detail.id : null,
         tmdbId: int.tryParse(detail.tmdbId ?? ''),
+        verifiedTvdbTmdbId: verifiedTvdbTmdbId,
       );
       final items = fromTmdbTitles(result.items, detail.name, type: type);
       _record(items.isEmpty ? 'similar_load_more_empty' :

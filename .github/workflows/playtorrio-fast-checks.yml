@@ -114,6 +114,7 @@ jobs:
             test/audio_language_priority_test.dart \
             test/playback_autoselection_test.dart \
             test/speech_subtitle_alignment_test.dart \
+            test/subtitle_rate_correction_test.dart \
             test/subtitle_auto_sync_platform_test.dart \
             test/subtitle_auto_sync_policy_test.dart \
             test/windows_whisper_transcriber_test.dart \
@@ -201,6 +202,8 @@ jobs:
           flutter test test/subtitle_auto_sync_platform_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/subtitle_auto_sync_policy_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/subtitle_rate_correction_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/windows_whisper_transcriber_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

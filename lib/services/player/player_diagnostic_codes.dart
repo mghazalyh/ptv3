@@ -25,6 +25,8 @@ abstract final class PlayerDiagnosticCodes {
     'subtitle_track_unknown',
     'subtitle_native_renderer_active',
     'subtitle_flutter_renderer_active',
+    'subtitle_renderer_hidden',
+    'subtitle_renderer_unknown',
     'sync_started',
     'source_debrid_pending',
     'source_debrid_placeholder',

@@ -1,3 +1,17 @@
+## NEW VERIFIED FAILURE CHECK — iOS Build #173, 2026-11-01 SGT
+
+**Native iOS build SUCCEEDED; GitHub Release publication FAILED.** Owner-authorized iOS-only [Run #16 / 41310388291](https://github.com/mghazalyh/ptv3/actions/runs/41310388291) finished `failure` at 2026-11-01T13:27:36Z. Primary Intel native job succeeded, with signed iOS15/iPad TrollStore IPA verified and artifact uploaded; backup jobs skipped. Publishing job `124862183961` failed creating `ios-speech-v1.1.15-run16`: `HTTP 403: Resource not accessible by integration` at the GitHub Releases API. Telegram IPA delivery skipped (depends on publishing). Effective Actions token permissions included `Contents: write`, matching successful #172; exact release-authorization restriction remains unproven. No Build #173 permanent release exists at last inspection.
+
+**Retained signed binary:** Artifact ID `13085144098`, `PlayTorrio-iOS15-SpeechSync-v1.1.15-run-16` on Run 41310388291; archive 53,425,134 bytes, ZIP SHA256 `279119c7b362111c611806387117f7b34d453b3e05dd6f31697b864a23c34601`; expiry `2026-11-04T13:27:18Z` (Nov 4, 21:27:18 SGT). This digest is the Actions artifact ZIP, **not the individual IPA SHA256**, which is not yet recorded. Do not duplicate successful native compilation.
+
+**Telegram notifier WORKED:** Run [41310584023](https://github.com/mghazalyh/ptv3/actions/runs/41310584023) completed SUCCESS, confirmed Telegram sendMessage IDs **107, 108 and 109**. The earlier failed notifier run 41310388353 was corrected without another native build.
+
+**Next:** After correcting GitHub Releases API authorization, recover publication and Telegram from existing #173 artifact ONLY, with no Windows/iOS rebuild. Existing paired-build recovery workflow is unsuitable for this iOS-only artifact. Owner requested no further GitHub polling; stop after this investigation. Physical SRT/VTT/ASS/embedded subtitle visibility and audible Night Mode remain unverified. Preserve earlier published Windows #170 and iOS #172, preflight, VideoToolbox, speech sync, and strictly opt-in fixed-code diagnostics.
+
+**MANDATORY:** Every PlayTorrio reply must END with an updated standalone copyable emergency recovery prompt containing this same rule, latest branch HEAD, CI, release assets/checksums, native/Telegram states, telemetry caveats, next explicitly authorized action, no-duplicate-build policy, followed by a freshly sampled exact SGT timestamp.
+
+---
+
 # PlayTorrio v1.1.15 — Owner-authorized iOS subtitle repair release
 
 **Status:** Exactly ONE iOS-only native release was requested by the owner on 2026-11-01 SGT. Do not trigger any second native run or Windows build. Do not poll GitHub in the assistant; the owner will inspect GitHub directly.

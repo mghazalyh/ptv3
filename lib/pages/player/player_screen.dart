@@ -648,6 +648,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       _player.play();
       _startSourceOpeningWatchdog(_streamGeneration);
+      _scheduleDebridPlaceholderCheck(_player.state.duration);
       _sourceNativeOpening = false;
       if (_sourceErrorWhileOpening) {
         _sourceErrorWhileOpening = false;

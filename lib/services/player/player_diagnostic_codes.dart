@@ -2,6 +2,15 @@
 /// No media names, URLs, timestamps from filenames, transcripts, or raw errors.
 abstract final class PlayerDiagnosticCodes {
   static const events = <String>{
+    // Fixed-value, opt-in recommendation outcome events. Never include a
+    // title, provider query, TMDB ID, watch history or user identifier.
+    'similar_movie_loaded',
+    'similar_movie_empty',
+    'similar_series_loaded',
+    'similar_series_empty',
+    'similar_load_more_succeeded',
+    'similar_load_more_empty',
+    'similar_load_more_failed',
     'sync_started',
     'source_debrid_pending',
     'source_debrid_placeholder',

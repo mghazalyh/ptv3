@@ -8,5 +8,7 @@
   "expected_ipa_name": "PlayTorrio-v1.1.15-build173-iOS15-TrollStore.ipa",
   "release_tag": "ios-speech-v1.1.15-run16",
   "native_rebuild": false,
-  "reason": "Original iOS-only Run 16 native signed IPA succeeded; publisher 403. Reuse existing artifact and release to Telegram only after checksummed GitHub publication."
+  "reason": "Owner requested iOS build now; reuse the already-signed Build 173 IPA, fix malformed GH_TOKEN from recovery attempt 1 and perform ONE artifact-only publication plus Telegram delivery. No native recompilation, Windows build, or retry.",
+  "recovery_attempt": 2,
+  "owner_authorized": true
 }

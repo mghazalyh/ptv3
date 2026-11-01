@@ -21,4 +21,25 @@ void main() {
     expect(source, contains("item.mediaType == 'movie' ? 'Studio' : 'Network'"));
     expect(source, contains('Not listed'));
   });
+  test('Search and movie cards share Details recommendations and Load More', () {
+    final search = File('lib/pages/search/search_page.dart').readAsStringSync();
+    final slider = File('lib/widgets/movie/movie_slider_section.dart')
+        .readAsStringSync();
+    final card = File('lib/widgets/movie/movie_card.dart').readAsStringSync();
+    final details = File('lib/pages/details/details_page.dart')
+        .readAsStringSync();
+    final service = File('lib/services/metadata/similar_recommendations_service.dart')
+        .readAsStringSync();
+    expect(search, contains('MovieSliderSection('));
+    expect(slider, contains('MovieCard('));
+    expect(card, contains('DetailsPage(movie: movie)'));
+    expect(details, contains('SimilarRecommendationsService.load('));
+    expect(details, contains('Recommended Movies'));
+    expect(details, contains('Recommended Shows'));
+    expect(details, contains("ValueKey('similar-load-more')"));
+    expect(details, contains('SimilarRecommendationsService.loadMore('));
+    expect(service, contains('DiscoverType.movie'));
+    expect(service, contains('moreRelatedTitles('));
+    expect(service, isNot(contains('if (!isSeries) return const SimilarRecommendationsResult([])')));
+  });
 }

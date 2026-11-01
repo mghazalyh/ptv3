@@ -33,7 +33,7 @@ class SubtitleExtractor {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode != 200) {
-        print('[SubtitleExtractor] Download failed for $url (Status: ${response.statusCode})');
+        print('[SubtitleExtractor] Download failed (HTTP ${response.statusCode})');
         return null;
       }
 
@@ -86,8 +86,7 @@ class SubtitleExtractor {
 
             final isSub = lowerName.endsWith('.srt') ||
                 lowerName.endsWith('.vtt') ||
-                lowerName.endsWith('.ass') ||
-                lowerName.endsWith('.sub');
+                lowerName.endsWith('.ass'); // .sub may be binary VobSub/IDX
 
             if (isSub && file.size > bestSize) {
               bestSize = file.size;
@@ -105,9 +104,12 @@ class SubtitleExtractor {
               targetExt = 'srt';
             }
             extractedRawBytes = bestFile.content as List<int>;
+          } else {
+            return null; // Unsupported or binary-only subtitle archive.
           }
         } catch (e) {
-          print('[SubtitleExtractor] Zip decoding error: $e');
+          print('[SubtitleExtractor] Zip decoding error: ${e.runtimeType}');
+          return null;
         }
       } else if (isGzip) {
         try {
@@ -115,31 +117,37 @@ class SubtitleExtractor {
           extractedRawBytes = decompressed;
           targetExt = url.toLowerCase().contains('.vtt') ? 'vtt' : 'srt';
         } catch (e) {
-          print('[SubtitleExtractor] GZip decoding error: $e');
+          print('[SubtitleExtractor] GZip decoding error: ${e.runtimeType}');
+          return null;
         }
       }
 
       // If not zip/gzip or extraction didn't find candidate, use raw body bytes
       extractedRawBytes ??= bytes;
 
-      if (url.toLowerCase().endsWith('.vtt')) {
-        targetExt = 'vtt';
-      } else if (url.toLowerCase().endsWith('.ass')) {
-        targetExt = 'ass';
-      }
-
-      // 3. Convert character encoding to clean UTF-8
+      // A 200 OK response can be HTML, an access challenge, or invalid text.
+      // Only save supported timed cues, and use the detected format extension.
       final decodedString = SubtitleParser.decodeBytesWithFallback(extractedRawBytes);
+      final parsed = SubtitleParser.parse(decodedString);
+      if (parsed.cues.isEmpty) {
+        print('[SubtitleExtractor] Rejected response without timed captions');
+        return null;
+      }
+      targetExt = switch (parsed.format) {
+        SubFormat.vtt => 'vtt',
+        SubFormat.ass => 'ass',
+        SubFormat.srt => 'srt',
+      };
       final utf8Bytes = utf8.encode(decodedString);
 
       final savePath = '${targetDir.path}/$fileName.$targetExt';
       final localFile = File(savePath);
       await localFile.writeAsBytes(utf8Bytes, flush: true);
 
-      print('[SubtitleExtractor SUCCESS] Extracted subtitle to $savePath (${utf8Bytes.length} bytes)');
+      print('[SubtitleExtractor SUCCESS] Validated text subtitles (${parsed.cues.length} cues)');
       return savePath;
-    } catch (e, st) {
-      print('[SubtitleExtractor ERROR] Subtitle extraction error ($providerName): $e\n$st');
+    } catch (e) {
+      print('[SubtitleExtractor ERROR] Subtitle extraction failed: ${e.runtimeType}');
     }
     return null;
   }

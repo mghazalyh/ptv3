@@ -146,13 +146,18 @@ abstract final class SpeechSubtitleAlignment {
         bestCluster.length * 2 < offsets.length) return null;
     final midpoint = bestCluster[bestCluster.length ~/ 2];
     final median = midpoint.offset;
+    // Cue anchors are chronological even when equal-offset matches reorder
+    // under Dart's non-stable List.sort.
+    final cueAnchors = bestCluster.map((vote) => vote.cueStart).toList()
+      ..sort();
+    final cueAnchor = cueAnchors[cueAnchors.length ~/ 2];
     final spread = bestCluster.last.offset - bestCluster.first.offset;
     if (spread > 1.8 || median.abs() > maxAdjustmentSeconds) return null;
     return SpeechSubtitleOffset(
       delaySeconds: median,
       supportingCues: bestCluster.length,
       spreadSeconds: spread,
-      cueAnchorSeconds: midpoint.cueStart,
+      cueAnchorSeconds: cueAnchor,
     );
   }
 }

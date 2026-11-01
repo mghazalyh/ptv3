@@ -55,8 +55,10 @@ def step_body(text: str, label: str) -> str:
 
 
 def check_workflow(text: str, label: str, anchor: str) -> None:
-    require(f"steps: &{anchor}" in text, f"{label}: missing shared runner steps anchor")
-    require(f"steps: *{anchor}" in text, f"{label}: backup runner does not reuse native steps")
+    require(text.count(f"steps: &{anchor}") == 1,
+            f"{label}: expected one primary iOS runner steps anchor")
+    require(text.count(f"steps: *{anchor}") == 2,
+            f"{label}: BOTH Intel and Apple Silicon backup runners must reuse native steps")
 
     positions = []
     for name in REQUIRED_SEQUENCE:

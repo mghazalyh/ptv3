@@ -667,7 +667,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                               ),
                             ),
                             const SizedBox(height: _Space.xl),
-                          ], else if (_similarFetchFinished) ...[
+                          ] else if (_similarFetchFinished) ...[
                             _buildSectionHeader(_isSeries ? 'Similar Series' : 'Similar Movies'),
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -685,7 +685,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                               ),
                             ),
                             const SizedBox(height: _Space.xl),
-                          ]
+                          ],
                           const SizedBox(height: _Space.xxl),
                         ],
                       ),

@@ -54,6 +54,24 @@ void main() {
     expect(result!.delaySeconds, closeTo(-6, 0.15));
   });
 
+  test('anchors original cue times for two-sample timing-rate correction', () {
+    final result = SpeechSubtitleAlignment.estimate(
+      cues: cues(),
+      speech: [
+        ...spoken(firstLine, 12.4),
+        ...spoken(secondLine, 33.2),
+        ...spoken(thirdLine, 60.24),
+      ],
+      subtitleSpeed: 1.04,
+      sampleStartSeconds: 0,
+      sampleEndSeconds: 80,
+    );
+    expect(result, isNotNull);
+    expect(result!.supportingCues, 3);
+    expect(result.delaySeconds, closeTo(2.0, 0.15));
+    expect(result.cueAnchorSeconds, 30);
+  });
+
   test('rejects a single coincidental matching subtitle line', () {
     final result = SpeechSubtitleAlignment.estimate(
       cues: cues(),

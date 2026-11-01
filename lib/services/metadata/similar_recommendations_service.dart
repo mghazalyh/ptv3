@@ -4,14 +4,17 @@ import '../../models/movie/movie_detail.dart';
 import 'bestsimilar_scraper.dart';
 import 'tmdb_discover_service.dart';
 import 'tvdb_series_service.dart';
+import '../player/ios_audio_telemetry.dart';
+import '../player/windows_playback_telemetry.dart';
 
 class SimilarRecommendationsResult {
   final List<BSItem> items;
   final bool fromTmdb;
   final int? tvdbId;
+  final bool hasMore;
 
-  const SimilarRecommendationsResult(
-      this.items, {this.fromTmdb = false, this.tvdbId});
+  const SimilarRecommendationsResult(this.items,
+      {this.fromTmdb = false, this.tvdbId, this.hasMore = false});
 }
 
 /// On-demand related titles for the opened details page. No polling, no
@@ -26,14 +29,16 @@ abstract final class SimilarRecommendationsService {
     return match == null ? null : int.tryParse(match.group(0)!);
   }
 
+  /// Preserve the provider-verified media type rather than guessing from genre.
   @visibleForTesting
   static List<BSItem> fromTmdbTitles(
-      List<DiscoverTitle> titles, String requestedTitle) {
+      List<DiscoverTitle> titles, String requestedTitle,
+      {DiscoverType type = DiscoverType.series, int maxItems = 40}) {
     final result = <BSItem>[];
     final normalized = TvdbSeriesService.normalizeTitle(requestedTitle);
     final unique = <int>{};
     for (final title in titles) {
-      if (title.type != DiscoverType.series ||
+      if (title.type != type ||
           title.tmdbId <= 0 ||
           title.poster == null ||
           title.poster!.isEmpty ||
@@ -58,13 +63,13 @@ abstract final class SimilarRecommendationsService {
         audienceTags: const [],
         timeTags: const [],
         placeTags: const [],
-        sourceIsTv: true,
+        sourceIsTv: type == DiscoverType.series,
       );
       item.tmdbId = title.tmdbId;
-      item.tmdbMediaType = 'tv';
+      item.tmdbMediaType = type == DiscoverType.series ? 'tv' : 'movie';
       item.originalLanguage = title.originalLanguage;
       result.add(item);
-      if (result.length >= 18) break;
+      if (result.length >= maxItems.clamp(1, 40)) break;
     }
     return result;
   }
@@ -135,11 +140,19 @@ abstract final class SimilarRecommendationsService {
     return known[s] ?? s.toUpperCase();
   }
 
+  /// Enum-only diagnostics. Both platforms enforce existing explicit opt-in,
+  /// bounded event storage and allowlisted uploads; never include media data.
+  static void _record(String code) {
+    IosAudioTelemetry.instance.captureCode(code);
+    WindowsPlaybackTelemetry.instance.captureCode(code);
+  }
+
   static Future<SimilarRecommendationsResult> load({
     required MovieDetail detail,
     required bool isSeries,
   }) async {
     final year = firstReleaseYear(detail.year);
+    final kind = isSeries ? 'series' : 'movie';
     try {
       final match = await BestSimilarScraper.findBest(
         title: detail.name, year: year, isTv: isSeries,
@@ -150,46 +163,76 @@ abstract final class SimilarRecommendationsService {
         );
         final related = page?.similar ?? const <BSItem>[];
         if (related.isNotEmpty) {
-          // Existing provider caching; no TMDB/TVDB lookups when this works.
           await BestSimilarScraper.classifySimilar(
             related, maxConcurrent: 2, maxLookups: 18,
           );
+          _record('similar_${kind}_loaded');
           return SimilarRecommendationsResult(related);
         }
       }
     } catch (error) {
-      debugPrint('[Similar] BestSimilar unavailable: $error');
+      debugPrint('[Similar] BestSimilar unavailable: ${error.runtimeType}');
     }
 
-    // TVDB is optional, never sends a user's key through query strings.
-    // Only query when the BestSimilar series lookup genuinely found nothing.
-    if (!isSeries) return const SimilarRecommendationsResult([]);
+    // TVDB improves series ordering only. Movies use the same TMDB fallback.
     TvdbSeriesInfo? tvdb;
-    try {
-      tvdb = await TvdbSeriesService.instance.matchSeries(detail.name, year);
-    } catch (_) {
-      // A missing/invalid TVDB credential must never block other providers.
+    if (isSeries) {
+      try {
+        tvdb = await TvdbSeriesService.instance.matchSeries(detail.name, year);
+      } catch (_) {
+        // Optional TVDB credentials must never block TMDB.
+      }
     }
-
     try {
-      final tmdb = TmdbDiscoverService.instance;
-      final suggestions = await tmdb.relatedSeries(
+      final type = isSeries ? DiscoverType.series : DiscoverType.movie;
+      final page = await TmdbDiscoverService.instance.moreRelatedTitles(
         title: detail.name,
+        type: type,
+        page: 1,
         startYear: year,
         imdbId: detail.id.startsWith('tt') ? detail.id : null,
         tmdbId: int.tryParse(detail.tmdbId ?? ''),
         verifiedTvdbTmdbId: tvdb?.tmdbId,
       );
-      final sorted = tvdb == null ? suggestions : tvdb.prioritize(suggestions);
-      return SimilarRecommendationsResult(
-        fromTmdbTitles(sorted, detail.name),
-        fromTmdb: sorted.isNotEmpty,
-        tvdbId: tvdb?.id,
-      );
+      final sorted = tvdb == null ? page.items : tvdb.prioritize(page.items);
+      final cards = fromTmdbTitles(sorted, detail.name, type: type);
+      _record(cards.isEmpty ? 'similar_${kind}_empty' : 'similar_${kind}_loaded');
+      return SimilarRecommendationsResult(cards,
+          fromTmdb: cards.isNotEmpty,
+          tvdbId: tvdb?.id,
+          hasMore: page.hasMore);
     } catch (error) {
-      // Honor TMDB cooldown and avoid noisy automatic retries.
-      debugPrint('[Similar] Optional series fallback unavailable: ${error.runtimeType}');
+      debugPrint('[Similar] ${kind} fallback unavailable: ${error.runtimeType}');
+      _record('similar_${kind}_empty');
       return const SimilarRecommendationsResult([]);
+    }
+  }
+
+  /// Fetch a further TMDB page only when the owner selects Load More.
+  static Future<SimilarRecommendationsResult> loadMore({
+    required MovieDetail detail,
+    required bool isSeries,
+    required int page,
+  }) async {
+    final type = isSeries ? DiscoverType.series : DiscoverType.movie;
+    try {
+      final result = await TmdbDiscoverService.instance.moreRelatedTitles(
+        title: detail.name,
+        type: type,
+        page: page,
+        startYear: firstReleaseYear(detail.year),
+        imdbId: detail.id.startsWith('tt') ? detail.id : null,
+        tmdbId: int.tryParse(detail.tmdbId ?? ''),
+      );
+      final items = fromTmdbTitles(result.items, detail.name, type: type);
+      _record(items.isEmpty ? 'similar_load_more_empty' :
+          'similar_load_more_succeeded');
+      return SimilarRecommendationsResult(items,
+          fromTmdb: true, hasMore: result.hasMore);
+    } catch (error) {
+      _record('similar_load_more_failed');
+      debugPrint('[Similar] Additional recommendations unavailable: ${error.runtimeType}');
+      rethrow;
     }
   }
 }

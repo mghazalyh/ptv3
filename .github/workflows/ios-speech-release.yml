@@ -252,7 +252,8 @@ jobs:
           assert "allowAppleNetworkRecognition: true" in player
           assert 'NSSpeechRecognitionUsageDescription' in plist
           assert 'SpeechSubtitleAlignment.estimate(' in player
-          assert '_applyLiveDelay(estimate.delaySeconds)' in player
+          assert 'var desiredDelay = estimate.delaySeconds;' in player
+          assert 'final applied = await _applyLiveDelay(desiredDelay);' in player
           PY
 
       - name: Verify cancelable TV intro and credits auto-skip

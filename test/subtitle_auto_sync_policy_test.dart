@@ -5,6 +5,8 @@ import 'package:playtorrio/services/player/subtitle_auto_sync_platform.dart';
 void main() {
   test('five-minute cadence with external cues, active playback', () {
     expect(SubtitleAutoSyncPolicy.interval, const Duration(minutes: 5));
+    expect(SubtitleAutoSyncPolicy.pollInterval, const Duration(seconds: 30));
+    expect(SubtitleAutoSyncPolicy.failedRetryInterval, const Duration(minutes: 2));
     bool run({bool playing = true, bool loading = false, bool busy = false,
       bool cues = true, bool source = true, bool supported = true}) =>
         SubtitleAutoSyncPolicy.shouldRun(
@@ -18,6 +20,23 @@ void main() {
     expect(run(cues: false), isFalse);
     expect(run(source: false), isFalse);
     expect(run(supported: false), isFalse);
+  });
+
+  test('background scheduler exposes exact skip reasons without raw content', () {
+    String? reason({bool playing = true, bool loading = false,
+      bool busy = false, bool cues = true, bool source = true,
+      bool supported = true}) => SubtitleAutoSyncPolicy.skipReason(
+      isPlaying: playing, isLoading: loading, isBusy: busy,
+      hasExternalCues: cues, hasAudioSource: source,
+      isSupported: supported,
+    );
+    expect(reason(), isNull);
+    expect(reason(playing: false), 'sync_timer_paused');
+    expect(reason(loading: true), 'sync_timer_loading');
+    expect(reason(busy: true), 'sync_timer_busy');
+    expect(reason(cues: false), 'sync_timer_no_cues');
+    expect(reason(source: false), 'sync_timer_no_source');
+    expect(reason(supported: false), 'sync_timer_unsupported');
   });
 
   test('Windows and iOS use speech timing; others retain release matching', () {

@@ -476,6 +476,9 @@ jobs:
       # Required for ALL iOS builds, including paired releases and runner rescue.
       # The default iOS libmpv lacks acompressor and compand. Build #170
       # regressed because this step existed only in the iOS-only workflow.
+      - name: Enforce iOS Night Mode native packaging parity
+        run: python3 .github/scripts/verify_ios_night_mode_release_workflows.py --self-test
+
       - name: Prepare and verify real iOS FFmpeg audio compressor framework
         run: |
           python3 .github/scripts/prepare_ios_night_mode_libmpv.py --self-test

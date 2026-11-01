@@ -16,11 +16,14 @@ class SpeechSubtitleOffset {
   final double delaySeconds;
   final int supportingCues;
   final double spreadSeconds;
+  /// Original subtitle-cue time of a verified matching dialogue anchor.
+  final double cueAnchorSeconds;
 
   const SpeechSubtitleOffset({
     required this.delaySeconds,
     required this.supportingCues,
     required this.spreadSeconds,
+    this.cueAnchorSeconds = 0,
   });
 }
 
@@ -31,6 +34,12 @@ class SpeechSubtitleOffset {
 /// recognized speech words and takes a median of agreeing cue offsets.
 /// This protects against recurring dialogue, music, silence, credits and
 /// wrongly matched subtitle releases.
+class _SpeechCueOffset {
+  final double offset;
+  final double cueStart;
+  const _SpeechCueOffset(this.offset, this.cueStart);
+}
+
 abstract final class SpeechSubtitleAlignment {
   static const double maxAdjustmentSeconds = 150.0;
   static final RegExp _wordChars = RegExp(r"[a-z0-9]+");
@@ -50,10 +59,13 @@ abstract final class SpeechSubtitleAlignment {
     required List<SpeechTimedWord> speech,
     required double sampleStartSeconds,
     required double sampleEndSeconds,
+    double subtitleSpeed = 1.0,
   }) {
     if (speech.length < 12 || cues.length < 2 ||
         !sampleStartSeconds.isFinite || !sampleEndSeconds.isFinite ||
-        sampleEndSeconds <= sampleStartSeconds) return null;
+        sampleEndSeconds <= sampleStartSeconds ||
+        !subtitleSpeed.isFinite || subtitleSpeed < 0.9 ||
+        subtitleSpeed > 1.1) return null;
 
     final words = <String>[];
     final timestamps = <double>[];
@@ -70,11 +82,11 @@ abstract final class SpeechSubtitleAlignment {
 
     // Each cue contributes at most one alignment vote, even if many of its
     // overlapping phrases matched. Do not let one long caption dominate.
-    final offsets = <double>[];
+    final offsets = <_SpeechCueOffset>[];
     for (final cue in cues) {
       if (!cue.start.isFinite || !cue.end.isFinite || cue.end <= cue.start ||
-          cue.start < sampleStartSeconds - maxAdjustmentSeconds ||
-          cue.start > sampleEndSeconds + maxAdjustmentSeconds) continue;
+          cue.start * subtitleSpeed < sampleStartSeconds - maxAdjustmentSeconds ||
+          cue.start * subtitleSpeed > sampleEndSeconds + maxAdjustmentSeconds) continue;
       final caption = normalize(cue.text);
       if (caption.length < 3 || caption.length > 38) continue;
 
@@ -105,7 +117,7 @@ abstract final class SpeechSubtitleAlignment {
             if (!same) continue;
             // Estimate a skipped prefix at a conservative speaking pace.
             // Multiple independent cues must still cluster within 1.8 s.
-            final offset = timestamps[j] - cue.start - leading * 0.27;
+            final offset = timestamps[j] - cue.start * subtitleSpeed - leading * 0.27;
             if (offset.abs() > maxAdjustmentSeconds) continue;
             if (length > bestLength ||
                 (length == bestLength && offset.abs() < bestDistance)) {
@@ -117,28 +129,30 @@ abstract final class SpeechSubtitleAlignment {
         }
         if (bestOffset != null) break;
       }
-      if (bestOffset != null) offsets.add(bestOffset);
+      if (bestOffset != null) offsets.add(_SpeechCueOffset(bestOffset, cue.start));
     }
     if (offsets.length < 2) return null;
 
     // Find the tightest agreeing group, not the median of possibly unrelated
     // matches. Multiple occurrences of a phrase cannot force a large shift.
-    offsets.sort();
-    List<double> bestCluster = [];
+    offsets.sort((a, b) => a.offset.compareTo(b.offset));
+    List<_SpeechCueOffset> bestCluster = [];
     for (var i = 0; i < offsets.length; i++) {
       final cluster = offsets.skip(i).takeWhile(
-          (value) => value - offsets[i] <= 1.8).toList();
+          (value) => value.offset - offsets[i].offset <= 1.8).toList();
       if (cluster.length > bestCluster.length) bestCluster = cluster;
     }
     if (bestCluster.length < 2 ||
         bestCluster.length * 2 < offsets.length) return null;
-    final median = bestCluster[bestCluster.length ~/ 2];
-    final spread = bestCluster.last - bestCluster.first;
+    final midpoint = bestCluster[bestCluster.length ~/ 2];
+    final median = midpoint.offset;
+    final spread = bestCluster.last.offset - bestCluster.first.offset;
     if (spread > 1.8 || median.abs() > maxAdjustmentSeconds) return null;
     return SpeechSubtitleOffset(
       delaySeconds: median,
       supportingCues: bestCluster.length,
       spreadSeconds: spread,
+      cueAnchorSeconds: midpoint.cueStart,
     );
   }
 }

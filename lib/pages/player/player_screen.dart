@@ -1920,13 +1920,18 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
       PlayerDebugTelemetry.record('subtitle_attach_started');
       final dynamic native = _player.platform;
-      await _player.setSubtitleTrack(SubtitleTrack.uri(
-        _resolveSubtitleUri(path), title: variant.language));
-      var selection = await SubtitleActivationGuard.waitForSelection(
-        () async => await native.getProperty('sid'),
-      );
-      // The native backend may accept an external URI without selecting it.
-      // Retry once with the documented in-memory subtitle path.
+      var selection = SubtitleTrackReadiness.inactive;
+      try {
+        await _player.setSubtitleTrack(SubtitleTrack.uri(
+          _resolveSubtitleUri(path), title: variant.language));
+        selection = await SubtitleActivationGuard.waitForSelection(
+          () async => await native.getProperty('sid'),
+        );
+      } catch (error) {
+        // File URI handling differs across native platforms. Retry through
+        // the in-memory pathway even when MPV rejects the original URI.
+        debugPrint('[PlayerSubtitles] URI attach failed: ${error.runtimeType}');
+      }
       if (selection == SubtitleTrackReadiness.inactive &&
           mounted && epoch == _audioMediaEpoch) {
         PlayerDebugTelemetry.record('subtitle_track_unselected');

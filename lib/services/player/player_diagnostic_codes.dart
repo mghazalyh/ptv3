@@ -3,6 +3,10 @@
 abstract final class PlayerDiagnosticCodes {
   static const events = <String>{
     'sync_started',
+    'source_debrid_pending',
+    'source_debrid_placeholder',
+    'source_auto_next',
+    'source_auto_exhausted',
     'sync_manual_requested',
     'sync_timer_due',
     'sync_timer_attempt',

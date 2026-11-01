@@ -96,6 +96,103 @@ void main() {
     expect(paths.length, 3, reason: '24-hour cache avoids repeated provider calls');
   });
 
+  test('TMDB movie cards are movies, exclude the seed and TV results', () {
+    final cards = SimilarRecommendationsService.fromTmdbTitles([
+      const DiscoverTitle(tmdbId: 11, title: 'Example Film',
+          type: DiscoverType.movie, poster: 'https://img.test/self.jpg'),
+      const DiscoverTitle(tmdbId: 12, title: 'Different Film',
+          type: DiscoverType.movie, poster: 'https://img.test/movie.jpg',
+          premiereYear: 2024, originalLanguage: 'ko'),
+      const DiscoverTitle(tmdbId: 12, title: 'Different Film',
+          type: DiscoverType.movie, poster: 'https://img.test/movie.jpg'),
+      const DiscoverTitle(tmdbId: 13, title: 'Different Series',
+          type: DiscoverType.series, poster: 'https://img.test/series.jpg'),
+    ], 'Example Film', type: DiscoverType.movie);
+    expect(cards, hasLength(1));
+    expect(cards.single.tmdbId, 12);
+    expect(cards.single.mediaType, 'movie');
+    expect(cards.single.originalLanguage, 'ko');
+    expect(cards.single.similarityPercent, isNull);
+  });
+
+  test('movie recommendations paginate verified film endpoints without duplicates', () async {
+    final paths = <String>[];
+    final tmdb = TmdbDiscoverService.instance;
+    tmdb.httpGetOverride = (uri, headers) async {
+      paths.add('${uri.path}:${uri.queryParameters['page'] ?? ''}');
+      if (uri.path == '/3/find/tt1234567') {
+        return http.Response(jsonEncode({
+          'movie_results': [
+            {'id': 101, 'title': 'Example Film', 'release_date': '2022-03-04'},
+          ],
+        }), 200);
+      }
+      final page = int.tryParse(uri.queryParameters['page'] ?? '') ?? 1;
+      if (uri.path == '/3/movie/101/recommendations') {
+        return http.Response(jsonEncode({
+          'total_pages': 2,
+          'results': [
+            {'id': page == 1 ? 102 : 104,
+             'title': page == 1 ? 'Film One' : 'Film Three',
+             'poster_path': '/film.jpg', 'release_date': '2020-01-01'},
+          ],
+        }), 200);
+      }
+      if (uri.path == '/3/movie/101/similar') {
+        return http.Response(jsonEncode({
+          'total_pages': 2,
+          'results': [
+            {'id': page == 1 ? 102 : 105,
+             'title': page == 1 ? 'Film One' : 'Film Four',
+             'poster_path': '/movie.jpg', 'release_date': '2019-01-01'},
+          ],
+        }), 200);
+      }
+      return http.Response('{}', 404);
+    };
+    final first = await tmdb.moreRelatedTitles(
+      title: 'Example Film', type: DiscoverType.movie,
+      page: 1, imdbId: 'tt1234567', startYear: 2022);
+    expect(first.items.map((x) => x.tmdbId), [102]);
+    expect(first.items.every((x) => x.type == DiscoverType.movie), isTrue);
+    expect(first.hasMore, isTrue);
+    final second = await tmdb.moreRelatedTitles(
+      title: 'Example Film', type: DiscoverType.movie,
+      page: 2, imdbId: 'tt1234567', startYear: 2022);
+    expect(second.items.map((x) => x.tmdbId), [104, 105]);
+    expect(second.hasMore, isFalse);
+    expect(paths, [
+      '/3/find/tt1234567:',
+      '/3/movie/101/recommendations:1', '/3/movie/101/similar:1',
+      '/3/movie/101/recommendations:2', '/3/movie/101/similar:2',
+    ]);
+  });
+
+  test('series pagination uses TV endpoints and verified TVDB ID', () async {
+    final paths = <String>[];
+    TmdbDiscoverService.instance.httpGetOverride = (uri, headers) async {
+      paths.add(uri.path);
+      if (uri.path == '/3/tv/270/recommendations' ||
+          uri.path == '/3/tv/270/similar') {
+        return http.Response(jsonEncode({
+          'total_pages': 1,
+          'results': [
+            {'id': uri.path.endsWith('similar') ? 272 : 271,
+             'name': 'Another Show', 'poster_path': '/tv.jpg'},
+          ],
+        }), 200);
+      }
+      return http.Response('{}', 404);
+    };
+    final page = await TmdbDiscoverService.instance.moreRelatedTitles(
+      title: 'The Order', type: DiscoverType.series,
+      page: 1, verifiedTvdbTmdbId: 270);
+    expect(page.items.map((x) => x.tmdbId), [271, 272]);
+    expect(page.items.every((x) => x.type == DiscoverType.series), isTrue);
+    expect(page.hasMore, isFalse);
+    expect(paths, ['/3/tv/270/recommendations', '/3/tv/270/similar']);
+  });
+
   test('missing TMDB key never calls provider', () async {
     await TmdbDiscoverService.instance.saveKey('');
     var requests = 0;

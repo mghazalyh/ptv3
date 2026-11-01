@@ -168,8 +168,15 @@ abstract final class SimilarRecommendationsService {
           await BestSimilarScraper.classifySimilar(
             related, maxConcurrent: 2, maxLookups: 18,
           );
-          _record('similar_${kind}_loaded');
-          return SimilarRecommendationsResult(related);
+          // Movie cards should never quietly present TV suggestions as
+          // similar movies. Keep the original mixed list for series, where
+          // cross-media results were already part of the experience.
+          final selected = isSeries ? related : related
+              .where((item) => item.mediaType == 'movie').toList();
+          if (selected.isNotEmpty) {
+            _record('similar_${kind}_loaded');
+            return SimilarRecommendationsResult(selected);
+          }
         }
       }
     } catch (error) {
@@ -209,6 +216,12 @@ abstract final class SimilarRecommendationsService {
       _record('similar_${kind}_empty');
       return const SimilarRecommendationsResult([]);
     }
+  }
+
+  /// A local reveal of cached BestSimilar/TMDB cards is also observable.
+  /// Captures only a fixed success code, never media data.
+  static void recordVisibleItemsExpanded() {
+    _record('similar_load_more_succeeded');
   }
 
   /// Fetch a further TMDB page only when the owner selects Load More.

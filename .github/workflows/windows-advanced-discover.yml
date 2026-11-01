@@ -473,6 +473,15 @@ jobs:
           touch .env
           flutter pub get
 
+      # Required for ALL iOS builds, including paired releases and runner rescue.
+      # The default iOS libmpv lacks acompressor and compand. Build #170
+      # regressed because this step existed only in the iOS-only workflow.
+      - name: Prepare and verify real iOS FFmpeg audio compressor framework
+        run: |
+          python3 .github/scripts/prepare_ios_night_mode_libmpv.py --self-test
+          python3 .github/scripts/prepare_ios_night_mode_libmpv.py
+          python3 .github/scripts/prepare_ios_night_mode_libmpv.py --verify
+
       - name: Restore iOS TorrServerKit framework
         run: |
           mkdir -p "$RUNNER_TEMP/torrserver-ios15"
@@ -662,7 +671,12 @@ jobs:
           flutter test test/player_picture_audio_test.dart
 
       - name: Build unsigned iOS 15 release
-        run: flutter build ios --release --no-codesign --build-name=1.1.15 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
+        run: flutter build ios --no-pub --release --no-codesign --build-name=1.1.15 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
+
+      - name: Reverify FFmpeg compressor framework inside BUILT iOS app before signing
+        run: |
+          python3 .github/scripts/prepare_ios_night_mode_libmpv.py --verify
+          python3 .github/scripts/prepare_ios_night_mode_libmpv.py --verify-app
 
       - name: Verify minimum iOS 15
         run: |

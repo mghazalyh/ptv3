@@ -113,6 +113,7 @@ jobs:
             test/see_all_source_integrity_test.dart \
             test/audio_language_priority_test.dart \
             test/playback_autoselection_test.dart \
+            test/subtitle_activation_guard_test.dart \
             test/speech_subtitle_alignment_test.dart \
             test/subtitle_rate_correction_test.dart \
             test/subtitle_auto_sync_platform_test.dart \
@@ -202,6 +203,8 @@ jobs:
       - name: Test Windows release-matching and shared platform routing
         shell: pwsh
         run: |
+          flutter test test/subtitle_activation_guard_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/subtitle_auto_sync_platform_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/subtitle_auto_sync_policy_test.dart

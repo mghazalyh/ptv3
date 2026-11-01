@@ -1380,6 +1380,9 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _selectEmbeddedSubtitle(PlayerEmbeddedSubtitle embedded) {
     _subtitleManuallySelected = true;
+    _subtitleRateAnchor = null;
+    _subtitleSpeed = 1.0;
+    unawaited(_resetNativeSubtitleSpeed());
     setState(() {
       _selectedEmbeddedSubtitleIndex = embedded.index;
       _currentSubtitleVariant = SubtitleVariant(
@@ -1410,6 +1413,9 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _disableSubtitles() {
     _subtitleManuallySelected = true;
+    _subtitleRateAnchor = null;
+    _subtitleSpeed = 1.0;
+    unawaited(_resetNativeSubtitleSpeed());
     setState(() {
       _isSubtitleEnabled = false;
       _currentSubtitleVariant = null;
@@ -1418,6 +1424,14 @@ class _PlayerScreenState extends State<PlayerScreen>
       _currentCues = [];
     });
     _player.setSubtitleTrack(SubtitleTrack.no());
+  }
+
+  Future<void> _resetNativeSubtitleSpeed() async {
+    try {
+      await (_player.platform as dynamic).setProperty('sub-speed', '1.0');
+    } catch (error) {
+      debugPrint('[PlayerSpeechSync] Subtitle speed reset failed: ${error.runtimeType}');
+    }
   }
 
   // Poll the five-minute deadline every 30 seconds. A skipped check due

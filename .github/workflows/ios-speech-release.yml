@@ -50,6 +50,9 @@ jobs:
           touch .env
           flutter pub get
 
+      - name: Enforce iOS Night Mode native packaging parity
+        run: python3 .github/scripts/verify_ios_night_mode_release_workflows.py --self-test
+
       - name: Prepare and verify real iOS FFmpeg audio compressor framework
         run: |
           python3 .github/scripts/prepare_ios_night_mode_libmpv.py --self-test

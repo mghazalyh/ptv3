@@ -298,7 +298,7 @@ class IosAudioTelemetry {
     final now = DateTime.now().toUtc();
     final safeReason = const {
       'night_mode_failed', 'preflight_failed', 'native_error', 'manual',
-      'playback_sample', 'sync_failure',
+      'playback_sample', 'sync_failure', 'subtitle_failure',
     }.contains(reason) ? reason : 'manual';
     final report = <String, Object>{
       'schema': 1,

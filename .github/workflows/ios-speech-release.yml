@@ -448,8 +448,8 @@ jobs:
 
   publish-ios-speech:
     name: Publish signed speech-sync iOS 15 IPA and checksums
-    needs: [speech-ios-primary, speech-ios-rescue-intel, speech-ios-rescue-arm, publish-ios-speech]
-    if: ${{ always() && !cancelled() && needs.publish-ios-speech.result == 'success' && (needs.speech-ios-primary.result == 'success' || needs.speech-ios-rescue-intel.result == 'success' || needs.speech-ios-rescue-arm.result == 'success') }}
+    needs: [speech-ios-primary, speech-ios-rescue-intel, speech-ios-rescue-arm]
+    if: ${{ always() && !cancelled() && (needs.speech-ios-primary.result == 'success' || needs.speech-ios-rescue-intel.result == 'success' || needs.speech-ios-rescue-arm.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -515,8 +515,8 @@ jobs:
 
   telegram-ios-speech:
     name: Send signed current-feature iOS 15 TrollStore IPA to Telegram
-    needs: [speech-ios-primary, speech-ios-rescue-intel, speech-ios-rescue-arm]
-    if: ${{ always() && !cancelled() && (needs.speech-ios-primary.result == 'success' || needs.speech-ios-rescue-intel.result == 'success' || needs.speech-ios-rescue-arm.result == 'success') }}
+    needs: [speech-ios-primary, speech-ios-rescue-intel, speech-ios-rescue-arm, publish-ios-speech]
+    if: ${{ always() && !cancelled() && needs.publish-ios-speech.result == 'success' && (needs.speech-ios-primary.result == 'success' || needs.speech-ios-rescue-intel.result == 'success' || needs.speech-ios-rescue-arm.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 14
     env:

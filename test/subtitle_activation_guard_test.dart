@@ -74,7 +74,8 @@ void main() {
       'subtitle_attach_started', 'subtitle_attach_failed',
       'subtitle_track_unselected', 'subtitle_track_selected',
       'subtitle_track_unknown', 'subtitle_native_renderer_active',
-      'subtitle_flutter_renderer_active',
+      'subtitle_flutter_renderer_active', 'subtitle_renderer_hidden',
+      'subtitle_renderer_unknown',
     ];
     for (final stage in stages) {
       expect(PlayerDiagnosticCodes.events.contains(stage), isTrue);

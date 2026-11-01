@@ -443,6 +443,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       // downloading. Skip its 29-second progress/status video entirely.
       if (DebridSourceReadiness.isExplicitlyPending(_currentSource) &&
           _canAutoRecoverSource()) {
+        _sourceNativeOpening = false;
         PlayerDebugTelemetry.record('source_debrid_pending');
         if (_sourceRecoveryBusy) {
           _sourceFailureDuringRecovery = true;

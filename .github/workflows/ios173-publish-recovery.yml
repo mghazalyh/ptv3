@@ -120,10 +120,18 @@ jobs:
           
           Preserves the pinned iOS Night Mode compressor framework, VideoToolbox and speech/audio synchronization. Visible subtitles and audible compression on the owner's iPad remain to be verified after installation.
           EOF
+          # Pin the tag to the signed source without the Releases API old-workflow SHA guard.
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" > /tmp/ios173-tag.json 2>/dev/null; then
+            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$ORIGINAL_SHA" > /tmp/ios173-created-tag.json
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" > /tmp/ios173-tag.json
+          jq -e --arg sha "$ORIGINAL_SHA" \
+            '.object.type == "commit" and .object.sha == $sha' /tmp/ios173-tag.json
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > /tmp/existing-release.json
-            jq -e --arg sha "$ORIGINAL_SHA" \
-              '.target_commitish == $sha and .draft == false' /tmp/existing-release.json
+            jq -e --arg tag "$RELEASE_TAG" \
+              '.tag_name == $tag and .draft == false and .prerelease == false' /tmp/existing-release.json
             for file in release/*; do
               asset_name="$(basename "$file")"
               existing="$(jq -r --arg name "$asset_name" '.assets[] | select(.name == $name) | .id' /tmp/existing-release.json)"
@@ -133,7 +141,7 @@ jobs:
             done
           else
             gh release create "$RELEASE_TAG" release/* \
-              --repo "$GITHUB_REPOSITORY" --target "$ORIGINAL_SHA" \
+              --repo "$GITHUB_REPOSITORY" --verify-tag \
               --title 'PlayTorrio iOS 15 v1.1.15 (Build 173, recovered signed IPA)' \
               --notes-file release-notes.md --latest
           fi
@@ -143,10 +151,13 @@ jobs:
         run: |
           set -euo pipefail
           gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > /tmp/ios173-published.json
-          jq -e --arg sha "$ORIGINAL_SHA" --arg ipa "$IPA_ASSET" \
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" > /tmp/ios173-final-tag.json
+          jq -e --arg sha "$ORIGINAL_SHA" \
+            '.object.type == "commit" and .object.sha == $sha' /tmp/ios173-final-tag.json
+          jq -e --arg tag "$RELEASE_TAG" --arg ipa "$IPA_ASSET" \
             --arg ipa_digest "sha256:$IPA_SHA256" \
             --arg sums_digest "sha256:$CHECKSUM_SHA256" \
-            '.target_commitish == $sha and .draft == false and .prerelease == false and
+            '.tag_name == $tag and .draft == false and .prerelease == false and
              any(.assets[]; .name == $ipa and .size == 53628172 and .digest == $ipa_digest) and
              any(.assets[]; .name == "SHA256SUMS.txt" and .digest == $sums_digest)' \
             /tmp/ios173-published.json
@@ -172,9 +183,10 @@ jobs:
         run: |
           set -euo pipefail
           gh api "repos/$GITHUB_REPOSITORY/releases/tags/ios-speech-v1.1.15-run16" > /tmp/release.json
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/ios-speech-v1.1.15-run16" > /tmp/ios173-telegram-tag.json
+          jq -e '.object.type == "commit" and .object.sha == "ea9467fa856fddc0eecbaa44cf077a407e871fd1"' /tmp/ios173-telegram-tag.json
           jq -e \
-            '.target_commitish == "ea9467fa856fddc0eecbaa44cf077a407e871fd1" and
-             .draft == false and .prerelease == false and
+            '.tag_name == "ios-speech-v1.1.15-run16" and .draft == false and .prerelease == false and
              any(.assets[]; .name == "PlayTorrio-v1.1.15-build173-iOS15-TrollStore.ipa" and
                .size == 53628172 and .digest == "sha256:921cc73a7864acfd9df7e24a9fe3eda479720ccf25986b2ec9eff70d4024765b") and
              any(.assets[]; .name == "SHA256SUMS.txt" and

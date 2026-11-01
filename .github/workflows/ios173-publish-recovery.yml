@@ -1,0 +1,189 @@
+name: PlayTorrio iOS Build 173 signed artifact publication recovery
+# One-shot publication of the existing signed iOS #173 artifact.
+# NO Flutter, Xcode, Windows, native build, or native retry is allowed here.
+on:
+  push:
+    branches: [parity-floating-player-both]
+    paths:
+      - '.github/ios173-publish-recovery-request.json'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: playtorrio-ios173-publish-recovery-once
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify and publish the existing signed iOS Build 173 IPA
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # An optional separately authorized fine-grained PAT can bypass an
+      # intermittent GITHUB_TOKEN release-creation integration restriction.
+      # Without that secret this uses the normal contents:write token.
+      GH_TOKEN: \${{ secrets.PLAYTORRIO_RELEASE_TOKEN || github.token }}
+      ORIGINAL_RUN: '41310388291'
+      ORIGINAL_SHA: 'ea9467fa856fddc0eecbaa44cf077a407e871fd1'
+      ORIGINAL_ARTIFACT_ID: '13085144098'
+      ORIGINAL_ARTIFACT_NAME: 'PlayTorrio-iOS15-SpeechSync-v1.1.15-run-16'
+      ARTIFACT_SHA256: '279119c7b362111c611806387117f7b34d453b3e05dd6f31697b864a23c34601'
+      IPA_SHA256: '921cc73a7864acfd9df7e24a9fe3eda479720ccf25986b2ec9eff70d4024765b'
+      CHECKSUM_SHA256: '842106b896ccd287fa3010a9ee4205cf8e68c2437390751be887d4ed2da0f652'
+      IPA_ASSET: 'PlayTorrio-v1.1.15-build173-iOS15-TrollStore.ipa'
+      RELEASE_TAG: 'ios-speech-v1.1.15-run16'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify one-time request and previously successful signed native job
+        shell: bash
+        run: |
+          set -euo pipefail
+          REQUEST='.github/ios173-publish-recovery-request.json'
+          jq -e --arg sha "$ORIGINAL_SHA" --arg archive "$ARTIFACT_SHA256" --arg ipa "$IPA_SHA256" \
+            '.run_id == 41310388291 and .artifact_id == 13085144098 and
+             .source_sha == $sha and .artifact_sha256 == $archive and
+             .ipa_sha256 == $ipa and .native_rebuild == false and
+             .purpose == "publish-existing-signed-ios173-only"' "$REQUEST"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ORIGINAL_RUN" > /tmp/ios173-run.json
+          jq -e --arg sha "$ORIGINAL_SHA" \
+            '.head_sha == $sha and .run_number == 16 and .status == "completed"' /tmp/ios173-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ORIGINAL_RUN/jobs?per_page=100" > /tmp/ios173-jobs.json
+          jq -e 'any(.jobs[]; .name == "iOS Speech — primary Intel" and .conclusion == "success")' /tmp/ios173-jobs.json
+          jq -e 'any(.jobs[]; .name == "Publish signed speech-sync iOS 15 IPA and checksums" and .conclusion == "failure")' /tmp/ios173-jobs.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ORIGINAL_ARTIFACT_ID" > /tmp/ios173-artifact.json
+          jq -e --arg name "$ORIGINAL_ARTIFACT_NAME" --arg digest "sha256:$ARTIFACT_SHA256" \
+            '.name == $name and .expired == false and .digest == $digest' /tmp/ios173-artifact.json
+
+      - name: Download ONLY the original signed iOS IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          repository: \${{ github.repository }}
+          run-id: 41310388291
+          github-token: \${{ github.token }}
+          name: PlayTorrio-iOS15-SpeechSync-v1.1.15-run-16
+          path: packages/ios173
+
+      - name: Verify original signed IPA checksum, metadata and checksum asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import plistlib
+          import shutil
+          import zipfile
+          from pathlib import Path
+
+          original = Path('packages/ios173/PlayTorrio-iOS15-TrollStore.ipa')
+          assert original.is_file(), 'Missing existing original signed IPA'
+          with original.open('rb') as handle:
+              digest = hashlib.file_digest(handle, 'sha256').hexdigest()
+          assert digest == os.environ['IPA_SHA256'], 'Original signed IPA SHA256 changed'
+          assert original.stat().st_size == 53628172, 'Original signed IPA size changed'
+          with zipfile.ZipFile(original) as archive:
+              assert archive.testzip() is None, 'Corrupted signed IPA ZIP'
+              assert 'Payload/Runner.app/_CodeSignature/CodeResources' in archive.namelist()
+              metadata = plistlib.loads(archive.read('Payload/Runner.app/Info.plist'))
+              assert tuple(map(int, metadata['MinimumOSVersion'].split('.'))) <= (15, 0)
+              assert 2 in metadata['UIDeviceFamily'], 'Missing iPad compatibility'
+              assert str(metadata['CFBundleVersion']) == '173'
+          release = Path('release')
+          release.mkdir(exist_ok=True)
+          target = release / os.environ['IPA_ASSET']
+          shutil.copyfile(original, target)
+          checksums = release / 'SHA256SUMS.txt'
+          checksums.write_text(f"{digest}  {target.name}\n", encoding='ascii')
+          with checksums.open('rb') as handle:
+              checksum_digest = hashlib.file_digest(handle, 'sha256').hexdigest()
+          assert checksum_digest == os.environ['CHECKSUM_SHA256'], 'Checksum asset changed'
+          print('Recovered the original signed Build #173 IPA and exact SHA256SUMS.txt')
+          print('IPA SHA256:', digest)
+          print('Checksum asset SHA256:', checksum_digest)
+          PY
+
+      - name: Publish immutable GitHub Release from prebuilt files ONLY
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<EOF
+          PlayTorrio v1.1.15 iOS 15 TrollStore Build #173
+          
+          Original signed native source commit: $ORIGINAL_SHA
+          Original native workflow: https://github.com/$GITHUB_REPOSITORY/actions/runs/$ORIGINAL_RUN
+          Recovered from the already-signed artifact without recompilation.
+          
+          Subtitle repair rejects invalid payloads and subtitles without timed SRT/VTT/ASS cues, checks native MPV subtitle selection, retries data attachment and restores subtitle visibility while respecting explicit renderer preferences.
+          
+          Preserves the pinned iOS Night Mode compressor framework, VideoToolbox and speech/audio synchronization. Visible subtitles and audible compression on the owner's iPad remain to be verified after installation.
+          EOF
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > /tmp/existing-release.json
+            jq -e --arg sha "$ORIGINAL_SHA" \
+              '.target_commitish == $sha and .draft == false' /tmp/existing-release.json
+            for file in release/*; do
+              asset_name="$(basename "$file")"
+              existing="$(jq -r --arg name "$asset_name" '.assets[] | select(.name == $name) | .id' /tmp/existing-release.json)"
+              if [ -z "$existing" ]; then
+                gh release upload "$RELEASE_TAG" "$file" --repo "$GITHUB_REPOSITORY"
+              fi
+            done
+          else
+            gh release create "$RELEASE_TAG" release/* \
+              --repo "$GITHUB_REPOSITORY" --target "$ORIGINAL_SHA" \
+              --title 'PlayTorrio iOS 15 v1.1.15 (Build 173, recovered signed IPA)' \
+              --notes-file release-notes.md --latest
+          fi
+
+      - name: Confirm permanent release, original SHA and both immutable asset digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > /tmp/ios173-published.json
+          jq -e --arg sha "$ORIGINAL_SHA" --arg ipa "$IPA_ASSET" \
+            --arg ipa_digest "sha256:$IPA_SHA256" \
+            --arg sums_digest "sha256:$CHECKSUM_SHA256" \
+            '.target_commitish == $sha and .draft == false and .prerelease == false and
+             any(.assets[]; .name == $ipa and .size == 53628172 and .digest == $ipa_digest) and
+             any(.assets[]; .name == "SHA256SUMS.txt" and .digest == $sums_digest)' \
+            /tmp/ios173-published.json
+          echo "Verified signed release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+
+  telegram:
+    name: Send verified published Build 173 GitHub IPA link to Telegram
+    needs: [publish]
+    if: \${{ needs.publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      actions: read
+      contents: read
+    env:
+      GH_TOKEN: \${{ github.token }}
+      TELEGRAM_BOT_TOKEN: \${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: \${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify published release digests again before sending link
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/ios-speech-v1.1.15-run16" > /tmp/release.json
+          jq -e \
+            '.target_commitish == "ea9467fa856fddc0eecbaa44cf077a407e871fd1" and
+             .draft == false and .prerelease == false and
+             any(.assets[]; .name == "PlayTorrio-v1.1.15-build173-iOS15-TrollStore.ipa" and
+               .size == 53628172 and .digest == "sha256:921cc73a7864acfd9df7e24a9fe3eda479720ccf25986b2ec9eff70d4024765b") and
+             any(.assets[]; .name == "SHA256SUMS.txt" and
+               .digest == "sha256:842106b896ccd287fa3010a9ee4205cf8e68c2437390751be887d4ed2da0f652")' \
+            /tmp/release.json
+      - name: Deliver verified GitHub download link (IPA exceeds Telegram attachment limit)
+        shell: bash
+        run: |
+          set -euo pipefail
+          LINK="https://github.com/$GITHUB_REPOSITORY/releases/download/ios-speech-v1.1.15-run16/PlayTorrio-v1.1.15-build173-iOS15-TrollStore.ipa"
+          MSG="PlayTorrio v1.1.15 signed iOS 15 TrollStore Build #173 is published from the ORIGINAL signed native artifact with no rebuild. Its IPA is 53,628,172 bytes, too large for the Telegram bot document limit. Download verified release: $LINK . SHA256: 921cc73a7864acfd9df7e24a9fe3eda479720ccf25986b2ec9eff70d4024765b . Subtitle visibility and Night Mode must still be tested on device."
+          python3 .github/scripts/telegram_ci.py send-text --text "$MSG"

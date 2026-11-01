@@ -14,6 +14,7 @@ import '../../models/movie/movie_detail.dart';
 
 import '../../models/stream/stream_model.dart';
 import '../../services/player/audio_language_priority.dart';
+import '../../services/player/debrid_source_readiness.dart';
 import './player_screen.dart';
 import '../../services/stream/stream_service.dart';
 import '../../services/theme/glass_settings.dart';
@@ -204,6 +205,12 @@ class _WatchScreenState extends State<WatchScreen>
       originalOrder[list[i]] = i;
     }
     list.sort((a, b) {
+      // A provider-labelled '[TB download]' is a queued debrid job, not an
+      // instant-play movie. Put it last BEFORE language, size and quality.
+      // Sources without that label are not certified available.
+      final readiness = DebridSourceReadiness.sortTier(a)
+          .compareTo(DebridSourceReadiness.sortTier(b));
+      if (readiness != 0) return readiness;
       final preference = AudioLanguagePriority.torrentioAudioRank(a)
           .compareTo(AudioLanguagePriority.torrentioAudioRank(b));
       if (preference != 0) return preference;

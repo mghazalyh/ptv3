@@ -5,6 +5,7 @@ on:
       - parity-floating-player-both
     paths:
       - '.github/ios-speech-release-request.txt'
+      - '.github/workflows/ios-speech-telegram-watch.yml'
 permissions:
   contents: read
   actions: read

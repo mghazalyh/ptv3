@@ -39,6 +39,7 @@ import '../../services/player/subtitle_rate_correction.dart';
 import '../../services/player/subtitle_auto_sync_platform.dart';
 import '../../services/player/speech_subtitle_alignment.dart';
 import '../../services/player/player_debug_telemetry.dart';
+import '../../services/player/subtitle_activation_guard.dart';
 import '../../services/player/paused_http_recovery.dart';
 import '../../services/player/playback_source_recovery.dart';
 import '../../services/player/debrid_source_readiness.dart';
@@ -1855,52 +1856,112 @@ class _PlayerScreenState extends State<PlayerScreen>
   }) async {
     final epoch = expectedEpoch ?? _audioMediaEpoch;
     if (!automatic) _subtitleManuallySelected = true;
+    PlayerDebugTelemetry.record('subtitle_download_started');
     if (!automatic && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Downloading ${variant.language} subtitle...'),
         duration: const Duration(seconds: 2),
       ));
     }
+
     String? path;
     try {
       path = await SubtitleService().downloadSubtitle(variant);
     } catch (error) {
-      debugPrint('[PlayerSubtitles] Download error: $error');
+      debugPrint('[PlayerSubtitles] Download failed: ${error.runtimeType}');
     }
     if (!mounted || epoch != _audioMediaEpoch ||
         (automatic && (_subtitleManuallySelected || _isSubtitleEnabled))) {
       return false;
     }
     if (path == null || !await File(path).exists()) {
+      PlayerDebugTelemetry.record('subtitle_download_failed', failure: true);
       if (!automatic && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to download subtitle')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Subtitle download failed or contained no usable text'),
+        ));
       }
       return false;
     }
+    PlayerDebugTelemetry.record('subtitle_downloaded');
+
+    SubtitleParseResult result;
+    String content;
     try {
       final bytes = await File(path).readAsBytes();
-      final content = SubtitleParser.decodeBytesWithFallback(bytes);
-      final result = SubtitleParser.parse(content);
+      content = SubtitleParser.decodeBytesWithFallback(bytes);
+      result = SubtitleParser.parse(content);
+      if (!SubtitleActivationGuard.hasRenderableCues(result)) {
+        PlayerDebugTelemetry.record('subtitle_parse_failed', failure: true);
+        if (!automatic && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Subtitle file has no readable timed captions'),
+          ));
+        }
+        return false;
+      }
+      PlayerDebugTelemetry.record('subtitle_parsed');
+    } catch (error) {
+      PlayerDebugTelemetry.record('subtitle_parse_failed', failure: true);
+      debugPrint('[PlayerSubtitles] Parse failed: ${error.runtimeType}');
+      return false;
+    }
+    if (!mounted || epoch != _audioMediaEpoch ||
+        (automatic && (_subtitleManuallySelected || _isSubtitleEnabled))) {
+      return false;
+    }
+
+    try {
+      if (_currentSubtitlePath != path) {
+        _subtitleRateAnchor = null;
+        _subtitleSpeed = 1.0;
+        await _resetNativeSubtitleSpeed();
+        await _applyLiveDelay(0.0);
+      }
+      PlayerDebugTelemetry.record('subtitle_attach_started');
+      final dynamic native = _player.platform;
+      await _player.setSubtitleTrack(SubtitleTrack.uri(
+        _resolveSubtitleUri(path), title: variant.language));
+      var selection = await SubtitleActivationGuard.waitForSelection(
+        () async => await native.getProperty('sid'),
+      );
+      // The native backend may accept an external URI without selecting it.
+      // Retry once with the documented in-memory subtitle path.
+      if (selection == SubtitleTrackReadiness.inactive &&
+          mounted && epoch == _audioMediaEpoch) {
+        PlayerDebugTelemetry.record('subtitle_track_unselected');
+        await _player.setSubtitleTrack(
+          SubtitleTrack.data(content, title: variant.language));
+        selection = await SubtitleActivationGuard.waitForSelection(
+          () async => await native.getProperty('sid'),
+        );
+      }
       if (!mounted || epoch != _audioMediaEpoch ||
           (automatic && (_subtitleManuallySelected || _isSubtitleEnabled))) {
         return false;
       }
-      if (_currentSubtitlePath != path) {
-        // The original cue timebase is different after a subtitle switch.
-        _subtitleRateAnchor = null;
-        _subtitleSpeed = 1.0;
-        try {
-          await (_player.platform as dynamic).setProperty('sub-speed', '1.0');
-        } catch (error) {
-          debugPrint('[PlayerSpeechSync] Subtitle speed reset failed: ${error.runtimeType}');
+      if (selection == SubtitleTrackReadiness.inactive) {
+        PlayerDebugTelemetry.record('subtitle_attach_failed', failure: true);
+        if (!automatic && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Subtitle downloaded, but player did not select the track'),
+          ));
         }
-        await _applyLiveDelay(0.0);
+        return false;
       }
-      await _player.setSubtitleTrack(SubtitleTrack.uri(
-          _resolveSubtitleUri(path), title: variant.language));
+
+      // Apply the renderer before announcing selection.
+      await PlayerSettings.applySubtitleStyling(_player);
       if (!mounted || epoch != _audioMediaEpoch) return false;
+      if (selection == SubtitleTrackReadiness.selected) {
+        PlayerDebugTelemetry.record('subtitle_track_selected');
+      } else {
+        PlayerDebugTelemetry.record('subtitle_track_unknown');
+      }
+      PlayerDebugTelemetry.record(PlayerSettings.useLibass.value
+          ? 'subtitle_native_renderer_active'
+          : 'subtitle_flutter_renderer_active');
+
       setState(() {
         _currentSubtitleVariant = variant;
         _selectedEmbeddedSubtitleIndex = null;
@@ -1910,20 +1971,27 @@ class _PlayerScreenState extends State<PlayerScreen>
         _currentSubFormat = result.format;
       });
       _setSubtitleScale(_subtitleScale);
-      unawaited(PlayerSettings.applySubtitleStyling(_player));
       if (_subtitleDelayMs != 0) {
         await _applyLiveDelay(_subtitleDelayMs / 1000.0);
       }
       if (!automatic && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${variant.language} subtitle loaded (${_currentCues.length} lines)'),
-          duration: const Duration(seconds: 2),
+          content: Text(selection == SubtitleTrackReadiness.selected
+              ? '${variant.language} subtitle selected (${result.cues.length} cues)'
+              : '${variant.language} subtitle sent to player; selection unverified'),
+          duration: const Duration(seconds: 3),
         ));
       }
-      debugPrint('[PlayerSubtitles] English external subtitles enabled from ${variant.providerName}');
+      debugPrint('[PlayerSubtitles] Subtitle attachment completed');
       return true;
     } catch (error) {
-      debugPrint('[PlayerSubtitles] Subtitle activation failed: $error');
+      PlayerDebugTelemetry.record('subtitle_attach_failed', failure: true);
+      debugPrint('[PlayerSubtitles] Activation failed: ${error.runtimeType}');
+      if (!automatic && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Subtitle downloaded but could not be activated'),
+        ));
+      }
       return false;
     }
   }

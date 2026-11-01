@@ -92,6 +92,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   bool _similarHasMore = false;
   bool _isFetchingMoreSimilar = false;
   bool _similarLoadMoreFailed = false;
+  bool _similarFetchFinished = false;
 
   String? _resolvedType;
   String? _resolvedBaseUrl;
@@ -388,6 +389,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         _similarTmdbPage = 1;
         _similarVisibleCount = _similarPageSize;
         _similarLoadMoreFailed = false;
+        _similarFetchFinished = true;
         _isFetchingSimilar = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -399,7 +401,10 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       if (mounted && identical(_similarItems, result.items)) setState(() {});
     } catch (error) {
       debugPrint('[Similar] Recommendations unavailable: ${error.runtimeType}');
-      if (mounted) setState(() => _isFetchingSimilar = false);
+      if (mounted) setState(() {
+        _isFetchingSimilar = false;
+        _similarFetchFinished = true;
+      });
     }
   }
 
@@ -413,6 +418,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
             .clamp(0, _similarItems.length).toInt();
         _similarLoadMoreFailed = false;
       });
+      SimilarRecommendationsService.recordVisibleItemsExpanded();
       return;
     }
     if (!_similarFromTmdb || !_similarHasMore) return;
@@ -647,7 +653,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                             _buildSimilarRow(),
                             const SizedBox(height: _Space.xl),
                           ] else if (_isFetchingSimilar) ...[
-                            _buildSectionHeader('Similar Content'),
+                            _buildSectionHeader(_isSeries ? 'Similar Series' : 'Similar Movies'),
                             const Center(
                               child: Padding(
                                 padding: EdgeInsets.symmetric(vertical: 40),
@@ -661,7 +667,25 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                               ),
                             ),
                             const SizedBox(height: _Space.xl),
-                          ],
+                          ], else if (_similarFetchFinished) ...[
+                            _buildSectionHeader(_isSeries ? 'Similar Series' : 'Similar Movies'),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              child: Row(
+                                children: [
+                                  const Expanded(child: Text(
+                                    'No verified recommendations available from configured sources.',
+                                    style: TextStyle(color: Colors.white60),
+                                  )),
+                                  TextButton(
+                                    onPressed: _fetchSimilarContent,
+                                    child: const Text('Retry'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: _Space.xl),
+                          ]
                           const SizedBox(height: _Space.xxl),
                         ],
                       ),

@@ -165,6 +165,8 @@ jobs:
           python3 -m py_compile .github/scripts/verify_night_mode_libmpv.py
           python3 .github/scripts/verify_night_mode_libmpv.py --self-test
           python3 .github/scripts/prepare_ios_night_mode_libmpv.py --self-test
+          python3 -m py_compile .github/scripts/prepare_ios_night_mode_libmpv.py .github/scripts/verify_ios_night_mode_release_workflows.py
+          python3 .github/scripts/verify_ios_night_mode_release_workflows.py --self-test
           ruby -e 'require "yaml"; doc = YAML.load_file(".github/workflows/windows-advanced-discover.yml", aliases: true); abort "Invalid release workflow" unless doc.fetch("jobs").key?("ios15-rescue-arm")'
           ruby -e 'require "yaml"; d = YAML.load_file(".github/workflows/ios-speech-release.yml", aliases: true); j = d.fetch("jobs"); abort "Missing iOS speech release fallback" unless %w[speech-ios-primary speech-ios-rescue-intel speech-ios-rescue-arm publish-ios-speech telegram-ios-speech].all? { |name| j.key?(name) }; abort "Unexpected Windows build" if j.keys.any? { |name| name.include?("windows") }'
 

@@ -85,6 +85,12 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   bool _isFetchingSimilar = false;
   bool _similarFromTmdb = false;
   int? _similarTvdbId;
+  static const int _similarPageSize = 8;
+  int _similarVisibleCount = _similarPageSize;
+  int _similarTmdbPage = 1;
+  bool _similarHasMore = false;
+  bool _isFetchingMoreSimilar = false;
+  bool _similarLoadMoreFailed = false;
 
   String? _resolvedType;
   String? _resolvedBaseUrl;
@@ -376,6 +382,10 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         _similarItems = result.items;
         _similarFromTmdb = result.fromTmdb;
         _similarTvdbId = result.tvdbId;
+        _similarHasMore = result.hasMore;
+        _similarTmdbPage = 1;
+        _similarVisibleCount = _similarPageSize;
+        _similarLoadMoreFailed = false;
         _isFetchingSimilar = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -386,8 +396,64 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       await SimilarRecommendationsService.enrichVisibleCards(result.items);
       if (mounted && identical(_similarItems, result.items)) setState(() {});
     } catch (error) {
-      debugPrint('[Similar] Related shows unavailable: ${error.runtimeType}');
+      debugPrint('[Similar] Recommendations unavailable: ${error.runtimeType}');
       if (mounted) setState(() => _isFetchingSimilar = false);
+    }
+  }
+
+  Future<void> _loadMoreSimilar() async {
+    if (_isFetchingMoreSimilar || _detail == null) return;
+    // BestSimilar and the current TMDB page are revealed in bounded groups.
+    if (_similarVisibleCount < _similarItems.length) {
+      final previous = _similarVisibleCount;
+      setState(() {
+        _similarVisibleCount = (previous + _similarPageSize)
+            .clamp(0, _similarItems.length).toInt();
+        _similarLoadMoreFailed = false;
+      });
+      return;
+    }
+    if (!_similarFromTmdb || !_similarHasMore) return;
+    setState(() {
+      _isFetchingMoreSimilar = true;
+      _similarLoadMoreFailed = false;
+    });
+    try {
+      final nextPage = _similarTmdbPage + 1;
+      final response = await SimilarRecommendationsService.loadMore(
+        detail: _detail!, isSeries: _isSeries, page: nextPage,
+      );
+      if (!mounted) return;
+      // Deduplicate the two TMDB feeds and records from previous pages.
+      final seen = <String>{
+        for (final item in _similarItems)
+          item.tmdbId != null ? '${item.mediaType}:${item.tmdbId}' :
+              '${item.mediaType}:${item.title.toLowerCase()}:${item.year}',
+      };
+      final incoming = response.items.where((item) => seen.add(
+        item.tmdbId != null ? '${item.mediaType}:${item.tmdbId}' :
+            '${item.mediaType}:${item.title.toLowerCase()}:${item.year}',
+      )).toList();
+      setState(() {
+        _similarTmdbPage = nextPage;
+        _similarItems = [..._similarItems, ...incoming];
+        _similarVisibleCount = (_similarVisibleCount + _similarPageSize)
+            .clamp(0, _similarItems.length).toInt();
+        _similarHasMore = response.hasMore;
+        _isFetchingMoreSimilar = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _updateSimilarScrollButtons();
+      });
+      // Only enrich newly displayed cards, never scan an entire collection.
+      await SimilarRecommendationsService.enrichVisibleCards(incoming);
+      if (mounted) setState(() {});
+    } catch (error) {
+      debugPrint('[Similar] Load More unavailable: ${error.runtimeType}');
+      if (mounted) setState(() {
+        _isFetchingMoreSimilar = false;
+        _similarLoadMoreFailed = true;
+      });
     }
   }
 
@@ -1572,7 +1638,8 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionHeader(_similarFromTmdb
-              ? 'Recommended Shows' : 'Similar Content'),
+              ? (_isSeries ? 'Recommended Shows' : 'Recommended Movies')
+              : 'Similar Content'),
           if (_similarFromTmdb)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -1628,7 +1695,8 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                     controller: _similarScrollController,
                     scrollDirection: Axis.horizontal,
                     physics: const BouncingScrollPhysics(),
-                    itemCount: _similarItems.length,
+                    itemCount: _similarItems.length > _similarVisibleCount
+                        ? _similarVisibleCount : _similarItems.length,
                     separatorBuilder: (_, __) => const SizedBox(width: _Space.md),
                     itemBuilder: (context, index) {
                       final item = _similarItems[index];
@@ -1830,6 +1898,22 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
               ],
             ),
           ),
+          if (_similarItems.length > _similarVisibleCount || _similarHasMore)
+            Padding(
+              padding: const EdgeInsets.only(top: 14),
+              child: Center(
+                child: OutlinedButton.icon(
+                  key: const ValueKey('similar-load-more'),
+                  onPressed: _isFetchingMoreSimilar ? null : _loadMoreSimilar,
+                  icon: _isFetchingMoreSimilar
+                      ? const SizedBox(width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.expand_more_rounded),
+                  label: Text(_isFetchingMoreSimilar ? 'Loading...' :
+                      _similarLoadMoreFailed ? 'Retry Load More' : 'Load More'),
+                ),
+              ),
+            ),
         ],
       ),
     );

@@ -24,7 +24,7 @@ jobs:
       # An optional separately authorized fine-grained PAT can bypass an
       # intermittent GITHUB_TOKEN release-creation integration restriction.
       # Without that secret this uses the normal contents:write token.
-      GH_TOKEN: \${{ secrets.PLAYTORRIO_RELEASE_TOKEN || github.token }}
+      GH_TOKEN: ${{ secrets.PLAYTORRIO_RELEASE_TOKEN || github.token }}
       ORIGINAL_RUN: '41310388291'
       ORIGINAL_SHA: 'ea9467fa856fddc0eecbaa44cf077a407e871fd1'
       ORIGINAL_ARTIFACT_ID: '13085144098'
@@ -60,9 +60,9 @@ jobs:
       - name: Download ONLY the original signed iOS IPA artifact
         uses: actions/download-artifact@v4
         with:
-          repository: \${{ github.repository }}
+          repository: ${{ github.repository }}
           run-id: 41310388291
-          github-token: \${{ github.token }}
+          github-token: ${{ github.token }}
           name: PlayTorrio-iOS15-SpeechSync-v1.1.15-run-16
           path: packages/ios173
 
@@ -155,16 +155,16 @@ jobs:
   telegram:
     name: Send verified published Build 173 GitHub IPA link to Telegram
     needs: [publish]
-    if: \${{ needs.publish.result == 'success' }}
+    if: ${{ needs.publish.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
       actions: read
       contents: read
     env:
-      GH_TOKEN: \${{ github.token }}
-      TELEGRAM_BOT_TOKEN: \${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID: \${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
+      GH_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
     steps:
       - uses: actions/checkout@v4
       - name: Verify published release digests again before sending link

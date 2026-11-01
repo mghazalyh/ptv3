@@ -69,6 +69,25 @@ def prepare(package: Path) -> Path:
     return makefile.parent
 
 
+def check_filter_binary(binary: Path) -> None:
+    """Check the native FFmpeg binary that will actually ship, not Dart code."""
+    if not binary.is_file() or binary.stat().st_size < 100000:
+        raise RuntimeError(f"iOS Avfilter native binary missing or too small: {binary}")
+    strings = subprocess.run(
+        ["strings", "-a", str(binary)], check=True,
+        capture_output=True, text=True, timeout=90).stdout.lower()
+    symbols = subprocess.run(
+        ["nm", "-g", str(binary)], check=False,
+        capture_output=True, text=True, timeout=90).stdout.lower()
+    missing = [name for name in REQUIRED_FILTERS
+               if name not in strings and f"ff_af_{name}" not in symbols]
+    if missing:
+        raise RuntimeError("iOS Avfilter is missing " +
+                           ", ".join(missing) + "; refusing IPA build")
+    print("Verified real iOS Avfilter compressor symbols in", binary.name,
+          ":", ", ".join(REQUIRED_FILTERS))
+
+
 def native_filter_check(package: Path) -> None:
     root = package / "ios" / "Frameworks" / "Avfilter.xcframework"
     if not root.is_dir():
@@ -79,19 +98,20 @@ def native_filter_check(package: Path) -> None:
     if not devices:
         raise RuntimeError("Native iOS arm64 Avfilter binary missing")
     for binary in devices:
-        strings = subprocess.run(
-            ["strings", "-a", str(binary)], check=True,
-            capture_output=True, text=True, timeout=90).stdout.lower()
-        symbols = subprocess.run(
-            ["nm", "-g", str(binary)], check=False,
-            capture_output=True, text=True, timeout=90).stdout.lower()
-        missing = [name for name in REQUIRED_FILTERS
-                   if name not in strings and f"ff_af_{name}" not in symbols]
-        if missing:
-            raise RuntimeError("Packaged iOS Avfilter is missing " +
-                               ", ".join(missing) + "; refusing IPA build")
-        print("Verified bundled iOS arm64 FFmpeg filter symbols:",
-              ", ".join(REQUIRED_FILTERS))
+        check_filter_binary(binary)
+
+
+def built_app_filter_check(app: Path) -> None:
+    """Catch CocoaPods/Flutter overwriting a verified filter framework at build."""
+    if not app.is_dir():
+        raise RuntimeError(f"Built iOS app missing: {app}")
+    matches = list(app.rglob("Avfilter.framework/Avfilter"))
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"Expected exactly one embedded Avfilter binary in {app}, "
+            f"found {len(matches)}; refusing to sign filterless iOS IPA"
+        )
+    check_filter_binary(matches[0])
 
 
 def self_test() -> None:
@@ -132,10 +152,15 @@ def main() -> int:
                         default=Path(".dart_tool/package_config.json"))
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--verify", action="store_true")
+    parser.add_argument("--verify-app", action="store_true",
+                        help="Check Avfilter in the BUILT Runner.app before signing")
     args = parser.parse_args()
     try:
         if args.self_test:
             self_test()
+            return 0
+        if args.verify_app:
+            built_app_filter_check(Path("build/ios/iphoneos/Runner.app"))
             return 0
         package = find_ios_package(args.package_config)
         if args.verify:

@@ -34,13 +34,21 @@ def github_api(path):
 
 
 def select_run(runs, source_sha):
-    return next(
-        (run for run in runs
-         if run.get("head_sha") == source_sha
-         and run.get("head_branch") == BRANCH
-         and run.get("path", "").endswith("/" + WORKFLOW)),
-        None,
-    )
+    """Match a release request first; allow standalone notifier repair to attach
+    only to one currently active iOS release on the same shared branch."""
+    candidates = [
+        run for run in runs
+        if run.get("head_branch") == BRANCH
+        and str(run.get("path") or "").endswith("/" + WORKFLOW)
+    ]
+    for run in candidates:
+        if run.get("head_sha") == source_sha:
+            return run
+    active = [
+        run for run in candidates
+        if run.get("status") in ("queued", "in_progress", "waiting", "pending")
+    ]
+    return active[0] if len(active) == 1 else None
 
 
 def state_counts(jobs):

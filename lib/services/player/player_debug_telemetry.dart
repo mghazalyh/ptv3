@@ -24,22 +24,23 @@ abstract final class PlayerDebugTelemetry {
       return;
     }
     if (failure != true) return;
-    unawaited(_flush());
+    final reason = stage.startsWith('subtitle_') ? 'subtitle_failure' : 'sync_failure';
+    unawaited(_flush(reason));
     _delayedFlush?.cancel();
     _delayedFlush = Timer(const Duration(seconds: 36), () {
       _delayedFlush = null;
-      unawaited(_flush());
+      unawaited(_flush(reason));
     });
   }
 
-  static Future<void> _flush() async {
+  static Future<void> _flush(String reason) async {
     try {
       if (Platform.isWindows) {
         await WindowsPlaybackTelemetry.instance.upload(
-          reason: 'sync_failure', automatic: true);
+          reason: reason, automatic: true);
       } else if (Platform.isIOS) {
         await IosAudioTelemetry.instance.upload(
-          reason: 'sync_failure', automatic: true);
+          reason: reason, automatic: true);
       }
     } catch (_) {
       // Diagnostic delivery is best effort and never interrupts playback.

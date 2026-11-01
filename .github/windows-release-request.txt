@@ -1,7 +1,3 @@
-OWNER-REQUESTED WINDOWS-ONLY PlayTorrio v1.1.15 Build #166 — 2026-11-01 SGT.
-Reported issue: gaming while streaming still produces intermittent visible jerks despite improved Build #165 performance.
-Evidence: private Build #165 telemetry sample at 2026-10-31T18:36:39Z recorded 7 new MPV drops and an 81 ms Flutter raster stall with healthy ~15 s cache, zero A/V drift and no evidence of texture reduction. Previous guard required at least two consecutive bad samples and missed that burst.
-Fix source SHA: 6b9d94428989084c193dd709ae55e91623cdd9b5. React promptly to severe single-sample stalls, progressively scale Windows GPU textures to 720p / 540p / 360p only when repeated pressure warrants it; preserve hardware decode and simultaneous gaming, never throttle games. Keep bounded resync and buffering safeguards.
-Final source gates: workflow 41231093484, Linux analyzer/tests SUCCESS and Windows compatibility SUCCESS.
-Release only Windows Setup EXE, Windows portable ZIP, SHA256SUMS and Telegram Windows GitHub link. Preserve iOS. Literal [windows-only] in release request commit message is mandatory.
-Do not rebuild successful native binaries or publish unverified release assets.
+OWNER-REQUESTED WINDOWS-ONLY NATIVE RELEASE of PlayTorrio v1.1.15. Stage source revision: 981a1758ad44ff8cc7dc83f814477c598d8995ad.
+Request: automatic private, opt-in, allowlisted diagnostic upload when subtitle Auto Sync fails; Windows selection fix avoids silently transcribing FFmpeg first audio track when another MPV audio track is selected. New test coverage for routing and privacy. iOS shared diagnostics source also present but iOS build is a separate explicit request.
+Use established Windows runner tests, bundle FFmpeg + offline Whisper + validated MPV, signed Windows Setup and portable ZIP, immutable GitHub release with checksums and Telegram link. DO NOT invoke paired iOS job here: this commit MUST contain literal [windows-only] in commit message. Do not overwrite Windows Build #166 or iOS Build #159.

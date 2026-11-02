@@ -78,6 +78,7 @@ class WindowsPlaybackTelemetry {
     'source_recovery_exhausted',
     'playback_buffering',
     'windows_subtitle_only_settings_applied',
+    'windows_audio_filter_preserved',
     'windows_shared_audio_requested',
     'windows_shared_audio_unavailable',
     'windows_audio_output_underrun',

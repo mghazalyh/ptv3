@@ -25,6 +25,18 @@ abstract final class PlayerPictureAudio {
       !nightMode ? normalAudioFilter :
       '$normalAudioFilter,${windows ? windowsNightCompressor : nightCompressor}';
 
+  /// Only an exact match is sufficient to skip a redundant Windows-only
+  /// post-open filter setter. MPV may expose its native filter chain in another
+  /// representation, or reset it while opening a new source. In either case
+  /// the existing application path must run rather than assuming success.
+  /// This never suppresses explicit Night Mode changes.
+  static bool windowsAudioFilterMatches(Object? nativeFilter, bool nightMode) {
+    if (nativeFilter is! String) return false;
+    final value = nativeFilter.trim();
+    return value.isNotEmpty &&
+        value == audioFilterChain(nightMode, windows: true);
+  }
+
   /// libmpv can accept an `af` option and only fail when audio starts. The
   /// media_kit error stream is therefore the source of truth for runtime
   /// filter graph initialization failures.

@@ -202,4 +202,89 @@ void main() {
     telemetry.dispose();
   });
 
+
+  test('Windows audio-output warnings are classified without raw logs', () {
+    expect(WindowsPlaybackTelemetry.classifyNativeAudioWarning(
+        prefix: 'ao/wasapi',
+        message: 'Audio device underrun: private endpoint SECRET'),
+        'windows_audio_output_underrun');
+    expect(WindowsPlaybackTelemetry.classifyNativeAudioWarning(
+        prefix: 'ao', message: 'Device invalidated'),
+        'windows_audio_device_interrupted');
+    expect(WindowsPlaybackTelemetry.classifyNativeAudioWarning(
+        prefix: 'ao', message: 'Reinitializing audio output'),
+        'windows_audio_output_reinitialized');
+    expect(WindowsPlaybackTelemetry.classifyNativeAudioWarning(
+        prefix: 'demux', message: 'video buffer underrun'), isNull);
+    expect(WindowsPlaybackTelemetry.classifyNativeAudioWarning(
+        prefix: 'demux', message: 'https://private.test/media'), isNull);
+  });
+
+  test('Windows native audio warnings require opt-in and are rate limited',
+      () async {
+    Map<String, dynamic>? report;
+    final telemetry = WindowsPlaybackTelemetry.forTesting(
+      client: MockClient((request) async {
+        final wrapper = jsonDecode(request.body) as Map<String, dynamic>;
+        report = jsonDecode(utf8.decode(base64Decode(
+          wrapper['content'] as String))) as Map<String, dynamic>;
+        return http.Response('{}', 201);
+      }),
+      tokenProvider: () async => 'test-only-placeholder',
+    )..forceTestPlatform = true;
+    final start = DateTime.utc(2026, 11, 2);
+    const sensitive = 'Audio device underrun: SECRET headset path';
+    telemetry.captureNativeAudioLog(
+        prefix: 'ao/wasapi', message: sensitive, now: start);
+    expect(telemetry.capturedCodes, isEmpty);
+    NightModeDiagnostics.debugModeEnabled.value = true;
+    telemetry.captureNativeAudioLog(
+        prefix: 'ao/wasapi', message: sensitive, now: start);
+    telemetry.captureNativeAudioLog(
+        prefix: 'ao/wasapi', message: sensitive,
+        now: start.add(const Duration(seconds: 5)));
+    telemetry.captureNativeAudioLog(
+        prefix: 'ao/wasapi', message: sensitive,
+        now: start.add(const Duration(seconds: 31)));
+    expect(telemetry.capturedCodes,
+        ['windows_audio_output_underrun', 'windows_audio_output_underrun']);
+    final expectedCodes = List<String>.from(telemetry.capturedCodes);
+    expect(await telemetry.upload(reason: 'playback_sample'), isTrue);
+    expect(report!['codes'], expectedCodes);
+    expect(jsonEncode(report), isNot(contains('SECRET')));
+    telemetry.dispose();
+  });
+
+  test('Windows-only audio output samples are bounded and omit raw devices',
+      () {
+    final telemetry = WindowsPlaybackTelemetry.forTesting(
+      client: MockClient((_) async => http.Response('{}', 201)),
+      tokenProvider: () async => 'test-only-placeholder',
+    )..forceTestPlatform = true;
+    NightModeDiagnostics.debugModeEnabled.value = true;
+    telemetry.capturePlaybackSample({
+      'audio-params/samplerate': '48000',
+      'audio-out-params/samplerate': '48000',
+      'audio-buffer': '0.2',
+      'audio-exclusive': 'yes',
+      'audio-device': 'SECRET headset identifier',
+    });
+    final sample = telemetry.capturedSamples.single;
+    expect(sample['audioDecodedSampleRateHz'], 48000);
+    expect(sample['audioOutputSampleRateHz'], 48000);
+    expect(sample['audioBufferMs'], 200);
+    expect(sample['audioExclusive'], true);
+    expect(sample.containsKey('audio-device'), false);
+    expect(telemetry.capturedCodes,
+        contains('windows_audio_exclusive_detected'));
+    telemetry.capturePlaybackSample({
+      'audio-params/samplerate': '99999999',
+      'audio-buffer': 'NaN',
+      'audio-exclusive': 'UNKNOWN',
+    });
+    expect(telemetry.capturedSamples.last.containsKey(
+        'audioDecodedSampleRateHz'), false);
+    expect(telemetry.capturedSamples.last.containsKey('audioBufferMs'), false);
+    telemetry.dispose();
+  });
 }

@@ -290,6 +290,22 @@ abstract final class PlayerSettings {
         debugPrint('[PlayerSettings] Cannot set preferred audio language: $e');
       }
 
+      // Games and media players must be able to share the Windows audio
+      // endpoint. Explicitly retain mpv's non-exclusive WASAPI default.
+      // Configure only during initial source setup, never on subtitle edits.
+      if (Platform.isWindows) {
+        try {
+          await platform.setProperty('audio-exclusive', 'no');
+          WindowsPlaybackTelemetry.instance.captureCode(
+              'windows_shared_audio_requested');
+        } catch (error) {
+          WindowsPlaybackTelemetry.instance.captureCode(
+              'windows_shared_audio_unavailable');
+          debugPrint('[PlayerSettings] Shared audio property unavailable: '
+              '${error.runtimeType}');
+        }
+      }
+
       // 1. Audio Filter & Volume
       await _applyAudioWithFailOpen(player);
       await platform.setProperty('volume-max', '200');

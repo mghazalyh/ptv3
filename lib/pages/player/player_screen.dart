@@ -355,6 +355,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Native MPV/libavfilter details arrive independently of player errors.
       _player.stream.log.listen((log) {
         if (Platform.isIOS) IosAudioTelemetry.instance.captureNativeLog(log.text);
+        if (Platform.isWindows) {
+          WindowsPlaybackTelemetry.instance.captureNativeAudioLog(
+            prefix: log.prefix, message: log.text);
+        }
         unawaited(NightModeDiagnostics.instance.recordMpv(
           prefix: log.prefix,
           level: log.level,
@@ -1198,6 +1202,22 @@ class _PlayerScreenState extends State<PlayerScreen>
         } catch (_) {
           // Native libraries expose different counters. Missing metrics
           // are omitted rather than reported as falsely healthy zeros.
+        }
+      }
+      // Audio-output sampling is consented Windows-only diagnostic work, not
+      // another background task imposed on the game when Debug Mode is off.
+      if (Platform.isWindows && WindowsPlaybackTelemetry.instance.isActive) {
+        for (final key in const <String>[
+          'audio-params/samplerate', 'audio-out-params/samplerate',
+          'audio-buffer', 'audio-exclusive',
+        ]) {
+          if (!mounted || generation != _streamGeneration) break;
+          try {
+            properties[key] = await native.getProperty(key)
+                .timeout(const Duration(milliseconds: 350));
+          } catch (_) {
+            // MPV builds may not expose all output properties.
+          }
         }
       }
       if (!mounted || !_performanceSamplingEnabled ||
@@ -3212,7 +3232,18 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _onPlayerSettingsChanged() {
-    PlayerSettings.applyToPlayer(_player);
+    if (Platform.isWindows) {
+      // This notifier is emitted by subtitle appearance changes. Re-running
+      // pre-open configuration here rebuilds MPV's audio filter graph during
+      // playback, which can interrupt audio while a game shares the system.
+      WindowsPlaybackTelemetry.instance.captureCode(
+          'windows_subtitle_only_settings_applied');
+      unawaited(PlayerSettings.applySubtitleStyling(_player));
+      return;
+    }
+    // Retain the existing iOS source behavior; this Windows repair must not
+    // change iPad playback or its separately verified native filter preflight.
+    unawaited(PlayerSettings.applyToPlayer(_player));
   }
 
   DateTime? _lastScreenTapTime;

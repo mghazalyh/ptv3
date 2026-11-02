@@ -39,6 +39,8 @@ class WindowsPlaybackTelemetry {
   final Map<String, Object> _facts = {};
   final List<Map<String, Object>> _samples = [];
   final Map<String, int> _previousFrameCounts = {};
+  final Map<String, DateTime> _lastAudioWarningAt = {};
+  bool _exclusiveAudioReported = false;
   DateTime? _lastUpload;
   bool _uploading = false;
   int _counter = 0;
@@ -57,6 +59,9 @@ class WindowsPlaybackTelemetry {
   List<Map<String, Object>> get capturedSamples =>
       List.unmodifiable(_samples);
 
+  @visibleForTesting
+  List<String> get capturedCodes => List.unmodifiable(_events);
+
   static const allowedEvents = <String>{
     'brightness_changed',
     'brightness_vf_fallback',
@@ -72,6 +77,13 @@ class WindowsPlaybackTelemetry {
     'source_fallback_attempted',
     'source_recovery_exhausted',
     'playback_buffering',
+    'windows_subtitle_only_settings_applied',
+    'windows_shared_audio_requested',
+    'windows_shared_audio_unavailable',
+    'windows_audio_output_underrun',
+    'windows_audio_device_interrupted',
+    'windows_audio_output_reinitialized',
+    'windows_audio_exclusive_detected',
     ...PlayerDiagnosticCodes.events,
   };
 
@@ -79,6 +91,48 @@ class WindowsPlaybackTelemetry {
     if (!isActive || !allowedEvents.contains(code)) return;
     if (_events.length >= maxEvents) _events.removeAt(0);
     _events.add(code);
+  }
+
+  /// Turn a native warning into a fixed category without ever retaining its
+  /// text, audio endpoint name, path or other potentially identifying content.
+  /// Absence of this warning does not establish glitch-free audible playback.
+  static String? classifyNativeAudioWarning({
+    required String prefix, required String message,
+  }) {
+    if (message.isEmpty || message.length > 1024) return null;
+    final source = prefix.toLowerCase();
+    final value = message.toLowerCase();
+    final isOutput = source == 'ao' || source.startsWith('ao/') ||
+        source.contains('wasapi') || value.contains('audio device') ||
+        value.contains('audio output') || value.contains('wasapi');
+    if (!isOutput) return null;
+    if (value.contains('underrun') || value.contains('underflow')) {
+      return 'windows_audio_output_underrun';
+    }
+    if (value.contains('disconnected') || value.contains('invalidated') ||
+        value.contains('device lost')) {
+      return 'windows_audio_device_interrupted';
+    }
+    if (value.contains('reinitializ') || value.contains('re-init') ||
+        value.contains('reopen') || value.contains('re-open')) {
+      return 'windows_audio_output_reinitialized';
+    }
+    return null;
+  }
+
+  void captureNativeAudioLog({
+    required String prefix, required String message, DateTime? now,
+  }) {
+    if (!isActive) return;
+    final code = classifyNativeAudioWarning(
+        prefix: prefix, message: message);
+    if (code == null) return;
+    final instant = now ?? DateTime.now();
+    final last = _lastAudioWarningAt[code];
+    if (last != null && !instant.isBefore(last) &&
+        instant.difference(last) < const Duration(seconds: 30)) return;
+    _lastAudioWarningAt[code] = instant;
+    captureCode(code);
   }
 
   void captureStorageState() {
@@ -209,6 +263,32 @@ class WindowsPlaybackTelemetry {
           (value * 1000).round() / 1000;
     }
 
+    // Output-device and decoded-audio rates provide a narrow audio-specific
+    // health signal. Missing properties stay absent, never false zeros.
+    for (final entry in const <String, String>{
+      'audio-params/samplerate': 'audioDecodedSampleRateHz',
+      'audio-out-params/samplerate': 'audioOutputSampleRateHz',
+    }.entries) {
+      final rate = int.tryParse(properties[entry.key]?.toString() ?? '');
+      if (rate != null && rate >= 8000 && rate <= 384000) {
+        sample[entry.value] = rate;
+      }
+    }
+    final bufferSeconds = double.tryParse(
+        properties['audio-buffer']?.toString() ?? '');
+    if (bufferSeconds != null && bufferSeconds.isFinite &&
+        bufferSeconds >= 0 && bufferSeconds <= 3) {
+      sample['audioBufferMs'] = (bufferSeconds * 1000).round();
+    }
+    final exclusive = properties['audio-exclusive']?.toString().toLowerCase();
+    if (exclusive == 'yes' || exclusive == 'no') {
+      sample['audioExclusive'] = exclusive == 'yes';
+      if (exclusive == 'yes' && !_exclusiveAudioReported) {
+        _exclusiveAudioReported = true;
+        captureCode('windows_audio_exclusive_detected');
+      }
+    }
+
     for (final property in const <String>[
       'flutter-frame-count', 'flutter-slow-build-count',
       'flutter-slow-raster-count', 'flutter-worst-raster-ms',
@@ -237,7 +317,11 @@ class WindowsPlaybackTelemetry {
     _samples.add(sample);
   }
 
-  void resetPlaybackCounters() => _previousFrameCounts.clear();
+  void resetPlaybackCounters() {
+    _previousFrameCounts.clear();
+    _lastAudioWarningAt.clear();
+    _exclusiveAudioReported = false;
+  }
 
   Future<String?> _accessToken() async {
     if (_tokenProvider != null) return _tokenProvider();

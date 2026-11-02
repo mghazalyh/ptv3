@@ -398,6 +398,14 @@ abstract final class PlayerSettings {
 
   /// Applying `af` can succeed even if MPV later fails to initialize its
   /// runtime audio graph. Immediate property failures also fail open here.
+  static void _recordSafeNightModeCode(String code) {
+    if (Platform.isIOS) {
+      IosAudioTelemetry.instance.captureCode(code);
+    } else if (Platform.isWindows) {
+      WindowsPlaybackTelemetry.instance.captureCode(code);
+    }
+  }
+
   static Future<void> _applyAudioWithFailOpen(Player player) async {
     final dynamic platform = player.platform;
     String? verifiedFilter;
@@ -422,8 +430,11 @@ abstract final class PlayerSettings {
         verifiedFilterChain: verifiedFilter,
         windows: Platform.isWindows,
       );
+      _recordSafeNightModeCode(nightModeEnabled.value
+          ? 'night_mode_live_filter_set' : 'night_mode_off_filter_set');
     } catch (error) {
-      debugPrint('[PlayerSettings] Audio filter rejected, restoring playback: $error');
+      _recordSafeNightModeCode('night_mode_filter_set_failed');
+      debugPrint('[PlayerSettings] Audio filter rejected, restoring playback: ${error.runtimeType}');
       unawaited(NightModeDiagnostics.instance.record('audio-apply-error', error.toString()));
       if (nightModeEnabled.value) {
         await recoverFailedNightMode(player: player);
@@ -442,6 +453,7 @@ abstract final class PlayerSettings {
     Player? player,
     Future<void> Function(String, String)? setProperty,
   }) async {
+    _recordSafeNightModeCode('night_mode_failopen_recovery');
     unawaited(NightModeDiagnostics.instance.record('night-recovery', 'start; disable persisted Night Mode'));
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyNightMode, false);
@@ -463,6 +475,8 @@ abstract final class PlayerSettings {
   /// Persist across episodes and app restarts; do not save an unsupported
   /// state when native mpv rejects the filter on an active player.
   static Future<void> setNightMode(bool enabled, {Player? player}) async {
+    _recordSafeNightModeCode(enabled
+        ? 'night_mode_toggle_on_requested' : 'night_mode_toggle_off_requested');
     String? verifiedFilter;
     if (enabled && Platform.isIOS) {
       verifiedFilter = await IosNightModePreflight.ensure();
@@ -482,8 +496,11 @@ abstract final class PlayerSettings {
         await PlayerPictureAudio.applyAudio(
             (key, value) => platform.setProperty(key, value), enabled,
             verifiedFilterChain: verifiedFilter, windows: Platform.isWindows);
+        _recordSafeNightModeCode(enabled
+            ? 'night_mode_live_filter_set' : 'night_mode_off_filter_set');
       } catch (error) {
-        debugPrint('[PlayerSettings] Night Mode setter failed: $error');
+        _recordSafeNightModeCode('night_mode_filter_set_failed');
+        debugPrint('[PlayerSettings] Night Mode setter failed: ${error.runtimeType}');
         unawaited(NightModeDiagnostics.instance.record('night-toggle-error', error.toString()));
         await recoverFailedNightMode(player: player);
         rethrow;

@@ -674,7 +674,7 @@ jobs:
           flutter test test/player_picture_audio_test.dart
 
       - name: Build unsigned iOS 15 release
-        run: flutter build ios --no-pub --release --no-codesign --build-name=1.1.15 --build-number="${{ github.run_number }}" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="${{ github.run_number }}" --dart-define-from-file=.env
+        run: flutter build ios --no-pub --release --no-codesign --build-name=1.1.15 --build-number="$((GITHUB_RUN_NUMBER + 3))" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="$((GITHUB_RUN_NUMBER + 3))" --dart-define-from-file=.env
 
       - name: Reverify FFmpeg compressor framework inside BUILT iOS app before signing
         run: |

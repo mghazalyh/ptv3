@@ -197,6 +197,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   Timer? _periodicAutoSyncTimer;
   DateTime? _nextAutoSyncDueAt;
   bool _autoSyncSucceeded = false;
+  bool _nativeSubtitleCueProbeDone = false;
+  bool _nativeSubtitleCueMissingLogged = false;
+  bool _nativeSubtitleCueProbeRunning = false;
   SubtitleTimingAnchor? _subtitleRateAnchor;
   double _subtitleSpeed = 1.0;
   String? _speechMediaUrl; // Active playable media; never logged or persisted.
@@ -423,6 +426,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Never carry stale subtitle tracks or download results into another episode.
     _subtitleManuallySelected = false;
     _subtitleAutoPending = false;
+    _nativeSubtitleCueProbeDone = false;
+    _nativeSubtitleCueMissingLogged = false;
     _isSubtitleEnabled = false;
     _currentSubtitleVariant = null;
     _selectedEmbeddedSubtitleIndex = null;
@@ -1467,12 +1472,63 @@ class _PlayerScreenState extends State<PlayerScreen>
   // Poll the five-minute deadline every 30 seconds. A skipped check due
   // to buffering, pause, missing cues or an active sync is retried on resume,
   // instead of silently waiting another full five minutes.
+  Future<void> _probeNativeSubtitleCueText() async {
+    if (_nativeSubtitleCueProbeDone || _nativeSubtitleCueProbeRunning ||
+        !_isPlaying || _isLoading || !_isSubtitleEnabled ||
+        _currentSubtitlePath == null || !PlayerSettings.useLibass.value ||
+        _currentCues.isEmpty || !mounted) return;
+    final epoch = _audioMediaEpoch;
+    final speed = _subtitleSpeed;
+    if (!speed.isFinite || speed <= 0) return;
+    final subtitleSeconds =
+        (_position.inMilliseconds / 1000.0 - _subtitleDelayMs / 1000.0) /
+            speed;
+    // Do not call absence a failure unless a real cue is due.
+    final cueDue = _currentCues.any((cue) =>
+        subtitleSeconds >= cue.start + 0.25 &&
+        subtitleSeconds <= cue.end - 0.15);
+    if (!cueDue) return;
+    _nativeSubtitleCueProbeRunning = true;
+    try {
+      final dynamic native = _player.platform;
+      final sid = (await native.getProperty('sid'))?.toString();
+      final visibility =
+          (await native.getProperty('sub-visibility'))?.toString().toLowerCase();
+      if (sid == null || sid == 'no' || visibility != 'yes' ||
+          !mounted || epoch != _audioMediaEpoch) return;
+      // The text is inspected only in memory for an empty/nonempty boolean.
+      // It is never sent to diagnostics, console, state or disk.
+      final Object? nativeText = await native.getProperty('sub-text');
+      if (!mounted || epoch != _audioMediaEpoch) return;
+      if (nativeText == null) {
+        PlayerDebugTelemetry.record('subtitle_native_text_probe_unavailable');
+        _nativeSubtitleCueProbeDone = true;
+      } else if (nativeText is String && nativeText.trim().isNotEmpty) {
+        PlayerDebugTelemetry.record('subtitle_native_cue_text_present');
+        _nativeSubtitleCueProbeDone = true;
+      } else if (!_nativeSubtitleCueMissingLogged) {
+        PlayerDebugTelemetry.record('subtitle_native_cue_text_missing');
+        _nativeSubtitleCueMissingLogged = true;
+      }
+    } catch (_) {
+      if (mounted && epoch == _audioMediaEpoch) {
+        PlayerDebugTelemetry.record('subtitle_native_text_probe_unavailable');
+        _nativeSubtitleCueProbeDone = true;
+      }
+    } finally {
+      _nativeSubtitleCueProbeRunning = false;
+    }
+  }
+
   void _startPeriodicAutoSync() {
     _periodicAutoSyncTimer?.cancel();
     _nextAutoSyncDueAt = DateTime.now().add(SubtitleAutoSyncPolicy.interval);
     _periodicAutoSyncTimer = Timer.periodic(
         SubtitleAutoSyncPolicy.pollInterval, (_) {
       if (!mounted) return;
+      // Independent of the 5-minute speech timer. Query native sub-text
+      // only during a known timed cue. Never read its contents into logs.
+      unawaited(_probeNativeSubtitleCueText());
       final now = DateTime.now();
       if (now.isBefore(_nextAutoSyncDueAt ??
           now.add(SubtitleAutoSyncPolicy.interval))) return;
@@ -1521,6 +1577,9 @@ class _PlayerScreenState extends State<PlayerScreen>
             'Subtitle timing unchanged.');
       }
     } on PlatformException catch (error) {
+      PlayerDebugTelemetry.record(
+          SubtitleAutoSyncPlatform.failureEventForCode(error.code),
+          failure: true);
       PlayerDebugTelemetry.record('sync_platform_failed', failure: true);
       if (mounted && epoch == _audioMediaEpoch) {
         _showAutoSyncMessage(error.message ??
@@ -1656,6 +1715,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         audioTrackId: _selectedAudioTrackIndex,
         onPlaybackDecoderFallback: () {
           if (mounted && epoch == _audioMediaEpoch) {
+            PlayerDebugTelemetry.record('sync_decoder_fallback_started');
             _showAutoSyncMessage(
               'Decoding this stream\'s audio with the movie player. '
               'This can take up to a minute; playback will continue.',
@@ -1728,6 +1788,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         audioTrackId: _selectedAudioTrackIndex,
         onPlaybackDecoderFallback: () {
           if (mounted && epoch == _audioMediaEpoch) {
+            PlayerDebugTelemetry.record('sync_decoder_fallback_started');
             _showAutoSyncMessage(
               'Decoding this stream\'s audio with the movie player. '
               'This can take up to a minute; playback will continue.',
@@ -2004,6 +2065,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         _isSubtitleEnabled = true;
         _currentSubtitlePath = path;
         _currentCues = result.cues;
+        _nativeSubtitleCueProbeDone = false;
+        _nativeSubtitleCueMissingLogged = false;
         _currentSubFormat = result.format;
       });
       _setSubtitleScale(_subtitleScale);

@@ -92,6 +92,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   bool _similarHasMore = false;
   bool _isFetchingMoreSimilar = false;
   bool _similarLoadMoreFailed = false;
+  bool _similarLoadMoreEmpty = false;
   bool _similarFetchFinished = false;
 
   String? _resolvedType;
@@ -389,6 +390,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         _similarTmdbPage = 1;
         _similarVisibleCount = _similarPageSize;
         _similarLoadMoreFailed = false;
+        _similarLoadMoreEmpty = false;
         _similarFetchFinished = true;
         _isFetchingSimilar = false;
       });
@@ -408,59 +410,94 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     }
   }
 
+  // Horizontal carousels do not reveal newly appended cards automatically.
+  void _scrollToNewSimilarCards(int previousVisibleCount) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_similarScrollController.hasClients ||
+          _similarVisibleCount <= previousVisibleCount) return;
+      final cardWidth = _isDesktop() ? 160.0 : 130.0;
+      final target = (previousVisibleCount * (cardWidth + _Space.md))
+          .clamp(0.0, _similarScrollController.position.maxScrollExtent)
+          .toDouble();
+      _similarScrollController.animateTo(target,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic);
+      _updateSimilarScrollButtons();
+    });
+  }
+
   Future<void> _loadMoreSimilar() async {
     if (_isFetchingMoreSimilar || _detail == null) return;
-    // BestSimilar and the current TMDB page are revealed in bounded groups.
     if (_similarVisibleCount < _similarItems.length) {
-      final previous = _similarVisibleCount;
+      final previousVisibleCount = _similarVisibleCount;
       setState(() {
-        _similarVisibleCount = (previous + _similarPageSize)
+        _similarVisibleCount = (previousVisibleCount + _similarPageSize)
             .clamp(0, _similarItems.length).toInt();
         _similarLoadMoreFailed = false;
+        _similarLoadMoreEmpty = false;
       });
       SimilarRecommendationsService.recordVisibleItemsExpanded();
+      _scrollToNewSimilarCards(previousVisibleCount);
       return;
     }
     if (!_similarFromTmdb || !_similarHasMore) return;
     setState(() {
       _isFetchingMoreSimilar = true;
       _similarLoadMoreFailed = false;
+      _similarLoadMoreEmpty = false;
     });
     try {
-      final nextPage = _similarTmdbPage + 1;
-      final response = await SimilarRecommendationsService.loadMore(
-        detail: _detail!, isSeries: _isSeries, page: nextPage,
-        verifiedTvdbTmdbId: _similarVerifiedTvdbTmdbId,
-      );
-      if (!mounted) return;
-      // Deduplicate the two TMDB feeds and records from previous pages.
+      final previousVisibleCount = _similarVisibleCount;
       final seen = <String>{
         for (final item in _similarItems)
           item.tmdbId != null ? '${item.mediaType}:${item.tmdbId}' :
               '${item.mediaType}:${item.title.toLowerCase()}:${item.year}',
       };
-      final incoming = response.items.where((item) => seen.add(
-        item.tmdbId != null ? '${item.mediaType}:${item.tmdbId}' :
-            '${item.mediaType}:${item.title.toLowerCase()}:${item.year}',
-      )).toList();
+      final incoming = <BSItem>[];
+      var lastPage = _similarTmdbPage;
+      var hasMore = _similarHasMore;
+
+      // Provider feeds may contain only already-shown cards. At most two
+      // pages are checked for each explicit tap; no prefetch or polling.
+      for (var pagesChecked = 0; pagesChecked < 2 && hasMore; pagesChecked++) {
+        final nextPage = lastPage + 1;
+        final response = await SimilarRecommendationsService.loadMore(
+          detail: _detail!, isSeries: _isSeries, page: nextPage,
+          verifiedTvdbTmdbId: _similarVerifiedTvdbTmdbId,
+        );
+        if (!mounted) return;
+        lastPage = nextPage;
+        hasMore = response.hasMore;
+        for (final item in response.items) {
+          final key = item.tmdbId != null
+              ? '${item.mediaType}:${item.tmdbId}'
+              : '${item.mediaType}:${item.title.toLowerCase()}:${item.year}';
+          if (seen.add(key)) incoming.add(item);
+        }
+        if (incoming.isNotEmpty) break;
+      }
+      if (!mounted) return;
       setState(() {
-        _similarTmdbPage = nextPage;
+        _similarTmdbPage = lastPage;
         _similarItems = [..._similarItems, ...incoming];
-        _similarVisibleCount = (_similarVisibleCount + _similarPageSize)
+        _similarVisibleCount = (previousVisibleCount + _similarPageSize)
             .clamp(0, _similarItems.length).toInt();
-        _similarHasMore = response.hasMore;
+        _similarHasMore = hasMore;
         _isFetchingMoreSimilar = false;
+        _similarLoadMoreEmpty = incoming.isEmpty;
       });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _updateSimilarScrollButtons();
-      });
-      // Only enrich newly displayed cards, never scan an entire collection.
+      if (incoming.isNotEmpty) {
+        _scrollToNewSimilarCards(previousVisibleCount);
+      } else {
+        SimilarRecommendationsService.recordNoNewCards();
+      }
       await SimilarRecommendationsService.enrichVisibleCards(incoming);
-      if (mounted) setState(() {});
+      if (mounted && incoming.isNotEmpty) setState(() {});
     } catch (error) {
       debugPrint('[Similar] Load More unavailable: ${error.runtimeType}');
       if (mounted) setState(() {
         _isFetchingMoreSimilar = false;
+        _similarLoadMoreEmpty = false;
         _similarLoadMoreFailed = true;
       });
     }
@@ -1925,6 +1962,26 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text(
+              'Showing ${_similarVisibleCount.clamp(0, _similarItems.length)} '
+              'of ${_similarItems.length}${_similarHasMore ? '+' : ''} recommendations',
+              style: const TextStyle(color: Colors.white60, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          if (_similarLoadMoreEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _similarHasMore
+                    ? 'No new titles on these pages. Load More will check the next page.'
+                    : 'No more distinct recommendations are available.',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ),
           if (_similarItems.length > _similarVisibleCount || _similarHasMore)
             Padding(
               padding: const EdgeInsets.only(top: 14),

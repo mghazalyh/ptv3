@@ -224,6 +224,11 @@ abstract final class SimilarRecommendationsService {
     _record('similar_load_more_succeeded');
   }
 
+  /// Record deduplicated empty pages with existing privacy-safe event code.
+  static void recordNoNewCards() {
+    _record('similar_load_more_empty');
+  }
+
   /// Fetch a further TMDB page only when the owner selects Load More.
   static Future<SimilarRecommendationsResult> loadMore({
     required MovieDetail detail,

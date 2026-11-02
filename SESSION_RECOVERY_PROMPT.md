@@ -1,3 +1,13 @@
+## 2026-11-03 SGT — RECOMMENDED / SIMILAR SHOWS LOAD MORE: SOURCE-ONLY REPAIR
+
+**Owner issue:** Load More at bottom of show/movie details Recommended Shows / Similar Content horizontal carousel appears nonfunctional. This is not Advanced Discover. **Proven source UI defect:** the number of visible horizontal cards was increased or TMDB cards appended without scrolling to newly revealed content, so users saw the same cards. **Second empty-page case:** TMDB can return pages containing only duplicate/filtered items and the page count can advance without visible feedback.
+
+**Repair:** DetailsPage now animates to the first newly available card after the layout frame in both local reveal and TMDB pagination branches. UI reports visible/loaded card counts and clearly labels duplicate-only pages. Up to two TMDB pages are checked per explicit Load More tap to handle overlap without automated polling. Existing opt-in fixed `similar_load_more_empty` event is captured when deduplication finds nothing. `test/cast_similar_navigation_ui_test.dart` adds source-contract checks. Physical Windows/iOS effectiveness and CI are NOT verified.
+
+**Scope:** Source-only changes to `lib/pages/details/details_page.dart`, `lib/services/metadata/similar_recommendations_service.dart`, regression test, and recovery docs. Owner permitted a Windows build only if needed to collect diagnostic data. The source-level defect was evident, so a new native Windows build is not needed for diagnosis and has NOT been requested. Installed Windows #174 (opt-in reports identify source 454ec251e23665a577ba69cdaaa332c5ed546337) does not contain this repair. Do not poll builds or Telegram, or duplicate prior releases. Any future native build requires separate authorization for delivery/device acceptance.
+
+**PERMANENT RULE:** End EVERY PlayTorrio reply with a new complete, standalone, copyable emergency recovery prompt covering this rule, repo/branch/HEAD/read order, source changes, CI, builds, artifact names/sizes/SHA256, Telegram, telemetry, privacy, uncertainties, next allowed actions and absolute no-duplicate-build/no-poll safeguards, followed by fresh runtime-generated exact SGT timestamp.
+
 ## 2026-11-03 SGT — AUTHORIZED WINDOWS GAMING AUDIO REPAIR; ONE WINDOWS-ONLY NATIVE REQUEST, DO NOT POLL
 
 **Owner instruction:** Installed Windows Build #173 still has jerky audio while gaming. Apply conservative Windows fixes with regression tests, request exactly ONE new Windows-only native build, then STOP immediately; do NOT poll GitHub workflow, Telegram or release assets, and DO NOT retrigger. Do not compile/sign iOS or trigger paired build. Owner monitors.

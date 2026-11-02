@@ -42,4 +42,19 @@ void main() {
     expect(service, contains('moreRelatedTitles('));
     expect(service, isNot(contains('if (!isSeries) return const SimilarRecommendationsResult([])')));
   });
+  test('Similar Load More reveals horizontal cards and handles empty pages', () {
+    final source = File('lib/pages/details/details_page.dart').readAsStringSync();
+    final service = File('lib/services/metadata/similar_recommendations_service.dart')
+        .readAsStringSync();
+    expect(source, contains('void _scrollToNewSimilarCards(int previousVisibleCount)'));
+    expect(source, contains('_scrollToNewSimilarCards(previousVisibleCount);'));
+    expect(source, contains('previousVisibleCount * (cardWidth + _Space.md)'));
+    expect(source, contains('_similarScrollController.animateTo(target,'));
+    expect(source, contains('pagesChecked < 2 && hasMore'));
+    expect(source, contains('No more distinct recommendations are available.'));
+    expect(source, contains('_similarLoadMoreEmpty = incoming.isEmpty;'));
+    expect(service, contains('recordNoNewCards()'));
+    expect(service, contains("_record('similar_load_more_empty');"));
+  });
+
 }

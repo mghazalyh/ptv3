@@ -389,11 +389,43 @@ abstract final class PlayerSettings {
     }
   }
 
+  /// MPV may retain the audio filter applied before opening a source.
+  /// On Windows, avoid re-setting that exact same native filter graph after
+  /// open: a redundant setter can interrupt audio while a game is playing.
+  /// Unreadable or differently formatted native values are NOT trusted.
+  static Future<bool> _windowsAudioFilterMatchesAfterOpen(Player player) async {
+    try {
+      final dynamic platform = player.platform;
+      if (platform == null) return false;
+      final Object? nativeFilter = await platform.getProperty('af')
+          .timeout(const Duration(milliseconds: 350));
+      return PlayerPictureAudio.windowsAudioFilterMatches(
+          nativeFilter, nightModeEnabled.value);
+    } catch (error) {
+      debugPrint('[PlayerSettings] Windows audio filter check unavailable: '
+          '${error.runtimeType}');
+      return false;
+    }
+  }
+
   /// Post-Open / Dynamic Properties: Subtitle styling and real-time tweaks that can be
   /// applied safely after media open or during live playback.
   static Future<void> applyPostOpenProperties(Player player) async {
-    // Media open can rebuild the native filter graph / video output.
-    await applyPictureAudio(player);
+    // Retain iOS behavior. On Windows skip only a VERIFIED redundant audio
+    // setter; if the source changed the graph, use the original fail-open path.
+    if (Platform.isWindows &&
+        await _windowsAudioFilterMatchesAfterOpen(player)) {
+      WindowsPlaybackTelemetry.instance.captureCode(
+          'windows_audio_filter_preserved');
+      try {
+        await _applyBrightnessWithFallback(player, extraBrightness.value);
+      } catch (error) {
+        debugPrint('[PlayerSettings] Native video brightness unavailable: '
+            '${error.runtimeType}');
+      }
+    } else {
+      await applyPictureAudio(player);
+    }
     try {
       await applySubtitleStyling(player);
     } catch (e) {

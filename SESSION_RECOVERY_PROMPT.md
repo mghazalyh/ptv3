@@ -1,3 +1,17 @@
+## 2026-11-02 SGT — OWNER-AUTHORIZED WINDOWS AUDIO STABILITY GUARD, SOURCE COMMITTED
+
+**Owner instruction:** Improve Windows game + PlayTorrio simultaneous audio stability with conservative safeguards, then trigger EXACTLY ONE Windows-only native GitHub build and hand off without checking completion. No paired or iOS compilation. This is new authorization distinct from installed Windows #172.
+
+**Source committed:** `lib/services/player/player_picture_audio.dart`, `lib/services/player/player_settings.dart`, `lib/services/player/windows_playback_telemetry.dart`, `test/player_picture_audio_test.dart`; commits `7f1e5ce4348a2ece0d05e89ad520b496174bf33a`, `2eb173595f5ca34c796e776ee356abb8edd7856c`, `20d8db7908e74e7079fbd40c5c687826a2a1a51b`, `a49fc8a5088a204066f8466eacf0a374fb3ffe70`. Windows post-open audio filter application now first checks the actual MPV `af` property with a bounded 350ms read. ONLY when it exactly equals the requested Windows filter chain for the current Night Mode state, it preserves the existing graph and applies brightness/subtitle styling without re-setting `af`. If unavailable, different, malformed or timed out, the existing fail-open native application executes unchanged. Explicit Night Mode changes, iOS behavior, pinned native libmpv, audio-exclusive=no shared mode and no-output-restart policy are preserved. Added opt-in allowlisted `windows_audio_filter_preserved` event and regression coverage of matching, changed Night Mode and unknown filter states. No buffer hikes, automatic restart, source seek, fallback or game audio interference.
+
+**Verification status:** Source edits committed; independent Flutter local test unavailable. Native Windows release workflow runs Flutter regression tests (including `test/player_picture_audio_test.dart`) before packaging. Do not call any tests green or claim device acceptance without evidence. Windows #172 owner-reported improvement and its 23 opt-in reports / 147 samples remain the baseline. This repair is incremental and uninstalled.
+
+**Release instruction:** Owner has authorized precisely ONE new Windows-only release request using `.github/windows-release-request.txt` and `.github/release-notes.txt`, with literal `[windows-only]` in the triggering commit message to skip all iOS jobs. GitHub's native workflow serializes release runs. Once the one request is accepted, STOP: do not poll completion, do not retrigger, do not check Telegram or infer installer, portable ZIP, digests or delivery. User owns build monitoring.
+
+**PERMANENT RULE:** End EVERY PlayTorrio response with a refreshed, comprehensive, standalone, copyable emergency recovery prompt repeating this rule, repository/branch/HEAD, exact reading order, sources/CI, native runs, assets/sizes/SHA256, Telegram status, opt-in telemetry/privacy, uncertainties, next authorized action, no duplicate build/polling. Append a runtime-generated exact SGT timestamp AFTER the complete prompt.
+
+---
+
 ## 2026-11-02, 21:46:45 SGT — WINDOWS #171 AUDIO WHILE GAMING: SOURCE-ONLY CORRECTION AND OPT-IN OUTPUT DIAGNOSTICS
 
 **Owner request:** Stop Windows show audio from jerking while gaming and improve privacy-safe telemetry. This was explicit authorization for SOURCE fixes ONLY, not native builds/releases. Windows + iOS share branch `parity-floating-player-both`, but this repair is Windows-guarded and keeps iOS behavior unchanged.

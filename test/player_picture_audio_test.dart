@@ -27,6 +27,30 @@ void main() {
     expect(calls, ['af=$verified']);
   });
 
+  test('Windows audio safeguard skips only a verified unchanged filter', () {
+    final normal = PlayerPictureAudio.audioFilterChain(
+        false, windows: true);
+    final night = PlayerPictureAudio.audioFilterChain(
+        true, windows: true);
+
+    expect(PlayerPictureAudio.windowsAudioFilterMatches(normal, false), isTrue);
+    expect(PlayerPictureAudio.windowsAudioFilterMatches('  $normal  ', false),
+        isTrue);
+    expect(PlayerPictureAudio.windowsAudioFilterMatches(night, true), isTrue);
+
+    // Mode changes must always reach the actual audio graph setter.
+    expect(PlayerPictureAudio.windowsAudioFilterMatches(normal, true), isFalse);
+    expect(PlayerPictureAudio.windowsAudioFilterMatches(night, false), isFalse);
+
+    // Missing, empty or unknown MPV representations always fall back to the
+    // existing native apply path; no speculative audio recovery is attempted.
+    expect(PlayerPictureAudio.windowsAudioFilterMatches(null, false), isFalse);
+    expect(PlayerPictureAudio.windowsAudioFilterMatches('', false), isFalse);
+    expect(PlayerPictureAudio.windowsAudioFilterMatches(<String>[normal], false),
+        isFalse);
+    expect(PlayerPictureAudio.windowsAudioFilterMatches('[]', false), isFalse);
+  });
+
   test('MPV runtime filter initialization errors are recognized', () {
     expect(PlayerPictureAudio.isNightModeFilterError(
         'Playback error: Audio filter initialized failed!'), isTrue);

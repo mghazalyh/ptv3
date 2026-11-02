@@ -1,13 +1,16 @@
-OWNER AUTHORIZED EXACTLY ONE NEW WINDOWS-ONLY NATIVE GAMING AUDIO STABILITY BUILD — 2026-11-03 SGT.
+OWNER-AUTHORIZED EXACTLY ONE WINDOWS-ONLY NATIVE RELEASE REQUEST — 2026-11-03 SGT.
 
-Installed Windows Build #173 still has jerky audio when gaming. Build ONLY the Windows x64 source at the exact SHA of this request-trigger commit, with:
-1. Windows one-shot pre-open audio filter preservation; avoid proven repeated post-open native af reconfiguration when setup already succeeded; repair known cleared/contradictory graphs.
-2. Windows automatic Whisper limited to two worker threads and FFmpeg external speech decoder to one worker, avoiding competition with games without removing subtitle synchronization.
-3. Private, opt-in, bounded, allowlisted telemetry for successful audio-filter preservation/reset and rate mismatch, no sensitive media, URLs or device identifiers.
-4. Source regression tests for guarded filter behavior, background speech work and telemetry.
+Purpose: deliver the Recommended Shows / Similar Content Load More repair on Windows.
+Source fix included at commit b247062e326a05bc6cd6df0f2051b36d309a4a86.
+The workflow must check out and build exactly the SHA of THIS [windows-only] request-triggering commit on branch parity-floating-player-both.
 
-Preserve native six-channel Night Mode, audio-exclusive=no, original 200ms buffer, original stream recovery, subtitle settings, iOS behavior, and pinned native libmpv smoke checks.
+Details:
+1. When Load More reveals additional local or TMDB recommendations in the movie/series DetailsPage, advance the horizontal carousel to the first newly visible card instead of leaving the cards off-screen.
+2. Display visible/loaded recommendation counts and an explicit no-new-titles outcome for duplicate-only TMDB pages.
+3. Bound duplicate-only page advances to two sequential pages per explicit click. Preserve existing TMDB request pacing and HTTP 429 cooldown.
+4. Use existing opt-in allowlisted similar_load_more_empty diagnostics. Do not upload titles, media URLs, IDs, user identifiers, credentials, subtitle text, transcripts, or logs.
+5. Run existing Windows analyzer, recommendation/navigation Flutter tests including test/cast_similar_navigation_ui_test.dart, Windows native verification, Setup EXE and portable ZIP packaging, SHA256 integrity checks, and Telegram delivery only upon success.
 
-Use existing workflow Windows tests/analyzer, native Windows Setup EXE and portable ZIP packaging, SHA256 release artifacts, and Telegram Windows download delivery on success.
+Preserve previous Windows gaming audio stability safeguards, Windows shared/nonexclusive output, 200ms buffer, six-channel Night Mode compressor/limiter, subtitles, sync, stream recovery and pinned libmpv.
 
-STRICT: [windows-only] commit and workflow: never build/sign iOS or start paired release. Exactly ONE new Windows native request, absolutely no assistant CI polling, no retry, no duplicate build, no workflow dispatch and no claim of release success, checksums, Telegram delivery or physical audio fix. Owner monitors and gives next instructions.
+STRICT: WINDOWS ONLY. The commit message MUST contain literal [windows-only] to skip iOS. Exactly ONE request. No manual workflow_dispatch, no paired/iOS build, no rebuild/retrigger/duplicate request, no assistant polling of GitHub Actions, release assets, or Telegram. Owner monitors and provides further instructions. Do not claim CI, artifact delivery, or device success until independently verified.

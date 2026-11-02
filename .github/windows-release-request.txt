@@ -1,6 +1,13 @@
-OWNER-AUTHORIZED ONE-TIME WINDOWS-ONLY NATIVE BUILD REQUEST — 2026-11-02 SGT.
-Build the current shared Flutter source with the Windows audio-filter idempotency safeguard, preserving the verified #172 shared/nonexclusive audio configuration and subtitle-only setting behavior.
-Source patch commits: 7f1e5ce4348a2ece0d05e89ad520b496174bf33a, 2eb173595f5ca34c796e776ee356abb8edd7856c, 20d8db7908e74e7079fbd40c5c687826a2a1a51b, a49fc8a5088a204066f8466eacf0a374fb3ffe70.
-Run existing Windows Flutter tests and analyzer, then compile/package Windows x64 Setup EXE and portable ZIP, publish release SHA256 checksums and normal Telegram Windows download notification if successful.
-STRICT: [windows-only] trigger; DO NOT compile/sign iOS or launch paired release. This is exactly ONE new native build request, not permission to retry or duplicate it.
-Owner explicitly owns GitHub/Telegram monitoring. Assistant must NOT poll this run or Telegram after acceptance; no asset, delivery, digest or physical-device success claims before verified by owner.
+OWNER AUTHORIZED EXACTLY ONE NEW WINDOWS-ONLY NATIVE GAMING AUDIO STABILITY BUILD — 2026-11-03 SGT.
+
+Installed Windows Build #173 still has jerky audio when gaming. Build ONLY the Windows x64 source at the exact SHA of this request-trigger commit, with:
+1. Windows one-shot pre-open audio filter preservation; avoid proven repeated post-open native af reconfiguration when setup already succeeded; repair known cleared/contradictory graphs.
+2. Windows automatic Whisper limited to two worker threads and FFmpeg external speech decoder to one worker, avoiding competition with games without removing subtitle synchronization.
+3. Private, opt-in, bounded, allowlisted telemetry for successful audio-filter preservation/reset and rate mismatch, no sensitive media, URLs or device identifiers.
+4. Source regression tests for guarded filter behavior, background speech work and telemetry.
+
+Preserve native six-channel Night Mode, audio-exclusive=no, original 200ms buffer, original stream recovery, subtitle settings, iOS behavior, and pinned native libmpv smoke checks.
+
+Use existing workflow Windows tests/analyzer, native Windows Setup EXE and portable ZIP packaging, SHA256 release artifacts, and Telegram Windows download delivery on success.
+
+STRICT: [windows-only] commit and workflow: never build/sign iOS or start paired release. Exactly ONE new Windows native request, absolutely no assistant CI polling, no retry, no duplicate build, no workflow dispatch and no claim of release success, checksums, Telegram delivery or physical audio fix. Owner monitors and gives next instructions.

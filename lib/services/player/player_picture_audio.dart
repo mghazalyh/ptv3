@@ -37,6 +37,31 @@ abstract final class PlayerPictureAudio {
         value == audioFilterChain(nightMode, windows: true);
   }
 
+  /// Successful Windows pre-open audio belongs to exactly one source open.
+  /// MPV can return a differently serialized native filter representation.
+  /// Never interrupt the working output solely for an unreadable representation.
+  /// Empty or known conflicting graphs still require explicit recovery.
+  static bool windowsPreOpenFilterCanBePreserved({
+    required String? appliedFilter,
+    required bool nightMode,
+    Object? nativeFilter,
+  }) {
+    if (appliedFilter == null ||
+        appliedFilter != audioFilterChain(nightMode, windows: true)) {
+      return false;
+    }
+    if (nativeFilter == null) return true;
+    if (nativeFilter is List && nativeFilter.isEmpty) return false;
+    if (nativeFilter is String) {
+      final value = nativeFilter.trim();
+      if (value.isEmpty || value == '[]' || value == 'null' ||
+          value == 'no') return false;
+      if (windowsAudioFilterMatches(value, nightMode)) return true;
+      if (value == audioFilterChain(!nightMode, windows: true)) return false;
+    }
+    return true;
+  }
+
   /// libmpv can accept an `af` option and only fail when audio starts. The
   /// media_kit error stream is therefore the source of truth for runtime
   /// filter graph initialization failures.

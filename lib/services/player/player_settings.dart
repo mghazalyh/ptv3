@@ -306,8 +306,15 @@ abstract final class PlayerSettings {
         }
       }
 
-      // 1. Audio Filter & Volume
-      await _applyAudioWithFailOpen(player);
+      // 1. Audio Filter & Volume. Cache only a successful native setter.
+      if (Platform.isWindows) _windowsPreparedAudio[player] = null;
+      final requestedNightMode = nightModeEnabled.value;
+      await _applyAudioWithFailOpen(player, onApplied: () {
+        if (Platform.isWindows && nightModeEnabled.value == requestedNightMode) {
+          _windowsPreparedAudio[player] = PlayerPictureAudio.audioFilterChain(
+              requestedNightMode, windows: true);
+        }
+      });
       await platform.setProperty('volume-max', '200');
       await _applyBrightnessWithFallback(player, extraBrightness.value);
 
@@ -389,6 +396,11 @@ abstract final class PlayerSettings {
     }
   }
 
+  // One-shot cache scoped to the Player. Never reuse an old media opening's
+  // record for a stream reconnect that skipped pre-open setup.
+  static final Expando<String> _windowsPreparedAudio =
+      Expando<String>('windows-pre-open-audio');
+
   /// MPV may retain the audio filter applied before opening a source.
   /// On Windows, avoid re-setting that exact same native filter graph after
   /// open: a redundant setter can interrupt audio while a game is playing.
@@ -411,10 +423,36 @@ abstract final class PlayerSettings {
   /// Post-Open / Dynamic Properties: Subtitle styling and real-time tweaks that can be
   /// applied safely after media open or during live playback.
   static Future<void> applyPostOpenProperties(Player player) async {
-    // Retain iOS behavior. On Windows skip only a VERIFIED redundant audio
-    // setter; if the source changed the graph, use the original fail-open path.
-    if (Platform.isWindows &&
-        await _windowsAudioFilterMatchesAfterOpen(player)) {
+    // Preserve a successful pre-open Windows configuration exactly once,
+    // unless MPV clearly removed it. A native serialized representation
+    // mismatch is not a reason to interrupt the audio output. Reconnects
+    // without the pre-open record retain the previous strict native check.
+    bool preserveAudio = false;
+    if (Platform.isWindows) {
+      final prepared = _windowsPreparedAudio[player];
+      _windowsPreparedAudio[player] = null;
+      if (prepared != null) {
+        Object? nativeFilter;
+        try {
+          nativeFilter = await (player.platform as dynamic).getProperty('af')
+              .timeout(const Duration(milliseconds: 350));
+        } catch (error) {
+          debugPrint('[PlayerSettings] MPV af read unavailable; '
+              'preserving successful pre-open setup: ${error.runtimeType}');
+        }
+        preserveAudio = PlayerPictureAudio.windowsPreOpenFilterCanBePreserved(
+          appliedFilter: prepared,
+          nightMode: nightModeEnabled.value,
+          nativeFilter: nativeFilter,
+        );
+        WindowsPlaybackTelemetry.instance.captureCode(preserveAudio
+            ? 'windows_audio_preopen_preserved'
+            : 'windows_audio_preopen_reset');
+      } else {
+        preserveAudio = await _windowsAudioFilterMatchesAfterOpen(player);
+      }
+    }
+    if (preserveAudio) {
       WindowsPlaybackTelemetry.instance.captureCode(
           'windows_audio_filter_preserved');
       try {
@@ -454,7 +492,9 @@ abstract final class PlayerSettings {
     }
   }
 
-  static Future<void> _applyAudioWithFailOpen(Player player) async {
+  static Future<void> _applyAudioWithFailOpen(Player player, {
+    void Function()? onApplied,
+  }) async {
     final dynamic platform = player.platform;
     String? verifiedFilter;
     if (Platform.isIOS && nightModeEnabled.value) {
@@ -478,6 +518,7 @@ abstract final class PlayerSettings {
         verifiedFilterChain: verifiedFilter,
         windows: Platform.isWindows,
       );
+      onApplied?.call();
       _recordSafeNightModeCode(nightModeEnabled.value
           ? 'night_mode_live_filter_set' : 'night_mode_off_filter_set');
     } catch (error) {
@@ -539,6 +580,7 @@ abstract final class PlayerSettings {
     unawaited(NightModeDiagnostics.instance.record('night-toggle',
         'requested=${enabled ? 'ON' : 'OFF'} filter=${PlayerPictureAudio.audioFilterChain(enabled, windows: Platform.isWindows)}'));
     if (player != null) {
+      if (Platform.isWindows) _windowsPreparedAudio[player] = null;
       final dynamic platform = player.platform;
       try {
         await PlayerPictureAudio.applyAudio(

@@ -51,6 +51,31 @@ void main() {
     expect(PlayerPictureAudio.windowsAudioFilterMatches('[]', false), isFalse);
   });
 
+  test('Windows successful pre-open audio skips only demonstrably redundant writes', () {
+    final night = PlayerPictureAudio.audioFilterChain(true, windows: true);
+    final normal = PlayerPictureAudio.audioFilterChain(false, windows: true);
+    expect(PlayerPictureAudio.windowsPreOpenFilterCanBePreserved(
+        appliedFilter: night, nightMode: true, nativeFilter: night), isTrue);
+    expect(PlayerPictureAudio.windowsPreOpenFilterCanBePreserved(
+        appliedFilter: night, nightMode: true,
+        nativeFilter: <Object>['scaletempo2', 'lavfi']), isTrue);
+    expect(PlayerPictureAudio.windowsPreOpenFilterCanBePreserved(
+        appliedFilter: night, nightMode: true), isTrue);
+    for (final cleared in <Object>['', '[]', <Object>[]]) {
+      expect(PlayerPictureAudio.windowsPreOpenFilterCanBePreserved(
+          appliedFilter: night, nightMode: true,
+          nativeFilter: cleared), isFalse);
+    }
+    expect(PlayerPictureAudio.windowsPreOpenFilterCanBePreserved(
+        appliedFilter: night, nightMode: true, nativeFilter: normal), isFalse);
+    expect(PlayerPictureAudio.windowsPreOpenFilterCanBePreserved(
+        appliedFilter: normal, nightMode: true, nativeFilter: normal), isFalse);
+    expect(PlayerPictureAudio.windowsPreOpenFilterCanBePreserved(
+        appliedFilter: null, nightMode: true, nativeFilter: night), isFalse);
+    expect(PlayerPictureAudio.windowsPreOpenFilterCanBePreserved(
+        appliedFilter: normal, nightMode: false, nativeFilter: night), isFalse);
+  });
+
   test('MPV runtime filter initialization errors are recognized', () {
     expect(PlayerPictureAudio.isNightModeFilterError(
         'Playback error: Audio filter initialized failed!'), isTrue);

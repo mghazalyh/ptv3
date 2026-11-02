@@ -11,6 +11,8 @@ void main() {
       outputPath: r'C:\Temp\test.wav',
     );
     expect(args.indexOf('-ss'), lessThan(args.indexOf('-i')));
+    expect(args[args.indexOf('-threads') + 1], '1');
+    expect(args.indexOf('-threads'), lessThan(args.indexOf('-i')));
     expect(args[args.indexOf('-ss') + 1], '1412.500');
     expect(args[args.indexOf('-i') + 1], 'http://127.0.0.1:8090/video.mkv');
     expect(args[args.indexOf('-t') + 1], '55.000');

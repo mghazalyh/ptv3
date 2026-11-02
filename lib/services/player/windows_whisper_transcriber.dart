@@ -21,6 +21,9 @@ class WindowsSpeechSyncFailure implements Exception {
 /// CPU-only whisper.cpp on Windows. The 148 MB English model is downloaded
 /// once after user approval and verified by SHA-256. No microphone or cloud ASR.
 abstract final class WindowsWhisperTranscriber {
+  // Limit background transcription contention with simultaneous Windows gaming.
+  // Do not remove automatic subtitle alignment or its existing timeouts.
+  static const int backgroundThreadCount = 2;
   static const modelName = 'ggml-base.en.bin';
   static const modelBytes = 147964211;
   static const modelSha256 =
@@ -301,7 +304,8 @@ abstract final class WindowsWhisperTranscriber {
       try {
         process = await Process.start(cli.path, [
           '-m', model.path, '-f', wav.path, '-l', 'en', '-ml', '1',
-          '-sow', '-oj', '-of', output, '-t', '4', '-np',
+          '-sow', '-oj', '-of', output,
+          '-t', backgroundThreadCount.toString(), '-np',
         ], workingDirectory: cli.parent.path);
       } on ProcessException {
         onDiagnostic?.call('sync_whisper_start_failed', failure: true);

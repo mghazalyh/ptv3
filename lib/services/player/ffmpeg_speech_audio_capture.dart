@@ -25,7 +25,11 @@ abstract final class FfmpegSpeechAudioCapture {
         outputPath.isEmpty) {
       throw const FormatException('Invalid speech audio extraction range');
     }
-    final args = <String>['-hide_banner', '-nostdin', '-loglevel', 'error', '-y'];
+    // Bound external decoder workers during simultaneous gaming and playback.
+    final args = <String>[
+      '-hide_banner', '-nostdin', '-loglevel', 'error', '-y',
+      '-threads', '1',
+    ];
     // Audio source headers may contain secrets; do not print arguments.
     if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
       if (httpHeaders != null && httpHeaders.isNotEmpty) {

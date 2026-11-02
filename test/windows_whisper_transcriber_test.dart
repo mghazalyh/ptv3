@@ -53,6 +53,10 @@ void main() {
     expect(() => WindowsWhisperTranscriber.parseJson('{}', 0),
         throwsFormatException);
   });
+  test('Windows background Whisper limits CPU contention while gaming', () {
+    expect(WindowsWhisperTranscriber.backgroundThreadCount, 2);
+  });
+
   test('selected non-default MPV audio track cannot be silently mapped to first FFmpeg track', () {
     expect(WindowsWhisperTranscriber.useSelectedTrackCapture(null), false);
     expect(WindowsWhisperTranscriber.useSelectedTrackCapture(0), false);

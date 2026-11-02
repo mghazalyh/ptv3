@@ -41,6 +41,7 @@ class WindowsPlaybackTelemetry {
   final Map<String, int> _previousFrameCounts = {};
   final Map<String, DateTime> _lastAudioWarningAt = {};
   bool _exclusiveAudioReported = false;
+  bool _outputRateMismatchReported = false;
   DateTime? _lastUpload;
   bool _uploading = false;
   int _counter = 0;
@@ -79,6 +80,9 @@ class WindowsPlaybackTelemetry {
     'playback_buffering',
     'windows_subtitle_only_settings_applied',
     'windows_audio_filter_preserved',
+    'windows_audio_preopen_preserved',
+    'windows_audio_preopen_reset',
+    'windows_audio_output_rate_mismatch',
     'windows_shared_audio_requested',
     'windows_shared_audio_unavailable',
     'windows_audio_output_underrun',
@@ -275,6 +279,15 @@ class WindowsPlaybackTelemetry {
         sample[entry.value] = rate;
       }
     }
+    // Report only a fixed category for decoded/output sample-rate differences;
+    // never retain a Windows endpoint name, identifier or private log entry.
+    final decodedRate = sample['audioDecodedSampleRateHz'];
+    final outputRate = sample['audioOutputSampleRateHz'];
+    if (!_outputRateMismatchReported && decodedRate is int &&
+        outputRate is int && decodedRate != outputRate) {
+      _outputRateMismatchReported = true;
+      captureCode('windows_audio_output_rate_mismatch');
+    }
     final bufferSeconds = double.tryParse(
         properties['audio-buffer']?.toString() ?? '');
     if (bufferSeconds != null && bufferSeconds.isFinite &&
@@ -322,6 +335,7 @@ class WindowsPlaybackTelemetry {
     _previousFrameCounts.clear();
     _lastAudioWarningAt.clear();
     _exclusiveAudioReported = false;
+    _outputRateMismatchReported = false;
   }
 
   Future<String?> _accessToken() async {

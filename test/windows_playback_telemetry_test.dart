@@ -255,6 +255,20 @@ void main() {
     telemetry.dispose();
   });
 
+  test('Windows audio pre-open guard events are strictly allowlisted', () {
+    final telemetry = WindowsPlaybackTelemetry.forTesting(
+      client: MockClient((_) async => http.Response('{}', 201)),
+      tokenProvider: () async => 'test-only-placeholder',
+    )..forceTestPlatform = true;
+    NightModeDiagnostics.debugModeEnabled.value = true;
+    telemetry.captureCode('windows_audio_preopen_preserved');
+    telemetry.captureCode('windows_audio_preopen_reset');
+    telemetry.captureCode('private-media-source');
+    expect(telemetry.capturedCodes,
+        ['windows_audio_preopen_preserved', 'windows_audio_preopen_reset']);
+    telemetry.dispose();
+  });
+
   test('Windows-only audio output samples are bounded and omit raw devices',
       () {
     final telemetry = WindowsPlaybackTelemetry.forTesting(
@@ -272,6 +286,8 @@ void main() {
     final sample = telemetry.capturedSamples.single;
     expect(sample['audioDecodedSampleRateHz'], 48000);
     expect(sample['audioOutputSampleRateHz'], 48000);
+    expect(telemetry.capturedCodes,
+        isNot(contains('windows_audio_output_rate_mismatch')));
     expect(sample['audioBufferMs'], 200);
     expect(sample['audioExclusive'], true);
     expect(sample.containsKey('audio-device'), false);
@@ -285,6 +301,12 @@ void main() {
     expect(telemetry.capturedSamples.last.containsKey(
         'audioDecodedSampleRateHz'), false);
     expect(telemetry.capturedSamples.last.containsKey('audioBufferMs'), false);
+    telemetry.capturePlaybackSample({
+      'audio-params/samplerate': '48000',
+      'audio-out-params/samplerate': '44100',
+    });
+    expect(telemetry.capturedCodes,
+        contains('windows_audio_output_rate_mismatch'));
     telemetry.dispose();
   });
 }

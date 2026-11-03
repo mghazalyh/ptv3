@@ -353,7 +353,11 @@ class _WatchedHistoryPageState extends State<WatchedHistoryPage> {
     final hasProgress = entry.position != null || entry.completed;
     final details = entry.isMovie
         ? 'Movie'
-        : entry.episodeLabel;
+        : !entry.isEpisode && entry.title.completedEpisodeIds.isNotEmpty
+            ? entry.episodeLabel + ' · ' +
+                entry.title.completedEpisodeIds.length.toString() +
+                ' completed episodes'
+            : entry.episodeLabel;
     final status = entry.completed
         ? 'Completed'
         : entry.position != null
@@ -444,7 +448,7 @@ class _WatchedHistoryPageState extends State<WatchedHistoryPage> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(5),
                         child: LinearProgressIndicator(
-                          value: ratio.clamp(0.0, 1.0),
+                          value: ratio.clamp(0.0, 1.0).toDouble(),
                           minHeight: 3,
                           backgroundColor: Colors.white12,
                           valueColor: const AlwaysStoppedAnimation(_accent),

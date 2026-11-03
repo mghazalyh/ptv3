@@ -23,6 +23,7 @@ import '../../widgets/common/error_view.dart';
 import '../../widgets/home/continue_watching_slider.dart';
 import '../../widgets/movie/movie_slider_section.dart';
 import '../search/search_page.dart';
+import '../history/watched_history_page.dart';
 import '../settings/settings_page.dart';
 import '../../services/theme/dock_settings.dart';
 import '../../widgets/common/app_liquid_dock.dart';
@@ -353,6 +354,14 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _navigateToHistory(Offset? tapPosition) {
+    Navigator.push(
+      context,
+      LiquidRevealRoute(
+          page: const WatchedHistoryPage(), tapPosition: tapPosition),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
@@ -425,6 +434,7 @@ class _HomePageState extends State<HomePage> {
         child: _GlassAppBar(
           topPadding: topPadding,
           onSearchTap: _navigateToSearch,
+          onHistoryTap: _navigateToHistory,
           onSettingsTap: _navigateToSettings,
         ),
       ),
@@ -546,11 +556,13 @@ class _HomePageState extends State<HomePage> {
 class _GlassAppBar extends StatelessWidget {
   final double topPadding;
   final void Function(Offset?) onSearchTap;
+  final void Function(Offset?) onHistoryTap;
   final void Function(Offset?) onSettingsTap;
 
   const _GlassAppBar({
     required this.topPadding,
     required this.onSearchTap,
+    required this.onHistoryTap,
     required this.onSettingsTap,
   });
 
@@ -594,6 +606,15 @@ class _GlassAppBar extends StatelessWidget {
               ),
             ),
             const Spacer(),
+            // Watch History is always visible, including when Continue Watching
+            // is empty or hides completed episodes.
+            IconButton(
+              key: const ValueKey('home-watch-history'),
+              tooltip: 'Recently Watched',
+              icon: Icon(Icons.history_rounded,
+                color: Colors.white.withValues(alpha: 0.8), size: 25),
+              onPressed: () => onHistoryTap(null),
+            ),
             // Search
             Builder(
               builder: (context) {

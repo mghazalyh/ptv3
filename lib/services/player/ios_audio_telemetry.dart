@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../my_list/github_library_cloud.dart';
 import 'player_diagnostic_codes.dart';
+import 'private_diagnostic_log_path.dart';
 
 /// Explicitly opt-in, strictly allowlisted MPV filter diagnostics for the
 /// owner's PRIVATE GitHub database. Never uploads raw MPV lines, media URLs,
@@ -259,8 +260,8 @@ class IosAudioTelemetry {
   /// account ID is deliberately not part of the payload or path.
   @visibleForTesting
   static String fileName(DateTime time, int sequence) =>
-      '$prefix/${time.toUtc().toIso8601String().replaceAll(':', '-').replaceAll('.', '-')}-'
-      '$sequence.json';
+      PrivateDiagnosticLogPath.forTimestamp(
+        prefix: prefix, timestamp: time, sequence: sequence);
 
   Future<String?> _accessToken() async {
     if (_tokenProvider != null) return _tokenProvider();
@@ -298,7 +299,7 @@ class IosAudioTelemetry {
     final now = DateTime.now().toUtc();
     final safeReason = const {
       'night_mode_failed', 'preflight_failed', 'native_error', 'manual',
-      'playback_sample', 'sync_failure', 'subtitle_failure',
+      'playback_sample', 'sync_failure', 'subtitle_failure', 'source_failure',
     }.contains(reason) ? reason : 'manual';
     final report = <String, Object>{
       'schema': 1,

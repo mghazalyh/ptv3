@@ -1,5 +1,20 @@
-ONE OWNER-AUTHORIZED paired Windows x64 + iOS15/iPad signed TrollStore release from the SAME shared Flutter source.
-Purpose: upgrade strictly opt-in, rate-limited safe telemetry to distinguish Apple Speech PlatformException categories, decoder fallback attempts, actual native timed subtitle text availability (only nonempty boolean, NEVER text), Night Mode filter setter acceptance/rejection and fail-open recovery. Preserve existing subtitle fixes, pinned native FFmpeg/libmpv acompressor/compand/alimiter, VideoToolbox, six-channel Night Mode, speech sync and all consent guards.
-Diagnostics app source SHA: cb7b84865cfb98d1588f809307fd04c8bea4d972. Documentation-only write ahead: 99c5fa1e4afa632e72da8516004f7f1424086e2b. Exact new release SHA is THIS request commit.
-Prior paired Windows #170; installed iOS #173. Paired native workflow expected run #171, signed iOS app CFBundleVersion expected #174 via +3 monotonic offset. Windows build #171 and iOS app #174 share the same triggering commit, not the same numeric build. Native job tests run in the workflow. Source-only CI run 41449577939 (#416) was still in_progress at last one-time preflight, do not assert pass. If native tests fail, do not automatically rerun/rebuild.
-DO NOT trigger any more native runs or publication retries. Existing iOS #173 signed artifact 13085144098 remains unchanged and its separate release recovery #4 NOT authorized. If publishing fails, preserve original signed Windows/iOS artifacts for separate later owner-authorized publication-only recovery. GitHub Actions Telegram notifier will notify owner. After this request the assistant must STOP checking completion and hand off to owner. Never upload media URL/title/subtitle text/transcripts/IDs/secrets/raw exceptions. Date: 2026-11-02 SGT.
+PLAYTORRIO — ONE OWNER-AUTHORIZED PAIRED WINDOWS X64 + iOS 15/iPad NATIVE RELEASE REQUEST — 2026-11-03 SGT
+
+Owner explicitly authorizes exactly ONE paired native workflow request for BOTH platforms after implementing:
+1. Simple persistent in-player stereo-style Bass and Treble sliders, each -20 dB through +10 dB, Reset and neutral 0 dB defaults. Apply MPV/FFmpeg shelving filters once per completed drag; preserve scaletempo, native six-channel Night Mode compressors/limiters, Windows 200ms shared/nonexclusive audio, iOS VideoToolbox, subtitles, playback recovery and pinned native libraries.
+2. Netflix-style watched-progress bars for movies, the latest watched episode of a series, and every episode card, including distinct finished and in-progress states, percentage and episode identity. Persist per-episode/movie playback position and completion in version-1-compatible private TorriODB watched-history cloud data; use cross-device timestamp merges and retain completed status. Never put stream URLs or credentials into history or telemetry.
+
+Source-only implementation history:
+EQ: 5dde9fe6134be3f76ee310bf89e5eabdd5c48506
+Per-movie and per-episode progress: fbb60b472823c1eb56a9712bf9c8e2c717d5d5bf
+Privacy-safe opt-in diagnostic codes, UI refresh, safety and recovery notes: 142b1510dcd8b087469e885444f3c17cfe611b9d
+
+This request commit itself is the source checkout SHA for both Windows and iOS native build jobs. Use existing .github/workflows/windows-advanced-discover.yml and its serialized release concurrency. Do not separately dispatch workflows. Keep one paired native release with both platform jobs enabled, build/sign iOS15/iPad TrollStore IPA, package Windows Setup EXE and portable ZIP, verify original pinned native filters, run existing cross-platform tests, perform release checksums and existing Telegram delivery only upon workflow success. Do not change the native release control workflow.
+
+New Flutter source CI, native signing, artifacts, sizes, SHA256, publication, Telegram and real-device acceptance are UNVERIFIED at request submission. An accepted push is not proof of build completion.
+
+PRIVACY: Strict opt-in, allowlisted, private, bounded, rate-limited telemetry only. Never upload media URLs, titles, library IDs, subtitles, transcripts, credentials, raw exceptions, device identifiers or native logs.
+
+PERMANENT OWNER STOP SAFEGUARDS: EXACTLY ONE paired release request in this commit. STOP immediately after successful push. Owner monitors. No GitHub Actions status polls, Telegram polls, workflow polls, retries, reruns, duplicate build requests, manual workflow_dispatch or separate Windows/iOS release triggers. Prior Windows-only request remains separately unverified and must not be retriggered. Do not rebuild signed iOS #173 or start iOS publication recovery #4. Never claim unverified CI, native binaries, hashes, delivery or physical playback acceptance.
+
+See SESSION_RECOVERY_PROMPT.md and TOP of handover.md for complete permanent emergency recovery prompt, mandatory read sequence, prior release checksums and history.

@@ -54,15 +54,17 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
 
     if (widget.cachedSources != null && widget.cachedSources!.isNotEmpty) {
       _sources.addAll(widget.cachedSources!);
-      _isLoading = false;
+      // Cached results may be exclusively unready debrid jobs. Always
+      // discover independent providers even when the cache is nonempty.
+      _startScraping(preserveExisting: true);
     } else {
       _startScraping();
     }
   }
 
-  void _startScraping() {
+  void _startScraping({bool preserveExisting = false}) {
     setState(() {
-      _sources.clear();
+      if (!preserveExisting) _sources.clear();
       _isLoading = true;
     });
 

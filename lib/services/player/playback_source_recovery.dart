@@ -29,7 +29,9 @@ class PlaybackSourceRecovery {
 
   static bool hasAlternative(StreamSource active, List<StreamSource> sources,
       {required Set<String> attemptedKeys}) => sources.any((source) =>
-        isHttpCandidate(source) && key(source) != key(active) &&
+        isHttpCandidate(source) &&
+        !DebridSourceReadiness.isExplicitlyPending(source) &&
+        key(source) != key(active) &&
         !attemptedKeys.contains(key(source)));
 
   SourceRecoveryAction? next(

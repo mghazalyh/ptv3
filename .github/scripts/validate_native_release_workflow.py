@@ -54,12 +54,30 @@ def check(workflow):
         assert "always() && !cancelled()" in body
         assert ".outputs.eligible == 'true'" in body
         assert "steps: *ios_build_steps" in body
-    for candidate in ("telegram-ipa", "publish-paired"):
-        body = jobs[candidate]
-        assert "always() && !cancelled()" in body
-        for ios in ("ios15", "ios15-rescue-intel", "ios15-rescue-arm"):
-            assert f"needs.{ios}.result == 'success'" in body
-        assert "name: PlayTorrio-iOS15-TrollStore-v1.1.15-build-" in body
+    # The publisher owns native artifact verification and may use any of the
+    # three mutually exclusive iOS runners. Telegram only sends release links
+    # after a successful publication and must never download/upload binaries.
+    published = jobs["publish-paired"]
+    assert "always() && !cancelled()" in published
+    for ios in ("ios15", "ios15-rescue-intel", "ios15-rescue-arm"):
+        assert f"needs.{ios}.result == 'success'" in published
+    assert "name: PlayTorrio-iOS15-TrollStore-v1.1.15-build-" in published
+
+    ios_sender = jobs["telegram-ipa"]
+    assert "needs: [publish-paired]" in ios_sender
+    assert "always() && !cancelled()" in ios_sender
+    assert "needs.publish-paired.result == 'success'" in ios_sender
+    assert "telegram_ci.py send-release-links" in ios_sender
+    assert "actions/download-artifact" not in ios_sender
+    assert "send-document" not in ios_sender
+
+    windows_sender = jobs["telegram-windows"]
+    assert "needs: [windows, publish-paired, publish-windows-only]" in windows_sender
+    assert "needs.publish-paired.result == 'success'" in windows_sender
+    assert "needs.publish-windows-only.result == 'success'" in windows_sender
+    assert "telegram_ci.py send-release-links" in windows_sender
+    assert "actions/download-artifact" not in windows_sender
+    assert "send-document" not in windows_sender
     assert "needs.windows.result == 'success'" in jobs["publish-paired"]
     assert workflow.count("  telegram-ipa:\n") == 1
     assert workflow.count("  publish-paired:\n") == 1

@@ -5,7 +5,7 @@ void main() {
   test('groups iOS private reports in UTC year/month/day folders', () {
     final result = PrivateDiagnosticLogPath.forTimestamp(
       prefix: 'playtorrio/diagnostics/ios/night-mode',
-      timestamp: DateTime.utc(2026, 11, 3, 18, 5, 38, 576516),
+      timestamp: DateTime.utc(2026, 11, 3, 18, 5, 38, 576, 516),
       sequence: 59,
     );
     expect(result,

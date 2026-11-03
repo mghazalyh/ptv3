@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -163,6 +164,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     _similarScrollController.addListener(_updateSimilarScrollButtons);
 
     _fetchDetails();
+    unawaited(WatchedHistoryService.syncGitHubHistory(force: true));
   }
 
   @override
@@ -1430,7 +1432,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       onEnter: (_) => setState(() => _isHoveringEpisodes = true),
       onExit: (_) => setState(() => _isHoveringEpisodes = false),
       child: SizedBox(
-        height: isDesktop ? 275 : 245,
+        height: isDesktop ? 310 : 280,
         child: Stack(
           clipBehavior: Clip.hardEdge,
           children: [

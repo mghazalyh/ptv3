@@ -1,3 +1,22 @@
+## 2026-11-03 SGT — CROSS-PLATFORM BASS/TREBLE EQ AND TORRIODB WATCH PROGRESS
+
+NEW OWNER AUTHORIZATION: implement both features for Windows x64 and iOS 15/iPad, then submit exactly ONE paired native release request using .github/release-request.txt on parity-floating-player-both. Stop immediately after the trigger is pushed. No GitHub workflow, Telegram or asset polling, no manual dispatch, no retry, no duplicate separate builds, no iOS #173 recovery #4.
+
+Repository mghazalyh/ptv3; private TorriODB mghazalyh/torriodb branch main. Previous reported head 7e5a8ed4945169a5fba1130e141c943948e9a427. New source EQ commit 5dde9fe6134be3f76ee310bf89e5eabdd5c48506; watch-progress commit fbb60b472823c1eb56a9712bf9c8e2c717d5d5bf. Final HEAD will be the one paired release-request commit, to be recorded in the response. CI, native results, artifacts, digests, Telegram and device outcomes remain UNVERIFIED.
+
+FEATURE 1: Player Audio menu provides Bass and Treble sliders, each -20..+10 dB and Reset. Values persist locally, FFmpeg shelving filters are added to MPV only when non-neutral and only after the drag finishes. Original scaletempo speed filter, iOS verified Night Mode, Windows compressor/limiter, 200ms shared audio, subtitles and stream recovery preserved. Live setter rollback and safe neutral fallback provided; successful setter alone does not establish audible EQ effectiveness. Sources player_picture_audio.dart, player_settings.dart, player_audio_menu.dart, player_screen.dart and player_picture_audio_test.dart.
+
+FEATURE 2: Netflix-style, non-seekable playback progress rails on movie DetailsPage, series latest-episode summary and each episode card. Existing local and private GitHub watched history version 1 at playtorrio/watched-history-v1.json gains per-movie or per-season/episode positionSeconds, totalDurationSeconds, completion and updatedAt. Completion is sticky, newest timestamp wins per episode on conflicting devices, and offline journal/merge preserve old history. Continue Watching cloud at playtorrio/continue-watching-v1.json is unchanged. Sources watched_history_service.dart, github_watched_history_cloud.dart, continue_watching_service.dart, details_page.dart; tests github_watched_history_merge_test.dart, watched_history_recommendations_test.dart. Cross-device sync and real device UI acceptance unverified.
+
+PRIVACY & DIAGNOSTICS: fixed opt-in allowlisted equalizer_filter_set, equalizer_filter_failed, equalizer_runtime_bypassed and watch_progress_saved only. No media URLs, titles, library IDs, subtitle text, transcripts, device identifiers, raw exceptions, credentials or native logs in telemetry. Existing private bounded 24 samples/24 events and minimum 30-second interval unchanged. These checkpoints do not verify audible EQ or cloud UI correctness.
+
+READ FIRST IN ORDER: 1 SESSION_RECOVERY_PROMPT.md; 2 TOP handover.md; 3 AGENTS.md; 4 NEXT_SESSION.md; 5 CURRENT_SESSION_HANDOVER.md; 6 .github/RELEASE_DELIVERY_POLICY.md; 7 .github/SESSION_HANDOVER_DIAGNOSTICS.md; 8 IOS_SUBTITLE_BUILD_RECOVERY.md.
+
+Historical source fixes, Windows #170/#172/#173/#174, paired #171, iOS #172/#173, all native run numbers, artifacts, exact sizes and SHA256, Telegram history, TorriODB privacy and no-poll restrictions remain recorded below and in the previous supplied emergency recovery prompt. Old source CI success does NOT imply new build success. Prior Windows-only release request from HEAD 7e5a8ed... remains unverified; do not restart or duplicate it.
+
+PERMANENT RULE: End EVERY PlayTorrio reply with an UPDATED comprehensive, standalone, copyable emergency recovery prompt preserving this same rule, exact repositories/branch/HEAD and reading order, all source repairs and CI, builds, artifacts and sizes/SHA256, Telegram, telemetry/privacy, uncertainties, authorization, no-duplicate-build and no-poll safeguards. Append a fresh runtime-sampled SGT timestamp.
+
+---
 ## 2026-11-03 SGT — RECOMMENDED / SIMILAR SHOWS LOAD MORE: SOURCE-ONLY REPAIR
 
 **Owner issue:** Load More at bottom of show/movie details Recommended Shows / Similar Content horizontal carousel appears nonfunctional. This is not Advanced Discover. **Proven source UI defect:** the number of visible horizontal cards was increased or TMDB cards appended without scrolling to newly revealed content, so users saw the same cards. **Second empty-page case:** TMDB can return pages containing only duplicate/filtered items and the page count can advance without visible feedback.

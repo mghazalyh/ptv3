@@ -3132,6 +3132,11 @@ class _PlayerScreenState extends State<PlayerScreen>
           detail: detail, episode: episode, source: source,
           positionSeconds: position, totalDurationSeconds: duration,
         );
+        if (Platform.isWindows) {
+          WindowsPlaybackTelemetry.instance.captureCode('watch_progress_saved');
+        } else if (Platform.isIOS) {
+          IosAudioTelemetry.instance.captureCode('watch_progress_saved');
+        }
       }
       await ContinueWatchingService.syncGitHubProgress(force: true);
       await WatchedHistoryService.syncGitHubHistory(force: true);
@@ -3805,7 +3810,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                     } catch (error) {
                       debugPrint('[PlayerAudio] Tone control failed: ${error.runtimeType}');
                       if (mounted) {
-                        setState(() {});
+                        setState(() => _activeMenu = null);
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text(
                               'Bass/treble unavailable for this audio output.')));

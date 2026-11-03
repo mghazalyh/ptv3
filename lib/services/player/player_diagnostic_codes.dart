@@ -2,6 +2,10 @@
 /// No media names, URLs, timestamps from filenames, transcripts, or raw errors.
 abstract final class PlayerDiagnosticCodes {
   static const events = <String>{
+    'equalizer_filter_set',
+    'equalizer_filter_failed',
+    'equalizer_runtime_bypassed',
+    'watch_progress_saved',
     // Fixed-value, opt-in recommendation outcome events. Never include a
     // title, provider query, TMDB ID, watch history or user identifier.
     'similar_movie_loaded',

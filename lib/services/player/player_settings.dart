@@ -547,6 +547,7 @@ abstract final class PlayerSettings {
           await prefs.setInt(_keyBassDb, 0);
           await prefs.setInt(_keyTrebleDb, 0);
           onApplied?.call();
+          _recordSafeNightModeCode('equalizer_runtime_bypassed');
           debugPrint('[PlayerSettings] Optional equalizer unavailable; neutral audio restored');
           return;
         } catch (fallbackError) {
@@ -661,6 +662,7 @@ abstract final class PlayerSettings {
           bassDb: nextBass, trebleDb: nextTreble,
         );
       } catch (error) {
+        _recordSafeNightModeCode('equalizer_filter_failed');
         debugPrint('[PlayerSettings] Equalizer rejected: ${error.runtimeType}');
         try {
           await PlayerPictureAudio.applyAudio(
@@ -683,6 +685,7 @@ abstract final class PlayerSettings {
     await prefs.setInt(_keyTrebleDb, nextTreble);
     bassDb.value = nextBass;
     trebleDb.value = nextTreble;
+    _recordSafeNightModeCode('equalizer_filter_set');
   }
 
   /// Windows brightness lives on the Flutter video texture. Keep libmpv's

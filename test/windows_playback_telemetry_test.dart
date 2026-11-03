@@ -145,6 +145,8 @@ void main() {
         expect(request.method, 'PUT');
         expect(request.url.path, contains(
             '/repos/mghazalyh/torriodb/contents/playtorrio/diagnostics/windows/player/'));
+        expect(request.url.path,
+            matches(RegExp(r'/player/\\d{4}/\\d{2}/\\d{2}/')));
         final data = jsonDecode(request.body) as Map<String, dynamic>;
         final bytes = base64Decode(data['content'] as String);
         report = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;

@@ -6,6 +6,7 @@ import '../../models/movie/movie_detail.dart';
 import '../../models/movie/video.dart';
 import '../../models/stream/stream_model.dart';
 import '../../services/stream/stream_service.dart';
+import '../../services/player/debrid_source_readiness.dart';
 import '../../services/anime/anime_scraper_service.dart';
 import '../../services/anime_arabic/anime_arabic_service.dart';
 import '../../services/anime_arabic/anime_arabic_extractor.dart';
@@ -188,8 +189,8 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
       return;
     }
 
-    _streamSub = StreamService.fetchStreamsForTargetAddon(
-      targetAddonName: widget.currentAddonName,
+    // When one provider fails, allow manual selection from all configured providers.
+    _streamSub = StreamService.fetchStreams(
       type: type,
       id: id,
       title: title,
@@ -351,7 +352,7 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Provider: ${widget.currentAddonName}',
+                  'Sources: all configured providers',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.50),
                     fontSize: 11.5,
@@ -536,14 +537,15 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
   ) {
     final title = source.title ?? source.name ?? 'Stream Source';
     final isTorrent = source.infoHash != null && source.infoHash!.isNotEmpty;
+    final isPending = DebridSourceReadiness.isExplicitlyPending(source);
     final resolution = _extractResolution(title);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hoveredIndex = index),
       onExit: (_) => setState(() => _hoveredIndex = null),
-      cursor: SystemMouseCursors.click,
+      cursor: isPending ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: () => widget.onPlaySource(source, widget.episode),
+        onTap: isPending ? null : () => widget.onPlaySource(source, widget.episode),
         child: AnimatedScale(
           scale: isHovered ? 1.015 : 1.0,
           duration: const Duration(milliseconds: 160),
@@ -624,7 +626,7 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              isTorrent ? 'P2P' : 'HTTP',
+                              isPending ? 'PENDING' : (isTorrent ? 'P2P' : 'HTTP'),
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.70),
                                 fontSize: 9.5,

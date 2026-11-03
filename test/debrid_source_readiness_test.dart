@@ -125,6 +125,19 @@ void main() {
       skipCurrentRetry: true, followPickerOrder: true), isNull);
   });
 
+  test('pending sources never count as playable alternatives', () {
+    final anotherPending = source(
+      '[TB download] Torrentio', 'https://resolver.example/download/id6');
+    expect(PlaybackSourceRecovery.hasAlternative(
+      pending, [pending, anotherPending],
+      attemptedKeys: <String>{},
+    ), isFalse);
+    expect(PlaybackSourceRecovery.hasAlternative(
+      pending, [pending, cached],
+      attemptedKeys: <String>{},
+    ), isTrue);
+  });
+
   test('no looping when only uncached debrid jobs exist', () {
     final secondPending = source(
       '[TB download] Torrentio', 'https://resolver.example/download/id5');

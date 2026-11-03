@@ -93,6 +93,8 @@ void main() {
     expect(request.url.host, 'api.github.com');
     expect(request.url.path, startsWith(
       '/repos/mghazalyh/torriodb/contents/playtorrio/diagnostics/ios/night-mode/'));
+    expect(request.url.path,
+        matches(RegExp(r'/night-mode/\\d{4}/\\d{2}/\\d{2}/')));
     final wrapper = jsonDecode(request.body) as Map<String, dynamic>;
     expect(wrapper['branch'], 'main');
     final report = jsonDecode(utf8.decode(

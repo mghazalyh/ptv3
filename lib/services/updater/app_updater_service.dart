@@ -11,7 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 class AppUpdaterService {
   static const String githubRepo = 'mghazalyh/ptv3';
   static const String githubApiUrl =
-      'https://api.github.com/repos/$githubRepo/releases/latest';
+      'https://api.github.com/repos/$githubRepo/releases?per_page=50';
   static const String _keyDismissedVersion = 'dismissed_update_version';
 
   static Future<void> dismissVersion(String version) async {
@@ -41,60 +41,125 @@ class AppUpdaterService {
     } catch (_) {}
   }
 
+  /// Paired iOS IPA CFBundleVersion is the GitHub release run number + 3.
+  /// The Windows build number equals the release run number.
+  @visibleForTesting
+  static bool shouldOfferRelease(
+      String installedVersion, int? installedBuild,
+      String releaseVersion, int? releaseBuild, {bool isIos = false}) {
+    if (_isNewerVersion(installedVersion, releaseVersion)) return true;
+    if (_isNewerVersion(releaseVersion, installedVersion)) return false;
+    if (installedBuild == null || releaseBuild == null) return false;
+    return releaseBuild + (isIos ? 3 : 0) > installedBuild;
+  }
+
+  @visibleForTesting
+  static String? findIosAsset(List assets) {
+    for (final asset in assets) {
+      if (asset is! Map) continue;
+      final name = (asset['name'] ?? '').toString().toLowerCase();
+      final url = (asset['browser_download_url'] ?? '').toString();
+      if (name.endsWith('.ipa') && name.contains('trollstore') &&
+          url.startsWith('https://github.com/')) {
+        return url;
+      }
+    }
+    return null;
+  }
+
   Future<UpdateInfo?> checkForUpdates({bool ignoreDismissed = false}) async {
+    if (kIsWeb) return null;
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
-
+      final currentBuild = int.tryParse(packageInfo.buildNumber);
       final response = await http.get(
         Uri.parse(githubApiUrl),
-        headers: {'Accept': 'application/vnd.github.v3+json'},
+        headers: {'Accept': 'application/vnd.github+json'},
       );
+      if (response.statusCode != 200) {
+        debugPrint('[AppUpdaterService] Release lookup HTTP ' +
+            response.statusCode.toString());
+        return null;
+      }
+      final payload = json.decode(response.body);
+      if (payload is! List) {
+        debugPrint('[AppUpdaterService] Unexpected release response');
+        return null;
+      }
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final tag = data['tag_name']?.toString() ?? '';
-        // Match build-v1.1.0-b89 and traditional v1.1.0 GitHub release tags.
-        final releaseMatch = RegExp(
-          r'^(?:build-)?v?(\d+\.\d+\.\d+)(?:-b(\d+))?',
-          caseSensitive: false,
-        ).firstMatch(tag);
-        if (releaseMatch == null || releaseMatch.group(0) != tag) return null;
-        final latestVersion = releaseMatch.group(1)!;
-        final latestBuild = int.tryParse(releaseMatch.group(2) ?? '');
-        final currentBuild = int.tryParse(packageInfo.buildNumber);
-        final displayVersion = latestBuild == null
-            ? latestVersion : '$latestVersion (Build $latestBuild)';
-        final releaseNotes =
-            data['body'] as String? ?? 'No release notes available';
-        final publishedAt = DateTime.parse(data['published_at']);
-
-        final newer = _isNewerVersion(currentVersion, latestVersion) ||
-            (currentVersion == latestVersion && latestBuild != null &&
-                currentBuild != null && latestBuild > currentBuild);
-        if (newer) {
-          if (!ignoreDismissed && await isVersionDismissed(displayVersion)) {
-            debugPrint('[AppUpdaterService] Update $latestVersion is newer but was dismissed by user.');
-            return null;
-          }
-
-          final assets = data['assets'] as List;
-          final downloadUrl = _findAssetForPlatform(assets);
-
-          return UpdateInfo(
-            currentVersion: currentVersion,
-            latestVersion: displayVersion,
-            downloadUrl: downloadUrl ?? data['html_url'],
-            releaseNotes: releaseNotes,
-            publishedAt: publishedAt,
-            isMacOS: kIsWeb ? false : Platform.isMacOS,
-            isIOS: kIsWeb ? false : Platform.isIOS,
-          );
+      Map? selectedRelease;
+      String? selectedVersion;
+      int? selectedBuild;
+      String? selectedAsset;
+      final pattern = RegExp(
+        r'^(?:build-)?v?(\d+\.\d+\.\d+)(?:-b(\d+))?$',
+        caseSensitive: false,
+      );
+      for (final raw in payload) {
+        if (raw is! Map || raw['draft'] == true ||
+            raw['prerelease'] == true) continue;
+        final match = pattern.firstMatch((raw['tag_name'] ?? '').toString());
+        if (match == null) continue;
+        final version = match.group(1)!;
+        final runNumber = int.tryParse(match.group(2) ?? '');
+        final assets = raw['assets'];
+        if (assets is! List) continue;
+        // Reject Windows-only releases on iPad and other incompatible builds.
+        final platformUrl = _findAssetForPlatform(assets);
+        if (platformUrl == null || platformUrl.isEmpty) continue;
+        final isBest = selectedVersion == null ||
+            _isNewerVersion(selectedVersion, version) ||
+            (selectedVersion == version &&
+              (runNumber ?? -1) > (selectedBuild ?? -1));
+        if (isBest) {
+          selectedRelease = raw;
+          selectedVersion = version;
+          selectedBuild = runNumber;
+          selectedAsset = platformUrl;
         }
       }
-      return null;
-    } catch (e) {
-      debugPrint('Error checking for updates: $e');
+
+      if (selectedRelease == null || selectedVersion == null ||
+          selectedAsset == null) {
+        debugPrint('[AppUpdaterService] No compatible published release');
+        return null;
+      }
+      final ios = Platform.isIOS;
+      if (!shouldOfferRelease(currentVersion, currentBuild,
+          selectedVersion, selectedBuild, isIos: ios)) {
+        debugPrint('[AppUpdaterService] Installed ' + currentVersion +
+            ' build ' + packageInfo.buildNumber +
+            ' is current for the available platform releases');
+        return null;
+      }
+      final displayVersion = selectedBuild == null
+          ? selectedVersion
+          : selectedVersion + ' (Release Build ' + selectedBuild.toString() + ')';
+      if (!ignoreDismissed && await isVersionDismissed(displayVersion)) {
+        debugPrint('[AppUpdaterService] Update dismissed: ' + displayVersion);
+        return null;
+      }
+      final publishedAt = DateTime.tryParse(
+          (selectedRelease['published_at'] ?? '').toString());
+      if (publishedAt == null) {
+        debugPrint('[AppUpdaterService] Invalid release published_at');
+        return null;
+      }
+      return UpdateInfo(
+        currentVersion: currentVersion + ' (Build ' +
+            packageInfo.buildNumber + ')',
+        latestVersion: displayVersion,
+        downloadUrl: selectedAsset,
+        releaseNotes: (selectedRelease['body'] ??
+            'No release notes available').toString(),
+        publishedAt: publishedAt,
+        isMacOS: Platform.isMacOS,
+        isIOS: ios,
+      );
+    } catch (error) {
+      debugPrint('[AppUpdaterService] Update check error: ' +
+          error.toString());
       return null;
     }
   }
@@ -111,7 +176,9 @@ class AppUpdaterService {
       debugPrint('Error detecting ABI: $e');
     }
 
-    if (Platform.isAndroid) {
+    if (Platform.isIOS) {
+      return findIosAsset(assets);
+    } else if (Platform.isAndroid) {
       return _findAndroidAsset(assets, abi);
     } else if (Platform.isWindows) {
       return _findWindowsAsset(assets, abi);
@@ -273,7 +340,7 @@ class AppUpdaterService {
     return null;
   }
 
-  bool _isNewerVersion(String current, String latest) {
+  static bool _isNewerVersion(String current, String latest) {
     // Strip any suffix like "-test" or "-beta" for comparison
     final currentClean = current.split('-').first;
     final latestClean = latest.split('-').first;

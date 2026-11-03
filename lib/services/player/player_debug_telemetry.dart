@@ -24,7 +24,11 @@ abstract final class PlayerDebugTelemetry {
       return;
     }
     if (failure != true) return;
-    final reason = stage.startsWith('subtitle_') ? 'subtitle_failure' : 'sync_failure';
+    final reason = stage.startsWith('subtitle_')
+        ? 'subtitle_failure'
+        : stage.startsWith('source_')
+            ? 'source_failure'
+            : 'sync_failure';
     unawaited(_flush(reason));
     _delayedFlush?.cancel();
     _delayedFlush = Timer(const Duration(seconds: 36), () {

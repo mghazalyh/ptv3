@@ -54,6 +54,9 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
 
     if (widget.cachedSources != null && widget.cachedSources!.isNotEmpty) {
       _sources.addAll(widget.cachedSources!);
+      _sources.sort((a, b) =>
+          DebridSourceReadiness.sortTier(a)
+              .compareTo(DebridSourceReadiness.sortTier(b)));
       // Cached results may be exclusively unready debrid jobs. Always
       // discover independent providers even when the cache is nonempty.
       _startScraping(preserveExisting: true);
@@ -210,6 +213,9 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
               (s.name == source.name && s.title == source.title));
           if (!exists) {
             _sources.add(source);
+            _sources.sort((a, b) =>
+                DebridSourceReadiness.sortTier(a)
+                    .compareTo(DebridSourceReadiness.sortTier(b)));
           }
         });
       },

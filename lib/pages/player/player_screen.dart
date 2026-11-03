@@ -2412,7 +2412,10 @@ class _PlayerScreenState extends State<PlayerScreen>
         year: year,
         season: episode.season,
         episode: episode.episode,
-      ).take(32).toList().timeout(const Duration(seconds: 12));
+      ).take(32).timeout(
+        const Duration(seconds: 12),
+        onTimeout: (sink) => sink.close(),
+      ).toList();
       candidates.addAll(targeted);
       if (mounted) {
         _recoveryCandidates.addAll(targeted);
@@ -2438,7 +2441,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       ).where((source) =>
           PlaybackSourceRecovery.isHttpCandidate(source) &&
           !DebridSourceReadiness.isExplicitlyPending(source))
-          .take(40).toList().timeout(const Duration(seconds: 15));
+          .take(40).timeout(
+        const Duration(seconds: 15),
+        onTimeout: (sink) => sink.close(),
+      ).toList();
       candidates.addAll(others);
       if (mounted) {
         _recoveryCandidates.addAll(others);

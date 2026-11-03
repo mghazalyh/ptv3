@@ -27,6 +27,32 @@ void main() {
     expect(calls, ['af=$verified']);
   });
 
+  test('stereo tone EQ is neutral by default and clamps the dB range', () async {
+    expect(PlayerPictureAudio.audioFilterChain(false), 'scaletempo2=max-speed=8');
+    final eq = PlayerPictureAudio.audioFilterChain(false,
+        bassDb: -20, trebleDb: 10);
+    expect(eq, contains('bass=g=-20:f=110'));
+    expect(eq, contains('treble=g=10:f=3000'));
+    expect(PlayerPictureAudio.audioFilterChain(false,
+        bassDb: -99, trebleDb: 99), eq);
+    final windowsNight = PlayerPictureAudio.audioFilterChain(true,
+        windows: true, bassDb: 4, trebleDb: -7);
+    expect(windowsNight, contains('acompressor='));
+    expect(windowsNight, contains('alimiter='));
+    expect(windowsNight, contains('bass=g=4'));
+    final calls = <String>[];
+    await PlayerPictureAudio.applyAudio((name, value) async {
+      calls.add('$name=$value');
+    }, true, verifiedFilterChain: 'scaletempo2=max-speed=8,lavfi=[compand=points=0/-13]',
+        bassDb: 3, trebleDb: -4);
+    expect(calls.last, contains('compand='));
+    expect(calls.last, contains('treble=g=-4'));
+    expect(PlayerPictureAudio.windowsAudioFilterMatches(windowsNight, true,
+        bassDb: 4, trebleDb: -7), isTrue);
+    expect(PlayerPictureAudio.windowsAudioFilterMatches(windowsNight, true),
+        isFalse);
+  });
+
   test('Windows audio safeguard skips only a verified unchanged filter', () {
     final normal = PlayerPictureAudio.audioFilterChain(
         false, windows: true);

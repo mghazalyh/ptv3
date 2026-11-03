@@ -3794,6 +3794,25 @@ class _PlayerScreenState extends State<PlayerScreen>
                 audioTracks: _audioTracks,
                 selectedIndex: _selectedAudioTrackIndex,
                 delaySec: _audioDelaySec,
+                bassDb: PlayerSettings.bassDb.value,
+                trebleDb: PlayerSettings.trebleDb.value,
+                onEqualizerChanged: (bass, treble) {
+                  unawaited(() async {
+                    try {
+                      await PlayerSettings.setEqualizer(
+                        bass: bass, treble: treble, player: _player);
+                      if (mounted) setState(() {});
+                    } catch (error) {
+                      debugPrint('[PlayerAudio] Tone control failed: ${error.runtimeType}');
+                      if (mounted) {
+                        setState(() {});
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text(
+                              'Bass/treble unavailable for this audio output.')));
+                      }
+                    }
+                  }());
+                },
                 onTrackSelected: (idx) {
                   unawaited(_selectAudioTrack(idx, manual: true));
                 },

@@ -60,9 +60,13 @@ abstract final class PlayerSettings {
   // Global per-install playback effects. Defaults remain completely neutral.
   static const _keyNightMode = 'player_global_night_mode';
   static const _keyExtraBrightness = 'player_global_extra_brightness';
+  static const _keyBassDb = 'player_equalizer_bass_db';
+  static const _keyTrebleDb = 'player_equalizer_treble_db';
 
   static final ValueNotifier<bool> nightModeEnabled = ValueNotifier<bool>(false);
   static final ValueNotifier<double> extraBrightness = ValueNotifier<double>(0.0);
+  static final ValueNotifier<int> bassDb = ValueNotifier<int>(0);
+  static final ValueNotifier<int> trebleDb = ValueNotifier<int>(0);
 
   // Subtitle Customization Keys
   static const _keySubStylePreset = 'player_sub_style_preset';
@@ -138,6 +142,8 @@ abstract final class PlayerSettings {
     final prefs = await SharedPreferences.getInstance();
 
     nightModeEnabled.value = prefs.getBool(_keyNightMode) ?? false;
+    bassDb.value = PlayerPictureAudio.toneDb(prefs.getInt(_keyBassDb) ?? 0);
+    trebleDb.value = PlayerPictureAudio.toneDb(prefs.getInt(_keyTrebleDb) ?? 0);
     extraBrightness.value = PlayerPictureAudio.brightnessValue(
         prefs.getDouble(_keyExtraBrightness) ?? 0).toDouble();
 
@@ -312,7 +318,8 @@ abstract final class PlayerSettings {
       await _applyAudioWithFailOpen(player, onApplied: () {
         if (Platform.isWindows && nightModeEnabled.value == requestedNightMode) {
           _windowsPreparedAudio[player] = PlayerPictureAudio.audioFilterChain(
-              requestedNightMode, windows: true);
+              requestedNightMode, windows: true,
+              bassDb: bassDb.value, trebleDb: trebleDb.value);
         }
       });
       await platform.setProperty('volume-max', '200');
@@ -412,7 +419,8 @@ abstract final class PlayerSettings {
       final Object? nativeFilter = await platform.getProperty('af')
           .timeout(const Duration(milliseconds: 350));
       return PlayerPictureAudio.windowsAudioFilterMatches(
-          nativeFilter, nightModeEnabled.value);
+          nativeFilter, nightModeEnabled.value,
+          bassDb: bassDb.value, trebleDb: trebleDb.value);
     } catch (error) {
       debugPrint('[PlayerSettings] Windows audio filter check unavailable: '
           '${error.runtimeType}');
@@ -444,6 +452,7 @@ abstract final class PlayerSettings {
           appliedFilter: prepared,
           nightMode: nightModeEnabled.value,
           nativeFilter: nativeFilter,
+          bassDb: bassDb.value, trebleDb: trebleDb.value,
         );
         WindowsPlaybackTelemetry.instance.captureCode(preserveAudio
             ? 'windows_audio_preopen_preserved'
@@ -517,11 +526,33 @@ abstract final class PlayerSettings {
         nightModeEnabled.value,
         verifiedFilterChain: verifiedFilter,
         windows: Platform.isWindows,
+        bassDb: bassDb.value,
+        trebleDb: trebleDb.value,
       );
       onApplied?.call();
       _recordSafeNightModeCode(nightModeEnabled.value
           ? 'night_mode_live_filter_set' : 'night_mode_off_filter_set');
     } catch (error) {
+      if (bassDb.value != 0 || trebleDb.value != 0) {
+        // An optional EQ failure must not disable the known-good compressor.
+        try {
+          await PlayerPictureAudio.applyAudio(
+            (key, value) => platform.setProperty(key, value),
+            nightModeEnabled.value, verifiedFilterChain: verifiedFilter,
+            windows: Platform.isWindows,
+          );
+          bassDb.value = 0;
+          trebleDb.value = 0;
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt(_keyBassDb, 0);
+          await prefs.setInt(_keyTrebleDb, 0);
+          onApplied?.call();
+          debugPrint('[PlayerSettings] Optional equalizer unavailable; neutral audio restored');
+          return;
+        } catch (fallbackError) {
+          debugPrint('[PlayerSettings] EQ bypass failed: ${fallbackError.runtimeType}');
+        }
+      }
       _recordSafeNightModeCode('night_mode_filter_set_failed');
       debugPrint('[PlayerSettings] Audio filter rejected, restoring playback: ${error.runtimeType}');
       unawaited(NightModeDiagnostics.instance.record('audio-apply-error', error.toString()));
@@ -585,7 +616,8 @@ abstract final class PlayerSettings {
       try {
         await PlayerPictureAudio.applyAudio(
             (key, value) => platform.setProperty(key, value), enabled,
-            verifiedFilterChain: verifiedFilter, windows: Platform.isWindows);
+            verifiedFilterChain: verifiedFilter, windows: Platform.isWindows,
+            bassDb: bassDb.value, trebleDb: trebleDb.value);
         _recordSafeNightModeCode(enabled
             ? 'night_mode_live_filter_set' : 'night_mode_off_filter_set');
       } catch (error) {
@@ -600,6 +632,57 @@ abstract final class PlayerSettings {
     await prefs.setBool(_keyNightMode, enabled);
     nightModeEnabled.value = enabled;
     unawaited(NightModeDiagnostics.instance.record('night-toggle', 'persisted=${enabled ? 'ON' : 'OFF'}; setter returned'));
+  }
+
+  /// Persist two simple tone settings. The MPV filter graph changes only when
+  /// the user finishes dragging a slider, not on every drag frame.
+  static Future<void> setEqualizer({
+    required int bass,
+    required int treble,
+    Player? player,
+  }) async {
+    final nextBass = PlayerPictureAudio.toneDb(bass);
+    final nextTreble = PlayerPictureAudio.toneDb(treble);
+    final previousBass = bassDb.value;
+    final previousTreble = trebleDb.value;
+    if (nextBass == previousBass && nextTreble == previousTreble) return;
+    if (player != null) {
+      final dynamic platform = player.platform;
+      String? verified;
+      if (Platform.isIOS && nightModeEnabled.value) {
+        verified = await IosNightModePreflight.ensure();
+        if (verified == null) throw StateError('Night Mode audio filter unavailable');
+      }
+      try {
+        await PlayerPictureAudio.applyAudio(
+          (key, value) => platform.setProperty(key, value),
+          nightModeEnabled.value, verifiedFilterChain: verified,
+          windows: Platform.isWindows,
+          bassDb: nextBass, trebleDb: nextTreble,
+        );
+      } catch (error) {
+        debugPrint('[PlayerSettings] Equalizer rejected: ${error.runtimeType}');
+        try {
+          await PlayerPictureAudio.applyAudio(
+            (key, value) => platform.setProperty(key, value),
+            nightModeEnabled.value, verifiedFilterChain: verified,
+            windows: Platform.isWindows,
+            bassDb: previousBass, trebleDb: previousTreble,
+          );
+        } catch (fallbackError) {
+          debugPrint('[PlayerSettings] Equalizer rollback: ${fallbackError.runtimeType}');
+          await PlayerPictureAudio.restoreNormalAudio(
+            (key, value) => platform.setProperty(key, value));
+        }
+        rethrow;
+      }
+      if (Platform.isWindows) _windowsPreparedAudio[player] = null;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyBassDb, nextBass);
+    await prefs.setInt(_keyTrebleDb, nextTreble);
+    bassDb.value = nextBass;
+    trebleDb.value = nextTreble;
   }
 
   /// Windows brightness lives on the Flutter video texture. Keep libmpv's

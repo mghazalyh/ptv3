@@ -24,6 +24,9 @@ class PlayerAudioMenu extends StatelessWidget {
   final List<PlayerAudioTrack> audioTracks;
   final int selectedIndex;
   final double delaySec;
+  final int bassDb;
+  final int trebleDb;
+  final void Function(int bass, int treble) onEqualizerChanged;
   final ValueChanged<int> onTrackSelected;
   final ValueChanged<double> onDelayChanged;
   final VoidCallback onClose;
@@ -33,6 +36,9 @@ class PlayerAudioMenu extends StatelessWidget {
     required this.audioTracks,
     required this.selectedIndex,
     required this.delaySec,
+    required this.bassDb,
+    required this.trebleDb,
+    required this.onEqualizerChanged,
     required this.onTrackSelected,
     required this.onDelayChanged,
     required this.onClose,
@@ -262,6 +268,13 @@ class PlayerAudioMenu extends StatelessWidget {
             const Divider(color: PlayerTheme.edgeSoft, height: 1),
             SizedBox(height: isCompactH ? 4 : 8),
 
+            _StereoToneControls(
+              bassDb: bassDb,
+              trebleDb: trebleDb,
+              onChanged: onEqualizerChanged,
+            ),
+            const SizedBox(height: 8),
+
             // Audio Sync Offset Row
             Container(
               padding: EdgeInsets.all(isCompactH ? 6 : 9),
@@ -402,4 +415,95 @@ class PlayerAudioMenu extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Two shelving tone sliders; commit only when released to avoid repeatedly
+/// rebuilding the native MPV graph during a drag (especially while gaming).
+class _StereoToneControls extends StatefulWidget {
+  final int bassDb;
+  final int trebleDb;
+  final void Function(int, int) onChanged;
+
+  const _StereoToneControls({
+    required this.bassDb,
+    required this.trebleDb,
+    required this.onChanged,
+  });
+
+  @override
+  State<_StereoToneControls> createState() => _StereoToneControlsState();
+}
+
+class _StereoToneControlsState extends State<_StereoToneControls> {
+  late int _bass;
+  late int _treble;
+
+  @override
+  void initState() {
+    super.initState();
+    _bass = widget.bassDb;
+    _treble = widget.trebleDb;
+  }
+
+  @override
+  void didUpdateWidget(covariant _StereoToneControls oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.bassDb != widget.bassDb ||
+        oldWidget.trebleDb != widget.trebleDb) {
+      _bass = widget.bassDb;
+      _treble = widget.trebleDb;
+    }
+  }
+
+  Widget _toneSlider(String title, int value, ValueChanged<int> change,
+      VoidCallback finish) {
+    return Row(
+      children: [
+        SizedBox(width: 56,
+          child: Text(title, style: const TextStyle(
+            color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600))),
+        Expanded(
+          child: Slider(
+            key: ValueKey('stereo-tone-${title.toLowerCase()}'),
+            min: -20, max: 10, divisions: 30, value: value.toDouble(),
+            onChanged: (newValue) => change(newValue.round()),
+            onChangeEnd: (_) => finish(),
+          ),
+        ),
+        SizedBox(width: 48,
+          child: Text('${value > 0 ? "+" : ""}$value dB',
+            textAlign: TextAlign.end,
+            style: const TextStyle(color: Colors.white, fontSize: 11))),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.04),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Text('STEREO TONE', style: TextStyle(
+            color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700)),
+          TextButton(
+            onPressed: () {
+              setState(() { _bass = 0; _treble = 0; });
+              widget.onChanged(0, 0);
+            },
+            child: const Text('Reset', style: TextStyle(fontSize: 11)),
+          ),
+        ]),
+        _toneSlider('Bass', _bass, (v) => setState(() => _bass = v),
+            () => widget.onChanged(_bass, _treble)),
+        _toneSlider('Treble', _treble, (v) => setState(() => _treble = v),
+            () => widget.onChanged(_bass, _treble)),
+      ],
+    ),
+  );
 }

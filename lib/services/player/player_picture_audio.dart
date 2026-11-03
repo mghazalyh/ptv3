@@ -21,20 +21,48 @@ abstract final class PlayerPictureAudio {
       'lavfi=[acompressor=threshold=0.15:ratio=2.5:attack=15:'
       'release=220:makeup=2.0:knee=2.5,alimiter=limit=0.95:level=0]';
 
-  static String audioFilterChain(bool nightMode, {bool windows = false}) =>
-      !nightMode ? normalAudioFilter :
-      '$normalAudioFilter,${windows ? windowsNightCompressor : nightCompressor}';
+  static int toneDb(int value) => value.clamp(-20, 10).toInt();
+
+  /// Optional stereo-style bass and treble controls, in dB. Neutral settings
+  /// do not add an audio filter and retain the exact original audio graph.
+  /// The two FFmpeg shelving filters operate on the media audio only.
+  static String equalizerFilter({int bassDb = 0, int trebleDb = 0}) {
+    final bass = toneDb(bassDb);
+    final treble = toneDb(trebleDb);
+    if (bass == 0 && treble == 0) return '';
+    return 'lavfi=[bass=g=$bass:f=110:w=0.5,'
+        'treble=g=$treble:f=3000:w=0.5]';
+  }
+
+  static String appendEqualizer(String base,
+      {int bassDb = 0, int trebleDb = 0}) {
+    final eq = equalizerFilter(bassDb: bassDb, trebleDb: trebleDb);
+    return eq.isEmpty ? base : '$base,$eq';
+  }
+
+  static String audioFilterChain(bool nightMode, {
+    bool windows = false,
+    int bassDb = 0,
+    int trebleDb = 0,
+  }) {
+    final base = !nightMode ? normalAudioFilter :
+        '$normalAudioFilter,${windows ? windowsNightCompressor : nightCompressor}';
+    return appendEqualizer(base, bassDb: bassDb, trebleDb: trebleDb);
+  }
 
   /// Only an exact match is sufficient to skip a redundant Windows-only
   /// post-open filter setter. MPV may expose its native filter chain in another
   /// representation, or reset it while opening a new source. In either case
   /// the existing application path must run rather than assuming success.
   /// This never suppresses explicit Night Mode changes.
-  static bool windowsAudioFilterMatches(Object? nativeFilter, bool nightMode) {
+  static bool windowsAudioFilterMatches(Object? nativeFilter, bool nightMode, {
+    int bassDb = 0, int trebleDb = 0,
+  }) {
     if (nativeFilter is! String) return false;
     final value = nativeFilter.trim();
     return value.isNotEmpty &&
-        value == audioFilterChain(nightMode, windows: true);
+        value == audioFilterChain(nightMode, windows: true,
+            bassDb: bassDb, trebleDb: trebleDb);
   }
 
   /// Successful Windows pre-open audio belongs to exactly one source open.
@@ -45,9 +73,12 @@ abstract final class PlayerPictureAudio {
     required String? appliedFilter,
     required bool nightMode,
     Object? nativeFilter,
+    int bassDb = 0,
+    int trebleDb = 0,
   }) {
     if (appliedFilter == null ||
-        appliedFilter != audioFilterChain(nightMode, windows: true)) {
+        appliedFilter != audioFilterChain(nightMode, windows: true,
+            bassDb: bassDb, trebleDb: trebleDb)) {
       return false;
     }
     if (nativeFilter == null) return true;
@@ -56,8 +87,10 @@ abstract final class PlayerPictureAudio {
       final value = nativeFilter.trim();
       if (value.isEmpty || value == '[]' || value == 'null' ||
           value == 'no') return false;
-      if (windowsAudioFilterMatches(value, nightMode)) return true;
-      if (value == audioFilterChain(!nightMode, windows: true)) return false;
+      if (windowsAudioFilterMatches(value, nightMode,
+          bassDb: bassDb, trebleDb: trebleDb)) return true;
+      if (value == audioFilterChain(!nightMode, windows: true,
+          bassDb: bassDb, trebleDb: trebleDb)) return false;
     }
     return true;
   }
@@ -108,6 +141,8 @@ abstract final class PlayerPictureAudio {
     Future<void> Function(String, String) setProperty, bool nightMode, {
     String? verifiedFilterChain,
     bool windows = false,
+    int bassDb = 0,
+    int trebleDb = 0,
   }) async {
     // Optional in bundled iOS libmpv: rejecting this setter must not reject
     // a compressor which has passed native PCM decoding. Actual 'af' failures
@@ -118,8 +153,11 @@ abstract final class PlayerPictureAudio {
     } catch (_) {
       // The native audio graph itself is validated by 'af' and the preflight.
     }
-    await setProperty('af', nightMode && verifiedFilterChain != null
-        ? verifiedFilterChain : audioFilterChain(nightMode, windows: windows));
+    final base = nightMode && verifiedFilterChain != null
+        ? verifiedFilterChain
+        : audioFilterChain(nightMode, windows: windows);
+    await setProperty('af', appendEqualizer(base,
+        bassDb: bassDb, trebleDb: trebleDb));
   }
 
   /// Windows applies brightness on the Flutter video texture using a GPU

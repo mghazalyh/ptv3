@@ -2380,37 +2380,75 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<List<StreamSource>> _loadRecoveryCandidates(Video episode) async {
     final key = '${episode.season ?? 1}:${episode.episode ?? 1}';
-    final existing = <StreamSource>[
+    final candidates = <StreamSource>[
       ..._recoveryCandidates,
       ...?_cachedSourcesByEpisode[key],
       ...episode.streams,
     ];
-    if (PlaybackSourceRecovery.hasAlternative(_currentSource, existing,
-        attemptedKeys: _sourceRecovery.failedKeys)) return existing;
+
+    bool hasReadyAlternative() => PlaybackSourceRecovery.hasAlternative(
+          _currentSource, candidates,
+          attemptedKeys: _sourceRecovery.failedKeys);
+
+    if (hasReadyAlternative()) return candidates;
     final detail = widget.detail;
     final id = episode.id.isNotEmpty
         ? episode.id
         : '${detail?.id ?? ''}:${episode.season ?? 1}:${episode.episode ?? 1}';
-    if (id.isEmpty || id.startsWith(':')) return existing;
+    if (id.isEmpty || id.startsWith(':')) return candidates;
+
+    final type = detail?.type ?? 'series';
+    final title = detail?.name ?? widget.title;
+    final year = int.tryParse(detail?.year ?? '');
+
+    // First refresh the originally selected addon, retaining its priority
+    // when it has actual playable candidates rather than download stubs.
     try {
-      final fetched = await StreamService.fetchStreamsForTargetAddon(
+      final targeted = await StreamService.fetchStreamsForTargetAddon(
         targetAddonName: _currentSource.addonName,
-        type: detail?.type ?? 'series',
+        type: type,
         id: id,
-        title: detail?.name ?? widget.title,
-        year: int.tryParse(detail?.year ?? ''),
+        title: title,
+        year: year,
         season: episode.season,
         episode: episode.episode,
       ).take(32).toList().timeout(const Duration(seconds: 12));
+      candidates.addAll(targeted);
       if (mounted) {
-        _cachedSourcesByEpisode[key] = fetched;
-        _recoveryCandidates.addAll(fetched);
+        _recoveryCandidates.addAll(targeted);
+        _cachedSourcesByEpisode[key] = List<StreamSource>.from(candidates);
       }
-      return [...existing, ...fetched];
     } catch (error) {
-      debugPrint('[PlayerScreen] Alternate source lookup unavailable: ${error.runtimeType}');
-      return existing;
+      debugPrint('[PlayerScreen] Selected addon lookup failed: ${error.runtimeType}');
     }
+
+    if (hasReadyAlternative()) return candidates;
+
+    // Crucial: an uncached debrid/download entry is not an alternative.
+    // Search other installed addons instead of staying on one provider.
+    PlayerDebugTelemetry.record('source_recovery_cross_addon_started');
+    try {
+      final others = await StreamService.fetchStreams(
+        type: type,
+        id: id,
+        title: title,
+        year: year,
+        season: episode.season,
+        episode: episode.episode,
+      ).where((source) =>
+          PlaybackSourceRecovery.isHttpCandidate(source) &&
+          !DebridSourceReadiness.isExplicitlyPending(source))
+          .take(40).toList().timeout(const Duration(seconds: 15));
+      candidates.addAll(others);
+      if (mounted) {
+        _recoveryCandidates.addAll(others);
+        _cachedSourcesByEpisode[key] = List<StreamSource>.from(candidates);
+      }
+    } catch (error) {
+      debugPrint('[PlayerScreen] Cross-addon lookup unavailable: ${error.runtimeType}');
+    }
+
+    return candidates;
   }
 
   Future<void> _recoverFailedSource({
@@ -2454,6 +2492,11 @@ class _PlayerScreenState extends State<PlayerScreen>
             }
           }
           WindowsPlaybackTelemetry.instance.captureCode('source_recovery_exhausted');
+          if (!PlaybackSourceRecovery.hasAlternative(
+              _currentSource, candidates,
+              attemptedKeys: _sourceRecovery.failedKeys)) {
+            PlayerDebugTelemetry.record('source_recovery_no_ready_candidates');
+          }
           PlayerDebugTelemetry.record('source_auto_exhausted', failure: true);
           // The source picker retains manual choice when every safe automatic
           // direct HTTP candidate has failed, instead of looping forever.
@@ -2462,7 +2505,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             _showSourcesPanel = true;
             _sourcesEpisode = episode;
             _sourcesErrorMessage =
-                'Automatic retries were unsuccessful. Choose a source below.';
+                'Automatic retries failed. Pending downloads cannot play; choose a ready source from another provider.';
           });
           return;
         }

@@ -1,42 +1,51 @@
-PLAYTORRIO — OWNER-AUTHORIZED EXACTLY ONE REPLACEMENT PAIRED WINDOWS + iOS NATIVE BUILD REQUEST — 2026-11-03 SGT
+PLAYTORRIO — EXACTLY ONE OWNER-AUTHORIZED PAIRED WINDOWS x64 + iOS 15/iPad TrollStore NATIVE RELEASE REQUEST — 2026-11-03 SGT
 
-This request replaces the failed-overall paired Build #176 release workflow run 41638273016, which had successful native Windows and iOS builds/signing, successful paired GitHub release publication and Windows Telegram, but failed iOS Telegram delivery ONLY. Original signed iOS IPA was 53,634,217 bytes; Telegram bot limit is 50,000,000 bytes; old --require-document caused a deterministic failure rather than an available GitHub Release link fallback.
+OWNER INSTRUCTION
+Correct false newest-version warning on iPad even though installed paired build has Bass/Treble EQ.
+Permanently send ONLY Telegram download links, NEVER installer/ZIP/IPA binary attachments, regardless of file size.
+After fixes, trigger ONE paired Windows and iOS native build.
+STOP immediately after this single request, do not check status of build, GitHub Actions, Release assets or Telegram. Owner monitors.
 
-OWNER EXPLICIT AUTHORIZATION: inspect and repair the build problem, then request exactly ONE replacement PAIRED Windows x64 and signed iOS 15/iPad TrollStore build for the existing shared Flutter features. STOP immediately after pushing this single trigger. DO NOT monitor the resulting GitHub run or Telegram.
+VERIFIED IDENTITY EXPLANATION
+Paired workflow iOS CFBundleVersion and PLAYTORRIO_RUN are GITHUB_RUN_NUMBER + 3.
+iPad diagnostic Build 179 with source 6451c94ca60ad79035f94645bd743f554dc2feb2 is consistent with paired Build #176.
+Previously reported source mismatch was not evidence of an incorrect app.
+Do not conflate iOS CFBundleVersion and GitHub release run number.
 
-New repair source:
-3e24100ef65c19c5fda081bcef64c6e5b09e2f11
-Original paired release source:
-6451c94ca60ad79035f94645bd743f554dc2feb2
-Full native workflow:
-.github/workflows/windows-advanced-discover.yml
+FIXES INCLUDED IN THIS REQUEST
+1. lib/services/updater/app_updater_service.dart uses stable published GitHub Releases and filters by compatible platform assets.
+2. iPad updater requires a signed TrollStore IPA, never treats Windows-only releases as an iPad update, and compares installed paired iOS build against release run +3.
+3. lib/services/config/build_identity.dart labels embedded build number as app build rather than GitHub run.
+4. test/app_updater_service_test.dart exercises iPad 179 / paired 176, newer releases, Windows build comparisons and signed IPA asset matching.
+5. .github/scripts/telegram_ci.py supports Telegram sendMessage only. The transport rejects ALL Telegram file uploads. Legacy send-document calls are redirected to permanent release links and do not read binary files.
+6. .github/workflows/windows-advanced-discover.yml sends Windows and signed iOS direct GitHub Release and SHA256SUMS links only, after successful GitHub publication. No binary artifacts are downloaded by Telegram jobs.
+7. .github/scripts/validate_native_release_workflow.py validates the modified job dependencies and link-only transport, and both platform build jobs include updater regression tests.
+8. .github/release-notes.txt documents the change. Handover and delivery policy updated.
 
-FIX APPLIED BEFORE THIS BUILD REQUEST:
-- Telegram delivery for iOS waits for successful publishing of the exact paired GitHub Release.
-- Signed iOS IPA <= 50,000,000 bytes can be delivered directly via sendDocument.
-- Oversized signed iOS IPA uses a validated full permanent GitHub Release URL via sendMessage instead of failing the entire workflow.
-- Telegram release notes now describe new two-slider bass/treble EQ and cross-device Netflix-style watched progress.
-- Existing native source-pinning, signing, size/SHA256 verification and release publication are preserved.
+SOURCE AFTER ALL REPAIRS, BEFORE THIS EXACT TRIGGER COMMIT
+a84297170fb85f6e6276a9c9469539824afeefa7
 
-BUILD BOTH PLATFORMS FROM THIS EXACT RELEASE-REQUEST COMMIT:
-- Windows x64 Setup EXE + portable ZIP
-- iOS 15/iPad signed TrollStore IPA
-- No [windows-only] skip marker.
+NATIVE RELEASE REQUIRED FROM THIS TRIGGER COMMIT
+One Windows x64 Setup EXE and Windows portable ZIP.
+One signed ad hoc iOS 15/iPad TrollStore IPA.
+One SHA256SUMS.txt.
+Publish actual packages to the matching permanent GitHub Release only, preserve native source/asset verification, built-in EQ/progress, video/audio, subtitles, TorriODB sync and privacy.
+Send Telegram messages containing direct GitHub Release asset URLs and build SHA/version, with zero binary attachments.
 
-KEEP ALL EXISTING FEATURES AND SAFEGUARDS:
-Bass/Treble EQ -20..+10 dB; movies and individual TV episode progress synced via the connected private TorriODB watched-history service; pinned audio filters, six-channel Night Mode, Windows 200ms nonexclusive shared audio, iOS VideoToolbox, subtitles, subtitle synchronization, stream recovery, GitHub persistence, strict privacy and opt-in allowlisted telemetry.
+PAST #176 FAILURE
+Workflow 41638273016, release build-v1.1.15-b176, source 6451c94ca60ad79035f94645bd743f554dc2feb2.
+Windows and iOS native builds and matched GitHub Release succeeded; old iOS Telegram document transfer failed due to 53,634,217-byte IPA exceeding configured 50,000,000-byte bot attachment limit.
+Do not rebuild #176 or iOS #173/recovery #4 separately.
 
-KNOWN BUILD #176 PUBLISHED ARTIFACTS (DO NOT MODIFY OR DELETE):
-Release tag: build-v1.1.15-b176
-Windows Setup: 110,686,614 bytes; SHA256 980d4131d3f7fb518276563d268e50c0d6642c2a0a49cd5f0b2ee649c0c4d1de
-Windows portable: 154,863,772 bytes; SHA256 11bd13674f45c98063bf4dde01f5fd0d5522c6fb4b21ce3e0d2b3d58be1c5597
-iOS IPA: 53,634,217 bytes; SHA256 52b4ad31830276a4ad6b5b3c93815982cdce8c4ed5cecbdc2dd99e4edf3b8a91
-SHA256SUMS: 346 bytes; SHA256 237924ccd52b13d10bd11a035543dd0bb86d2aa4c5dc28cae5a76cad2f8621b3
+ABSOLUTE STOP SAFEGUARDS
+ONE paired push trigger only, no [windows-only] marker.
+No workflow_dispatch.
+No standalone Windows or iOS build.
+No retries, retriggers, reruns, duplicate builds or follow-up commits to this request.
+No GitHub workflow status, Telegram, build status, release artifacts or checksum polling after the accepted push.
+Never invent new run number, build success, asset size, SHA256 or Telegram delivery.
+New run results, release, checksums and device acceptance remain UNVERIFIED until owner inspection.
+Owner monitors and gives any new instructions separately.
 
-This NEW request's run number, outcomes, installer/IPA delivery, artifacts, byte sizes, SHA256, Telegram and physical device acceptance are ALL UNVERIFIED when submitted.
-
-PERMANENT STOP RULE:
-Exactly ONE new paired build trigger in this commit. No separate Windows-only or iOS-only requests. No manual workflow_dispatch, no more build requests, no retries, no monitoring/polling GitHub, workflow status, Telegram or release assets after pushing. No duplicate builds or job reruns. Do not rebuild the unrelated successful signed iOS #173 artifact or authorize its recovery #4. The owner monitors the new paired build.
-
-PERMANENT HANDOVER RULE:
-Every PlayTorrio response ends with a current full standalone copyable emergency recovery prompt retaining repositories, branch, HEAD, mandatory reading order, source and CI histories, all native runs, assets/names/bytes/SHA256, Telegram status, TorriODB telemetry/privacy, uncertainty and all no-poll/no-duplicate/authorization safeguards, followed by an exact fresh runtime-generated SGT timestamp.
+PERMANENT RULE
+Every PlayTorrio reply ends with an UPDATED, COMPREHENSIVE, STANDALONE, COPYABLE emergency recovery prompt preserving this rule, repositories/branches/HEAD, mandatory reading order, repairs, features, CI and native histories, known exact artifact names/sizes/SHA256, Telegram, TorriODB telemetry/privacy, uncertainties, authorization and all strict no-poll/no-duplicate-build safeguards, followed by a fresh exact runtime-generated SGT timestamp.

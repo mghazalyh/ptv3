@@ -59,6 +59,8 @@ jobs:
             lib/services/metadata/tvdb_series_service.dart \
             lib/models/movie/movie.dart \
             lib/pages/home/home_page.dart \
+            lib/pages/history/watched_history_page.dart \
+            lib/services/continue_watching/watched_history_timeline.dart \
             lib/pages/details/details_page.dart \
             lib/pages/player/player_screen.dart \
             lib/pages/settings/settings_page.dart \
@@ -104,6 +106,7 @@ jobs:
             test/github_progress_v1_compat_test.dart \
             test/github_sync_gate_test.dart \
             test/github_watched_history_merge_test.dart \
+            test/watched_history_timeline_test.dart \
             test/watched_history_recommendations_test.dart \
             test/github_library_merge_test.dart \
             test/github_watchlist_v1_regression_test.dart \

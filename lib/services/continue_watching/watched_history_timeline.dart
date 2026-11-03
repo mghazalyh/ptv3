@@ -21,9 +21,11 @@ class WatchedHistoryEntry {
 
   bool get isMovie => title.type == 'movie';
   bool get isEpisode => episode != null || episodeId != null;
-  bool get completed => position?.completed ??
-      (isMovie ? title.completed :
-          episodeId != null && title.completedEpisodeIds.contains(episodeId));
+  bool get completed =>
+      (position?.completed == true) ||
+      (isMovie && title.completed) ||
+      (!isMovie && episodeId != null &&
+          title.completedEpisodeIds.contains(episodeId));
   String get typeLabel => isMovie ? 'MOVIE' :
       title.type == 'anime' ? 'ANIME' : 'SERIES';
   String get episodeLabel {

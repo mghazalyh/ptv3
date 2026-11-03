@@ -17,7 +17,9 @@ abstract final class BuildIdentity {
 
   static String get sourceLabel {
     if (shortCommit.isEmpty) return 'Local or untracked build';
-    final runLabel = workflowRun.isEmpty ? '' : ' · GitHub run $workflowRun';
+    // PLAYTORRIO_RUN is a native build number, not always the GitHub run.
+    // In paired iOS packages it is GITHUB_RUN_NUMBER + 3.
+    final runLabel = workflowRun.isEmpty ? '' : ' · App build $workflowRun';
     return 'Revision $shortCommit$runLabel';
   }
 }

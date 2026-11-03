@@ -117,6 +117,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/player_picture_audio_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/app_updater_service_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/windows_settings_recovery_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/windows_playback_telemetry_test.dart
@@ -672,6 +674,7 @@ jobs:
           flutter test test/ios_audio_telemetry_test.dart
           flutter test test/playback_frame_health_test.dart
           flutter test test/player_picture_audio_test.dart
+          flutter test test/app_updater_service_test.dart
 
       - name: Build unsigned iOS 15 release
         run: flutter build ios --no-pub --release --no-codesign --build-name=1.1.15 --build-number="$((GITHUB_RUN_NUMBER + 3))" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="$((GITHUB_RUN_NUMBER + 3))" --dart-define-from-file=.env
@@ -803,11 +806,11 @@ jobs:
     steps: *ios_build_steps
 
   telegram-windows:
-    name: Send Windows setup EXE to Telegram (independent)
-    needs: [windows]
-    if: github.ref == 'refs/heads/parity-floating-player-both'
+    name: Send Windows GitHub Release asset links to Telegram
+    needs: [windows, publish-paired, publish-windows-only]
+    if: ${{ always() && !cancelled() && github.ref == 'refs/heads/parity-floating-player-both' && needs.windows.result == 'success' && (needs.publish-paired.result == 'success' || needs.publish-windows-only.result == 'success') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 6
     permissions:
       contents: read
     env:
@@ -815,30 +818,23 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
       BUILD_SHA: ${{ github.sha }}
       BUILD_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      BUILD_RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/build-v1.1.15-b${{ github.run_number }}
+      BUILD_VERSION: '1.1.15'
+      BUILD_NUMBER: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
-      - name: Download Windows installer and portable ZIP
-        uses: actions/download-artifact@v4
-        with:
-          name: PlayTorrio-Windows-v1.1.15-build-${{ github.run_number }}
-          path: packages/windows
-      - name: Send actual Windows setup EXE in its own Telegram message
-        env:
-          BUILD_VERSION: "1.1.15"
-          BUILD_NUMBER: ${{ github.run_number }}
+      - name: Send Windows setup, portable and checksum URLs only
         run: |
-          python3 .github/scripts/telegram_ci.py send-document \
+          python3 .github/scripts/telegram_ci.py send-release-links \
             --platform Windows \
-            --file packages/windows/PlayTorrio-Windows-Setup.exe \
-            --release-notes-file .github/release-notes.txt \
-            --caption-extra "Windows portable ZIP and SHA256 checksums are available in this build's permanent GitHub Release."
+            --release-notes-file .github/release-notes.txt
 
   telegram-ipa:
-    name: Deliver signed iOS 15 IPA or permanent GitHub Release link
-    needs: [ios15, ios15-rescue-intel, ios15-rescue-arm, publish-paired]
-    # Exactly one sender, irrespective of which Mac runner produced the signed IPA.
-    if: ${{ always() && !cancelled() && github.ref == 'refs/heads/parity-floating-player-both' && needs.publish-paired.result == 'success' && (needs.ios15.result == 'success' || needs.ios15-rescue-intel.result == 'success' || needs.ios15-rescue-arm.result == 'success') }}
+    name: Send signed iOS TrollStore IPA GitHub Release links to Telegram
+    needs: [publish-paired]
+    if: ${{ always() && !cancelled() && github.ref == 'refs/heads/parity-floating-player-both' && needs.publish-paired.result == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 6
     permissions:
       contents: read
     env:
@@ -846,24 +842,15 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHANNEL_ID || vars.TELEGRAM_CHANNEL_ID || '-1003938575195' }}
       BUILD_SHA: ${{ github.sha }}
       BUILD_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      BUILD_RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/build-v1.1.15-b${{ github.run_number }}
+      BUILD_VERSION: '1.1.15'
+      BUILD_NUMBER: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
-      - name: Download signed IPA from this workflow run
-        uses: actions/download-artifact@v4
-        with:
-          name: PlayTorrio-iOS15-TrollStore-v1.1.15-build-${{ github.run_number }}
-          path: packages/ios15
-
-      - name: Deliver signed IPA directly or send verified permanent Release link
-        timeout-minutes: 10
-        env:
-          BUILD_VERSION: "1.1.15"
-          BUILD_NUMBER: ${{ github.run_number }}
-          BUILD_RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/build-v1.1.15-b${{ github.run_number }}
+      - name: Send signed IPA and checksum URLs only
         run: |
-          python3 .github/scripts/telegram_ci.py send-document \
-            --platform "iOS 15 TrollStore" \
-            --file packages/ios15/PlayTorrio-iOS15-TrollStore.ipa \
+          python3 .github/scripts/telegram_ci.py send-release-links \
+            --platform 'iOS 15 TrollStore' \
             --release-notes-file .github/release-notes.txt
 
   publish-paired:

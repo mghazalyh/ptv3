@@ -8,6 +8,7 @@ import '../config/windows_settings_recovery.dart';
 import '../my_list/github_library_cloud.dart';
 import 'night_mode_diagnostics.dart';
 import 'player_diagnostic_codes.dart';
+import 'private_diagnostic_log_path.dart';
 
 /// Strictly allowlisted Windows player capability diagnostics.
 /// No MPV raw logs, paths, URLs, titles, credentials or library records.
@@ -381,11 +382,10 @@ class WindowsPlaybackTelemetry {
     final approvedReason = const {
       'manual', 'brightness_changed', 'night_mode_changed',
       'audio_filter_failure', 'playback_sample', 'sync_failure',
-       'subtitle_failure',
+       'subtitle_failure', 'source_failure',
     }.contains(reason) ? reason : 'manual';
-    final timestamp = now.toIso8601String()
-        .replaceAll(':', '-').replaceAll('.', '-');
-    final file = '$prefix/$timestamp-${++_counter}.json';
+    final file = PrivateDiagnosticLogPath.forTimestamp(
+      prefix: prefix, timestamp: now, sequence: ++_counter);
     final data = <String, Object>{
       'schema': 1,
       'kind': 'windows_playback_capability_diagnostic',

@@ -40,6 +40,8 @@ abstract final class PlayerDiagnosticCodes {
     'source_debrid_placeholder',
     'source_auto_next',
     'source_auto_exhausted',
+    'source_recovery_cross_addon_started',
+    'source_recovery_no_ready_candidates',
     'sync_manual_requested',
     'sync_timer_due',
     'sync_timer_attempt',

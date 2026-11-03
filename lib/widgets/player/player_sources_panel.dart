@@ -73,7 +73,7 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
 
     final detail = widget.detail;
     final ep = widget.episode;
-    final type = detail?.type ?? 'tv';
+    final type = detail?.type ?? 'series';
     final id = ep.id.isNotEmpty
         ? ep.id
         : '${detail?.id ?? ""}:${ep.season ?? 1}:${ep.episode ?? 1}';

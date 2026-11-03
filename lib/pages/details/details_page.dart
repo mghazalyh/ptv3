@@ -18,6 +18,7 @@ import '../../utils/navigation/route_transitions.dart';
 import '../discover/discover_page.dart';
 import 'person_credits_page.dart';
 import '../player/watch_screen.dart';
+import '../../services/continue_watching/watched_history_service.dart';
 // ---------------------------------------------------------------------------
 // Design tokens
 // ---------------------------------------------------------------------------
@@ -622,6 +623,11 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                         children: [
                           SizedBox(height: heroHeight - overlap),
                           isDesktop ? _buildDesktopLayout(meta, posterUrl) : _buildMobileLayout(meta, posterUrl),
+                          const SizedBox(height: _Space.sm),
+                          _WatchedProgressBar(
+                            mediaId: meta.id, mediaType: _isSeries ? 'series' : 'movie',
+                            summary: _isSeries,
+                          ),
                           const SizedBox(height: _Space.xl),
                           if (meta.cast.isNotEmpty) ...[
                             _buildCastRow(meta.cast),
@@ -1463,6 +1469,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                   return SizedBox(
                     width: cardWidth,
                     child: _EpisodeCard(
+                      mediaId: _detail?.id ?? widget.movie.id,
                       episode: ep,
                       fallbackImageUrl: _detail?.background ?? _detail?.poster ?? widget.movie.poster,
                       onTap: () => _handlePlayAction(ep),
@@ -2036,11 +2043,13 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
 }
 
 class _EpisodeCard extends StatefulWidget {
+  final String mediaId;
   final Video episode;
   final String? fallbackImageUrl;
   final VoidCallback? onTap;
 
-  const _EpisodeCard({required this.episode, this.fallbackImageUrl, this.onTap});
+  const _EpisodeCard({required this.mediaId, required this.episode,
+    this.fallbackImageUrl, this.onTap});
 
   @override
   State<_EpisodeCard> createState() => _EpisodeCardState();
@@ -2140,6 +2149,10 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13.5),
                         ),
+                        _WatchedProgressBar(
+                          mediaId: widget.mediaId, mediaType: 'series',
+                          season: ep.season, episode: ep.episode, compact: true,
+                        ),
                         if (ep.overview != null) ...[
                           const SizedBox(height: 3),
                           Text(
@@ -2195,6 +2208,110 @@ class _HoverButtonState extends State<_HoverButton> {
           child: widget.child,
         ),
       ),
+    );
+  }
+}
+
+/// Netflix-style read-only progress rail. This shows the latest movie state,
+/// the last episode for a show, and the per-episode state on each episode card.
+/// Data is the same privacy-minimal watched history mirrored to TorriODB.
+class _WatchedProgressBar extends StatelessWidget {
+  final String mediaId;
+  final String mediaType;
+  final int? season;
+  final int? episode;
+  final bool summary;
+  final bool compact;
+
+  const _WatchedProgressBar({
+    required this.mediaId,
+    required this.mediaType,
+    this.season,
+    this.episode,
+    this.summary = false,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<WatchedTitle>>(
+      valueListenable: WatchedHistoryService.items,
+      builder: (context, watchedTitles, _) {
+        final normalized = mediaType == 'tv' ? 'series' : mediaType;
+        WatchedTitle? watched;
+        for (final item in watchedTitles) {
+          if (item.id.toLowerCase() == mediaId.toLowerCase() &&
+              item.type == normalized) {
+            watched = item;
+            break;
+          }
+        }
+        if (watched == null) return const SizedBox.shrink();
+        final positions = watched.playbackPositions;
+        WatchedPlaybackPosition? progress;
+        String label = '';
+        bool completed = false;
+        if (normalized == 'movie') {
+          progress = positions['movie'];
+          completed = watched.completed;
+          label = completed ? 'Movie completed' : 'Movie in progress';
+        } else if (season != null && episode != null) {
+          final key = WatchedTitle.episodeKey(mediaId, season!, episode!);
+          progress = positions[key];
+          completed = watched.completedEpisodeIds.contains(key) ||
+              (progress?.completed ?? false);
+          label = 'S$season E$episode ${completed ? "completed" : "in progress"}';
+        } else if (summary) {
+          if (positions.isNotEmpty) {
+            final latest = positions.entries.toList()
+              ..sort((a, b) =>
+                  b.value.updatedAt.compareTo(a.value.updatedAt));
+            final current = latest.first;
+            progress = current.value;
+            completed = progress.completed ||
+                watched.completedEpisodeIds.contains(current.key);
+            final suffix = current.key.startsWith('$mediaId:')
+                ? current.key.substring(mediaId.length + 1)
+                    .replaceAll(':', ' E')
+                : 'recent episode';
+            label = 'S$suffix ${completed ? "completed" : "in progress"}';
+          } else if (watched.completedEpisodeIds.isNotEmpty) {
+            completed = true;
+            label = '${watched.completedEpisodeIds.length} episodes completed';
+          }
+        }
+        if (progress == null && !completed) return const SizedBox.shrink();
+        final fraction = (completed ? 1.0 : (progress?.fraction ?? 0.0))
+            .clamp(0.0, 1.0);
+        return Padding(
+          padding: EdgeInsets.symmetric(vertical: compact ? 4 : 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(child: Text(label,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white70, fontSize: compact ? 10 : 12))),
+                Text('${(fraction * 100).round()}%',
+                  style: TextStyle(color: _Palette.accent,
+                      fontSize: compact ? 10 : 12,
+                      fontWeight: FontWeight.w600)),
+              ]),
+              const SizedBox(height: 4),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  key: ValueKey('watched-progress-$mediaId-${season ?? "movie"}-${episode ?? 0}'),
+                  value: fraction, minHeight: compact ? 4 : 6,
+                  backgroundColor: Colors.white24,
+                  valueColor: const AlwaysStoppedAnimation<Color>(_Palette.accent),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

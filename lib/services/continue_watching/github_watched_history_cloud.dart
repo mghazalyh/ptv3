@@ -59,6 +59,15 @@ abstract final class GitHubWatchedHistoryMerge {
         final details = Map<String, dynamic>.from(chosen['item'] as Map);
         details['completed'] =
             oldItem['completed'] == true || newItem['completed'] == true;
+        final oldPositions = WatchedTitle.fromJson(oldItem)?.playbackPositions ??
+            const <String, WatchedPlaybackPosition>{};
+        final newPositions = WatchedTitle.fromJson(newItem)?.playbackPositions ??
+            const <String, WatchedPlaybackPosition>{};
+        details['playbackPositions'] = {
+          for (final entry in WatchedTitle.mergePlaybackPositions(
+              oldPositions, newPositions).entries)
+            entry.key: entry.value.toJson(),
+        };
         details['completedEpisodeIds'] = {
           ...((oldItem['completedEpisodeIds'] as List<dynamic>? ?? const [])
               .whereType<String>()),

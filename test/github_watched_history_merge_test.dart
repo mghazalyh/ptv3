@@ -24,6 +24,36 @@ void main() {
         throwsFormatException);
   });
 
+  test('separate episode progress merges by timestamp, not title timestamp', () {
+    final morning = DateTime.utc(2026, 11, 3, 8);
+    final evening = DateTime.utc(2026, 11, 3, 12);
+    final one = watched('tt55', evening);
+    final oldEpisode = WatchedTitle(id: one.id, title: one.title,
+      type: one.type, lastWatchedAt: evening,
+      playbackPositions: {
+        'tt55:1:1': WatchedPlaybackPosition(
+          positionSeconds: 480, totalDurationSeconds: 1200,
+          updatedAt: evening, completed: false),
+      });
+    final offline = WatchedTitle(id: one.id, title: one.title,
+      type: one.type, lastWatchedAt: morning,
+      playbackPositions: {
+        'tt55:1:1': WatchedPlaybackPosition(
+          positionSeconds: 120, totalDurationSeconds: 1200,
+          updatedAt: morning, completed: false),
+        'tt55:1:2': WatchedPlaybackPosition(
+          positionSeconds: 800, totalDurationSeconds: 1200,
+          updatedAt: morning, completed: false),
+      });
+    final records = GitHubWatchedHistoryMerge.merge(
+      {'series:tt55': GitHubWatchedHistoryMerge.toRecord(oldEpisode)},
+      {'series:tt55': GitHubWatchedHistoryMerge.toRecord(offline)});
+    final result = GitHubWatchedHistoryMerge.visible(records).single;
+    expect(result.playbackPositions['tt55:1:1']!.positionSeconds, 480);
+    expect(result.playbackPositions['tt55:1:2']!.positionSeconds, 800);
+    expect(result.playbackPositions.length, 2);
+  });
+
   test('episodes completed on two devices are unioned, not overwritten', () {
     final older = watched('tt100', DateTime.utc(2026, 10, 27, 8),
         episodes: ['tt100:1:1']);

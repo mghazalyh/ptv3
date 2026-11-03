@@ -347,6 +347,8 @@ class ContinueWatchingService {
       positionSeconds: positionSeconds,
       totalDurationSeconds: totalDurationSeconds,
       episodeId: episode?.id,
+      season: episode?.season,
+      episode: episode?.episode,
     );
 
     // Legacy scrobbling stays separate from the private GitHub progress.

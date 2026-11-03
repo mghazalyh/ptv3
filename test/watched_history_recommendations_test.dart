@@ -31,6 +31,8 @@ void main() {
       id: 'tt101', title: 'Completed Movie', type: 'movie',
       year: '2020', positionSeconds: 270, totalDurationSeconds: 300);
     expect(WatchedHistoryService.items.value.single.completed, isTrue);
+    expect(WatchedHistoryService.items.value.single.playbackPositions['movie']!
+        .fraction, 1.0);
     await WatchedHistoryService.initialize(); // reload from prefs
     expect(WatchedHistoryService.items.value.single.title, 'Completed Movie');
     expect(WatchedHistoryService.items.value.single.completed, isTrue);
@@ -39,6 +41,25 @@ void main() {
       id: 'tt101', title: 'Completed Movie', type: 'movie',
       positionSeconds: 61, totalDurationSeconds: 1000);
     expect(WatchedHistoryService.items.value.single.completed, isTrue);
+  });
+
+  test('episodes track independent cross-device progress and completion', () async {
+    await WatchedHistoryService.initialize();
+    await WatchedHistoryService.recordProgress(
+      id: 'ttseries', title: 'TV', type: 'series',
+      season: 2, episode: 3, episodeId: 'ttseries:2:3',
+      positionSeconds: 420, totalDurationSeconds: 1200);
+    await WatchedHistoryService.recordProgress(
+      id: 'ttseries', title: 'TV', type: 'series',
+      season: 2, episode: 4, episodeId: 'ttseries:2:4',
+      positionSeconds: 1130, totalDurationSeconds: 1200);
+    final item = WatchedHistoryService.items.value.single;
+    expect(item.completed, false);
+    expect(item.playbackPositions['ttseries:2:3']!.fraction, closeTo(0.35, 0.001));
+    expect(item.playbackPositions['ttseries:2:4']!.fraction, 1);
+    expect(item.completedEpisodeIds, contains('ttseries:2:4'));
+    await WatchedHistoryService.initialize();
+    expect(WatchedHistoryService.items.value.single.playbackPositions.length, 2);
   });
 
   test('never count a five-second accidental playback as watched', () async {

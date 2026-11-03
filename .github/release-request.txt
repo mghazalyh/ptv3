@@ -1,59 +1,50 @@
-PLAYTORRIO — OWNER-AUTHORIZED EXACTLY ONE PAIRED WINDOWS x64 + iOS 15/iPad TrollStore NATIVE BUILD — RECENTLY WATCHED HISTORY — 2026-11-03 SGT
+PLAYTORRIO — OWNER-AUTHORIZED EXACTLY ONE NEW PAIRED WINDOWS x64 + iOS 15/iPad TrollStore NATIVE RELEASE REQUEST — 2026-11-04 SGT
 
-EXPLICIT NEW OWNER REQUEST
-"create a proper history just like in netflix, recently watched log, both series episodes and movies . make the changes and trigger a build. and leave after that."
-This is ONE newly authorized paired native build request after an implemented UI feature, not a rerun of any earlier request.
-STOP immediately after this trigger. Owner monitors GitHub Actions, release assets and Telegram.
+NEW EXPLICIT OWNER REQUEST
+Investigate the failed episode streams for Virgin, organize private TorriODB telemetry into dated log folders, fix source selection, trigger ONE new native build, and STOP. The owner independently checks the resulting GitHub Actions/release/Telegram status.
+This is separate from the previous Recently Watched paired request at 7792c9b5b075267f8f7f9581d00a149dda4230c3. Do not poll or duplicate either release.
 
-SOURCE BEFORE THIS TRIGGER
-79d95ee4a414bec3117fb83e6bc44ee0cc374652
-Application mghazalyh/ptv3
-Branch parity-floating-player-both
-Paired workflow .github/workflows/windows-advanced-discover.yml
+APPLICATION
+Repository: mghazalyh/ptv3
+Branch: parity-floating-player-both
+Source HEAD immediately before THIS release trigger: 84baff182416671516c2084f78ef5bafa0a253a1
+Release workflow: .github/workflows/windows-advanced-discover.yml
+One release-request file update authorizes ONE paired Windows and iOS workflow. No platform-specific marker. No workflow_dispatch or platform-specific retriggers.
 
-NEW FEATURES
-1. lib/services/continue_watching/watched_history_timeline.dart: private watched-history-v1 projection with chronological per-movie and per-episode rows, latest progress, completion and safe legacy fallback for title-only older records.
-2. lib/pages/history/watched_history_page.dart: Netflix-like Recently Watched page with responsive poster cards, date grouping, precise local watch times, episode season/number where available, progress/completed badges, search, All/Movies/Series filters, cloud sync status and refresh, open Details action.
-3. lib/pages/home/home_page.dart: permanent, easy-to-find Recently Watched header icon even when Continue Watching has no cards.
-4. lib/pages/settings/settings_page.dart: Recently Watched navigation entry.
-5. test/watched_history_timeline_test.dart: chronology, complete movies, episode progress, legacy and Trakt records, sticky completion, search, filtering, bounded history.
-6. .github/workflows/windows-advanced-discover.yml: run history tests on Windows and iOS; Windows analyzer includes the screen and projection.
-7. .github/workflows/playtorrio-fast-checks.yml: analyze/test history on Linux source CI.
-8. .github/release-notes.txt: mention feature. All documentation/handover updated.
+SOURCE FAILURE EVIDENCE
+iPad Build 181 from a13e540d02b65b2cb952e1a873d88893eefd5c92 recorded source_debrid_pending and source_auto_exhausted in six consecutive private diagnostic reports through 2026-11-04 02:05:38 SGT.
+The previous source failure diagnostic reason was misleadingly sync_failure; source failures now use source_failure.
+Confirmed root defects were pending downloads being counted as usable alternatives for discovery, recovery searching only the original addon, and the manual source picker displaying cached sources without refreshing other providers.
+No provider HTTP error codes or valid-stream guarantee were present in the old reports.
 
-PRIVACY / DATA
-Use existing local watched_history_v1 and PRIVATE mghazalyh/torriodb main playtorrio/watched-history-v1.json; do NOT change its v1 schema or continue-watching-v1.json.
-No watched title, media URL/ID, transcript or subtitle text in public diagnostics/logs.
-Offline/failed cloud access must never discard local history.
-Historical entries with no per-episode timestamps remain visible without inventing episode times.
-Current and completed titles remain in History even after Continue Watching removes sessions.
+NEW SOURCE REPAIRS
+1. playback_source_recovery.dart excludes explicitly pending debrid items in hasAlternative.
+2. player_screen.dart retries the selected addon and then searches other installed addons for eligible HTTP streams when no available candidate remains; partial stream results are retained on discovery timeout.
+3. player_sources_panel.dart searches across providers even when cached results exist, sorts ready/unknown before pending entries, labels pending sources and disables opening known unready downloads. Series provider requests use the Stremio series type.
+4. player_diagnostic_codes.dart records source_recovery_cross_addon_started and source_recovery_no_ready_candidates; player_debug_telemetry.dart routes source failure uploads to source_failure instead of sync_failure.
+5. ios_audio_telemetry.dart and windows_playback_telemetry.dart upload new diagnostics to UTC YYYY/MM/DD directories, preserving existing schema and filenames. private_diagnostic_log_path.dart is the shared implementation.
+6. Regression tests cover pending source readiness, path routing and iOS/Windows upload location; both .github/workflows/playtorrio-fast-checks.yml and the paired release workflow include the new tests and analysis.
 
-PRESERVED FEATURES
-Bass and Treble EQ, movie and per-episode watched progress, private cross-device sync, Night Mode, six-channel iOS audio, Windows 200ms shared nonexclusive audio, pinned MPV/FFmpeg, video hardware decoding, subtitle display/speech sync and stream recovery.
-Preserve iOS 15 signed ad hoc TrollStore IPA, Windows Setup EXE/portable ZIP, immutable versioned GitHub Release and SHA256SUMS.
-Telegram MUST send only direct permanent GitHub Release links and SHA256 links. NO native installer/ZIP/IPA attachments sent to Telegram and NO 50 MB Telegram bot file-size dependence.
-Preserve release-publishing gates and all checksums.
+TORRIODB ARCHIVE STATUS, NO FALSE CLAIMS
+Private mghazalyh/torriodb main has playtorrio/diagnostics/README.md commit 44804b4a2fb714e3c8bb59ff00decc8b7a2d7de6.
+Three older 2026-10-30 Windows reports were moved and verified under playtorrio/diagnostics/windows/player/2026/10/30/, commit ad7bafc02a901cdfe9016244ba3055a8666bb3c5.
+Full migration of thousands of historical flat reports could NOT be published; large GitHub ref updates failed and bulk deletion was blocked. Other older files remain flat, and older installed builds may continue writing flat filenames until updated. Do not erase old reports without validated destination hashes. This release fixes FUTURE placement; it does not retroactively claim all older reports were moved. Watched history and Continue Watching data untouched.
 
-BUILD REQUEST
-Compile/package paired Windows x64 Setup and portable ZIP, signed iOS15/iPad TrollStore IPA and SHA256SUMS from the EXACT final release-request commit.
-Use exactly ONE .github/release-request.txt push-triggered paired release workflow.
-DO NOT add any [windows-only] marker.
-Do not use workflow_dispatch or standalone platform builds.
-All new workflow run numbers, build outcomes, artifacts, sizes, SHA256, release publication, Telegram messages and real-device acceptance are UNKNOWN and UNVERIFIED as of submission.
+PRESERVE ALL EXISTING FEATURES AND RELEASE CONTROLS
+Recently Watched movies and per-episode history, private cloud merge, Bass/Treble EQ, watched progress, iOS Night Mode, native MPV/FFmpeg filters, VideoToolbox, subtitles and speech sync, Windows 200ms shared audio, installed-build updater comparison, pause/resume and bounded source recovery.
+Generate Windows x64 Setup EXE, portable ZIP, signed iOS 15 TrollStore IPA and SHA256SUMS in matching versioned GitHub Releases. Telegram MUST send only permanent GitHub Release links and SHA256 links, never binary attachments. Preserve matched publishing gates and SHA256 verification.
+Do not rebuild or recover old iOS #173. Do not duplicate #176 or previous paired runs.
 
-VALIDATION LIMITS
-18 read-only source checks passed confirming UI, local+private cloud data, chronological episode projection, history filters and navigation, registered regression tests in both native jobs and source CI.
-Flutter SDK unavailable locally; Flutter analyzer, Dart tests, native compilation, release and physical results are UNVERIFIED.
-Do NOT claim native success from the source commit or trigger.
+TEST AND VERIFICATION LIMITS
+12 static source assertions passed before release trigger. Flutter/Dart SDK not available locally; analyzer, Dart tests, native compilation, device acceptance, final release artifacts, sizes, SHA256 and Telegram outcomes remain UNVERIFIED until the owner checks.
+A pushed release request is NOT proof that a build succeeded.
 
 ABSOLUTE STOP
-PUSH THIS TRIGGER EXACTLY ONCE, THEN STOP.
-NO GitHub/Actions workflow or build STATUS POLLING.
-NO Telegram or release-assets polling.
-NO retries, duplicate builds, extra trigger pushes, manual workflow dispatch or native reruns.
-NO iOS #173 recovery #4.
-NO guessing run numbers, binary names, sizes, SHA256 or device acceptance.
-Owner independently monitors.
+Push exactly ONE modified .github/release-request.txt to trigger paired workflow and STOP.
+Do not check the new workflow or its jobs, GitHub Release assets, SHA256, Telegram or physical device after triggering.
+Do not rerun, redispatch, retrigger, retry or create standalone platform builds.
+Do not poll historical builds, and do not invent success, run number, assets, checksums or Telegram delivery.
+Owner monitors and directs any next action.
 
-PERMANENT RECOVERY RULE
-Every PlayTorrio response ends with an UPDATED, COMPREHENSIVE, STANDALONE, COPYABLE emergency recovery prompt preserving this rule, repository/branch/HEAD, mandatory reading order, source changes/CI, native build history, known artifact names/bytes/SHA256, Telegram, private TorriODB telemetry/privacy, uncertainties, owner authorization and no-poll/no-duplicate-build safeguards. Append a new runtime-generated exact SGT timestamp after the recovery prompt.
+PERMANENT EMERGENCY RECOVERY
+Every PlayTorrio answer ends with an updated, comprehensive, standalone, copyable recovery prompt including repository/branch/final HEAD, mandatory reading order, features, repairs, CI, verified native runs and exact artifact SHA256, Telegram, private TorriODB telemetry status, uncertainties, owner authorization, strict no-poll/no-duplicate-build safeguards and a fresh runtime-generated exact SGT timestamp.

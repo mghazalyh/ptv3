@@ -69,6 +69,8 @@ jobs:
             lib/services/config/windows_settings_recovery.dart \
             lib/services/player/windows_playback_telemetry.dart \
             lib/services/player/ios_audio_telemetry.dart \
+            lib/services/player/private_diagnostic_log_path.dart \
+            lib/widgets/player/player_sources_panel.dart \
             lib/services/player/ios_night_mode_preflight.dart \
             lib/services/player/night_mode_diagnostics.dart \
             lib/widgets/player/player_transport.dart \
@@ -135,6 +137,7 @@ jobs:
             test/windows_video_pressure_guard_test.dart \
             test/playback_source_recovery_test.dart \
             test/debrid_source_readiness_test.dart \
+            test/private_diagnostic_log_path_test.dart \
             test/night_mode_diagnostics_test.dart \
             test/ios_audio_telemetry_test.dart
           do
@@ -235,6 +238,7 @@ jobs:
           flutter test test/playback_source_recovery_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/debrid_source_readiness_test.dart
+          flutter test test/private_diagnostic_log_path_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python .github/scripts/verify_night_mode_libmpv.py --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

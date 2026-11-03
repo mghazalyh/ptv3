@@ -834,10 +834,10 @@ jobs:
             --caption-extra "Windows portable ZIP and SHA256 checksums are available in this build's permanent GitHub Release."
 
   telegram-ipa:
-    name: Post signed iOS 15 TrollStore IPA to Telegram
-    needs: [ios15, ios15-rescue-intel, ios15-rescue-arm]
+    name: Deliver signed iOS 15 IPA or permanent GitHub Release link
+    needs: [ios15, ios15-rescue-intel, ios15-rescue-arm, publish-paired]
     # Exactly one sender, irrespective of which Mac runner produced the signed IPA.
-    if: ${{ always() && !cancelled() && github.ref == 'refs/heads/parity-floating-player-both' && (needs.ios15.result == 'success' || needs.ios15-rescue-intel.result == 'success' || needs.ios15-rescue-arm.result == 'success') }}
+    if: ${{ always() && !cancelled() && github.ref == 'refs/heads/parity-floating-player-both' && needs.publish-paired.result == 'success' && (needs.ios15.result == 'success' || needs.ios15-rescue-intel.result == 'success' || needs.ios15-rescue-arm.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -854,17 +854,17 @@ jobs:
           name: PlayTorrio-iOS15-TrollStore-v1.1.15-build-${{ github.run_number }}
           path: packages/ios15
 
-      - name: Send actual iOS 15 signed IPA in its own Telegram message
+      - name: Deliver signed IPA directly or send verified permanent Release link
         timeout-minutes: 10
         env:
           BUILD_VERSION: "1.1.15"
           BUILD_NUMBER: ${{ github.run_number }}
+          BUILD_RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/build-v1.1.15-b${{ github.run_number }}
         run: |
           python3 .github/scripts/telegram_ci.py send-document \
             --platform "iOS 15 TrollStore" \
             --file packages/ios15/PlayTorrio-iOS15-TrollStore.ipa \
-            --release-notes-file .github/release-notes.txt \
-            --require-document
+            --release-notes-file .github/release-notes.txt
 
   publish-paired:
     name: Publish matched Windows and iOS 15 builds

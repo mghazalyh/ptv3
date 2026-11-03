@@ -86,6 +86,17 @@ def read_release_highlights(filename):
     return notes
 
 
+def release_link_fallback(caption, reason, release_url=""):
+    """Use a source-pinned release URL; never expose bot credentials."""
+    if release_url and not re.fullmatch(
+            r"https://github[.]com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/releases/tag/[A-Za-z0-9_.-]+",
+            release_url):
+        raise RuntimeError("Invalid permanent release download URL")
+    return (caption + "\n\n" + reason +
+            ("\nSigned IPA download: " + release_url
+             if release_url else "\nDownload from the permanent GitHub Release."))
+
+
 def send_document(file_name, platform, extra="", require_document=False,
                   release_notes_file=""):
     file_path = Path(file_name)
@@ -105,8 +116,11 @@ def send_document(file_name, platform, extra="", require_document=False,
         raise RuntimeError("Telegram document caption exceeds 1024 characters")
     if file_path.stat().st_size >= BOT_UPLOAD_LIMIT:
         if require_document:
-            raise RuntimeError("Required iOS IPA Telegram attachment exceeds bot upload limit")
-        send_text(caption + "\nFile exceeds Telegram Bot upload limit; download via GitHub Releases.")
+            raise RuntimeError("Required Telegram attachment exceeds bot upload limit")
+        release_url = os.environ.get("BUILD_RELEASE_URL", "").strip()
+        send_text(release_link_fallback(
+            caption, "The signed file is larger than Telegram Bot's attachment limit.",
+            release_url))
         return
     try:
         result = send_request("sendDocument", {"caption": caption},
@@ -118,8 +132,9 @@ def send_document(file_name, platform, extra="", require_document=False,
                 raise RuntimeError("Telegram did not confirm the complete IPA document")
     except RuntimeError as error:
         if not require_document and ("HTTP 400" in str(error) or "HTTP 413" in str(error)):
-            send_text(caption +
-                "\nDirect attachment rejected; download from the GitHub Release.")
+            send_text(release_link_fallback(
+                caption, "Telegram rejected the direct attachment.",
+                os.environ.get("BUILD_RELEASE_URL", "").strip()))
             return
         raise
 
@@ -131,6 +146,15 @@ def self_test():
     assert Path("/missing/PlayTorrio.exe").is_file() is False
     assert read_release_highlights("") == ""
     assert len(read_release_highlights(".github/release-notes.txt")) <= 500
+    sample_url = "https://github.com/mghazalyh/ptv3/releases/tag/build-v1.1.15-b177"
+    assert sample_url in release_link_fallback("Build", "Too large", sample_url)
+    assert "Download from the permanent GitHub Release" in release_link_fallback(
+        "Build", "Too large")
+    try:
+        release_link_fallback("Build", "Too large", "https://evil.invalid/path")
+        raise AssertionError("Invalid release link was accepted")
+    except RuntimeError:
+        pass
     print("Telegram CI self-test passed (offline, no token or request).")
 
 

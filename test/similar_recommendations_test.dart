@@ -193,6 +193,66 @@ void main() {
     expect(paths, ['/3/tv/270/recommendations', '/3/tv/270/similar']);
   });
 
+
+  test('BestSimilar supports user-requested TMDB continuation when configured',
+      () async {
+    expect(await SimilarRecommendationsService.canLoadMoreFromTmdb(), isTrue);
+    await TmdbDiscoverService.instance.saveKey('');
+    expect(await SimilarRecommendationsService.canLoadMoreFromTmdb(), isFalse);
+  });
+
+  test('movie and series recommendations continue beyond page 10', () async {
+    final requested = <String>[];
+    TmdbDiscoverService.instance.httpGetOverride = (uri, headers) async {
+      final page = int.parse(uri.queryParameters['page'] ?? '1');
+      requested.add('${uri.path}:$page');
+      final isSeries = uri.path.contains('/tv/');
+      final isSimilar = uri.path.endsWith('/similar');
+      final lastPage = isSimilar ? 12 : 2;
+      if (page > lastPage) return http.Response('{}', 400);
+      return http.Response(jsonEncode({
+        'total_pages': lastPage,
+        'results': [
+          {
+            'id': (isSeries ? 5000 : 1000) + page + (isSimilar ? 100 : 0),
+            if (isSeries) 'name': 'Series $page'
+            else 'title': 'Film $page',
+            'poster_path': '/poster.jpg',
+            if (isSeries) 'first_air_date': '2020-01-01'
+            else 'release_date': '2020-01-01',
+          }
+        ],
+      }), 200);
+    };
+
+    for (final type in [DiscoverType.movie, DiscoverType.series]) {
+      final isSeries = type == DiscoverType.series;
+      final kind = isSeries ? 'tv' : 'movie';
+      final id = isSeries ? 270 : 101;
+      final seed = isSeries ? 'Example Series' : 'Example Film';
+      final first = await TmdbDiscoverService.instance.moreRelatedTitles(
+          title: seed, type: type, page: 1, tmdbId: id);
+      expect(first.items, hasLength(2));
+      expect(first.hasMore, isTrue);
+
+      final eleventh = await TmdbDiscoverService.instance.moreRelatedTitles(
+          title: seed, type: type, page: 11, tmdbId: id);
+      expect(eleventh.items, hasLength(1));
+      expect(eleventh.items.single.type, type);
+      expect(eleventh.hasMore, isTrue);
+
+      final twelfth = await TmdbDiscoverService.instance.moreRelatedTitles(
+          title: seed, type: type, page: 12, tmdbId: id);
+      expect(twelfth.items, hasLength(1));
+      expect(twelfth.hasMore, isFalse);
+
+      expect(requested, isNot(contains('/3/$kind/$id/recommendations:11')));
+      expect(requested, isNot(contains('/3/$kind/$id/recommendations:12')));
+      expect(requested, contains('/3/$kind/$id/similar:11'));
+      expect(requested, contains('/3/$kind/$id/similar:12'));
+    }
+  });
+
   test('missing TMDB key never calls provider', () async {
     await TmdbDiscoverService.instance.saveKey('');
     var requests = 0;

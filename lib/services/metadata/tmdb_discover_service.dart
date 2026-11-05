@@ -260,6 +260,8 @@ class TmdbDiscoverService {
 
   final Map<String, _DiscoverCacheEntry> _cache = {};
   final Map<String, Future<Map<String, dynamic>>> _inFlight = {};
+  // Different recommendation feeds can exhaust on different pages.
+  final Map<String, int> _relatedTotalPages = {};
 
   @visibleForTesting
   Future<http.Response> Function(Uri, Map<String, String>)? httpGetOverride;
@@ -273,6 +275,7 @@ class TmdbDiscoverService {
     _paceQueue = Future<void>.value();
     _cache.clear();
     _inFlight.clear();
+    _relatedTotalPages.clear();
     _credentialRevision++;
     httpGetOverride = null;
   }
@@ -343,6 +346,7 @@ class TmdbDiscoverService {
     _credentialRevision++;
     _cache.clear();
     _inFlight.clear();
+    _relatedTotalPages.clear();
   }
 
   Future<Map<String, dynamic>> _request(
@@ -962,9 +966,8 @@ class TmdbDiscoverService {
     return recommendations.take(18).toList();
   }
 
-  /// Exact-source TMDB pagination for personalized See All pages.
-  /// Requesting page 1 exposes recommendations withheld by the Home preview
-  /// and distinct similar titles; later pages continue both provider feeds.
+  /// Continue similar and recommendation feeds on explicit user requests.
+  /// Each feed stops at its own provider-reported last page (TMDB max 500).
   Future<({List<DiscoverTitle> items, bool hasMore})> moreRelatedTitles({
     required String title,
     required DiscoverType type,
@@ -974,7 +977,7 @@ class TmdbDiscoverService {
     int? tmdbId,
     int? verifiedTvdbTmdbId,
   }) async {
-    if (page < 1 || page > 10) {
+    if (page < 1 || page > 500) {
       return (items: <DiscoverTitle>[], hasMore: false);
     }
     final key = await readKey();
@@ -1015,10 +1018,14 @@ class TmdbDiscoverService {
     final items = <DiscoverTitle>[];
     var hasMore = false;
     for (final route in <String>['recommendations', 'similar']) {
-      final response = await _request('$kind/$id/$route',
-          {'page': '$page'}, key);
-      final totalPages = (response['total_pages'] as num?)?.toInt() ?? 1;
-      if (page < totalPages.clamp(1, 500)) hasMore = true;
+      final endpoint = '$kind/$id/$route';
+      final lastAvailablePage = _relatedTotalPages[endpoint];
+      if (lastAvailablePage != null && page > lastAvailablePage) continue;
+      final response = await _request(endpoint, {'page': '$page'}, key);
+      final totalPages = ((response['total_pages'] as num?)?.toInt() ?? 1)
+          .clamp(1, 500).toInt();
+      _relatedTotalPages[endpoint] = totalPages;
+      if (page < totalPages) hasMore = true;
       for (final raw in response['results'] as List<dynamic>? ?? const []) {
         if (raw is! Map<String, dynamic>) continue;
         final item = DiscoverTitle.parse(raw, type);
@@ -1027,7 +1034,7 @@ class TmdbDiscoverService {
         items.add(item);
       }
     }
-    return (items: items, hasMore: hasMore && page < 10);
+    return (items: items, hasMore: hasMore && page < 500);
   }
 
   /// Convert a TMDB result to IMDb/Cinemeta for existing Torrentio playback.

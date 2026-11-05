@@ -390,7 +390,8 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         _similarTvdbId = result.tvdbId;
         _similarVerifiedTvdbTmdbId = result.verifiedTvdbTmdbId;
         _similarHasMore = result.hasMore;
-        _similarTmdbPage = 1;
+        // BestSimilar has no next page; start the TMDB continuation at page 1.
+        _similarTmdbPage = result.fromTmdb ? 1 : 0;
         _similarVisibleCount = _similarPageSize;
         _similarLoadMoreFailed = false;
         _similarLoadMoreEmpty = false;
@@ -443,7 +444,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       _scrollToNewSimilarCards(previousVisibleCount);
       return;
     }
-    if (!_similarFromTmdb || !_similarHasMore) return;
+    if (!_similarHasMore) return;
     setState(() {
       _isFetchingMoreSimilar = true;
       _similarLoadMoreFailed = false;
@@ -455,6 +456,10 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         for (final item in _similarItems)
           item.tmdbId != null ? '${item.mediaType}:${item.tmdbId}' :
               '${item.mediaType}:${item.title.toLowerCase()}:${item.year}',
+      };
+      final seenTitles = <String>{
+        for (final item in _similarItems)
+          '${item.title.trim().toLowerCase()}:${item.year}',
       };
       final incoming = <BSItem>[];
       var lastPage = _similarTmdbPage;
@@ -475,7 +480,12 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
           final key = item.tmdbId != null
               ? '${item.mediaType}:${item.tmdbId}'
               : '${item.mediaType}:${item.title.toLowerCase()}:${item.year}';
-          if (seen.add(key)) incoming.add(item);
+          final titleKey = '${item.title.trim().toLowerCase()}:${item.year}';
+          if (!seen.contains(key) && !seenTitles.contains(titleKey)) {
+            seen.add(key);
+            seenTitles.add(titleKey);
+            incoming.add(item);
+          }
         }
         if (incoming.isNotEmpty) break;
       }

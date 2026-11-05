@@ -175,7 +175,8 @@ abstract final class SimilarRecommendationsService {
               .where((item) => item.mediaType == 'movie').toList();
           if (selected.isNotEmpty) {
             _record('similar_${kind}_loaded');
-            return SimilarRecommendationsResult(selected);
+            return SimilarRecommendationsResult(selected,
+                hasMore: await canLoadMoreFromTmdb());
           }
         }
       }
@@ -215,6 +216,18 @@ abstract final class SimilarRecommendationsService {
       debugPrint('[Similar] ${kind} fallback unavailable: ${error.runtimeType}');
       _record('similar_${kind}_empty');
       return const SimilarRecommendationsResult([]);
+    }
+  }
+
+  /// BestSimilar itself exposes a short list. Explicit Load More may continue
+  /// through TMDB only when that provider is configured locally.
+  @visibleForTesting
+  static Future<bool> canLoadMoreFromTmdb() async {
+    try {
+      return (await TmdbDiscoverService.instance.readKey()).trim().isNotEmpty;
+    } catch (error) {
+      debugPrint('[Similar] TMDB continuation unavailable: ${error.runtimeType}');
+      return false;
     }
   }
 

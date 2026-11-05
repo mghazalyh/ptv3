@@ -1,24 +1,29 @@
-PLAYTORRIO — ONE NEW OWNER-AUTHORIZED PAIRED NATIVE RELEASE REQUEST — 2026-11-06 SGT
+PLAYTORRIO — ONE OWNER-AUTHORIZED CORRECTIVE PAIRED WINDOWS x64 + iOS 15 TROLLSTORE BUILD — 2026-11-06 SGT
 
-OWNER REQUEST
-Fix Similar Content Load More stopping near 30 titles. Movies and series must continue loading available recommendations as the owner presses Load More, then submit exactly ONE paired Windows x64 and iOS 15/iPad TrollStore native build and STOP. Do not monitor build status afterward.
+REASON
+The previously requested native Build #181, workflow 42069899970, failed before packaging on BOTH Windows and iOS at stale TMDB pagination test assertions. The expected second page included results from a similar feed whose total_pages explicitly equals 1. The source behavior correctly avoids requesting exhausted feeds. The separate archive workflow 42071086769 reported a secondary failure because no signed IPA could exist after the upstream pre-package failure.
 
-SOURCE COMMITTED FIRST
+EXACT CORRECTIVE SOURCE COMMIT
+07ce051b5617f1f480d46cb80c44ed1011c1e994
+
+ORIGINAL SIMILAR CONTENT FEATURE SOURCE
 cae7762d476b6ab7645280945599ff720f918122
-Repository: mghazalyh/ptv3
-Active shared branch: parity-floating-player-both
 
-SCOPE
-Preserve BestSimilar's initial suggestions, but enable on-demand TMDB continuation beginning on page 1 when a local TMDB key exists. Keep already displayed cards and append deduplicated titles. Remove the app's artificial TMDB page 10 stop, honoring separate recommendations/similar feed total_pages and the upstream 500-page limit. Preserve 8-card incremental reveal, pacing, 429 cooldown, privacy-safe opt-in event allowlist, protected history and playback functionality. Movie and series pagination regression source tests added; results not yet externally verified.
+REPOSITORY AND BRANCH
+mghazalyh/ptv3
+parity-floating-player-both
+
+FIX
+test/tmdb_personalized_fallback_test.dart now expects only ID 203 on page 2 when the similar feed reports one total page and verifies that the exhausted endpoint is not fetched again. .github/scripts/archive_ios_release.py now skips cleanly for fully unsuccessful/skipped/cancelled iOS native stages with no signed artifacts, preserving real missing-artifact failures after successful native jobs. Archive helper self-test assertions added. Both movie and series Load More beyond 30 remains supported, with BestSimilar-first display, TMDB page continuation through reported page counts up to 500, deduplication, on-demand paging and 429 cooldown.
 
 BUILD AUTHORIZATION
-This single modified release-request file is the only authorized native build trigger. Paired Windows x64 and signed iOS 15/iPad TrollStore, via .github/workflows/windows-advanced-discover.yml. Do not dispatch any additional workflow. Preserve GitHub Releases assets, signing, checksums and Telegram link-only delivery. No binary attachments to Telegram.
+ONE replacement paired native build after repairing the failed test. Submit via this single release-request.txt push, on the existing shared branch, without a Windows-only marker. No workflow_dispatch or standalone iOS/Windows trigger. Preserve native signing, iOS 15 and iPad compatibility, GitHub Release assets and checksums, Telegram link-only delivery, 200ms shared Windows audio, iOS Night Mode, subtitles, EQ, watched history, private archive, updater and all other protected features.
 
-STOP BOUNDARY
-Once this one file update is accepted: do not inspect GitHub Actions runs or jobs, status, artifacts, releases, SHA256, Telegram or device data. Do not poll, rerun, retry, duplicate, or start standalone platform builds. The owner checks results. New build number, workflow run ID, release assets, publishing and delivery are unverified until the owner checks them.
+STOP AFTER TRIGGER
+Immediately after this edit succeeds, DO NOT monitor or poll GitHub Actions, builds, jobs, releases, assets, checksums, Telegram or device telemetry. DO NOT retrigger, retry, rerun or create further builds. The owner will check delivery. Do not claim success or invent a new native build number, signed IPA, hashes, release links or Telegram messages.
 
-OTHER OPEN ISSUE
-Virgin series source recovery remains unresolved on observed iOS Build 183; this recommendation change is not a fix for playback source exhaustion. Preserve private TorriODB history and UTC date-partitioned diagnostics; preserve iOS #173 absolute stop.
+OPEN SEPARATE DEFECT
+Virgin series source-recovery exhaustion remained unresolved in the recorded Build 183 telemetry and is outside this CI repair.
 
-PERMANENT HANDOVER
-Every PlayTorrio response must end with an updated standalone copyable recovery prompt containing repository HEAD, exact document reading order, fixes, diagnostics, protected features, private archive, CI history, signed assets and checksums, Telegram references without secrets, owner authorization, no polling or duplicate native builds, and a fresh runtime-sampled SGT timestamp.
+PERMANENT HANDOVER RULE
+Every future PlayTorrio response must end with a standalone updated copyable recovery prompt including repository HEAD, mandatory reading order, commits and fixes, telemetry, protected features, private archive, CI history, native asset filenames/bytes/SHA256, Telegram configuration without secrets, authorization, no-poll/no-duplicate-build safeguards and a freshly runtime-sampled SGT timestamp.

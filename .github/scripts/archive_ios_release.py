@@ -65,6 +65,24 @@ def artifact_candidates(repo, run_id):
     return [candidates[key] for key in sorted(candidates)]
 
 
+def no_signed_ios_job_completed(jobs):
+    """A failed or skipped native stage cannot have a verified signed artifact.
+
+    Do not hide missing artifacts when any iOS build job succeeded; that is a
+    genuine archival failure that still requires the existing alert.
+    """
+    native_names = {
+        "iOS 15 — build and sign TrollStore IPA",
+        "iOS 15 — backup Intel runner",
+        "iOS 15 — emergency Apple Silicon runner",
+    }
+    native = [job for job in jobs if job.get("name") in native_names]
+    return bool(native) and all(
+        job.get("conclusion") in {"failure", "cancelled", "skipped"}
+        for job in native
+    )
+
+
 def verified_ios_run(repo, artifact):
     run_id = artifact["workflow_run"]["id"]
     run = api(repo, f"actions/runs/{run_id}")
@@ -232,6 +250,18 @@ def self_test():
     assert asset_is_present({"assets": [{"name": "x.ipa", "size": 10}]}, "x.ipa")
     assert not PATTERN.fullmatch("PlayTorrio-iOS15-TrollStore-v1.1.15-build-140.zip")
     assert retained_ipa_release.__name__ == "retained_ipa_release"
+    assert no_signed_ios_job_completed([
+        {"name": "iOS 15 — build and sign TrollStore IPA", "conclusion": "failure"},
+        {"name": "iOS 15 — backup Intel runner", "conclusion": "skipped"},
+        {"name": "iOS 15 — emergency Apple Silicon runner", "conclusion": "skipped"},
+    ])
+    assert not no_signed_ios_job_completed([
+        {"name": "iOS 15 — build and sign TrollStore IPA", "conclusion": "success"},
+    ])
+    assert not no_signed_ios_job_completed([])
+    assert not no_signed_ios_job_completed([
+        {"name": "iOS 15 — build and sign TrollStore IPA", "conclusion": None},
+    ])
     print("iOS release archive self-test passed")
 
 
@@ -247,6 +277,14 @@ def main():
     run_id = args.run_id or ""
     candidates = artifact_candidates(repo, run_id)
     if not candidates and run_id != "all":
+        # When the paired build failed before producing a signed IPA, there is
+        # nothing to archive. Exit successfully rather than sending a false
+        # archival-failure Telegram alert. Successful iOS builds with missing
+        # artifacts must still fail closed.
+        jobs = api(repo, f"actions/runs/{run_id}/jobs?per_page=100").get("jobs", [])
+        if no_signed_ios_job_completed(jobs):
+            print(f"No successful signed iOS job in run {run_id}; archive not applicable")
+            return
         raise RuntimeError(f"No unexpired, signed iOS IPA artifact for run {run_id}")
     print(f"iOS archive: found {len(candidates)} downloadable candidate(s)")
     archived = 0

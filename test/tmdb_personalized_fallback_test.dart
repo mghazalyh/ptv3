@@ -61,7 +61,7 @@ void main() {
       '/3/movie/100/recommendations', '/3/movie/100/similar']));
   });
 
-  test('See All pages only the exact source TMDB recommendations', () async {
+  test('See All respects independent TMDB recommendation feed page limits', () async {
     final requests = <String>[];
     service.httpGetOverride = (uri, headers) async {
       requests.add('${uri.path}?${uri.queryParameters['page'] ?? ''}');
@@ -98,12 +98,14 @@ void main() {
     final second = await service.moreRelatedTitles(
       title: 'Exact Source', type: DiscoverType.series,
       tmdbId: 42, page: 2);
-    expect(second.items.map((x) => x.tmdbId), [203, 202]);
+    expect(second.items.map((x) => x.tmdbId), [203]);
     expect(second.hasMore, isFalse);
     expect(requests, containsAll([
       '/3/tv/42/recommendations?1', '/3/tv/42/similar?1',
-      '/3/tv/42/recommendations?2', '/3/tv/42/similar?2',
+      '/3/tv/42/recommendations?2',
     ]));
+    // The similar feed reports only one page. Do not request it again.
+    expect(requests, isNot(contains('/3/tv/42/similar?2')));
     expect(requests.where((p) => p.contains('search/') ||
         p.contains('catalog/')), isEmpty);
   });

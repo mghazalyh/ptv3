@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/addon/addon.dart';
+import '../../services/addon/personalized_catalog_providers.dart';
 import '../../services/addon/addon_manager.dart';
 
 class AddonsSettingsPage extends StatefulWidget {
@@ -12,40 +15,66 @@ class AddonsSettingsPage extends StatefulWidget {
 class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
   final _manager = AddonManager.instance;
   bool _isAdding = false;
+  final Set<String> _refreshing = <String>{};
 
-  Future<void> _addAddon() async {
-    final url = await _showAddDialog();
+  void _toast(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: error ? Colors.red.shade700 : const Color(0xFF10B981),
+    ));
+  }
+
+  Future<void> _openProvider(PersonalizedCatalogProvider provider) async {
+    try {
+      final opened = await launchUrl(Uri.parse(provider.setupUrl),
+          mode: LaunchMode.externalApplication);
+      if (!opened) _toast('Unable to open provider setup in Safari.', error: true);
+    } catch (_) {
+      _toast('Unable to open provider setup in Safari.', error: true);
+    }
+  }
+
+  Future<void> _refreshPersonalized(InstalledAddon addon) async {
+    final id = addon.manifest.id;
+    if (_refreshing.contains(id)) return;
+    setState(() => _refreshing.add(id));
+    try {
+      final refreshed = await _manager.refreshPersonalizedCatalog(id);
+      _toast(refreshed.manifest.name + ' catalogs refreshed. Open Home to reload.');
+    } catch (_) {
+      // Never show the private manifest path or a provider response.
+      _toast('Refresh failed. Previous catalogs are preserved.', error: true);
+    } finally {
+      if (mounted) setState(() => _refreshing.remove(id));
+    }
+  }
+
+  Future<void> _addAddon({PersonalizedCatalogProvider? provider}) async {
+    final url = await _showAddDialog(provider: provider);
     if (url == null || url.trim().isEmpty) return;
 
     setState(() => _isAdding = true);
 
     try {
-      final addon = await _manager.addAddon(url);
+      final addon = await _manager.addAddon(url,
+          personalizedCatalogTrial: provider != null);
+      if (!mounted) return;
+      _toast(addon.manifest.name + ' installed. Open Home to view new rows.');
+    } catch (_) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${addon.manifest.name} installed successfully!'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: const Color(0xFF10B981),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.red.shade700,
-        ),
-      );
+      _toast(provider == null
+          ? 'Could not install addon. Check its manifest URL and network.'
+          : 'Could not import catalogs. Check the private manifest and provider.',
+          error: true);
     } finally {
       if (mounted) setState(() => _isAdding = false);
     }
   }
 
-  Future<String?> _showAddDialog() {
+  Future<String?> _showAddDialog({PersonalizedCatalogProvider? provider}) {
     final controller = TextEditingController();
 
     return showDialog<String>(
@@ -56,16 +85,19 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: const Text(
-            'Add Stremio Addon',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
+          title: Text(
+            provider == null ? 'Add Stremio Addon'
+                : 'Import ' + provider.label + ' catalogs',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Paste the Stremio addon manifest.json URL to install catalogs, metadata, streams, or subtitles.',
+                provider == null
+                    ? 'Paste the Stremio addon manifest.json URL to install catalogs, metadata, streams, or subtitles.'
+                    : 'Complete setup on the provider website, copy your private Stremio manifest.json URL, and paste it here. This trial imports catalogs only and never connects your tracker account to PlayTorrio.',
                 style: TextStyle(
                   fontSize: 13,
                   color: Colors.white.withValues(alpha: 0.50),
@@ -78,7 +110,9 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
                 autofocus: true,
                 style: const TextStyle(fontSize: 13.5, color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'https://opensubtitles-v3.strem.io/manifest.json',
+                  hintText: provider == null
+                      ? 'https://opensubtitles-v3.strem.io/manifest.json'
+                      : 'https://provider.example/private/manifest.json',
                   hintStyle: TextStyle(
                     color: Colors.white.withValues(alpha: 0.22),
                     fontSize: 12.5,
@@ -231,6 +265,71 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
               _AddAddonButton(isLoading: _isAdding, onTap: _addAddon),
               const SizedBox(height: 24),
 
+              // Opt-in iPad trial only. Neither tracker accounts nor third-party
+              // recommendation keys are collected by PlayTorrio.
+              if (Platform.isIOS) ...[
+                Container(
+                  key: const ValueKey('ios-personalized-catalog-trial'),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF12151E),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFF7C5CFF).withValues(alpha: 0.22),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('IPAD PERSONALIZED CATALOGS · EXPERIMENTAL',
+                          style: TextStyle(color: Color(0xFFB49AFF),
+                              fontSize: 12, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Xperience and BingeCat build lists on their own websites. '
+                        'Import the private Stremio manifest they generate to browse '
+                        'their movie and TV rows here. Streams, subtitles and tracker '
+                        'sync are not enabled by this trial.',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.64),
+                            fontSize: 12.5, height: 1.4),
+                      ),
+                      const SizedBox(height: 14),
+                      for (final provider in PersonalizedCatalogProvider.values) ...[
+                        Text(provider.label, style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 15)),
+                        const SizedBox(height: 3),
+                        Text(provider.description, style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.52),
+                            fontSize: 12)),
+                        const SizedBox(height: 8),
+                        Wrap(spacing: 8, runSpacing: 8, children: [
+                          OutlinedButton.icon(
+                            onPressed: () => _openProvider(provider),
+                            icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                            label: const Text('Configure in Safari'),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: _isAdding
+                                ? null : () => _addAddon(provider: provider),
+                            icon: const Icon(Icons.playlist_add_rounded, size: 16),
+                            label: const Text('Import manifest'),
+                          ),
+                        ]),
+                        const SizedBox(height: 12),
+                      ],
+                      Text(
+                        'Catalog contents load from the provider on Home. '
+                        'After adding or reordering rows on the provider, '
+                        'tap the refresh icon on its installed addon card.',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.48),
+                            fontSize: 11.5, height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
               // Section Header
               Row(
                 children: [
@@ -315,6 +414,9 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
                         setState(() {});
                       },
                       onRemove: () => _confirmRemove(addon),
+                      canRefresh: Platform.isIOS && addon.personalizedCatalogTrial,
+                      onRefresh: _refreshing.contains(addon.manifest.id)
+                          ? null : () => _refreshPersonalized(addon),
                     ),
                   ),
                 ),
@@ -340,12 +442,16 @@ class _AddonCard extends StatelessWidget {
     bool? enableStreams,
   }) onUpdateFeature;
   final VoidCallback onRemove;
+  final VoidCallback? onRefresh;
+  final bool canRefresh;
 
   const _AddonCard({
     required this.addon,
     required this.onToggle,
     required this.onUpdateFeature,
     required this.onRemove,
+    this.onRefresh,
+    this.canRefresh = false,
   });
 
   @override
@@ -551,6 +657,16 @@ class _AddonCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+               if (canRefresh)
+                 IconButton(
+                   key: const ValueKey('refresh-personalized-catalog'),
+                   icon: const Icon(Icons.refresh_rounded, size: 20),
+                   color: const Color(0xFFB49AFF),
+                   onPressed: onRefresh,
+                   tooltip: 'Refresh personalized catalog rows',
+                   padding: EdgeInsets.zero,
+                   constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                 ),
               IconButton(
                 icon: const Icon(Icons.delete_outline_rounded, size: 20),
                 color: Colors.red.withValues(alpha: 0.6),

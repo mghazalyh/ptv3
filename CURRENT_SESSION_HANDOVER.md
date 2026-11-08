@@ -1,3 +1,19 @@
+## 2026-11-08 SGT — OWNER-AUTHORIZED IOS-ONLY PERSONALIZED CATALOG TEST (ONE BUILD REQUEST; STATUS UNVERIFIED)
+
+**Authorization:** User shared a forum report about Xperience (curated and AI-built catalogs) and BingeCat (Trakt/Simkl/Stremio-history-derived lists), and requested one **iPad/iOS-only trial IPA**. Preserve Windows, PS4, Android and macOS native packaging. Stop after pushing; owner checks the workflow personally. Do not check Actions, Telegram, releases or run logs after triggering.
+
+**Design:** Both third parties publish user-specific Stremio `manifest.json` addon links. Reuse existing `AddonManager`/home catalog stream. Add an opt-in iPad-only Addons section with Safari setup buttons for Xperience/BingeCat and a private HTTPS manifest paste dialog; only catalogs are imported with streams, subtitles and search OFF by default. Do not implement vendor AI, credentials or automatic Trakt/Simkl connection. Save private manifest paths only in existing local addon preferences and never log them. Preserve ordinary addons and flags. Add manual provider catalog-manifest refresh with ID check, a 12-second manifest timeout, memory cache invalidation and retention of previous valid configuration on failure. Catalog contents refresh through standard remote fetching when Home loads; provider row additions/reordering need the refresh action.
+
+**Changes:** `lib/services/addon/personalized_catalog_providers.dart`, `lib/models/addon/addon.dart`, `lib/services/addon/addon_manager.dart`, `lib/services/metadata/metadata_service.dart`, `lib/pages/settings/addons_settings_page.dart`, `test/personalized_catalog_ios_trial_test.dart`, `docs/ios-personalized-catalog-trial.md`, iOS-specific build workflow and one iOS release request. The regression test uses mocked Xperience/BingeCat manifests and home sections, HTTPS URL rejection and refresh/flag preservation. Flutter SDK unavailable locally, so native compile/test and iPad acceptance remain UNVERIFIED.
+
+**Build scope:** Only `.github/ios-speech-release-request.txt` triggers the existing signed iOS 15 TrollStore workflow (plus its iOS-only Telegram watcher); the standard lightweight Flutter quality gate may also run. No `.github/release-request.txt` or Windows native workflow was triggered. This trial's release is a **prerelease**, not the default latest production IPA. The iOS-only build-number formula changes consistently from `157 + GITHUB_RUN_NUMBER` to `200 + GITHUB_RUN_NUMBER`, above previously documented paired Build #183. Do not infer the new run number, IPA or successful signing until the owner checks.
+
+**Next:** User verifies that an iOS signed IPA appears, installs via TrollStore, configures Xperience/BingeCat in Safari, imports generated private manifest URLs, and checks movie/series rows. No code for vendor credential handling, tracker sync or video-player changes in this task. Preserve existing player, TorBox, private TorriODB, Windows/PS4 apps and current release history.
+
+**Mandatory:** Always include a complete emergency handover prompt and runtime SGT timestamp. Stop after the single iOS build trigger, do not poll.
+
+---
+
 ## 2026-11-04 SGT — VIRGIN SERIES SOURCE RECOVERY AND PRIVATE DIAGNOSTIC DATE FOLDERS
 
 **New owner authorization:** Investigate the Virgin series playback error, organize TorriODB diagnostic files by year/month/day, fix source logic, request exactly ONE new paired Windows x64 and iOS 15 TrollStore build, then STOP. No workflow, release, asset, checksum or Telegram monitoring after trigger.

@@ -7,6 +7,7 @@ import '../../models/movie/movie.dart';
 import '../../models/movie/movie_section.dart';
 import '../../utils/search/relevance_scorer.dart';
 import '../metadata/metadata_service.dart';
+import 'personalized_catalog_providers.dart';
 
 /// Manages installed Stremio metadata addons.
 ///
@@ -73,8 +74,11 @@ class AddonManager {
   // ── Add / Remove / Toggle ─────────────────────────────────────────────
 
   /// Install an addon by its base URL or manifest URL.
-  Future<InstalledAddon> addAddon(String url) async {
-    String baseUrl = url.trim();
+  Future<InstalledAddon> addAddon(String url,
+      {bool personalizedCatalogTrial = false}) async {
+    String baseUrl = personalizedCatalogTrial
+        ? PersonalizedCatalogManifest.normalize(url)
+        : url.trim();
 
     // Convert stremio:// or stremio: URI scheme to https://
     if (baseUrl.startsWith('stremio://')) {
@@ -98,6 +102,9 @@ class AddonManager {
     }
 
     final manifest = await MetadataService.fetchManifest(baseUrl);
+    if (personalizedCatalogTrial && manifest.catalogs.isEmpty) {
+      throw const FormatException('This manifest does not publish catalogs.');
+    }
 
     // Duplicate check by addon ID
     if (_addons.any((a) => a.manifest.id == manifest.id)) {
@@ -108,12 +115,46 @@ class AddonManager {
       baseUrl: baseUrl,
       manifest: manifest,
       enabled: true,
+      enableSearch: !personalizedCatalogTrial,
+      enableSubtitles: !personalizedCatalogTrial,
+      enableStreams: !personalizedCatalogTrial,
+      personalizedCatalogTrial: personalizedCatalogTrial,
     );
 
     _addons.add(addon);
     MetadataService.clearCache();
     await _save();
     return addon;
+  }
+
+  /// Refresh the list of rows after changes on the provider's site.
+  /// Reject wrong manifests without corrupting the existing installation.
+  Future<InstalledAddon> refreshPersonalizedCatalog(String addonId) async {
+    final index = _addons.indexWhere((addon) =>
+        addon.manifest.id == addonId && addon.personalizedCatalogTrial);
+    if (index < 0) {
+      throw const FormatException('No personalized catalog addon found.');
+    }
+    final old = _addons[index];
+    final manifest = await MetadataService.fetchManifest(old.baseUrl);
+    if (manifest.id != old.manifest.id || manifest.catalogs.isEmpty) {
+      throw const FormatException(
+          'Provider returned an incompatible catalog manifest.');
+    }
+    final updated = InstalledAddon(
+      baseUrl: old.baseUrl,
+      manifest: manifest,
+      enabled: old.enabled,
+      enableCatalogs: old.enableCatalogs,
+      enableSearch: old.enableSearch,
+      enableSubtitles: old.enableSubtitles,
+      enableStreams: old.enableStreams,
+      personalizedCatalogTrial: true,
+    );
+    _addons[index] = updated;
+    MetadataService.clearCache();
+    await _save();
+    return updated;
   }
 
   /// Restore a complete addon from a settings backup without fetching its
@@ -213,6 +254,7 @@ class AddonManager {
               baseUrl: addon.baseUrl,
               type: catalog.type,
               catalogId: catalog.id,
+              forceRefresh: addon.personalizedCatalogTrial,
             );
 
             if (movies.isEmpty) return null;
@@ -251,6 +293,7 @@ class AddonManager {
           baseUrl: addon.baseUrl,
           type: catalog.type,
           catalogId: catalog.id,
+          forceRefresh: addon.personalizedCatalogTrial,
         );
 
         return MovieSection(

@@ -21,10 +21,10 @@ jobs:
     # Reuse the exact same, source-pinned tests/build/signing steps on backup runners.
     steps: &speech_ios_steps
       - name: Compute monotonic iOS build number
-        # The preceding paired IPA was Build #170. iOS-only Run #14 must
-        # be Build #171, not #163, or the installed iPad build is downgraded.
-        # Keep this offset aligned whenever a future paired build overtakes it.
-        run: echo "SPEECH_BUILD_NUMBER=$((157 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+        # The latest documented installed paired build exceeded #183.
+        # Keep this standalone iPad experiment above prior installed versions;
+        # adjust all packaging assertions if the offset changes.
+        run: echo "SPEECH_BUILD_NUMBER=$((200 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
       - name: Checkout source (recoverable network step)
         id: ios_checkout
         uses: actions/checkout@v4
@@ -331,6 +331,11 @@ jobs:
           assert 'showUnreleased:' in discover
           PY
 
+      - name: Verify iPad Xperience and BingeCat catalog trial
+        run: |
+          flutter analyze --no-pub --no-fatal-infos lib/models/addon/addon.dart lib/services/addon/addon_manager.dart lib/services/addon/personalized_catalog_providers.dart lib/services/metadata/metadata_service.dart lib/pages/settings/addons_settings_page.dart
+          flutter test test/personalized_catalog_ios_trial_test.dart
+
       - name: Build unsigned iOS 15 release
         run: flutter build ios --no-pub --release --no-codesign --build-name=1.1.15 --build-number="$SPEECH_BUILD_NUMBER" --dart-define=PLAYTORRIO_COMMIT="${{ github.sha }}" --dart-define=PLAYTORRIO_RUN="$SPEECH_BUILD_NUMBER" --dart-define-from-file=.env
 
@@ -477,7 +482,7 @@ jobs:
       - name: Verify signed IPA and publish permanent version-specific release
         run: |
           set -euo pipefail
-          BUILD_NUMBER=$((157 + GITHUB_RUN_NUMBER))
+          BUILD_NUMBER=$((200 + GITHUB_RUN_NUMBER))
           TAG="ios-speech-v1.1.15-run$GITHUB_RUN_NUMBER"
           ASSET="PlayTorrio-v1.1.15-build$BUILD_NUMBER-iOS15-TrollStore.ipa"
           test -s packages/ios15/PlayTorrio-iOS15-TrollStore.ipa
@@ -491,16 +496,23 @@ jobs:
               info=plistlib.loads(z.read('Payload/Runner.app/Info.plist'))
               assert tuple(map(int,info['MinimumOSVersion'].split('.'))) <= (15,0)
               assert 2 in info['UIDeviceFamily']
-              assert info['CFBundleVersion']==str(157+int(os.environ['GITHUB_RUN_NUMBER']))
+              assert info['CFBundleVersion']==str(200+int(os.environ['GITHUB_RUN_NUMBER']))
           print('Ad hoc signed iOS 15 IPA verified')
           PY
           (cd release && sha256sum PlayTorrio-* > SHA256SUMS.txt)
+          RELEASE_VISIBILITY="--latest"
+          if grep -q '^PERSONALIZED_CATALOG_TRIAL' .github/ios-speech-release-request.txt; then
+            RELEASE_VISIBILITY="--prerelease"
+          fi
           {
-            printf 'PlayTorrio iOS 15 — Latest Shared Features — Build %s\n\n' "$BUILD_NUMBER"
+            printf 'PlayTorrio iOS 15 — iPad catalog test — Build %s\n\n' "$BUILD_NUMBER"
             printf 'Source revision: %s\n' "$GITHUB_SHA"
             printf '%s\n' 'iOS-only Night Mode compressor packaging repair from shared source; Windows Build #170 stays unchanged.'
             printf "\nWhat's new / Fixed:\n"
             cat .github/release-notes.txt
+            if [ "$RELEASE_VISIBILITY" = "--prerelease" ]; then
+              printf '\nExperimental iPad catalog trial: Addons > Xperience / BingeCat, configure in Safari, import private HTTPS manifest, then Home. Streams, subtitles and tracker sync are not enabled by the trial.\n'
+            fi
           } > release-notes.md
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             for file in release/*; do
@@ -516,7 +528,7 @@ jobs:
             gh release create "$TAG" release/* \
               --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
               --title "PlayTorrio iOS 15 Full Player v1.1.15 (Build $BUILD_NUMBER)" \
-              --notes-file release-notes.md --latest
+              --notes-file release-notes.md "$RELEASE_VISIBILITY"
           fi
           for file in release/*; do
             name=$(basename "$file")
@@ -548,7 +560,7 @@ jobs:
       - name: Send current-feature iOS 15 TrollStore IPA
         run: |
           set -euo pipefail
-          export BUILD_NUMBER=$((157 + GITHUB_RUN_NUMBER))
+          export BUILD_NUMBER=$((200 + GITHUB_RUN_NUMBER))
           IPA="packages/ios15/PlayTorrio-iOS15-TrollStore.ipa"
           test -s "$IPA"
           if [ "$(stat -c%s "$IPA")" -ge 50000000 ]; then

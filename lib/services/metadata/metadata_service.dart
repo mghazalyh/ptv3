@@ -16,6 +16,9 @@ class MetadataService {
   @visibleForTesting
   static Future<http.Response> Function(Uri)? catalogGetOverride;
 
+  @visibleForTesting
+  static Future<http.Response> Function(Uri)? manifestGetOverride;
+
   static final Map<String, List<Movie>> _catalogCache = {};
   static final Map<String, MovieDetail> _metaCache = {};
 
@@ -30,10 +33,10 @@ class MetadataService {
   /// Fetch and parse a manifest from any Stremio addon.
   static Future<AddonManifest> fetchManifest(String baseUrl) async {
     final url = '$baseUrl/manifest.json';
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {'Accept': 'application/json'},
-    );
+    final uri = Uri.parse(url);
+    final response = await (manifestGetOverride == null
+        ? http.get(uri, headers: {'Accept': 'application/json'})
+        : manifestGetOverride!(uri)).timeout(const Duration(seconds: 12));
 
     if (response.statusCode != 200) {
       throw Exception(
@@ -54,6 +57,7 @@ class MetadataService {
     required String catalogId,
     String? genre,
     int? skip,
+    bool forceRefresh = false,
   }) async {
     final effectiveBaseUrl = (baseUrl.trim().isEmpty || !baseUrl.startsWith('http'))
         ? 'https://v3-cinemeta.strem.io'
@@ -70,14 +74,18 @@ class MetadataService {
     final extraPath = extra.isNotEmpty ? '/${extra.join("&")}' : '';
     final url = '$effectiveBaseUrl/catalog/$type/$catalogId$extraPath.json';
 
-    if (_catalogCache.containsKey(url)) {
+    if (!forceRefresh && _catalogCache.containsKey(url)) {
       return List.from(_catalogCache[url]!);
     }
 
     final uri = Uri.parse(url);
-    final response = catalogGetOverride == null
-        ? await http.get(uri, headers: {'Accept': 'application/json'})
-        : await catalogGetOverride!(uri);
+    final request = catalogGetOverride == null
+        ? http.get(uri, headers: {'Accept': 'application/json'})
+        : catalogGetOverride!(uri);
+    // Personalized feeds refresh on each Home visit without blocking forever.
+    final response = forceRefresh
+        ? await request.timeout(const Duration(seconds: 15))
+        : await request;
 
     if (response.statusCode != 200) {
       throw Exception('Catalog fetch failed (${response.statusCode})');

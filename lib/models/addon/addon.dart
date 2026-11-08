@@ -140,6 +140,8 @@ class InstalledAddon {
   bool enableSearch;
   bool enableSubtitles;
   bool enableStreams;
+  /// True only when the user explicitly imports an iPad catalog trial.
+  final bool personalizedCatalogTrial;
 
   InstalledAddon({
     required this.baseUrl,
@@ -149,6 +151,7 @@ class InstalledAddon {
     this.enableSearch = true,
     this.enableSubtitles = true,
     this.enableStreams = true,
+    this.personalizedCatalogTrial = false,
   });
 
   bool get isCatalogsActive =>
@@ -173,6 +176,7 @@ class InstalledAddon {
       enableSearch: json['enableSearch'] as bool? ?? true,
       enableSubtitles: json['enableSubtitles'] as bool? ?? true,
       enableStreams: json['enableStreams'] as bool? ?? true,
+      personalizedCatalogTrial: json['personalizedCatalogTrial'] as bool? ?? false,
     );
   }
 
@@ -184,6 +188,7 @@ class InstalledAddon {
         'enableSearch': enableSearch,
         'enableSubtitles': enableSubtitles,
         'enableStreams': enableStreams,
+        if (personalizedCatalogTrial) 'personalizedCatalogTrial': true,
       };
 }
 

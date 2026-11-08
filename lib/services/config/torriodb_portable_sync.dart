@@ -12,6 +12,7 @@ import '../addon/addon_manager.dart';
 import '../config/env_service.dart';
 import '../continue_watching/github_sync_transport.dart';
 import '../metadata/tvdb_series_service.dart';
+import '../metadata/tmdb_discover_service.dart';
 import '../my_list/github_library_cloud.dart';
 
 /// Portable provider keys and addon settings stored in the OWNER'S PRIVATE
@@ -345,7 +346,10 @@ class TorriodbPortableSync {
       final raw = providers[entry.key];
       if (raw is! Map) continue;
       for (final field in entry.value.entries) {
-        if (!raw.containsKey(field.key)) continue;
+        if (!raw.containsKey(field.key)) {
+          await prefs.remove(field.value);
+          continue;
+        }
         final value = raw[field.key];
         if (field.key == 'expiryMs') {
           if (value is int && value >= 0) {
@@ -362,26 +366,29 @@ class TorriodbPortableSync {
         }
       }
     }
+    final tmdb = providers['tmdb'];
+    if (tmdb is Map && !except.contains('tmdb')) {
+      await TmdbDiscoverService.instance.saveKey(
+        prefs.getString('local_tmdb_discover_api_key') ?? '',
+      );
+    }
     final trakt = providers['trakt'];
-    if (trakt is Map && !except.contains('trakt') &&
-        (trakt.containsKey('clientId') || trakt.containsKey('clientSecret'))) {
+    if (trakt is Map && !except.contains('trakt')) {
       await EnvService.saveLocalTraktApplication(
         prefs.getString('local_config_TRAKT_CLIENT_ID') ?? '',
         prefs.getString('local_config_TRAKT_CLIENT_SECRET') ?? '',
       );
     }
     final simkl = providers['simkl'];
-    if (simkl is Map && !except.contains('simkl') &&
-        simkl.containsKey('clientId')) {
+    if (simkl is Map && !except.contains('simkl')) {
       await EnvService.saveLocalSimklClientId(
         prefs.getString('local_config_SIMKL_CLIENT_ID') ?? '',
       );
     }
     final tvdb = providers['tvdb'];
-    if (tvdb is Map && !except.contains('tvdb') &&
-        tvdb['apiKey'] is String) {
+    if (tvdb is Map && !except.contains('tvdb')) {
       await TvdbSeriesService.instance.saveCredentials(
-        tvdb['apiKey'] as String,
+        tvdb['apiKey'] is String ? tvdb['apiKey'] as String : '',
         tvdb['subscriberPin'] is String ? tvdb['subscriberPin'] as String : '',
       );
     }
@@ -395,7 +402,8 @@ class TorriodbPortableSync {
       if (entries is! List || entries.length > 100) return [];
       return [
         for (final entry in entries)
-          if (entry is Map<String, dynamic>)
+          if (entry is Map<String, dynamic> &&
+              (entry['baseUrl']?.toString().startsWith('https://') ?? false))
             InstalledAddon.fromJson(entry).toJson(),
       ];
     } catch (_) {

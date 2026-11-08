@@ -56,10 +56,10 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
         accessToken: _key.text,
       );
       _key.clear();
+      await TorriodbPortableSync.instance.refresh(force: true);
       await MyListService.syncAll(force: true);
       await ContinueWatchingService.syncGitHubProgress(force: true);
       await WatchedHistoryService.syncGitHubHistory(force: true);
-      await TorriodbPortableSync.instance.refresh(force: true);
       if (!mounted) return;
       final state = GitHubLibraryCloud.instance.state.value;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -81,10 +81,10 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
   Future<void> _sync() async {
     setState(() => _working = true);
     try {
+      await TorriodbPortableSync.instance.refresh(force: true);
       await MyListService.syncAll(force: true);
       await ContinueWatchingService.syncGitHubProgress(force: true);
       await WatchedHistoryService.syncGitHubHistory(force: true);
-      await TorriodbPortableSync.instance.refresh(force: true);
     } finally {
       if (mounted) setState(() => _working = false);
     }

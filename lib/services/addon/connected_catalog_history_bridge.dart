@@ -61,7 +61,7 @@ class ConnectedCatalogHistoryBridge {
       }
     }
     out.sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
-    return out.take(limit.clamp(0, 500)).toList(growable: false);
+    return out.take(limit.clamp(0, 500).toInt()).toList(growable: false);
   }
 
   static Map<String, dynamic>? _ids(String value) {
@@ -123,7 +123,7 @@ class ConnectedCatalogHistoryBridge {
           .where((event) => known[event.key] != event.watchedAt).toList();
       for (var start = 0; start < pending.length; start += 70) {
         final chunk = pending.sublist(
-          start, (start + 70).clamp(0, pending.length));
+          start, (start + 70).clamp(0, pending.length).toInt());
         if (!await trakt.importCompletedHistoryBatch(payload(chunk))) {
           _lastFailure = DateTime.now();
           debugPrint('[CatalogBridge] History import unavailable');

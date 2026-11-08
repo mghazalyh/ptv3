@@ -122,7 +122,10 @@ class EnvService {
   static String get traktClientId {
     const compileVal = String.fromEnvironment('TRAKT_CLIENT_ID');
     if (compileVal.isNotEmpty) return compileVal;
-    return get('TRAKT_CLIENT_ID');
+    // Public OAuth client identifier supplied by this PlayTorrio owner.
+    // Device tokens remain private, and a client secret is never bundled.
+    return get('TRAKT_CLIENT_ID',
+        defaultValue: '8TplSbmVj2rkcBvc8rYLdTTlIGf6rSMJ3F0Q9-YuvRI');
   }
 
   static String get traktClientSecret {

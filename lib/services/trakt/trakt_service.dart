@@ -748,6 +748,33 @@ class TraktService {
   Future<bool> removeFromCollection(String imdbId, String type) =>
       _syncAction('/sync/collection/remove', imdbId, type);
 
+  /// Uses existing OAuth to import completed local watch events in one
+  /// bounded documented Trakt sync/history POST. No third-party credentials.
+  Future<bool> importCompletedHistoryBatch(Map<String, dynamic> data) async {
+    final movies = data['movies'];
+    final shows = data['shows'];
+    if (movies is! List || shows is! List ||
+        movies.length + shows.length < 1 ||
+        movies.length + shows.length > 70) return false;
+    if (!await isAuthenticated()) return false;
+    try {
+      final response = await _authenticatedPost('/sync/history', data);
+      if (response == null || response.statusCode < 200 ||
+          response.statusCode >= 300) return false;
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map && decoded['not_found'] is Map) {
+        final missing = decoded['not_found'] as Map;
+        if (missing.values.any((v) => v is List && v.isNotEmpty)) return false;
+      }
+      _invalidateLibraryCache();
+      StorageService.movieFinishedRevision.value++;
+      return true;
+    } catch (error) {
+      debugPrint('Trakt: History batch unavailable (${error.runtimeType})');
+      return false;
+    }
+  }
+
   Future<bool> addToHistory(String imdbId, String type) =>
       _syncAction('/sync/history', imdbId, type);
 

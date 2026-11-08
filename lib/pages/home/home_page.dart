@@ -10,6 +10,7 @@ import '../../models/movie/movie_detail.dart';
 import '../../models/movie/movie_section.dart';
 import '../details/details_page.dart';
 import '../../services/addon/addon_manager.dart';
+import '../../services/addon/connected_catalog_history_bridge.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/theme/glass_settings.dart';
 import '../../services/home/home_page_settings.dart';
@@ -197,6 +198,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _refreshSimilarSections() async {
     if (!mounted) return;
+    unawaited(ConnectedCatalogHistoryBridge.sync());
     final generation = ++_recommendationGeneration;
     final results = await Future.wait<Object?>([
       HomePageSettings.fetchBestSimilarSection(forceRefresh: true),
@@ -232,6 +234,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadHome() async {
     if (!mounted) return;
+    unawaited(ConnectedCatalogHistoryBridge.sync());
     final generation = ++_recommendationGeneration;
     setState(() {
       _loading = true;

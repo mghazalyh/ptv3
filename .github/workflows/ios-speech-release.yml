@@ -133,6 +133,7 @@ jobs:
             lib/models/movie/movie_section.dart \
             lib/pages/catalog/catalog_page.dart \
             lib/services/home/home_page_settings.dart \
+            lib/services/addon/connected_catalog_history_bridge.dart \
             lib/widgets/movie/movie_slider_section.dart \
             lib/services/updater/app_updater_service.dart \
             lib/pages/settings/about_settings_page.dart \
@@ -184,6 +185,7 @@ jobs:
         run: |
           flutter test test/tvdb_credentials_validation_test.dart
           flutter test test/watched_history_recommendations_test.dart
+          flutter test test/connected_catalog_history_bridge_test.dart
           flutter test test/tmdb_personalized_fallback_test.dart
 
       - name: Test optional movie and TV title search with combined filters
@@ -511,7 +513,7 @@ jobs:
             printf "\nWhat's new / Fixed:\n"
             cat .github/release-notes.txt
             if [ "$RELEASE_VISIBILITY" = "--prerelease" ]; then
-              printf '\nExperimental iPad catalog trial: Addons > Xperience / BingeCat, configure in Safari, import private HTTPS manifest, then Home. Streams, subtitles and tracker sync are not enabled by the trial.\n'
+              printf '\nExperimental iPad catalog trial: iOS can upload completed private watch-history events through existing authorized Trakt OAuth. Xperience/BingeCat can read those only if already linked to that account. No hosted provider account or personal manifest is created automatically.\n'
             fi
           } > release-notes.md
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then

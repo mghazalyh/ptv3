@@ -1,3 +1,11 @@
+## Existing-history bridge: November 8 follow-up
+
+On iOS, completed watched movies and individually timestamped completed episodes can automatically be copied to an **already-authorized Trakt account** using its existing OAuth token. History is never added to the repository. Uploads are bounded, locally checkpointed per event and do not include titles, transcripts, stream URLs or new credentials. Incomplete movies and episodes with unknown watch times are not uploaded. User requested this external sharing expressly.
+
+**Provider limitation:** Xperience and BingeCat do not provide a documented anonymous way to create an account and a personalized manifest from a third-party app. Existing Trakt data becomes visible to either provider only if the same Trakt account has *already* been linked there; neither hosted provider authorization nor a new manifest can be fabricated by PlayTorrio. Without an existing PlayTorrio Trakt connection this bridge is inert. Ordinary addon behavior, the stored history and playback are unchanged.
+
+---
+
 # iPad trial: Xperience and BingeCat personalized catalogs
 
 **Scope:** iOS/iPadOS only. This trial does not add a new player, tracker sync, or AI engine to PlayTorrio. Xperience and BingeCat already generate catalogs as user-specific Stremio addon manifests.

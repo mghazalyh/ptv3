@@ -49,6 +49,7 @@ jobs:
             lib/services/my_list/github_library_cloud.dart \
             lib/models/my_list/my_list_item.dart \
             lib/services/home/home_page_settings.dart \
+            lib/services/addon/connected_catalog_history_bridge.dart \
             lib/services/metadata/tmdb_discover_service.dart \
             lib/services/metadata/series_run_service.dart \
             lib/widgets/movie/series_year_label.dart \
@@ -110,6 +111,7 @@ jobs:
             test/github_watched_history_merge_test.dart \
             test/watched_history_timeline_test.dart \
             test/watched_history_recommendations_test.dart \
+            test/connected_catalog_history_bridge_test.dart \
             test/github_library_merge_test.dart \
             test/github_watchlist_v1_regression_test.dart \
             test/tvdb_credentials_validation_test.dart \

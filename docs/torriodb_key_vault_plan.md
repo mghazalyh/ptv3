@@ -1,3 +1,15 @@
+## Implemented scoped private key and addon sync — 2026-11-09 SGT
+
+**Implementation status:** Key and personalized-addon portable sync exists in shared Flutter source for Windows/iOS at branch parity-floating-player-both; WINDOWS build requested in this session, iOS native build NOT authorized. Do not confuse source implementation with verified device behavior. Existing lower sections preserve historical design plans; their 'design only' status was written before this implementation.
+
+The private TorriODB/main repository now contains `playtorrio/api-keys-v1.json` and `playtorrio/settings-v1.json`, initially **empty** (`initialized:false`). Keys are captured from the *device itself*, not from this chat. The first device with actual keys and an existing GitHub Library Sync PAT scoped to **mghazalyh/torriodb/main** can populate the files. Later authorized devices restore them at app startup, app resume (10-minute throttle), or manual Sync Now. On local credential changes, the supported providers' setters queue a provider-specific update. The app checks repository metadata `private:true` and exact repository/branch identity before any credential reads/writes; the public ptv3 source and its default public library-data branch are categorically excluded.
+
+**Supported provider entries:** `tmdb.apiKey`; `tvdb.apiKey/subscriberPin`; `torbox.apiKey`; `realDebrid.apiKey`; `allDebrid.apiKey`; `premiumize.apiKey`; `debridLink.apiKey`; `trakt.clientId/clientSecret/accessToken/refreshToken/username/expiryMs`; `simkl.clientId/accessToken/refreshToken/username/expiryMs`. The private portable settings file carries installed addon manifests/flags, including token-bearing Xperience/BingeCat paths after the user imports them. Ordinary non-HTTPS legacy addons remain local. The GitHub PAT, local media paths, caches and physical device settings are not uploaded. Additional future provider types must be added to the explicit allow-list and instrument their setter; there is no unsafe wholesale preference scraping.
+
+Private TorriODB JSON is intentionally **not encrypted** in accordance with the owner's written October 27 preference; whoever can access the private repository and Git history can see historical credential values. OAuth tokens can expire/rotate and third-party accounts require their own authorization. A registered Xperience/BingeCat account does not imply its private Stremio manifest is installed. The prior iPad native binary does not gain new code from a Windows-only build.
+
+---
+
 # Torriodb — editable private JSON and full-device restore
 
 **Design decision confirmed by user: 2026-10-27 SGT.** The user expressly does **not** want the TMDB, TVDB or other provider API keys encrypted in Torriodb: the core workflow is editing one **human-readable JSON file** in their **private GitHub repository** each week when rotating keys, then having PlayTorrio on iOS and Windows sync those updates. Do not implement the previous AES-GCM/HKDF or PAT-derived-encryption design for this requirement. Do not introduce a second vault password or recovery prompt.

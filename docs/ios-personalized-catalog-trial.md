@@ -1,3 +1,11 @@
+## Windows + iPad personalized catalogs and private TorriODB restoration — 2026-11-09
+
+The shared Flutter Addons settings page now exposes Xperience and BingeCat on **Windows and iOS**. After the owner registers each hosted service and imports the provider-issued private HTTPS Stremio manifest once on Windows, its addon definition and catalog-only enable flags can sync to the *private* TorriODB `playtorrio/settings-v1.json` for automatic restoration on a **future updated iPad build** connected to the same private repository. The provider website still controls its own account and list wizard; no hosted provider account or secret manifest is invented. Completed movie/episode history can be exported to an already authenticated Trakt account on both Windows and iOS. This does not authorize sharing directly with a third-party hosted account if it has never linked that Trakt account.
+
+The key file `playtorrio/api-keys-v1.json` holds the owner's editable plaintext provider API keys only on the private repository after identity verification. The GitHub PAT itself stays on each local device. The newly initialized files are **empty**; no private Xperience/BingeCat URL or existing device key was available in this session to upload. The current request authorizes **one Windows native build only**; no iOS binary was built. An already-installed older iPad app cannot read the new schema until separately updated.
+
+---
+
 ## Existing-history bridge: November 8 follow-up
 
 On iOS, completed watched movies and individually timestamped completed episodes can automatically be copied to an **already-authorized Trakt account** using its existing OAuth token. History is never added to the repository. Uploads are bounded, locally checkpointed per event and do not include titles, transcripts, stream URLs or new credentials. Incomplete movies and episodes with unknown watch times are not uploaded. User requested this external sharing expressly.

@@ -4,6 +4,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:playtorrio/services/config/torriodb_portable_sync.dart';
 
 void main() {
+  test('portable settings preserve and validate section order', () {
+    final doc = TorriodbPortableSync.parseSettings(jsonEncode({
+      'schemaVersion': 1,
+      'initialized': true,
+      'addons': <Object>[],
+      'homeSectionOrder': [
+        'catalog:xperience:movie:movies',
+        'recommendation:trakt_recommendations',
+      ],
+    }));
+    expect(doc['homeSectionOrder'], [
+      'catalog:xperience:movie:movies',
+      'recommendation:trakt_recommendations',
+    ]);
+    expect(() => TorriodbPortableSync.parseSettings(jsonEncode({
+      'schemaVersion': 1,
+      'initialized': true,
+      'addons': <Object>[],
+      'homeSectionOrder': [null],
+    })), throwsFormatException);
+  });
+
   test('only exact authenticated private TorriODB may hold keys', () {
     const privateRepo = {
       'full_name': 'mghazalyh/torriodb',

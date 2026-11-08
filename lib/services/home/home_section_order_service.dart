@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -113,10 +111,10 @@ abstract final class HomeSectionOrderService {
     ]), fromCloud: false);
   }
 
-  static Future<void> reset() async =>
+  static Future<void> reset() =>
       _save(const <String>[], fromCloud: false);
 
-  static Future<void> restoreFromCloud(List<String> order) async =>
+  static Future<void> restoreFromCloud(List<String> order) =>
       _save(normalize(order), fromCloud: true);
 
   static Future<void> _save(List<String> order,

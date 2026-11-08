@@ -22,6 +22,7 @@ class HomeSectionOrderPage extends StatefulWidget {
 class _HomeSectionOrderPageState extends State<HomeSectionOrderPage> {
   late List<HomeSectionOrderChoice> _items;
   bool _resetting = false;
+  Future<void> _pendingSave = Future<void>.value();
 
   @override
   void initState() {
@@ -36,20 +37,22 @@ class _HomeSectionOrderPageState extends State<HomeSectionOrderPage> {
       );
 
   void _reorder(int oldIndex, int newIndex) {
+    if (_resetting) return;
     if (newIndex > oldIndex) newIndex--;
     if (newIndex == oldIndex) return;
     setState(() {
       final moved = _items.removeAt(oldIndex);
       _items.insert(newIndex, moved);
     });
-    unawaited(_save());
+    final snapshot = [for (final item in _items) item.id];
+    // Serialized writes avoid older drags overwriting a newer order.
+    _pendingSave = _pendingSave.then((_) => _save(snapshot));
+    unawaited(_pendingSave);
   }
 
-  Future<void> _save() async {
+  Future<void> _save(List<String> snapshot) async {
     try {
-      await HomeSectionOrderService.saveVisibleOrder(
-        [for (final item in _items) item.id],
-      );
+      await HomeSectionOrderService.saveVisibleOrder(snapshot);
     } catch (error) {
       debugPrint('[HomeOrder] Save failed (${error.runtimeType})');
       if (!mounted) return;
@@ -63,6 +66,7 @@ class _HomeSectionOrderPageState extends State<HomeSectionOrderPage> {
     if (_resetting) return;
     setState(() => _resetting = true);
     try {
+      await _pendingSave;
       await HomeSectionOrderService.reset();
       if (mounted) setState(() => _items = _choices());
     } catch (error) {

@@ -624,16 +624,19 @@ class _GlassAppBar extends StatelessWidget {
               height: 34,
               fit: BoxFit.contain,
             ),
-            const SizedBox(width: 10),
-            const Text(
-              'PlayTorrio',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-                color: Colors.white,
+            if (MediaQuery.sizeOf(context).width >= 450) ...[
+              const SizedBox(width: 10),
+              const Text(
+                'PlayTorrio',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
+                  color: Colors.white,
+                ),
               ),
-            ),
+            ] else
+              const SizedBox(width: 4),
             const Spacer(),
             IconButton(
               key: const ValueKey('home-arrange-sections'),

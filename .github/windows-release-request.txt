@@ -1,16 +1,17 @@
-OWNER-AUTHORIZED EXACTLY ONE WINDOWS-ONLY NATIVE RELEASE REQUEST — 2026-11-03 SGT.
-
-Purpose: deliver the Recommended Shows / Similar Content Load More repair on Windows.
-Source fix included at commit b247062e326a05bc6cd6df0f2051b36d309a4a86.
-The workflow must check out and build exactly the SHA of THIS [windows-only] request-triggering commit on branch parity-floating-player-both.
-
-Details:
-1. When Load More reveals additional local or TMDB recommendations in the movie/series DetailsPage, advance the horizontal carousel to the first newly visible card instead of leaving the cards off-screen.
-2. Display visible/loaded recommendation counts and an explicit no-new-titles outcome for duplicate-only TMDB pages.
-3. Bound duplicate-only page advances to two sequential pages per explicit click. Preserve existing TMDB request pacing and HTTP 429 cooldown.
-4. Use existing opt-in allowlisted similar_load_more_empty diagnostics. Do not upload titles, media URLs, IDs, user identifiers, credentials, subtitle text, transcripts, or logs.
-5. Run existing Windows analyzer, recommendation/navigation Flutter tests including test/cast_similar_navigation_ui_test.dart, Windows native verification, Setup EXE and portable ZIP packaging, SHA256 integrity checks, and Telegram delivery only upon success.
-
-Preserve previous Windows gaming audio stability safeguards, Windows shared/nonexclusive output, 200ms buffer, six-channel Night Mode compressor/limiter, subtitles, sync, stream recovery and pinned libmpv.
-
-STRICT: WINDOWS ONLY. The commit message MUST contain literal [windows-only] to skip iOS. Exactly ONE request. No manual workflow_dispatch, no paired/iOS build, no rebuild/retrigger/duplicate request, no assistant polling of GitHub Actions, release assets, or Telegram. Owner monitors and provides further instructions. Do not claim CI, artifact delivery, or device success until independently verified.
+PLAYTORRIO WINDOWS-ONLY RELEASE REQUEST — OWNER AUTHORIZATION — 2026-11-09 SGT
+SOURCE COMMIT
+4e5254976bcd38b72332ad374c3d791af95e8b57
+REPOSITORY
+mghazalyh/ptv3
+BRANCH
+parity-floating-player-both
+AUTHORIZED CHANGE
+Submit exactly ONE Windows x64 native release (Setup EXE and portable ZIP) for Xperience and BingeCat personalized catalog imports on Windows plus cross-device private TorriODB portable credential/addon sync. Enable the shared catalog UI on Windows while retaining the iOS code path for a future separately authorized iOS native release. Continue the bounded watched-history export through an already authenticated Trakt account; neither BingeCat nor Xperience hosted accounts are created or secretly logged in.
+PRIVATE TORRIODB
+Private mghazalyh/torriodb main, with playtorrio/api-keys-v1.json and playtorrio/settings-v1.json bootstrapped EMPTY. First connected updated device can seed supported TMDB, TVDB, TorBox, other debrid, Trakt and Simkl keys plus existing personalized Stremio manifests. No GitHub PAT is uploaded, and no PUBLIC repo credential uploads are authorized. Preserve existing private watch history and data.
+BUILD SCOPE
+WINDOWS ONLY. The commit message MUST contain literal [windows-only] so the paired workflow's iOS native job and paired publishing are SKIPPED. No iOS, Android, PS4 or macOS build. No workflow_dispatch, standalone iOS release request or other native trigger.
+TESTING AND DELIVERY
+Run Windows native workflow's existing Flutter tests, including test/torriodb_portable_sync_test.dart, package Windows Setup and portable ZIP, publish GitHub release and SHA256 checksums, use Telegram permanent links only if successful.
+STOP
+Immediately after the ONE release-request commit, DO NOT inspect/poll GitHub Actions, native/CI build status, artifacts, release assets, hashes, Telegram, private telemetry or physical devices. Do NOT rerun, retry or duplicate builds. Owner verifies release outcome. Historical production/main, TorBox, player audio/video/subtitles and privacy remain protected.

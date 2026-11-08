@@ -4,6 +4,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:playtorrio/services/config/torriodb_portable_sync.dart';
 
 void main() {
+  test('only exact authenticated private TorriODB may hold keys', () {
+    const privateRepo = {
+      'full_name': 'mghazalyh/torriodb',
+      'private': true, 'default_branch': 'main',
+    };
+    expect(TorriodbPortableSync.isVerifiedPrivateRepository(privateRepo), isTrue);
+    expect(TorriodbPortableSync.isVerifiedPrivateRepository({
+      ...privateRepo, 'private': false,
+    }), isFalse);
+    expect(TorriodbPortableSync.isVerifiedPrivateRepository({
+      ...privateRepo, 'full_name': 'mghazalyh/ptv3',
+    }), isFalse);
+    expect(TorriodbPortableSync.isVerifiedPrivateRepository({
+      ...privateRepo, 'default_branch': 'other',
+    }), isFalse);
+  });
+
   test('accepts the private editable key vault schema', () {
     final doc = TorriodbPortableSync.parseKeys(jsonEncode({
       'schemaVersion': 1,

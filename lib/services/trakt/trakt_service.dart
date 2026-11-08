@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +12,7 @@ import '../profiles/profile_runtime.dart';
 import '../storage/storage_service.dart';
 import 'trakt_calendar_service.dart';
 import 'trakt_constants.dart';
+import 'trakt_pkce.dart';
 
 /// The user's Trakt relationship to a single title — used to render a
 /// state-aware detail page (in watchlist / collection / watched / rating)
@@ -84,6 +87,8 @@ class TraktService {
   static const Duration _libTtl = Duration(seconds: 45);
   int _libCacheGeneration = 0;
   final Map<String, _TraktDeviceAuthorization> _deviceAuthorizations = {};
+  bool _pkceActive = false;
+  static const String pkceRedirectUri = 'http://localhost:8080/callback';
 
   void _invalidateLibraryCache() {
     _libCache.clear();
@@ -326,12 +331,12 @@ class TraktService {
           .post(
             Uri.parse(kTraktTokenUrl),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'refresh_token': refreshToken,
-              'client_id': kTraktClientId,
-              'client_secret': kTraktClientSecret,
-              'grant_type': 'refresh_token',
-            }),
+            body: jsonEncode(TraktPkce.refreshBody(
+              clientId: kTraktClientId,
+              refreshToken: refreshToken,
+              redirectUri: pkceRedirectUri,
+              legacyClientSecret: kTraktClientSecret,
+            )),
           )
           .timeout(const Duration(seconds: 10));
 
@@ -364,7 +369,8 @@ class TraktService {
           body: jsonEncode({
             'token': accessToken,
             'client_id': kTraktClientId,
-            'client_secret': kTraktClientSecret,
+            if (kTraktClientSecret.isNotEmpty)
+              'client_secret': kTraktClientSecret,
           }),
         );
       }
@@ -401,6 +407,116 @@ class TraktService {
       await StorageService.setTraktTokenExpiry(expiryMs);
     }
     StorageService.movieFinishedRevision.value++;
+  }
+
+
+  // ============================================================================
+  // OAuth 2.0 Authorization Code with PKCE (Windows development application)
+  // ============================================================================
+
+  /// Opens Trakt authorization in the default browser and receives the code
+  /// through the exact localhost URI registered with the owner's developer app.
+  /// PKCE verifier and CSRF state exist only for this sign-in attempt.
+  /// No client secret is required and neither code nor tokens are logged.
+  Future<bool> authenticateWithPkce(
+    Future<bool> Function(Uri authorizationUrl) openBrowser,
+  ) async {
+    if (!Platform.isWindows || kTraktClientId.trim().isEmpty || _pkceActive) {
+      return false;
+    }
+    _pkceActive = true;
+    HttpServer? server;
+    try {
+      final authorization = await ProfileAsyncAuthorization.capture(
+        ProfileFeature.trackersAndDiscovery,
+      );
+      final verifier = TraktPkce.createVerifier();
+      final state = TraktPkce.createState();
+      final receivedCode = Completer<String?>();
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 8080,
+          shared: false);
+      server.listen((request) async {
+        try {
+          final response = request.response;
+          response.headers.contentType = ContentType.html;
+          if (request.method != 'GET' ||
+              request.uri.path != '/callback') {
+            response.statusCode = HttpStatus.notFound;
+            response.write('Not found');
+          } else if (request.uri.queryParameters['state'] != state) {
+            response.statusCode = HttpStatus.forbidden;
+            response.write('Invalid authorization state.');
+          } else {
+            final code = request.uri.queryParameters['code'];
+            final error = request.uri.queryParameters['error'];
+            response.write(error == null && code != null && code.isNotEmpty
+                ? '<html><body>Authorization received. Return to PlayTorrio.</body></html>'
+                : '<html><body>Trakt authorization was cancelled.</body></html>');
+            if (!receivedCode.isCompleted) {
+              receivedCode.complete(error == null && code?.isNotEmpty == true
+                  ? code : null);
+            }
+          }
+          await response.close();
+        } catch (error) {
+          debugPrint('Trakt PKCE: localhost callback error (${error.runtimeType})');
+        }
+      });
+      final url = TraktPkce.authorizationUrl(
+        clientId: kTraktClientId,
+        redirectUri: pkceRedirectUri,
+        verifier: verifier,
+        state: state,
+      );
+      if (!await openBrowser(url)) return false;
+
+      final code = await receivedCode.future.timeout(
+        const Duration(minutes: 4),
+        onTimeout: () => null,
+      );
+      if (code == null || code.isEmpty) return false;
+
+      final response = await http.post(
+        Uri.parse(kTraktTokenUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(TraktPkce.exchangeBody(
+          clientId: kTraktClientId,
+          redirectUri: pkceRedirectUri,
+          code: code,
+          verifier: verifier,
+        )),
+      ).timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) {
+        debugPrint('Trakt PKCE: token exchange failed (${response.statusCode})');
+        return false;
+      }
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['access_token'] is! String ||
+          (data['access_token'] as String).isEmpty ||
+          data['refresh_token'] is! String) {
+        return false;
+      }
+      Future<void> saveAuthorizedAccount() async {
+        await _storeTokens(data);
+        await _fetchAndStoreUsername(data['access_token'] as String);
+      }
+      if (authorization == null) {
+        await saveAuthorizedAccount();
+      } else {
+        await authorization.run(saveAuthorizedAccount);
+      }
+      debugPrint('Trakt PKCE: account authorized');
+      return true;
+    } on StateError {
+      debugPrint('Trakt PKCE: profile changed during authorization');
+      return false;
+    } catch (error) {
+      debugPrint('Trakt PKCE: sign-in unavailable (${error.runtimeType})');
+      return false;
+    } finally {
+      await server?.close(force: true);
+      _pkceActive = false;
+    }
   }
 
   // ============================================================================
@@ -464,7 +580,8 @@ class TraktService {
             body: jsonEncode({
               'code': deviceCode,
               'client_id': kTraktClientId,
-              'client_secret': kTraktClientSecret,
+              if (kTraktClientSecret.isNotEmpty)
+                'client_secret': kTraktClientSecret,
             }),
           )
           .timeout(const Duration(seconds: 10));

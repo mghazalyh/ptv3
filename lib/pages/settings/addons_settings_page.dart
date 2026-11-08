@@ -30,9 +30,9 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
     try {
       final opened = await launchUrl(Uri.parse(provider.setupUrl),
           mode: LaunchMode.externalApplication);
-      if (!opened) _toast('Unable to open provider setup in Safari.', error: true);
+      if (!opened) _toast('Unable to open provider setup in browser.', error: true);
     } catch (_) {
-      _toast('Unable to open provider setup in Safari.', error: true);
+      _toast('Unable to open provider setup in browser.', error: true);
     }
   }
 
@@ -265,7 +265,7 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
               _AddAddonButton(isLoading: _isAdding, onTap: _addAddon),
               const SizedBox(height: 24),
 
-              // Opt-in iPad trial only. Neither tracker accounts nor third-party
+              // Windows/iPad catalog trial. Neither tracker accounts nor third-party
               // recommendation keys are collected by PlayTorrio.
               if (Platform.isIOS || Platform.isWindows) ...[
                 Container(

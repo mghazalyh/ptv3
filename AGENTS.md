@@ -1,3 +1,13 @@
+## VERIFIED REPAIR SOURCE CHECKS — 2026-11-09 SGT, NO NATIVE REBUILD
+
+The following source validation of the Build #186 fix is now VERIFIED successful: lightweight CI [run 42513033765](https://github.com/mghazalyh/ptv3/actions/runs/42513033765), exact tested source commit `8880225dfdc5f97ce1aac46ff273ac766b801f4c`, completed **SUCCESS** in BOTH jobs: `Flutter analyzer + critical regression tests (Linux)` and `Windows shared-player Auto Sync compatibility (no native package build)`. Both analyzer steps passed, the Linux regression suite including `test/home_section_order_test.dart` passed, and the Windows compatibility preflight passed.
+
+The original Windows native Build #186 `42511633419` remains FAILED at commit `2b5121c6edc64cfad819ff4b1776339d30a9919d` because nullable Stremio `catalog.name` was dereferenced. The fix is committed in application source `8880225dfdc5f97ce1aac46ff273ac766b801f4c` and verified in LIGHTWEIGHT CI only. **No repaired Windows native packaging, Setup EXE, portable ZIP, release, checksum or Telegram success has been produced or verified**. The owner instruction `fix the build` did not authorize a second native Windows release request. Do NOT retry or trigger native packaging unless the owner newly authorizes it.
+
+The most recent change before this documentation addendum was documentation commit `921539200fb8f122d85ef6688f649b3b07534642`; current branch HEAD will advance via this addendum. Read the complete immediately following failure analysis and preserve all previous PlayTorrio recovery and native build authorization boundaries.
+
+---
+
 ## 2026-11-09 SGT — REPAIR FAILED WINDOWS BUILD #186 COMPILER ERROR; NO NATIVE REBUILD REQUESTED
 
 **Owner's new instruction:** "fix the build." This authorizes investigation and source repair of the previously failed build, but does not explicitly request another expensive Windows/iOS release trigger. DO NOT rerun/retry/duplicate the Windows native workflow or poll any post-trigger artifacts/Telegram without a further explicit owner directive.

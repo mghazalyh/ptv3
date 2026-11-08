@@ -36,7 +36,8 @@ abstract final class HomeSectionOrderService {
 
   static String idForSection(MovieSection section) {
     if (section.isCurated ||
-        HomePageSettings.isRecommendationSection(section)) {
+        (section.sourceAddonId == null &&
+            HomePageSettings.isRecommendationSection(section))) {
       return recommendationId(section.catalog.id);
     }
     // The addon manager attaches the stable manifest ID at catalog fetch.
@@ -167,9 +168,14 @@ abstract final class HomeSectionOrderService {
     for (final addon in addons) {
       if (!addon.isCatalogsActive) continue;
       for (final catalog in addon.manifest.catalogs) {
-        add(catalogId(addon.manifest.id, catalog.type, catalog.id),
-            catalog.name.isEmpty ? catalog.id : catalog.name,
-            addon.manifest.name);
+        // Stremio manifests may omit catalog.name or provide whitespace.
+        // Fall back to the stable catalog ID without a nullable dereference.
+        final title = catalog.name?.trim();
+        add(
+          catalogId(addon.manifest.id, catalog.type, catalog.id),
+          title == null || title.isEmpty ? catalog.id : title,
+          addon.manifest.name,
+        );
       }
     }
     for (final section in loaded) {

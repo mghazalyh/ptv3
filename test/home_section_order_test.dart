@@ -43,6 +43,66 @@ void main() {
       row('trakt', 'trakt_recommendations'))));
   });
 
+  test('catalog identifiers cannot collide with curated recommendation IDs', () {
+    final recommendation = HomeSectionOrderService.idForSection(
+      row('xperience', 'trakt_recommendations', curated: true));
+    final providerCatalog = HomeSectionOrderService.idForSection(
+      row('xperience', 'trakt_recommendations'));
+    expect(recommendation,
+        HomeSectionOrderService.recommendationId('trakt_recommendations'));
+    expect(providerCatalog,
+        HomeSectionOrderService.catalogId(
+            'xperience', 'movie', 'trakt_recommendations'));
+    expect(providerCatalog, isNot(recommendation));
+  });
+
+  test('unnamed and blank addon catalog names fall back to IDs', () {
+    final addon = InstalledAddon(
+      baseUrl: 'https://example.com/private-manifest',
+      manifest: AddonManifest(
+        id: 'xperience',
+        name: 'Xperience',
+        version: '1.0.0',
+        resources: const ['catalog'],
+        types: const ['movie'],
+        idPrefixes: const [],
+        catalogs: [
+          AddonCatalog(
+            type: 'movie',
+            id: 'unnamed',
+            genres: const [],
+            supportsSearch: false,
+            supportsSkip: false,
+          ),
+          AddonCatalog(
+            type: 'movie',
+            id: 'blank',
+            name: '  ',
+            genres: const [],
+            supportsSearch: false,
+            supportsSkip: false,
+          ),
+        ],
+      ),
+    );
+    final choices = HomeSectionOrderService.choices(
+      addons: [addon],
+      loaded: const <MovieSection>[],
+    );
+    expect(
+      choices.singleWhere((c) =>
+          c.id == HomeSectionOrderService.catalogId(
+              'xperience', 'movie', 'unnamed')).title,
+      'unnamed',
+    );
+    expect(
+      choices.singleWhere((c) =>
+          c.id == HomeSectionOrderService.catalogId(
+              'xperience', 'movie', 'blank')).title,
+      'blank',
+    );
+  });
+
   test('sorts loaded rows without modifying their original list', () {
     final continueWatching = HomeSectionOrderService.continueWatchingId;
     final trakt = HomeSectionOrderService.recommendationId('trakt_recommendations');

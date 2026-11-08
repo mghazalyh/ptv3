@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/trakt/trakt_service.dart';
+import '../../services/addon/connected_catalog_history_bridge.dart';
+import '../../services/continue_watching/watched_history_service.dart';
 import '../../services/config/env_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
@@ -47,7 +50,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
     if (mounted) {
       setState(() {
         _isAuthed = authed;
-        _hasClientCredentials = EnvService.traktClientId.isNotEmpty && EnvService.traktClientSecret.isNotEmpty;
+        _hasClientCredentials = EnvService.traktClientId.isNotEmpty;
         _username = user;
         _isLoading = false;
       });
@@ -70,9 +73,9 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Enter the client ID and client secret for your '
-              'Trakt API application. These are stored locally on this '
-              'device, not on GitHub or in the installer.'),
+            const Text('Trakt uses a public Client ID and PKCE sign-in on Windows. '
+              'No Client Secret is issued for new applications. You can override '
+              'the preconfigured Client ID here.'),
             const SizedBox(height: 12),
             TextField(controller: clientId, autocorrect: false,
               enableSuggestions: false,
@@ -82,11 +85,11 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
             TextField(controller: clientSecret, obscureText: true,
               autocorrect: false, enableSuggestions: false,
               decoration: const InputDecoration(
-                labelText: 'Trakt Client Secret',
+                labelText: 'Legacy Client Secret (optional)',
                 border: OutlineInputBorder())),
             const SizedBox(height: 8),
             const SelectableText('Create an API application at: '
-              'https://trakt.tv/oauth/applications',
+              'https://developer.trakt.tv/apps',
               style: TextStyle(fontSize: 12, color: Colors.white70)),
           ],
         )),
@@ -105,6 +108,50 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
     }
     clientId.dispose();
     clientSecret.dispose();
+  }
+
+  /// The Windows developer application uses the exact localhost redirect
+  /// registered at developer.trakt.tv. Authorization remains owner-controlled.
+  Future<void> _startPkce() async {
+    if (_pairing) return;
+    if (!_hasClientCredentials) {
+      await _configureTraktApplication();
+      if (!_hasClientCredentials) return;
+    }
+    setState(() {
+      _pairing = true;
+      _userCode = null;
+    });
+    final success = await TraktService.instance.authenticateWithPkce(
+      (url) => launchUrl(url, mode: LaunchMode.externalApplication),
+    );
+    if (!mounted) return;
+    setState(() => _pairing = false);
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(
+            'Trakt sign-in did not complete. Check the registered '
+            'http://localhost:8080/callback redirect URI and try again.')),
+      );
+      return;
+    }
+
+    await _checkStatus();
+    try {
+      // Load the owner's private completed-watch events before import.
+      await WatchedHistoryService.syncGitHubHistory(force: true);
+      await ConnectedCatalogHistoryBridge.sync();
+    } catch (error) {
+      debugPrint('[Trakt] History bridge unavailable (${error.runtimeType})');
+    }
+    if (!mounted) return;
+    unawaited(MyListService.syncAll(force: true));
+    unawaited(ContinueWatchingService.syncCloudSessions());
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text(
+          'Trakt connected. Check synced watch history in Trakt, then '
+          'enable Trakt History in Xperience and add personalized Home rows.')),
+    );
   }
 
   Future<void> _startPairing() async {
@@ -238,8 +285,8 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                     leading: const Icon(Icons.key_rounded),
                     title: const Text('Set up Trakt client credentials'),
                     subtitle: const Text(
-                      'A Trakt application client ID and secret are needed '
-                      'before account pairing. They are saved only here.'),
+                      'Only a Trakt Client ID is required for PKCE. '
+                      'Your app ID is already preconfigured.'),
                     onTap: _configureTraktApplication,
                     trailing: const Icon(Icons.chevron_right),
                   ),
@@ -337,13 +384,25 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                             ),
-                            onPressed: _startPairing,
-                            icon: const Icon(Icons.qr_code_rounded, size: 18),
+                            onPressed: Platform.isWindows ? _startPkce : _startPairing,
+                            icon: Icon(Platform.isWindows
+                                ? Icons.open_in_browser_rounded
+                                : Icons.qr_code_rounded, size: 18),
                             label: const Text('Connect Trakt', style: TextStyle(fontWeight: FontWeight.bold)),
                           ),
                       ],
                     ),
 
+                    if (_pairing && _userCode == null && Platform.isWindows) ...[
+                      const SizedBox(height: 16),
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Finish the Trakt authorization in your browser. '
+                        'PlayTorrio listens locally for the registered callback.',
+                        style: TextStyle(fontSize: 12, color: Colors.white70),
+                      ),
+                    ],
                     if (_pairing && _userCode != null) ...[
                       const SizedBox(height: 20),
                       const Divider(color: Colors.white10),
@@ -456,6 +515,47 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Trakt sync complete!')),
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  tileColor: const Color(0xFF12151E),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  leading: const Icon(Icons.history_rounded,
+                      color: Color(0xFF7C5CFF)),
+                  title: const Text('Seed Xperience from completed watch history',
+                      style: TextStyle(color: Colors.white, fontSize: 14)),
+                  subtitle: const Text(
+                    'Imports only completed, independently dated movie and '
+                    'episode events into your connected Trakt account. '
+                    'Xperience must be linked separately.',
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                  onTap: () async {
+                    try {
+                      await WatchedHistoryService.syncGitHubHistory(force: true);
+                      await ConnectedCatalogHistoryBridge.sync();
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text(
+                          'Trakt history import attempted. Verify completed '
+                          'events on Trakt, then select Trakt History in '
+                          'Xperience Step 1 and personalized rows in Step 2.',
+                        )),
+                      );
+                    } catch (error) {
+                      debugPrint('[Trakt] Manual history sync error '
+                          '(${error.runtimeType})');
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text(
+                          'History synchronization unavailable. '
+                          'Your local watch history was not changed.',
+                        )),
                       );
                     }
                   },

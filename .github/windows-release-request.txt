@@ -1,21 +1,11 @@
-PLAYTORRIO WINDOWS-ONLY RELEASE REQUEST — OWNER AUTHORIZED — 2026-11-09 SGT
-OBJECTIVE
-Request exactly ONE new Windows x64 PlayTorrio native Setup EXE and portable ZIP for the Trakt OAuth PKCE and Xperience watch-history seed implementation. Source and recovery docs committed on parity-floating-player-both, last documentation HEAD 2c84ef6e7c59a045ac6d2276ca915a183cfa7196. This is a NEW feature build, not a rerun of the previously triggered 4f4743343a9b2d2cd2759cda8c596d1f17cef983 release (unverified outcome).
-
-SCOPE
-Windows ONLY. Commit message MUST include [windows-only] to skip iOS. Do not start paired, iOS, PS4, Android or macOS native jobs, workflow_dispatch, reruns or duplicate builds.
-
-TRAKT PKCE
-Use owner's new publicly shareable Trakt Development app Client ID (runtime fallback). No Client Secret. Windows browser authorization uses ephemeral S256 PKCE verifier, CSRF state and registered http://localhost:8080/callback, refreshed tokens without an issued secret and profile-scoped credential storage. Android TV/iOS legacy device-flow source preserved; no new iOS IPA.
-
-XPERIENCE SEED
-After user authorizes Trakt, allow private watched-history refresh from TorriODB and bounded /sync/history submission of completed, dated movie/episode events only. Preserve original private history, failure backoff and account-scoped checkpoints. Xperience must be linked independently by owner to the same Trakt account and select Trakt History Step 1 plus personalized Home rows Step 2. No external upload, Trakt sign-in or Xperience ingestion has been confirmed at request time.
-
-VERIFICATION
-Shared Linux and Windows source checks and new PKCE regression tests are included in CI/native job. Source static contracts inspected; Flutter SDK unavailable here. Windows native build, its dependencies, tests, artifacts and personal account behavior remain unverified pending owner validation. Release notes under 500 characters.
-
-PROTECTION
-Do not modify or rebuild iOS/PS4. Keep TorBox, playback, video/audio, Night Mode, subtitles, existing streaming, history, private TorriODB credential sync, previous releases, SHA256 and Telegram link-only delivery unchanged.
-
-STOP
-After THIS SINGLE final commit, DO NOT check or poll Actions, source CI, build states, artifacts, releases, Telegram or telemetry; NO retries or duplicate builds. Owner will check and install new Windows result.
+PLAYTORRIO WINDOWS-ONLY RELEASE REQUEST — HOME SECTION REORDERING
+OWNER AUTHORIZATION: User explicitly said "trigger build now and leave" after implementing Home row reordering.
+SOURCE COMMIT: 0f4bed4b082e3a74453e9729e97424fe196865f2
+REPOSITORY: mghazalyh/ptv3
+BRANCH: parity-floating-player-both
+SCOPE: WINDOWS ONLY, one Windows x64 native release build.
+FEATURES: Drag-reorder individual Home sections including Xperience, TorBox Torrents, Trakt Recommended for You, BingeCat and Continue Watching. Persist order locally and in private TorriODB settings. Preserve previous provider, player, subtitle and history behavior.
+TESTS: Include test/home_section_order_test.dart and test/torriodb_portable_sync_test.dart; existing analyzer and packaging gates remain active.
+PACKAGE: Windows x64 Setup EXE, portable ZIP, checksums and publication if workflow succeeds.
+DO NOT BUILD: iOS, PS4, macOS, Android. The release commit MUST contain the literal [windows-only] marker to skip iOS native packaging.
+STOP: Exactly ONE trigger. Do not check or poll workflows, statuses, artifacts, releases, Telegram or telemetry; do not retry or trigger another build. Owner handles outcome.

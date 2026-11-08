@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/torriodb_portable_sync.dart';
 
 class StorageService {
   static const _kTraktAccessToken = 'trakt_access_token';
@@ -23,6 +24,7 @@ class StorageService {
   static Future<void> setTraktAccessToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kTraktAccessToken, token);
+    await TorriodbPortableSync.instance.markChanged('trakt');
   }
 
   static Future<String?> getTraktRefreshToken() async {
@@ -33,6 +35,7 @@ class StorageService {
   static Future<void> setTraktRefreshToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kTraktRefreshToken, token);
+    await TorriodbPortableSync.instance.markChanged('trakt');
   }
 
   static Future<int?> getTraktTokenExpiry() async {
@@ -43,6 +46,7 @@ class StorageService {
   static Future<void> setTraktTokenExpiry(int expiryMs) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kTraktTokenExpiry, expiryMs);
+    await TorriodbPortableSync.instance.markChanged('trakt');
   }
 
   static Future<String?> getTraktUsername() async {
@@ -53,6 +57,7 @@ class StorageService {
   static Future<void> setTraktUsername(String username) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kTraktUsername, username);
+    await TorriodbPortableSync.instance.markChanged('trakt');
   }
 
   static Future<bool> clearTraktAuth() async {
@@ -61,6 +66,7 @@ class StorageService {
     await prefs.remove(_kTraktRefreshToken);
     await prefs.remove(_kTraktTokenExpiry);
     await prefs.remove(_kTraktUsername);
+    await TorriodbPortableSync.instance.markChanged('trakt');
     return true;
   }
 
@@ -73,6 +79,7 @@ class StorageService {
   static Future<void> setSimklAccessToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kSimklAccessToken, token);
+    await TorriodbPortableSync.instance.markChanged('simkl');
   }
 
   static Future<String?> getSimklUsername() async {
@@ -83,6 +90,7 @@ class StorageService {
   static Future<void> setSimklUsername(String username) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kSimklUsername, username);
+    await TorriodbPortableSync.instance.markChanged('simkl');
   }
 
   static Future<String?> getSimklRefreshToken() async {
@@ -102,6 +110,7 @@ class StorageService {
     await prefs.setString(_kSimklRefresh, refresh);
     await prefs.setInt(_kSimklExpiry, DateTime.now()
       .add(Duration(seconds: seconds)).millisecondsSinceEpoch);
+    await TorriodbPortableSync.instance.markChanged('simkl');
   }
 
   static Future<void> clearSimklAuth() async {
@@ -110,5 +119,6 @@ class StorageService {
     await prefs.remove(_kSimklRefresh);
     await prefs.remove(_kSimklExpiry);
     await prefs.remove(_kSimklUsername);
+    await TorriodbPortableSync.instance.markChanged('simkl');
   }
 }

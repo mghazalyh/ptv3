@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 import 'tmdb_discover_service.dart';
+import '../config/torriodb_portable_sync.dart';
 
 /// Optional TheTVDB v4 metadata used to improve series identification and
 /// gently prioritize TMDB recommendations; TVDB has no documented native
@@ -128,6 +129,7 @@ class TvdbSeriesService {
     _token = null;
     _tokenExpires = null;
     _cache.clear();
+    await TorriodbPortableSync.instance.markChanged('tvdb');
   }
 
   /// Validate a candidate key and optional PIN against *live* TVDB v4.

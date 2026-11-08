@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/torriodb_portable_sync.dart';
 
 import '../models/debrid_file.dart';
 import '../utils/debrid_media_matcher.dart';
@@ -25,6 +26,7 @@ class RealDebridService {
     } else {
       await prefs.setString(_rdTokenKey, trimmed);
     }
+    await TorriodbPortableSync.instance.markChanged('realDebrid');
   }
 
   Future<bool> hasKey() async {

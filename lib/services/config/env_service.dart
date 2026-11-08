@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'torriodb_portable_sync.dart';
 
 /// Service that dynamically resolves configuration and API secrets.
 ///
@@ -99,6 +100,7 @@ class EnvService {
         _env[entry.key] = entry.value;
       }
     }
+    await TorriodbPortableSync.instance.markChanged('trakt');
   }
 
   /// The public Simkl app client ID is not a user's access token.
@@ -113,6 +115,7 @@ class EnvService {
       await prefs.setString('local_config_SIMKL_CLIENT_ID', id.trim());
       _env['SIMKL_CLIENT_ID'] = id.trim();
     }
+    await TorriodbPortableSync.instance.markChanged('simkl');
   }
 
   // Trakt Credentials (checks compile-time dart-define first, then runtime .env)

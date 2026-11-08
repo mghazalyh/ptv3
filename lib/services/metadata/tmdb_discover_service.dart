@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/movie/movie.dart';
 import 'metadata_service.dart';
+import '../config/torriodb_portable_sync.dart';
 
 enum DiscoverType { movie, series }
 
@@ -347,6 +348,7 @@ class TmdbDiscoverService {
     _cache.clear();
     _inFlight.clear();
     _relatedTotalPages.clear();
+    await TorriodbPortableSync.instance.markChanged('tmdb');
   }
 
   Future<Map<String, dynamic>> _request(

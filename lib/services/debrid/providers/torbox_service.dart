@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/torriodb_portable_sync.dart';
 
 import '../models/debrid_file.dart';
 import '../utils/debrid_media_matcher.dart';
@@ -24,6 +25,7 @@ class TorBoxService {
     } else {
       await prefs.setString(_key, trimmed);
     }
+    await TorriodbPortableSync.instance.markChanged('torbox');
   }
 
   Future<bool> hasKey() async {

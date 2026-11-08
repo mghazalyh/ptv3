@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../services/theme/app_theme_service.dart';
 import '../../../services/theme/custom_background_service.dart';
 import '../../../services/home/home_page_settings.dart';
+import '../home_section_order_page.dart';
 import '../../../services/my_list/my_list_service.dart';
 import '../../../services/simkl/simkl_service.dart';
 import '../../../services/trakt/trakt_service.dart';
@@ -41,6 +42,21 @@ class _HomeUiSettingsPageState extends State<HomeUiSettingsPage> {
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             children: [
+              Card(
+                color: const Color(0xFF151822),
+                child: ListTile(
+                  key: const ValueKey('settings-arrange-home-sections'),
+                  leading: const Icon(Icons.view_agenda_rounded,
+                      color: Color(0xFFB49AFF)),
+                  title: const Text('Arrange Home Sections'),
+                  subtitle: const Text('Reorder Xperience, TorBox and Trakt rows'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => const HomeSectionOrderPage(),
+                  )),
+                ),
+              ),
+              const SizedBox(height: 24),
               // ── 1. Color Schemes & Themes ──
               Text(
                 'COLOR THEMES & ACCENTS',

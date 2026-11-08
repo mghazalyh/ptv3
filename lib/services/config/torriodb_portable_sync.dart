@@ -13,6 +13,7 @@ import '../config/env_service.dart';
 import '../continue_watching/github_sync_transport.dart';
 import '../metadata/tvdb_series_service.dart';
 import '../metadata/tmdb_discover_service.dart';
+import '../home/home_section_order_service.dart';
 import '../my_list/github_library_cloud.dart';
 
 /// Portable provider keys and addon settings stored in the OWNER'S PRIVATE
@@ -127,10 +128,14 @@ class TorriodbPortableSync {
         throw const FormatException('Unsafe portable addon URL');
       }
     }
+    final order = raw['homeSectionOrder'];
+    if (order != null) HomeSectionOrderService.normalize(order);
     return {
       'schemaVersion': 1,
       'initialized': raw['initialized'],
       'addons': entries,
+      if (raw.containsKey('homeSectionOrder'))
+        'homeSectionOrder': HomeSectionOrderService.normalize(order),
     };
   }
 
@@ -149,7 +154,8 @@ class TorriodbPortableSync {
   /// Records only which provider was changed, never its secret in the journal.
   Future<void> markChanged(String provider) async {
     if (_applying) return;
-    if (provider != 'settings' && provider != 'tvdb' &&
+    if (provider != 'settings' && provider != 'homeOrder' &&
+        provider != 'tvdb' &&
         !preferenceFields.containsKey(provider)) return;
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -219,7 +225,8 @@ class TorriodbPortableSync {
       // Remote manual edits win unless the current device actually changed a
       // specific provider since its last successful upload.
       final wanted = wasInitialized
-          ? dirty.where((name) => name != 'settings').toSet()
+          ? dirty.where((name) => name != 'settings' &&
+              name != 'homeOrder').toSet()
           : {...local.keys};
       final merged = mergeProviderEdits(remoteProviders, local, wanted);
       if (wanted.isNotEmpty || (!wasInitialized && merged.isNotEmpty)) {
@@ -244,16 +251,34 @@ class TorriodbPortableSync {
           : parseSettings(remoteSettings.content);
       final localAddons = _localAddons(prefs);
       final settingWasInitialized = settingDoc['initialized'] == true;
-      if (dirty.contains('settings') ||
-          (!settingWasInitialized && localAddons.isNotEmpty)) {
+      final changedAddons = dirty.contains('settings');
+      final changedOrder = dirty.contains('homeOrder');
+      final initialAddons = !settingWasInitialized && localAddons.isNotEmpty;
+      final localOrder = HomeSectionOrderService.normalize(
+        prefs.getStringList(HomeSectionOrderService.storageKey) ?? <String>[]);
+      final initialOrder = !settingWasInitialized && localOrder.isNotEmpty;
+      if (changedAddons || changedOrder || initialAddons || initialOrder) {
+        // Preserve remote manifests when only order changed, and vice versa.
         await _write(client, headers, settingsPath, remoteSettings?.sha, {
-          'schemaVersion': 1, 'initialized': true, 'addons': localAddons,
+          'schemaVersion': 1,
+          'initialized': true,
+          'addons': changedAddons || initialAddons
+              ? localAddons : settingDoc['addons'],
+          if (changedOrder || initialOrder)
+            'homeSectionOrder': localOrder
+          else if (settingDoc.containsKey('homeSectionOrder'))
+            'homeSectionOrder': settingDoc['homeSectionOrder'],
         });
         dirty.remove('settings');
+        dirty.remove('homeOrder');
       } else if (settingWasInitialized) {
         _applying = true;
         try {
           await _restoreAddons(settingDoc['addons'] as List, prefs);
+          if (settingDoc.containsKey('homeSectionOrder')) {
+            await HomeSectionOrderService.restoreFromCloud(
+              List<String>.from(settingDoc['homeSectionOrder'] as List));
+          }
         } finally {
           _applying = false;
         }

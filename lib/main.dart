@@ -22,6 +22,7 @@ import './services/theme/dock_settings.dart';
 import './services/theme/glass_settings.dart';
 import './services/audiobook/audiobook_settings.dart';
 import './services/home/home_page_settings.dart';
+import './services/home/home_section_order_service.dart';
 import './services/iptv/iptv_controller.dart';
 import './services/iptv/iptv_settings.dart';
 import './services/manga/manga_settings.dart';
@@ -60,6 +61,7 @@ void main() async {
   await EnvService.initialize();
   await GitHubLibraryCloud.instance.initialize();
   await TorriodbPortableSync.instance.refresh(force: true);
+  await HomeSectionOrderService.initialize();
   await PlayerSettings.initialize();
   if (Platform.isWindows && NightModeDiagnostics.instance.isActive) {
     final audit = WindowsSettingsRecovery.lastAudit;

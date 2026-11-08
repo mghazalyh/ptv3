@@ -267,6 +267,7 @@ class AddonManager {
               subtitle: addon.manifest.name,
               contentType: catalog.type,
               addonBaseUrl: addon.baseUrl,
+              sourceAddonId: addon.manifest.id,
               catalog: catalog,
               movies: movies,
             );
@@ -304,6 +305,7 @@ class AddonManager {
           subtitle: addon.manifest.name,
           contentType: catalog.type,
           addonBaseUrl: addon.baseUrl,
+          sourceAddonId: addon.manifest.id,
           catalog: catalog,
           movies: movies,
         );
@@ -355,6 +357,7 @@ class AddonManager {
               subtitle: addon.manifest.name,
               contentType: catalog.type,
               addonBaseUrl: addon.baseUrl,
+              sourceAddonId: addon.manifest.id,
               catalog: catalog,
               movies: sortedMovies,
             );
@@ -411,6 +414,7 @@ class AddonManager {
               subtitle: addon.manifest.name,
               contentType: catalog.type,
               addonBaseUrl: addon.baseUrl,
+              sourceAddonId: addon.manifest.id,
               catalog: catalog,
               movies: movies,
             );

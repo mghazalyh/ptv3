@@ -6,6 +6,7 @@ class MovieSection {
   final String subtitle;
   final String contentType;
   final String addonBaseUrl;
+  final String? sourceAddonId; // Stable manifest ID, not a secret URL.
   final AddonCatalog catalog;
   final List<Movie> movies;
 
@@ -26,6 +27,7 @@ class MovieSection {
     required this.subtitle,
     required this.contentType,
     required this.addonBaseUrl,
+    this.sourceAddonId,
     required this.catalog,
     required this.movies,
     this.isCurated = false,

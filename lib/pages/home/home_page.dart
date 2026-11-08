@@ -14,6 +14,8 @@ import '../../services/addon/connected_catalog_history_bridge.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/theme/glass_settings.dart';
 import '../../services/home/home_page_settings.dart';
+import '../../services/home/home_section_order_service.dart';
+import '../settings/home_section_order_page.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/continue_watching/watched_history_service.dart';
@@ -63,6 +65,7 @@ class _HomePageState extends State<HomePage> {
     _hasShownIntro = true;
 
     HomePageSettings.changeNotifier.addListener(_onSettingsChanged);
+    HomeSectionOrderService.orderedKeys.addListener(_onOrderChanged);
     AppThemeService.currentPalette.addListener(_onSettingsChanged);
     MyListService.items.addListener(_onSettingsChanged);
     ContinueWatchingService.activeItems.addListener(_onSettingsChanged);
@@ -131,6 +134,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     HomePageSettings.changeNotifier.removeListener(_onSettingsChanged);
+    HomeSectionOrderService.orderedKeys.removeListener(_onOrderChanged);
     AppThemeService.currentPalette.removeListener(_onSettingsChanged);
     MyListService.items.removeListener(_onSettingsChanged);
     ContinueWatchingService.activeItems.removeListener(_onSettingsChanged);
@@ -138,6 +142,10 @@ class _HomePageState extends State<HomePage> {
     _recommendationDebounce?.cancel();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onOrderChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onSettingsChanged() {
@@ -350,6 +358,13 @@ class _HomePageState extends State<HomePage> {
     _loadHome();
   }
 
+  void _navigateToArrangeSections(Offset? tapPosition) {
+    Navigator.push(context, LiquidRevealRoute(
+      page: HomeSectionOrderPage(currentSections: List<MovieSection>.of(_sections)),
+      tapPosition: tapPosition,
+    ));
+  }
+
   void _navigateToSearch(Offset? tapPosition) {
     Navigator.push(
       context,
@@ -369,6 +384,12 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
     final palette = AppThemeService.currentPalette.value;
+    final rows = <({String id, MovieSection? section})>[
+      (id: HomeSectionOrderService.continueWatchingId, section: null),
+      for (final section in _sections)
+        (id: HomeSectionOrderService.idForSection(section), section: section),
+    ];
+    final visibleRows = HomeSectionOrderService.apply(rows, (row) => row.id);
 
     final backgroundContent = AnimatedAmbientBackground(
       child: Stack(
@@ -392,7 +413,7 @@ class _HomePageState extends State<HomePage> {
                 physics: const BouncingScrollPhysics(
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
-                itemCount: _sections.length + 3,
+                itemCount: visibleRows.length + 2,
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     if (!HomePageSettings.enableSpotlight.value) {
@@ -400,13 +421,15 @@ class _HomePageState extends State<HomePage> {
                     }
                     return _HeroCarousel(movies: _featuredMovies);
                   }
-                  if (index == 1) {
-                    return const ContinueWatchingSlider(typeFilter: 'main');
-                  }
-                  if (index == _sections.length + 2) {
+                  if (index == visibleRows.length + 1) {
                     return SizedBox(height: 110.0 + MediaQuery.paddingOf(context).bottom);
                   }
-                  return MovieSliderSection(section: _sections[index - 2]);
+                  final row = visibleRows[index - 1];
+                  if (row.section == null) {
+                    return const ContinueWatchingSlider(typeFilter: 'main');
+                  }
+                  return MovieSliderSection(
+                    key: ValueKey(row.id), section: row.section!);
                 },
               ),
             ),
@@ -438,6 +461,7 @@ class _HomePageState extends State<HomePage> {
           topPadding: topPadding,
           onSearchTap: _navigateToSearch,
           onHistoryTap: _navigateToHistory,
+          onArrangeTap: _navigateToArrangeSections,
           onSettingsTap: _navigateToSettings,
         ),
       ),
@@ -560,12 +584,14 @@ class _GlassAppBar extends StatelessWidget {
   final double topPadding;
   final void Function(Offset?) onSearchTap;
   final void Function(Offset?) onHistoryTap;
+  final void Function(Offset?) onArrangeTap;
   final void Function(Offset?) onSettingsTap;
 
   const _GlassAppBar({
     required this.topPadding,
     required this.onSearchTap,
     required this.onHistoryTap,
+    required this.onArrangeTap,
     required this.onSettingsTap,
   });
 
@@ -609,6 +635,13 @@ class _GlassAppBar extends StatelessWidget {
               ),
             ),
             const Spacer(),
+            IconButton(
+              key: const ValueKey('home-arrange-sections'),
+              tooltip: 'Arrange Home sections',
+              icon: Icon(Icons.view_agenda_rounded,
+                color: Colors.white.withValues(alpha: 0.75), size: 23),
+              onPressed: () => onArrangeTap(null),
+            ),
             // Watch History is always visible, including when Continue Watching
             // is empty or hides completed episodes.
             IconButton(

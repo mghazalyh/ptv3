@@ -72,6 +72,13 @@ class TorriodbPortableSync {
         cloud.branch == ref;
   }
 
+  static bool isVerifiedPrivateRepository(Object? value) {
+    if (value is! Map) return false;
+    return value['private'] == true &&
+        value['full_name']?.toString().toLowerCase() == repo &&
+        value['default_branch'] == ref;
+  }
+
   static Map<String, dynamic> parseKeys(String text) {
     if (text.length > 1000000) throw const FormatException('Key vault too large');
     final raw = jsonDecode(text);
@@ -194,9 +201,7 @@ class TorriodbPortableSync {
         throw StateError('Unable to verify private TorriODB access');
       }
       final identity = jsonDecode(meta.body);
-      if (identity is! Map || identity['private'] != true ||
-          identity['full_name']?.toString().toLowerCase() != repo ||
-          identity['default_branch'] != ref) {
+      if (!isVerifiedPrivateRepository(identity)) {
         throw StateError('Credential sync requires private TorriODB main');
       }
 
@@ -403,7 +408,8 @@ class TorriodbPortableSync {
       return [
         for (final entry in entries)
           if (entry is Map<String, dynamic> &&
-              (entry['baseUrl']?.toString().startsWith('https://') ?? false))
+              (entry['baseUrl'] is String &&
+               (entry['baseUrl'] as String).startsWith('https://')))
             InstalledAddon.fromJson(entry).toJson(),
       ];
     } catch (_) {

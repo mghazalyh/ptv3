@@ -267,7 +267,7 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
 
               // Opt-in iPad trial only. Neither tracker accounts nor third-party
               // recommendation keys are collected by PlayTorrio.
-              if (Platform.isIOS) ...[
+              if (Platform.isIOS || Platform.isWindows) ...[
                 Container(
                   key: const ValueKey('ios-personalized-catalog-trial'),
                   padding: const EdgeInsets.all(16),
@@ -281,7 +281,7 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('IPAD PERSONALIZED CATALOGS · EXPERIMENTAL',
+                      const Text('PERSONALIZED CATALOGS · WINDOWS / IPAD',
                           style: TextStyle(color: Color(0xFFB49AFF),
                               fontSize: 12, fontWeight: FontWeight.w800)),
                       const SizedBox(height: 8),
@@ -306,7 +306,7 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
                           OutlinedButton.icon(
                             onPressed: () => _openProvider(provider),
                             icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                            label: const Text('Configure in Safari'),
+                            label: const Text('Configure in browser'),
                           ),
                           FilledButton.tonalIcon(
                             onPressed: _isAdding

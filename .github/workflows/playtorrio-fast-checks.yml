@@ -49,6 +49,8 @@ jobs:
             lib/services/my_list/github_library_cloud.dart \
             lib/models/my_list/my_list_item.dart \
             lib/services/home/home_page_settings.dart \
+            lib/services/config/torriodb_portable_sync.dart \
+            lib/pages/settings/addons_settings_page.dart \
             lib/services/addon/connected_catalog_history_bridge.dart \
             lib/services/metadata/tmdb_discover_service.dart \
             lib/services/metadata/series_run_service.dart \
@@ -108,6 +110,7 @@ jobs:
             test/github_progress_merge_test.dart \
             test/github_progress_v1_compat_test.dart \
             test/github_sync_gate_test.dart \
+            test/torriodb_portable_sync_test.dart \
             test/github_watched_history_merge_test.dart \
             test/watched_history_timeline_test.dart \
             test/watched_history_recommendations_test.dart \

@@ -91,7 +91,7 @@ class ConnectedCatalogHistoryBridge {
   /// iOS only; returns immediately on Home. No account = no upload.
   /// Successful Trakt batches are checkpointed to prevent repeat history writes.
   static Future<void> sync() async {
-    if (!Platform.isIOS || _busy) return;
+    if (!(Platform.isIOS || Platform.isWindows) || _busy) return;
     if (_lastFailure != null &&
         DateTime.now().difference(_lastFailure!) <
         const Duration(minutes: 30)) return;

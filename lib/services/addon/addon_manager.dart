@@ -7,6 +7,7 @@ import '../../models/movie/movie.dart';
 import '../../models/movie/movie_section.dart';
 import '../../utils/search/relevance_scorer.dart';
 import '../metadata/metadata_service.dart';
+import '../config/torriodb_portable_sync.dart';
 import 'personalized_catalog_providers.dart';
 
 /// Manages installed Stremio metadata addons.
@@ -22,6 +23,7 @@ class AddonManager {
 
   List<InstalledAddon> _addons = [];
   bool _initialized = false;
+  bool get isInitializedForSync => _initialized;
 
   List<InstalledAddon> get addons => List.unmodifiable(_addons);
 
@@ -218,6 +220,7 @@ class AddonManager {
       _storageKey,
       jsonEncode(_addons.map((a) => a.toJson()).toList()),
     );
+    await TorriodbPortableSync.instance.markChanged('settings');
   }
 
   // ── Home sections ─────────────────────────────────────────────────────

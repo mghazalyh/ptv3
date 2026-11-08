@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/my_list/github_library_cloud.dart';
+import '../../services/config/torriodb_portable_sync.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/continue_watching/github_progress_cloud.dart';
@@ -58,6 +59,7 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
       await MyListService.syncAll(force: true);
       await ContinueWatchingService.syncGitHubProgress(force: true);
       await WatchedHistoryService.syncGitHubHistory(force: true);
+      await TorriodbPortableSync.instance.refresh(force: true);
       if (!mounted) return;
       final state = GitHubLibraryCloud.instance.state.value;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -82,6 +84,7 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
       await MyListService.syncAll(force: true);
       await ContinueWatchingService.syncGitHubProgress(force: true);
       await WatchedHistoryService.syncGitHubHistory(force: true);
+      await TorriodbPortableSync.instance.refresh(force: true);
     } finally {
       if (mounted) setState(() => _working = false);
     }
@@ -222,7 +225,8 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
                     const Text(
                       'Create a fine-grained personal access token restricted '
                       'to this repository with Contents: Read and write. '
-                      'Paste the same token on your other devices.',
+                      'The GitHub PAT stays on each device. Private TorriODB automatically '
+                      'shares portable provider keys and addon manifests.',
                       style: TextStyle(color: Colors.white70, height: 1.5),
                     ),
                     TextButton.icon(
@@ -247,6 +251,14 @@ class _GitHubLibrarySettingsPageState extends State<GitHubLibrarySettingsPage> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Text(TorriodbPortableSync.instance.status.value,
+                      style: const TextStyle(color: Colors.white70)),
+                    const SizedBox(height: 6),
+                    const Text('Portable API keys are editable PLAINTEXT in the '
+                      'private TorriODB repository. The GitHub PAT is never '
+                      'uploaded. Public repositories are blocked.',
+                      style: TextStyle(color: Colors.white70)),
                     const SizedBox(height: 20),
                     FilledButton.icon(
                       onPressed: _working ? null : _connect,

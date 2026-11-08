@@ -133,6 +133,7 @@ jobs:
             lib/models/movie/movie_section.dart \
             lib/pages/catalog/catalog_page.dart \
             lib/services/home/home_page_settings.dart \
+            lib/services/config/torriodb_portable_sync.dart \
             lib/services/addon/connected_catalog_history_bridge.dart \
             lib/widgets/movie/movie_slider_section.dart \
             lib/services/updater/app_updater_service.dart \
@@ -170,6 +171,7 @@ jobs:
           flutter test test/github_progress_merge_test.dart
           flutter test test/github_progress_v1_compat_test.dart
           flutter test test/github_sync_gate_test.dart
+          flutter test test/torriodb_portable_sync_test.dart
           flutter test test/github_watched_history_merge_test.dart
           flutter test test/github_watchlist_v1_regression_test.dart
           flutter test test/github_library_merge_test.dart

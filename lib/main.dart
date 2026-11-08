@@ -9,6 +9,8 @@ import 'package:window_manager/window_manager.dart';
 
 import './pages/home/home_page.dart';
 import './services/addon/addon_manager.dart';
+import './services/my_list/github_library_cloud.dart';
+import './services/config/torriodb_portable_sync.dart';
 import './services/theme/app_theme_service.dart';
 import './services/updater/app_updater_service.dart';
 import './services/books/continue_reading_service.dart';
@@ -56,6 +58,8 @@ void main() async {
   }
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await EnvService.initialize();
+  await GitHubLibraryCloud.instance.initialize();
+  await TorriodbPortableSync.instance.refresh(force: true);
   await PlayerSettings.initialize();
   if (Platform.isWindows && NightModeDiagnostics.instance.isActive) {
     final audit = WindowsSettingsRecovery.lastAudit;
@@ -115,6 +119,13 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
         });
       }
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(TorriodbPortableSync.instance.refresh());
+    }
   }
 
   @override

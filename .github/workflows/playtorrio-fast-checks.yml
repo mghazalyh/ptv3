@@ -52,6 +52,9 @@ jobs:
             lib/services/config/torriodb_portable_sync.dart \
             lib/pages/settings/addons_settings_page.dart \
             lib/services/addon/connected_catalog_history_bridge.dart \
+            lib/services/trakt/trakt_pkce.dart \
+            lib/services/trakt/trakt_service.dart \
+            lib/pages/settings/trakt_settings_page.dart \
             lib/services/metadata/tmdb_discover_service.dart \
             lib/services/metadata/series_run_service.dart \
             lib/widgets/movie/series_year_label.dart \
@@ -115,6 +118,7 @@ jobs:
             test/watched_history_timeline_test.dart \
             test/watched_history_recommendations_test.dart \
             test/connected_catalog_history_bridge_test.dart \
+            test/trakt_pkce_test.dart \
             test/github_library_merge_test.dart \
             test/github_watchlist_v1_regression_test.dart \
             test/tvdb_credentials_validation_test.dart \

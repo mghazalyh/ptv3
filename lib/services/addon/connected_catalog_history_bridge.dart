@@ -88,7 +88,7 @@ class ConnectedCatalogHistoryBridge {
     return hash.toRadixString(16);
   }
 
-  /// iOS only; returns immediately on Home. No account = no upload.
+  /// Windows and iOS only. No authorized account = no upload.
   /// Successful Trakt batches are checkpointed to prevent repeat history writes.
   static Future<void> sync() async {
     if (!(Platform.isIOS || Platform.isWindows) || _busy) return;
@@ -99,6 +99,15 @@ class ConnectedCatalogHistoryBridge {
     try {
       final trakt = TraktService.instance;
       if (!await trakt.isAuthenticated()) return;
+      // Refresh private cloud history before calculating completed events. The
+      // asynchronous startup merge can otherwise finish after Home's first
+      // bridge attempt and leave eligible events unseeded until next launch.
+      try {
+        await WatchedHistoryService.syncGitHubHistory();
+      } catch (error) {
+        debugPrint('[CatalogBridge] Cloud refresh unavailable ('
+            '${error.runtimeType}); using local history');
+      }
       final token = await StorageService.getTraktAccessToken();
       if (token == null || token.isEmpty) return;
       final username = await StorageService.getTraktUsername();

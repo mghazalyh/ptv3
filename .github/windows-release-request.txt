@@ -1,11 +1,17 @@
-PLAYTORRIO WINDOWS-ONLY RELEASE REQUEST — HOME SECTION REORDERING
-OWNER AUTHORIZATION: User explicitly said "trigger build now and leave" after implementing Home row reordering.
-SOURCE COMMIT: 0f4bed4b082e3a74453e9729e97424fe196865f2
+PLAYTORRIO — OWNER-AUTHORIZED WINDOWS-ONLY REPLACEMENT BUILD AFTER FAILED #186
+OWNER AUTHORIZATION: "ok fix the build" on 2026-11-09 SGT, following the explicit explanation that the repaired source needed a new native Windows build.
 REPOSITORY: mghazalyh/ptv3
 BRANCH: parity-floating-player-both
-SCOPE: WINDOWS ONLY, one Windows x64 native release build.
-FEATURES: Drag-reorder individual Home sections including Xperience, TorBox Torrents, Trakt Recommended for You, BingeCat and Continue Watching. Persist order locally and in private TorriODB settings. Preserve previous provider, player, subtitle and history behavior.
-TESTS: Include test/home_section_order_test.dart and test/torriodb_portable_sync_test.dart; existing analyzer and packaging gates remain active.
-PACKAGE: Windows x64 Setup EXE, portable ZIP, checksums and publication if workflow succeeds.
-DO NOT BUILD: iOS, PS4, macOS, Android. The release commit MUST contain the literal [windows-only] marker to skip iOS native packaging.
-STOP: Exactly ONE trigger. Do not check or poll workflows, statuses, artifacts, releases, Telegram or telemetry; do not retry or trigger another build. Owner handles outcome.
+REPAIRED SOURCE COMMIT: 8880225dfdc5f97ce1aac46ff273ac766b801f4c
+LATEST VERIFIED PRE-REQUEST HEAD: 41c7fca5ea30f93744be3339217d90238d62bfb7
+PREVIOUS FAILED RELEASE REQUEST: 2b5121c6edc64cfad819ff4b1776339d30a9919d
+FAILED WINDOWS RUN: 42511633419 (Build #186)
+ROOT CAUSE: Nullable AddonCatalog.name dereference in HomeSectionOrderService at line 171, causing Dart compilation to fail before native packaging.
+SOURCE FIX: Null-safe catalog names (fallback to catalog.id); prevent addon catalog IDs from colliding with synthetic Trakt recommendation IDs; add regression tests.
+PASSING CHEAP SOURCE VALIDATION: 42513033765; Linux Flutter analysis/tests and Windows shared-player compatibility checks BOTH successful on commit 8880225dfdc5f97ce1aac46ff273ac766b801f4c.
+REQUEST: Exactly ONE fresh Windows x64 native build from the current branch, including the above repaired source.
+FEATURES: Reorder Xperience and BingeCat catalog sections, TorBox Torrents, Trakt/Simkl recommendations, My List and Continue Watching. Persist via local prefs and private TorriODB settings.
+OUTPUTS IF SUCCESSFUL: Windows Setup EXE, Windows x64 portable ZIP, SHA256 checksums, GitHub Release assets and Telegram links per existing delivery workflow.
+SCOPE: Windows ONLY. Release commit message MUST include [windows-only]; explicitly skip iOS signing and packaging.
+EXCLUSIONS: Do NOT request iOS, PS4, Android or macOS builds. Do not alter release workflow internals or player subsystems.
+STOP RULE: One native trigger only. After request commit returns, do not check/poll workflow runs, jobs, artifacts, releases, Telegram, device telemetry or perform retries; owner manages delivery outcome.

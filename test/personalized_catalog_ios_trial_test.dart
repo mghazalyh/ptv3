@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -9,6 +10,19 @@ import 'package:playtorrio/services/metadata/metadata_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('personalized catalog refresh is visible on Windows and iPad', () {
+    final settingsSource =
+        File('lib/pages/settings/addons_settings_page.dart').readAsStringSync();
+    expect(settingsSource,
+        contains('if (Platform.isIOS || Platform.isWindows) ...['));
+    expect(
+        RegExp(
+          r'canRefresh:\s*\(Platform\.isIOS\s*\|\|\s*Platform\.isWindows\)\s*&&\s*addon\.personalizedCatalogTrial',
+        ).hasMatch(settingsSource),
+        isTrue,
+        reason: 'Windows users must be able to reload provider catalog definitions.');
+  });
 
   test('Xperience and BingeCat setup URLs are public, not private manifest URLs', () {
     expect(PersonalizedCatalogProvider.xperience.setupUrl,

@@ -159,6 +159,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/github_sync_gate_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/personalized_catalog_ios_trial_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/torriodb_portable_sync_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/github_watched_history_merge_test.dart
@@ -298,8 +300,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-25-13-00/ffmpeg-n9.0.2-36-g6882969ce9-win64-lgpl-9.0.zip"
-          $expected = "47526345cc4800f4163337d5db8048a2d06c78a53bb234532f55a30dbfb49868"
+          $url = "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-9.0.zip"
+          $expected = "9d37c564e0d01c18cde184a079fa6ef04d7d2783ada41da81d04165cc8f1a650"
           $archive = Join-Path $env:RUNNER_TEMP "playtorrio-ffmpeg-lgpl.zip"
           $expanded = Join-Path $env:RUNNER_TEMP "playtorrio-ffmpeg-lgpl-expanded"
           Invoke-WebRequest -Uri $url -OutFile $archive -MaximumRedirection 8
@@ -319,10 +321,10 @@ jobs:
           @'
           FFmpeg LGPL unmodified Windows command-line executable
           Project: https://ffmpeg.org/
-          Upstream build: https://github.com/BtbN/FFmpeg-Builds
-          Pinned release: autobuild-2026-10-25-13-00
-          Pinned artifact: ffmpeg-n9.0.2-36-g6882969ce9-win64-lgpl-9.0.zip
-          SHA-256 of original ZIP: 47526345cc4800f4163337d5db8048a2d06c78a53bb234532f55a30dbfb49868
+          Upstream build: https://github.com/FFmpeg-Builds/FFmpeg-Builds
+          Pinned release: autobuild-2026-10-31-12-59
+          Pinned artifact: ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-9.0.zip
+          SHA-256 of original ZIP: 9d37c564e0d01c18cde184a079fa6ef04d7d2783ada41da81d04165cc8f1a650
           Licencing: LGPL variant; see FFmpeg legal notices and source at https://ffmpeg.org/legal.html
           '@ | Set-Content -LiteralPath "$dest/FFMPEG-PROVENANCE.txt" -Encoding utf8
           & "$dest/ffmpeg.exe" -version

@@ -414,7 +414,8 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
                         setState(() {});
                       },
                       onRemove: () => _confirmRemove(addon),
-                      canRefresh: Platform.isIOS && addon.personalizedCatalogTrial,
+                      canRefresh: (Platform.isIOS || Platform.isWindows) &&
+                          addon.personalizedCatalogTrial,
                       onRefresh: _refreshing.contains(addon.manifest.id)
                           ? null : () => _refreshPersonalized(addon),
                     ),

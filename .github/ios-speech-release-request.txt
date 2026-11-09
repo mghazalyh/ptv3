@@ -1,12 +1,24 @@
-PERSONALIZED_CATALOG_TRIAL — OWNER-AUTHORIZED SINGLE iOS 15 / iPadOS TROLLSTORE BUILD — 2026-11-09 SGT
-OWNER REQUEST: "trigger ios build as well", following a separate Windows-only build request. Exactly ONE iOS-only signed native build is authorized from the current shared feature source.
-REPOSITORY: mghazalyh/ptv3
+PERSONALIZED_CATALOG_TRIAL — OWNER-AUTHORIZED ONE iOS 15 TROLLSTORE BUILD — 2026-11-10 SGT
+OWNER INSTRUCTION: "tmdb has already been included day one check telemetry and torriodb it's all there. make changes to fix it and then trigger a build ios . and leave"
+EXACT REPAIRED SOURCE COMMIT: 92aae058b856a830e11ccc3b52f0a3220c0f71c7
+SOURCE REPOSITORY: mghazalyh/ptv3
 BRANCH: parity-floating-player-both
-SOURCE: 62b87ab4cf665c1752ccb87ce7629473ccb6fede
-LATEST FIXED APPLICATION CODE: 8880225dfdc5f97ce1aac46ff273ac766b801f4c
-SUCCESSFUL SHARED SOURCE CHECKS: GitHub Actions run 42513033765 (Flutter analyzer/tests and Windows compatibility, all passed).
-ISSUE RESOLVED: Failed Windows Build #186 had nullable AddonCatalog.name compile errors; repaired source uses null-safe catalog name fallback and fixes provider/recommendation ID collisions. Both issues have regression tests.
-FEATURES: Home drag-reorder individual Xperience, BingeCat, TorBox Torrents, Trakt Recommended for You, Simkl, My List, watched recommendations and Continue Watching. Preserve private TorriODB settings sync, Trakt history bridge, native MPV, iOS Night Mode, FFmpeg, TorBox, subtitles, speech sync and existing playback behavior.
-SCOPE: iOS 15 and compatible iPadOS signed TrollStore IPA ONLY. Build using the existing .github/workflows/ios-speech-release.yml and its regular test, device-arm64 packaging/signature, SHA256, permanent GitHub Release publication and Telegram link delivery. Keep the existing iOS personalized-catalog trial PRERELEASE visibility.
-NOT AUTHORIZED: Any new Windows, PS4, Android, macOS or other native package. Do NOT modify .github/windows-release-request.txt. The separately requested Windows corrective build, commit 62b87ab4cf665c1752ccb87ce7629473ccb6fede, is independent and its status is unverified.
-STOP: ONE iOS native release-request trigger only. Once this commit is submitted, do not inspect, poll or monitor native workflow runs/jobs, artifacts, Releases, Telegram or device telemetry; do not re-trigger, retry or duplicate the build without an additional express owner authorization. Do not claim IPA success or invent hashes or release links.
+SCOPE: ONE iOS 15 / iPadOS signed TrollStore native build only, using .github/workflows/ios-speech-release.yml. Keep personalized-catalog trial PRERELEASE visibility.
+
+PRIVATE EVIDENCE INSPECTED READ-ONLY:
+mghazalyh/torriodb main is private. Initialized provider settings contain a populated TMDB key. No credential was invented, printed or modified. Existing Xperience settings remain configured. iOS Build #219 fixed-code diagnostic report at November 10, 2026 04:25:09 SGT confirmed similar_series_loaded and similar_load_more_succeeded, which do not prove card navigation.
+
+FIX:
+Similar Content now resolves tapped cards with TMDB IMDb external_ids first, then Cinemeta title search and original addon search when needed. The missing-local-key fast-return no longer blocks metadata fallbacks. Unexpected errors and unresolved items show a user-facing failure rather than silently doing nothing. Privacy-safe opt-in fixed outcome codes distinguish card tap, primary/fallback resolution, failed resolution and navigation opening. No titles, identifiers, private URLs, credentials, watched history or raw exceptions are uploaded.
+
+TEST GATES:
+Five deterministic tests in test/similar_navigation_resolution_test.dart check direct IMDb resolution, missing IMDb fallback, temporarily absent TMDB key, original addon fallback and unresolvable-card behavior. Test added to lightweight CI and to iOS-only release preflight. Previous compiler fix 8880225dfdc5f97ce1aac46ff273ac766b801f4c passed lightweight CI run 42513033765; this new repair is NOT yet independently compiled or device verified.
+
+PROTECTED:
+Windows and iOS MPV, FFmpeg, VideoToolbox, TorBox, Torrentio, subtitles, Auto Sync, iOS Night Mode, Trakt, Simkl, watched history, My List, Continue Watching, Home reordering, Xperience and private TorriODB. PS4 stays untouched.
+
+NOT AUTHORIZED:
+No Windows, PS4, Android, macOS or paired native release. Do not update .github/release-request.txt or .github/windows-release-request.txt. Prior Windows request 62b87ab4cf665c1752ccb87ce7629473ccb6fede and previous iOS request 10c9f1a6dc3571ca694b84d5de852cbb360daebe remain separate and unverified. No workflow_dispatch.
+
+STOP IMMEDIATELY AFTER THIS SINGLE TRIGGER:
+Do not inspect/poll GitHub Actions or jobs, native packaging, Releases, signed IPA, artifacts, checksums, Telegram or device telemetry. Do not retry or duplicate builds. User owns delivery verification. New signed IPA and runtime navigation success remain unverified.

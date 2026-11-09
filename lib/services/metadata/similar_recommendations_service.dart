@@ -131,7 +131,6 @@ abstract final class SimilarRecommendationsService {
 
   /// Resolve only the tapped card. Preserve TMDB lookup priority, but
   /// recover through Cinemeta and the original addon when needed.
-  @visibleForTesting
   static Future<Movie?> resolveForNavigation(BSItem item,
       {String? preferredBaseUrl}) async {
     const cinemeta = 'https://v3-cinemeta.strem.io';

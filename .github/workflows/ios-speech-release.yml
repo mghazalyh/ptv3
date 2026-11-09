@@ -202,6 +202,7 @@ jobs:
         run: |
           flutter test test/person_filmography_test.dart
           flutter test test/similar_card_metadata_test.dart
+          flutter test test/similar_navigation_resolution_test.dart
           flutter test test/cast_similar_navigation_ui_test.dart
 
       - name: Test streaming service and TV networks browsing

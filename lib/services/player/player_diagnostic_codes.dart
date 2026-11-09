@@ -15,6 +15,12 @@ abstract final class PlayerDiagnosticCodes {
     'similar_load_more_succeeded',
     'similar_load_more_empty',
     'similar_load_more_failed',
+    'similar_card_tapped',
+    'similar_card_primary_resolved',
+    'similar_card_fallback_resolved',
+    'similar_card_resolution_failed',
+    'similar_card_opened',
+    'similar_card_navigation_error',
     // Opt-in, fixed-value external subtitle loading checkpoints. No content,
     // filenames, media URLs, provider metadata, or raw exception strings.
     'subtitle_download_started',

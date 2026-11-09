@@ -84,6 +84,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
 
   // Similar content from BestSimilar
   List<BSItem> _similarItems = [];
+  bool _openingSimilarItem = false;
   bool _isFetchingSimilar = false;
   bool _similarFromTmdb = false;
   int? _similarTvdbId;
@@ -517,32 +518,41 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   }
 
   Future<void> _openSimilarItem(BSItem item) async {
-    Movie? resolved;
-    if (item.tmdbId != null && item.tmdbId! > 0) {
-      // TVDB/TMDB fallback cards already know their verified TV type. Resolve
-      // IMDb through TMDB for regular Stremio addon playback.
-      resolved = await TmdbDiscoverService.instance.resolveMovie(
-        DiscoverTitle(
-          tmdbId: item.tmdbId!,
-          title: item.title,
-          type: item.mediaType == 'movie'
-              ? DiscoverType.movie : DiscoverType.series,
-          poster: item.thumbUrl,
-          premiereYear: item.year,
-          rating: item.rating ?? 0,
-        ),
-      );
-    } else {
-      resolved = await MetadataService.findMovieByTitle(
-        title: item.title,
-        type: item.mediaType == 'unknown' ? null : item.mediaType,
-        year: item.year,
+    if (!mounted || _openingSimilarItem) return;
+    _openingSimilarItem = true;
+    SimilarRecommendationsService.recordNavigationEvent('similar_card_tapped');
+    try {
+      final resolved = await SimilarRecommendationsService.resolveForNavigation(
+        item,
         preferredBaseUrl: _resolvedBaseUrl ?? widget.movie.addonBaseUrl,
       );
-    }
-    if (resolved != null && mounted) {
-      Navigator.push(context,
-        MaterialPageRoute(builder: (_) => DetailsPage(movie: resolved!)));
+      if (!mounted) return;
+      if (resolved == null) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text(
+            'Details unavailable for this recommendation. Please try again.',
+          )),
+        );
+        return;
+      }
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => DetailsPage(movie: resolved)),
+      );
+      SimilarRecommendationsService.recordNavigationEvent('similar_card_opened');
+    } catch (error) {
+      debugPrint('[Similar] Navigation failed: ${error.runtimeType}');
+      SimilarRecommendationsService.recordNavigationEvent(
+        'similar_card_navigation_error',
+      );
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text(
+            'Unable to open this recommendation. Please try again.',
+          )),
+        );
+      }
+    } finally {
+      _openingSimilarItem = false;
     }
   }
 

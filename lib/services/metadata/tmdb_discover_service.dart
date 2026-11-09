@@ -1039,29 +1039,32 @@ class TmdbDiscoverService {
     return (items: items, hasMore: hasMore && page < 500);
   }
 
-  /// Convert a TMDB result to IMDb/Cinemeta for existing Torrentio playback.
+  /// Resolve to an IMDb-compatible Movie for existing playback. Even when
+  /// the local TMDB key is absent, do not bypass the Cinemeta title fallback.
   Future<Movie?> resolveMovie(DiscoverTitle title) async {
-    final key = await readKey();
-    if (key.isEmpty) return null;
-    try {
-      final type = title.type == DiscoverType.movie ? 'movie' : 'tv';
-      final response = await _request(
-        '$type/${title.tmdbId}/external_ids', const {}, key);
-      final imdbId = response['imdb_id']?.toString() ?? '';
-      if (RegExp(r'^tt\d+$').hasMatch(imdbId)) {
-        return Movie(
-          id: imdbId,
-          name: title.title,
-          poster: title.poster,
-          year: title.premiereYear?.toString(),
-          type: title.type == DiscoverType.movie ? 'movie' : 'series',
-          addonBaseUrl: 'https://v3-cinemeta.strem.io',
-          imdbRating: title.rating == 0 ? null :
-              title.rating.toStringAsFixed(1),
-        );
+    final key = (await readKey()).trim();
+    if (key.isNotEmpty && title.tmdbId > 0) {
+      try {
+        final type = title.type == DiscoverType.movie ? 'movie' : 'tv';
+        final response = await _request(
+          '$type/${title.tmdbId}/external_ids', const {}, key);
+        final imdbId = response['imdb_id']?.toString() ?? '';
+        if (RegExp(r'^tt\d+$').hasMatch(imdbId)) {
+          return Movie(
+            id: imdbId,
+            name: title.title,
+            poster: title.poster,
+            year: title.premiereYear?.toString(),
+            type: title.type == DiscoverType.movie ? 'movie' : 'series',
+            addonBaseUrl: 'https://v3-cinemeta.strem.io',
+            imdbRating: title.rating == 0 ? null :
+                title.rating.toStringAsFixed(1),
+          );
+        }
+      } catch (error) {
+        // Never log keys, media identifiers, provider URLs or raw errors.
+        debugPrint('[Similar] TMDB ID resolution failed: ${error.runtimeType}');
       }
-    } catch (_) {
-      // Search by title when TMDB has no IMDb ID; do not expose API URLs.
     }
     return MetadataService.findMovieByTitle(
       title: title.title,
@@ -1069,6 +1072,7 @@ class TmdbDiscoverService {
       year: title.premiereYear,
     );
   }
+
 }
 
 class _DiscoverCacheEntry {

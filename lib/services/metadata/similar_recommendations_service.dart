@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 
 import '../../models/movie/movie_detail.dart';
+import '../../models/movie/movie.dart';
+import 'metadata_service.dart';
 import 'bestsimilar_scraper.dart';
 import 'tmdb_discover_service.dart';
 import 'tvdb_series_service.dart';
@@ -124,6 +126,75 @@ abstract final class SimilarRecommendationsService {
         // remaining lookups once a provider request failed.
         break;
       }
+    }
+  }
+
+  /// Resolve only the tapped card. Preserve TMDB lookup priority, but
+  /// recover through Cinemeta and the original addon when needed.
+  @visibleForTesting
+  static Future<Movie?> resolveForNavigation(BSItem item,
+      {String? preferredBaseUrl}) async {
+    const cinemeta = 'https://v3-cinemeta.strem.io';
+    final mediaType = item.mediaType == 'unknown' ? null : item.mediaType;
+    if (item.tmdbId != null && item.tmdbId! > 0) {
+      try {
+        final movie = await TmdbDiscoverService.instance.resolveMovie(
+          DiscoverTitle(
+            tmdbId: item.tmdbId!,
+            title: item.title,
+            type: item.mediaType == 'movie'
+                ? DiscoverType.movie : DiscoverType.series,
+            poster: item.thumbUrl,
+            premiereYear: item.year,
+            rating: item.rating ?? 0,
+          ),
+        );
+        if (movie != null) {
+          _record('similar_card_primary_resolved');
+          return movie;
+        }
+      } catch (error) {
+        debugPrint('[Similar] Primary resolution failed: ${error.runtimeType}');
+      }
+    }
+
+    final preferred = preferredBaseUrl?.trim();
+    final bases = <String>[
+      cinemeta,
+      if (preferred != null &&
+          preferred.startsWith('http') &&
+          preferred != cinemeta &&
+          !preferred.toLowerCase().contains('bestsimilar'))
+        preferred,
+    ];
+    for (final base in bases) {
+      try {
+        final movie = await MetadataService.findMovieByTitle(
+          title: item.title,
+          type: mediaType,
+          year: item.year,
+          preferredBaseUrl: base,
+        );
+        if (movie != null) {
+          _record('similar_card_fallback_resolved');
+          return movie;
+        }
+      } catch (error) {
+        debugPrint('[Similar] Catalog resolution failed: ${error.runtimeType}');
+      }
+    }
+    _record('similar_card_resolution_failed');
+    return null;
+  }
+
+  /// Only predefined privacy-safe events reach existing opt-in telemetry.
+  static void recordNavigationEvent(String code) {
+    if (const <String>{
+      'similar_card_tapped',
+      'similar_card_opened',
+      'similar_card_navigation_error',
+    }.contains(code)) {
+      _record(code);
     }
   }
 

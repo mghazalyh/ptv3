@@ -1,3 +1,17 @@
+## 2026-11-10 SGT — Similar Content navigation repair / single iOS build authorization
+
+Owner explicitly authorized one iOS 15 TrollStore build ONLY after a Similar Content navigation source fix; no Windows/PS4 build and STOP after triggering. Source branch: `mghazalyh/ptv3`, `parity-floating-player-both`. Source baseline HEAD before this fix: `10c9f1a6dc3571ca694b84d5de852cbb360daebe`. Verify current HEAD on every new session.
+
+Private TorriODB `mghazalyh/torriodb` `main` was READ ONLY: initialized provider configuration contains a populated TMDB key, initialized settings contain Xperience catalogs. No key, private addon URL, history, settings, or raw report was changed or revealed. Inspected iOS Build #219 telemetry at 2026-11-10 04:25:09 SGT: `similar_series_loaded` and `similar_load_more_succeeded`, but neither proves card opening; failed tap remains unidentified.
+
+Source fix: Similar Content card opens now call `SimilarRecommendationsService.resolveForNavigation`, which tries TMDB external IMDb ID, Cinemeta title lookup, and original addon search; missing local TMDB key and provider failures cannot prevent fallbacks. UI shows a generic error rather than silently doing nothing. Single in-flight tap, whitelisted opt-in navigation outcome diagnostics, no identifying payloads. New `test/similar_navigation_resolution_test.dart` and updated iOS-only and lightweight CI gates. Regression/device outcome unverified until actual build and test evidence.
+
+Validation boundary: compiler repair `8880225dfdc5f97ce1aac46ff273ac766b801f4c`, lightweight CI `42513033765` SUCCESS; prior Windows request `62b87ab4cf665c1752ccb87ce7629473ccb6fede`, iOS request `10c9f1a6dc3571ca694b84d5de852cbb360daebe`; native outcomes not independently verified. Submit exactly ONE final edit to `.github/ios-speech-release-request.txt` to trigger `.github/workflows/ios-speech-release.yml`, preserving personalized catalog PRERELEASE. Do not modify paired/Windows release request files. After trigger DO NOT poll native Actions, artifacts, releases, Telegram or telemetry, do not retry/duplicate. Preserve MPV, FFmpeg, VideoToolbox, TorBox, Torrentio, subtitles, Auto Sync, iOS Night Mode, Trakt, Simkl, watched history, My List, Continue Watching, Home ordering, Xperience and private TorriODB. PS4 `mghazalyh/playtorrio-ps4` branch `ps4-fullhd-debrid-quality` known `d8963d7ff819a0dbdc91cb771b90b35a11c924f4` untouched.
+
+Mandatory recovery files: `SESSION_RECOVERY_PROMPT.md`, `AGENTS.md`, `handover.md`, `CURRENT_SESSION_HANDOVER.md`, `NEXT_SESSION.md`, `docs/torriodb_key_vault_plan.md`, `docs/ios-personalized-catalog-trial.md`, `.github/RELEASE_DELIVERY_POLICY.md`, `.github/SESSION_HANDOVER_DIAGNOSTICS.md`. Every PlayTorrio reply ends with full copyable handover and runtime-sampled SGT timestamp.
+
+---
+
 ## VERIFIED REPAIR SOURCE CHECKS — 2026-11-09 SGT, NO NATIVE REBUILD
 
 The following source validation of the Build #186 fix is now VERIFIED successful: lightweight CI [run 42513033765](https://github.com/mghazalyh/ptv3/actions/runs/42513033765), exact tested source commit `8880225dfdc5f97ce1aac46ff273ac766b801f4c`, completed **SUCCESS** in BOTH jobs: `Flutter analyzer + critical regression tests (Linux)` and `Windows shared-player Auto Sync compatibility (no native package build)`. Both analyzer steps passed, the Linux regression suite including `test/home_section_order_test.dart` passed, and the Windows compatibility preflight passed.

@@ -127,6 +127,7 @@ jobs:
             test/github_watchlist_v1_regression_test.dart \
             test/tvdb_credentials_validation_test.dart \
             test/tmdb_personalized_fallback_test.dart \
+            test/similar_navigation_resolution_test.dart \
             test/curated_recommendations_see_all_test.dart \
             test/see_all_source_integrity_test.dart \
             test/audio_language_priority_test.dart \

@@ -124,7 +124,9 @@ class MetadataService {
       return List.from(_catalogCache[url]!);
     }
 
-    final response = await http.get(Uri.parse(url));
+    final uri = Uri.parse(url);
+    final response = await (catalogGetOverride == null
+        ? http.get(uri) : catalogGetOverride!(uri));
     if (response.statusCode != 200) return [];
     
     final bodyStr = response.body.trim();

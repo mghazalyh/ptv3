@@ -66,6 +66,7 @@ class _HomePageState extends State<HomePage> {
 
     HomePageSettings.changeNotifier.addListener(_onSettingsChanged);
     HomeSectionOrderService.orderedKeys.addListener(_onOrderChanged);
+    HomeSectionOrderService.hiddenKeys.addListener(_onOrderChanged);
     AppThemeService.currentPalette.addListener(_onSettingsChanged);
     MyListService.items.addListener(_onSettingsChanged);
     ContinueWatchingService.activeItems.addListener(_onSettingsChanged);
@@ -135,6 +136,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     HomePageSettings.changeNotifier.removeListener(_onSettingsChanged);
     HomeSectionOrderService.orderedKeys.removeListener(_onOrderChanged);
+    HomeSectionOrderService.hiddenKeys.removeListener(_onOrderChanged);
     AppThemeService.currentPalette.removeListener(_onSettingsChanged);
     MyListService.items.removeListener(_onSettingsChanged);
     ContinueWatchingService.activeItems.removeListener(_onSettingsChanged);
@@ -389,7 +391,8 @@ class _HomePageState extends State<HomePage> {
       for (final section in _sections)
         (id: HomeSectionOrderService.idForSection(section), section: section),
     ];
-    final visibleRows = HomeSectionOrderService.apply(rows, (row) => row.id);
+    final visibleRows = HomeSectionOrderService.applyVisible(
+        rows, (row) => row.id);
 
     final backgroundContent = AnimatedAmbientBackground(
       child: Stack(

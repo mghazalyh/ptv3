@@ -22,9 +22,11 @@ class HomeSectionOrderChoice {
 /// into preference keys. Missing catalogs retain their saved positions.
 abstract final class HomeSectionOrderService {
   static const storageKey = 'home_section_order_v1';
+  static const hiddenStorageKey = 'home_section_hidden_v1';
   static const continueWatchingId = 'fixed:continue_watching';
   static const maxKeys = 250;
   static final orderedKeys = ValueNotifier<List<String>>(const <String>[]);
+  static final hiddenKeys = ValueNotifier<List<String>>(const <String>[]);
   static bool _initialized = false;
 
   static String recommendationId(String id) =>
@@ -76,10 +78,13 @@ abstract final class HomeSectionOrderService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final values = prefs.getStringList(storageKey);
+      final hidden = prefs.getStringList(hiddenStorageKey);
       if (values != null) orderedKeys.value = normalize(values);
+      if (hidden != null) hiddenKeys.value = normalize(hidden);
     } catch (error) {
       debugPrint('[HomeOrder] Invalid saved preference (${error.runtimeType})');
       orderedKeys.value = const <String>[];
+      hiddenKeys.value = const <String>[];
     }
     _initialized = true;
   }
@@ -102,27 +107,83 @@ abstract final class HomeSectionOrderService {
     return [for (final entry in indexed) entry.value];
   }
 
+  /// Filter hidden sections only at render time. They remain in the editor.
+  static List<T> applyVisible<T>(List<T> source, String Function(T) idOf) {
+    final hidden = hiddenKeys.value.toSet();
+    return apply(source.where((item) => !hidden.contains(idOf(item))).toList(), idOf);
+  }
+
+  static bool isHidden(String id) => hiddenKeys.value.contains(id);
+
   static Future<void> saveVisibleOrder(List<String> visible) async {
     final selected = normalize(visible);
     final displayed = selected.toSet();
-    await _save(normalize([
-      ...selected,
-      for (final existing in orderedKeys.value)
-        if (!displayed.contains(existing)) existing,
-    ]), fromCloud: false);
+    await _saveLayout(
+      order: normalize([
+        ...selected,
+        for (final existing in orderedKeys.value)
+          if (!displayed.contains(existing)) existing,
+      ]),
+      hidden: hiddenKeys.value,
+      fromCloud: false,
+    );
   }
 
-  static Future<void> reset() =>
-      _save(const <String>[], fromCloud: false);
+  static Future<void> setHidden(String id, {required bool hidden}) async {
+    final validated = normalize([id]).single;
+    final updated = List<String>.of(hiddenKeys.value);
+    if (hidden) {
+      if (!updated.contains(validated)) updated.add(validated);
+    } else {
+      updated.remove(validated);
+    }
+    if (listEquals(updated, hiddenKeys.value)) return;
+    await _saveLayout(
+      order: orderedKeys.value,
+      hidden: normalize(updated),
+      fromCloud: false,
+    );
+  }
 
-  static Future<void> restoreFromCloud(List<String> order) =>
-      _save(normalize(order), fromCloud: true);
+  /// Restore both ordering and visibility to the original defaults.
+  static Future<void> reset() => _saveLayout(
+        order: const <String>[],
+        hidden: const <String>[],
+        fromCloud: false,
+      );
 
-  static Future<void> _save(List<String> order,
-      {required bool fromCloud}) async {
+  static Future<void> restoreFromCloud(List<String> order,
+          {List<String>? hidden}) =>
+      restoreLayoutFromCloud(order: order, hidden: hidden);
+
+  /// Older TorriODB settings may have only ordering; no hidden list means
+  /// everything is visible, while no order field retains the local ranking.
+  static Future<void> restoreLayoutFromCloud({
+    List<String>? order,
+    List<String>? hidden,
+  }) =>
+      _saveLayout(
+        order: normalize(order ?? orderedKeys.value),
+        hidden: normalize(hidden ?? const <String>[]),
+        fromCloud: true,
+      );
+
+  static Future<void> _saveLayout({
+    required List<String> order,
+    required List<String> hidden,
+    required bool fromCloud,
+  }) async {
+    final normalizedOrder = normalize(order);
+    final normalizedHidden = normalize(hidden);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(storageKey, order);
-    orderedKeys.value = List<String>.unmodifiable(order);
+    await prefs.setStringList(storageKey, normalizedOrder);
+    await prefs.setStringList(hiddenStorageKey, normalizedHidden);
+    if (!listEquals(orderedKeys.value, normalizedOrder)) {
+      orderedKeys.value = List<String>.unmodifiable(normalizedOrder);
+    }
+    if (!listEquals(hiddenKeys.value, normalizedHidden)) {
+      hiddenKeys.value = List<String>.unmodifiable(normalizedHidden);
+    }
     _initialized = true;
     if (!fromCloud) {
       try {

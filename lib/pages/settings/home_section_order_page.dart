@@ -28,6 +28,21 @@ class _HomeSectionOrderPageState extends State<HomeSectionOrderPage> {
   void initState() {
     super.initState();
     _items = _choices();
+    HomeSectionOrderService.orderedKeys.addListener(_onLayoutChanged);
+    HomeSectionOrderService.hiddenKeys.addListener(_onLayoutChanged);
+  }
+
+  @override
+  void dispose() {
+    HomeSectionOrderService.orderedKeys.removeListener(_onLayoutChanged);
+    HomeSectionOrderService.hiddenKeys.removeListener(_onLayoutChanged);
+    super.dispose();
+  }
+
+  void _onLayoutChanged() {
+    if (mounted && !_resetting) {
+      setState(() => _items = _choices());
+    }
   }
 
   List<HomeSectionOrderChoice> _choices() =>
@@ -58,6 +73,25 @@ class _HomeSectionOrderPageState extends State<HomeSectionOrderPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Could not save the new section order.'),
+      ));
+    }
+  }
+
+  void _toggleVisibility(String id) {
+    if (_resetting) return;
+    final hide = !HomeSectionOrderService.isHidden(id);
+    _pendingSave = _pendingSave.then((_) => _saveVisibility(id, hide));
+    unawaited(_pendingSave);
+  }
+
+  Future<void> _saveVisibility(String id, bool hidden) async {
+    try {
+      await HomeSectionOrderService.setHidden(id, hidden: hidden);
+    } catch (error) {
+      debugPrint('[HomeOrder] Visibility save failed (${error.runtimeType})');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not save the Home section visibility.'),
       ));
     }
   }
@@ -106,7 +140,9 @@ class _HomeSectionOrderPageState extends State<HomeSectionOrderPage> {
                 child: Text(
                   'Drag the handles to arrange Xperience, TorBox Torrents, '
                   'Trakt recommendations and the other Home rows. '
-                  'Changes are saved automatically. '
+                  'Tap an eye icon to hide or restore a Home row. '
+                  'Drag the handles to arrange all rows, including hidden ones. '
+                  'Changes sync through your private TorriODB on Windows and iPad. '
                   'Unavailable catalogs keep their place until they load.',
                   style: TextStyle(color: Colors.white70, height: 1.5),
                 ),
@@ -126,6 +162,7 @@ class _HomeSectionOrderPageState extends State<HomeSectionOrderPage> {
                   ),
                   itemBuilder: (context, index) {
                     final choice = _items[index];
+                    final hidden = HomeSectionOrderService.isHidden(choice.id);
                     return Card(
                       key: ValueKey(choice.id),
                       margin: const EdgeInsets.symmetric(vertical: 4),
@@ -145,18 +182,40 @@ class _HomeSectionOrderPageState extends State<HomeSectionOrderPage> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.w700)),
-                        subtitle: choice.subtitle.isEmpty
-                          ? null
-                          : Text(choice.subtitle, maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: Colors.white60)),
-                        trailing: ReorderableDragStartListener(
-                          index: index,
-                          child: const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: Icon(Icons.drag_handle_rounded,
-                                color: Colors.white70),
-                          ),
+                        subtitle: Text(
+                          choice.subtitle.isEmpty
+                              ? (hidden ? 'Hidden on Home' : 'Visible on Home')
+                              : '${choice.subtitle} · ${hidden ? 'Hidden' : 'Visible'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white60),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: hidden
+                                  ? 'Show ${choice.title} on Home'
+                                  : 'Hide ${choice.title} from Home',
+                              onPressed: _resetting
+                                  ? null
+                                  : () => _toggleVisibility(choice.id),
+                              icon: Icon(
+                                hidden
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                color: hidden ? Colors.white38 : Colors.white70,
+                              ),
+                            ),
+                            ReorderableDragStartListener(
+                              index: index,
+                              child: const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: Icon(Icons.drag_handle_rounded,
+                                    color: Colors.white70),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );

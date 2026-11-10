@@ -108,11 +108,19 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     with WidgetsBindingObserver {
   static bool _hasCheckedInitialUpdate = false;
   static bool _isShowingUpdateDialog = false;
+  Timer? _homeSyncTimer;
+  AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Pick up changes made on another device without reloading the Home page.
+    _homeSyncTimer = Timer.periodic(const Duration(minutes: 3), (_) {
+      if (mounted && _lifecycleState == AppLifecycleState.resumed) {
+        unawaited(TorriodbPortableSync.instance.refresh(force: true));
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_hasCheckedInitialUpdate) {
         _hasCheckedInitialUpdate = true;
@@ -125,13 +133,16 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycleState = state;
     if (state == AppLifecycleState.resumed) {
-      unawaited(TorriodbPortableSync.instance.refresh());
+      // The old ten-minute throttle delayed cross-device updates on resume.
+      unawaited(TorriodbPortableSync.instance.refresh(force: true));
     }
   }
 
   @override
   void dispose() {
+    _homeSyncTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

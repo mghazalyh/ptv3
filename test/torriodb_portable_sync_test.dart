@@ -13,17 +13,31 @@ void main() {
         'catalog:xperience:movie:movies',
         'recommendation:trakt_recommendations',
       ],
+      'homeHiddenSections': ['catalog:xperience:movie:movies'],
     }));
     expect(doc['homeSectionOrder'], [
       'catalog:xperience:movie:movies',
       'recommendation:trakt_recommendations',
     ]);
+    expect(doc['homeHiddenSections'],
+      ['catalog:xperience:movie:movies']);
     expect(() => TorriodbPortableSync.parseSettings(jsonEncode({
       'schemaVersion': 1,
       'initialized': true,
       'addons': <Object>[],
       'homeSectionOrder': [null],
     })), throwsFormatException);
+    expect(() => TorriodbPortableSync.parseSettings(jsonEncode({
+      'schemaVersion': 1, 'initialized': true,
+      'addons': <Object>[], 'homeHiddenSections': [null],
+    })), throwsFormatException);
+    expect(() => TorriodbPortableSync.parseSettings(jsonEncode({
+      'schemaVersion': 1, 'initialized': true,
+      'addons': <Object>[], 'homeHiddenSections': 'invalid',
+    })), throwsFormatException);
+    expect(TorriodbPortableSync.parseSettings(jsonEncode({
+      'schemaVersion': 1, 'initialized': true, 'addons': <Object>[],
+    })).containsKey('homeHiddenSections'), isFalse);
   });
 
   test('only exact authenticated private TorriODB may hold keys', () {

@@ -25,6 +25,7 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     HomeSectionOrderService.orderedKeys.value = const <String>[];
+    HomeSectionOrderService.hiddenKeys.value = const <String>[];
   });
 
   test('provider and catalog identifiers are stable, not private URLs', () {
@@ -131,6 +132,48 @@ void main() {
     expect(HomeSectionOrderService.orderedKeys.value.length, 2);
     await HomeSectionOrderService.reset();
     expect(HomeSectionOrderService.orderedKeys.value, isEmpty);
+  });
+
+  test('hidden Home rows retain their order and are restorable', () async {
+    await HomeSectionOrderService.restoreFromCloud(
+      ['catalog:a:movie:first', 'fixed:continue_watching'],
+      hidden: ['catalog:a:movie:first'],
+    );
+    const rows = [
+      'fixed:continue_watching',
+      'catalog:a:movie:first',
+      'catalog:b:movie:second',
+    ];
+    expect(HomeSectionOrderService.applyVisible(rows, (id) => id),
+      ['fixed:continue_watching', 'catalog:b:movie:second']);
+    expect(HomeSectionOrderService.orderedKeys.value.first,
+      'catalog:a:movie:first');
+    expect(HomeSectionOrderService.isHidden('catalog:a:movie:first'), isTrue);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getStringList(HomeSectionOrderService.hiddenStorageKey),
+      ['catalog:a:movie:first']);
+    expect(prefs.getStringList('torriodb_portable_sync_dirty_v1'), isNull);
+
+    await HomeSectionOrderService.setHidden(
+      'catalog:a:movie:first', hidden: false);
+    expect(HomeSectionOrderService.applyVisible(rows, (id) => id),
+      ['catalog:a:movie:first', 'fixed:continue_watching',
+        'catalog:b:movie:second']);
+    expect(prefs.getStringList('torriodb_portable_sync_dirty_v1'),
+      contains('homeOrder'));
+  });
+
+  test('reset restores default order and all hidden sections', () async {
+    await HomeSectionOrderService.restoreFromCloud(
+      ['catalog:x:movie:first'],
+      hidden: ['fixed:continue_watching'],
+    );
+    await HomeSectionOrderService.reset();
+    expect(HomeSectionOrderService.orderedKeys.value, isEmpty);
+    expect(HomeSectionOrderService.hiddenKeys.value, isEmpty);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getStringList(HomeSectionOrderService.hiddenStorageKey),
+      isEmpty);
   });
 
   test('rejects malformed and overlong section order', () {

@@ -1,3 +1,13 @@
+## 2026-11-10 SGT — Windows/iPad Home section ordering and visibility (SOURCE ONLY)
+
+The owner requested that section ordering changed on Windows also appear on iPad and vice versa, and that individual Home rows can be removed from view. The shared Flutter Arrange Home Sections editor now includes eye controls to hide and restore a row while retaining it for future re-enabling. The saved Home list filters hidden entries but leaves the source catalogs, addon configuration, watched progress and previously saved section order intact. Reset restores both default order and full visibility, including Continue Watching.
+
+Existing private TorriODB `playtorrio/settings-v1.json` optionally stores `homeHiddenSections` in addition to `homeSectionOrder`. Both use the existing `homeOrder` local dirty marker and are uploaded together. Layout-only sync preserves remote addon definitions; addon-only uploads retain remote layout fields. Incoming settings update the live Home UI. The app refreshes on resume and every three minutes while foregrounded to pick up layout edits from other devices. Validation and source regression tests cover stable ordering, hide/restore, reset, schema compatibility and malformed hidden lists.
+
+No native build or release request was authorized by these instructions. Private TorriODB content was not manually changed; GitHub PAT, credentials, history, PS4, platform media playback and release marker files remain untouched. Current released apps need a future separately authorized Windows/iOS update for this functionality. Flutter/Dart compilation, source CI and physical-device operation are not yet verified. Recheck HEAD before further source edits and do not monitor/retry/duplicate the consumed Windows release request.
+
+---
+
 ## 2026-11-09 SGT — SOURCE-ONLY HOME SECTION REORDERING, NO NATIVE BUILD AUTHORIZED
 
 **Owner request:** Implement reordering individual Home rows including Xperience personalized catalogs, TorBox Torrents catalogs and Recommended for You (Trakt). This user turn explicitly requested implementation but NO Windows/iOS/PS4 release or native build. DO NOT modify release request files, poll old workflows, inspect Releases or Telegram, retry any build, or infer earlier Windows request success. Source branch HEAD immediately before this documentation commit: `9dd4178effe0d50ecfcc619dc4892429506bedbf`; verify current HEAD on recovery.

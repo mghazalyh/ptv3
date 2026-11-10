@@ -128,14 +128,20 @@ class TorriodbPortableSync {
         throw const FormatException('Unsafe portable addon URL');
       }
     }
-    final order = raw['homeSectionOrder'];
-    if (order != null) HomeSectionOrderService.normalize(order);
+    final hasOrder = raw.containsKey('homeSectionOrder');
+    final hasHidden = raw.containsKey('homeHiddenSections');
+    final order = hasOrder
+        ? HomeSectionOrderService.normalize(raw['homeSectionOrder'])
+        : null;
+    final hidden = hasHidden
+        ? HomeSectionOrderService.normalize(raw['homeHiddenSections'])
+        : null;
     return {
       'schemaVersion': 1,
       'initialized': raw['initialized'],
       'addons': entries,
-      if (raw.containsKey('homeSectionOrder'))
-        'homeSectionOrder': HomeSectionOrderService.normalize(order),
+      if (order != null) 'homeSectionOrder': order,
+      if (hidden != null) 'homeHiddenSections': hidden,
     };
   }
 
@@ -256,36 +262,62 @@ class TorriodbPortableSync {
       final initialAddons = !settingWasInitialized && localAddons.isNotEmpty;
       final localOrder = HomeSectionOrderService.normalize(
         prefs.getStringList(HomeSectionOrderService.storageKey) ?? <String>[]);
-      final initialOrder = !settingWasInitialized && localOrder.isNotEmpty;
-      if (changedAddons || changedOrder || initialAddons || initialOrder) {
-        // Preserve remote manifests when only order changed, and vice versa.
+      final localHidden = HomeSectionOrderService.normalize(
+        prefs.getStringList(HomeSectionOrderService.hiddenStorageKey) ??
+            <String>[]);
+      final initialLayout = !settingWasInitialized &&
+          (localOrder.isNotEmpty || localHidden.isNotEmpty);
+
+      Future<void> applyRemoteLayout() async {
+        if (!settingDoc.containsKey('homeSectionOrder') &&
+            !settingDoc.containsKey('homeHiddenSections')) return;
+        await HomeSectionOrderService.restoreLayoutFromCloud(
+          order: settingDoc['homeSectionOrder'] as List<String>?,
+          hidden: settingDoc['homeHiddenSections'] as List<String>?,
+        );
+      }
+
+      if (changedAddons || changedOrder || initialAddons || initialLayout) {
+        // A layout-only change retains the remote addons and vice versa.
+        // Both layout fields travel as one change to avoid partial updates.
+        final useLocalLayout = changedOrder || initialLayout;
         await _write(client, headers, settingsPath, remoteSettings?.sha, {
           'schemaVersion': 1,
           'initialized': true,
           'addons': changedAddons || initialAddons
               ? localAddons : settingDoc['addons'],
-          if (changedOrder || initialOrder)
-            'homeSectionOrder': localOrder
-          else if (settingDoc.containsKey('homeSectionOrder'))
-            'homeSectionOrder': settingDoc['homeSectionOrder'],
+          if (useLocalLayout) ...{
+            'homeSectionOrder': localOrder,
+            'homeHiddenSections': localHidden,
+          } else ...{
+            if (settingDoc.containsKey('homeSectionOrder'))
+              'homeSectionOrder': settingDoc['homeSectionOrder'],
+            if (settingDoc.containsKey('homeHiddenSections'))
+              'homeHiddenSections': settingDoc['homeHiddenSections'],
+          },
         });
         dirty.remove('settings');
         dirty.remove('homeOrder');
+        if (!useLocalLayout && settingWasInitialized) {
+          _applying = true;
+          try {
+            await applyRemoteLayout();
+          } finally {
+            _applying = false;
+          }
+        }
       } else if (settingWasInitialized) {
         _applying = true;
         try {
           await _restoreAddons(settingDoc['addons'] as List, prefs);
-          if (settingDoc.containsKey('homeSectionOrder')) {
-            await HomeSectionOrderService.restoreFromCloud(
-              List<String>.from(settingDoc['homeSectionOrder'] as List));
-          }
+          await applyRemoteLayout();
         } finally {
           _applying = false;
         }
       }
       await prefs.setStringList(_pendingKey, dirty.toList()..sort());
       lastSuccessfulSync = DateTime.now();
-      status.value = 'Private TorriODB keys and addons synced';
+      status.value = 'Private TorriODB keys, addons and Home layout synced';
     } on GitHubSyncDeferred {
       status.value = 'GitHub rate limited; credentials preserved locally';
     } on FormatException {

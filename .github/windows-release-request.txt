@@ -1,17 +1,48 @@
-PLAYTORRIO — OWNER-AUTHORIZED WINDOWS-ONLY REPLACEMENT BUILD AFTER FAILED #186
-OWNER AUTHORIZATION: "ok fix the build" on 2026-11-09 SGT, following the explicit explanation that the repaired source needed a new native Windows build.
-REPOSITORY: mghazalyh/ptv3
-BRANCH: parity-floating-player-both
-REPAIRED SOURCE COMMIT: 8880225dfdc5f97ce1aac46ff273ac766b801f4c
-LATEST VERIFIED PRE-REQUEST HEAD: 41c7fca5ea30f93744be3339217d90238d62bfb7
-PREVIOUS FAILED RELEASE REQUEST: 2b5121c6edc64cfad819ff4b1776339d30a9919d
-FAILED WINDOWS RUN: 42511633419 (Build #186)
-ROOT CAUSE: Nullable AddonCatalog.name dereference in HomeSectionOrderService at line 171, causing Dart compilation to fail before native packaging.
-SOURCE FIX: Null-safe catalog names (fallback to catalog.id); prevent addon catalog IDs from colliding with synthetic Trakt recommendation IDs; add regression tests.
-PASSING CHEAP SOURCE VALIDATION: 42513033765; Linux Flutter analysis/tests and Windows shared-player compatibility checks BOTH successful on commit 8880225dfdc5f97ce1aac46ff273ac766b801f4c.
-REQUEST: Exactly ONE fresh Windows x64 native build from the current branch, including the above repaired source.
-FEATURES: Reorder Xperience and BingeCat catalog sections, TorBox Torrents, Trakt/Simkl recommendations, My List and Continue Watching. Persist via local prefs and private TorriODB settings.
-OUTPUTS IF SUCCESSFUL: Windows Setup EXE, Windows x64 portable ZIP, SHA256 checksums, GitHub Release assets and Telegram links per existing delivery workflow.
-SCOPE: Windows ONLY. Release commit message MUST include [windows-only]; explicitly skip iOS signing and packaging.
-EXCLUSIONS: Do NOT request iOS, PS4, Android or macOS builds. Do not alter release workflow internals or player subsystems.
-STOP RULE: One native trigger only. After request commit returns, do not check/poll workflow runs, jobs, artifacts, releases, Telegram, device telemetry or perform retries; owner manages delivery outcome.
+PLAYTORRIO — ONE OWNER-AUTHORIZED WINDOWS x64 RELEASE REQUEST — 2026-11-10 SGT
+
+OWNER INSTRUCTION
+"generate windows build for me now, trigger build and leave latest code"
+
+SOURCE
+Repository: mghazalyh/ptv3
+Branch: parity-floating-player-both
+Exact latest source before request: e9e80060e5599904ca37e72a231d5056f71aac56
+The release workflow must checkout and pin the new Windows-only request commit, which contains this exact application source with no additional application-code changes.
+
+VERIFICATION BEFORE TRIGGER
+Previous Windows paired-workflow Build #187 (run 42523244713) completed SUCCESS.
+Most recent iOS-only TrollStore release run #21 (42701777008) completed SUCCESS.
+Latest branch source CI 42701777382 completed SUCCESS.
+No preceding iOS or paired native workflow was in progress in the checked recent Actions run list.
+
+SCOPE
+Exactly ONE Windows x64 native build using existing
+.github/workflows/windows-advanced-discover.yml
+triggered by this single .github/windows-release-request.txt commit.
+The COMMIT MESSAGE MUST contain literal [windows-only] so the iOS job
+and paired iOS release publication remain skipped.
+
+OUTPUTS IF THE WORKFLOW SUCCEEDS
+Windows x64 Setup EXE, Windows portable ZIP, SHA256SUMS,
+permanent GitHub Release assets and Telegram download links,
+using existing release packaging, audio compatibility and delivery mechanisms.
+
+LATEST FEATURES PRESERVED
+Similar Content TMDB/Cinemeta/addon metadata fallback, fixed opt-in diagnostics,
+iOS navigation/analyzer repair, Trakt/Simkl, Home section ordering,
+TorBox/Torrentio, MPV/FFmpeg playback and audio, Night Mode, subtitles,
+Auto Sync, watched history, My List, Continue Watching, Xperience and TorriODB.
+Do not alter previous Windows/iOS build artifacts or source configuration.
+
+EXCLUSIONS
+NO new iOS, PS4, Android or macOS native builds.
+Do not change .github/release-request.txt,
+.github/ios-speech-release-request.txt,
+private TorriODB settings, credentials, history or addon URLs.
+No workflow_dispatch, retries or duplicate request commits.
+
+STOP AFTER THIS SINGLE TRIGGER
+Immediately after the GitHub file update succeeds, do NOT inspect or poll
+native Actions workflows/jobs, releases, artifacts, checksums, Telegram
+or device telemetry. Do not claim a completed Windows Setup EXE,
+portable ZIP or delivery without verification. The owner will check.

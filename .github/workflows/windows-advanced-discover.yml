@@ -166,6 +166,8 @@ jobs:
           flutter test test/personalized_catalog_ios_trial_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/torriodb_portable_sync_test.dart
+          flutter test test/watch_source_preferences_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/home_section_order_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

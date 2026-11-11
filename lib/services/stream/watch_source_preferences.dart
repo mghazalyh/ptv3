@@ -488,6 +488,7 @@ abstract final class WatchSourceEngine {
           case 'pending': return 1;
           case 'uncached': return 0;
         }
+        return null;
       case 'resolution':
         switch (resolution(s)) {
           case '4K': return 5;

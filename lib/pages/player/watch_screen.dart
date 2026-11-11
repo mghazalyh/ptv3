@@ -159,7 +159,8 @@ class _WatchScreenState extends State<WatchScreen>
     setState(() {
       _sources.addAll(batch);
       _isLoadingSources = false;
-    });    _scheduleCacheCheck();
+    });
+    _scheduleCacheCheck();
   }
 
   void _scheduleCacheCheck() {

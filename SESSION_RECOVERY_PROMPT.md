@@ -1,3 +1,33 @@
+# PLAYTORRIO EMERGENCY RECOVERY — CURRENT OWNER HANDOVER (2026-11-11 SGT)
+
+## PERMANENT, NON-OPTIONAL RESPONSE FORMAT RULE
+
+**EVERY assistant response about PlayTorrio, even a short factual answer, MUST end with a FULL, updated, standalone, copyable PLAYTORRIO EMERGENCY RECOVERY PROMPT followed by the runtime-sampled Singapore timestamp in this exact format: `⏰ Current time in SGT: YYYY-MM-DD HH:MM:SS`.**
+
+This instruction applies automatically to every turn and follow-up, WITHOUT being requested again. Do not replace the handover with a brief summary or omit it after answering a question. Include this exact rule within the handover itself so that copying the handover to a new chat preserves the requirement. Record the latest verified repository HEAD, application source, native release request, consumed authorizations, protected functionality, private TorriODB and PS4 status, verified and unverified test/build outcomes, mandatory recovery files, outstanding defects, and stop boundary. Recheck HEAD before future source changes. Sample the timestamp dynamically immediately before responding; never copy an old timestamp. If the assistant forgets, the next response must correct the omission and restore the full prompt.
+
+## LATEST VERIFIED REPOSITORY STATE BEFORE THIS DOCUMENTATION UPDATE
+
+Repository: `mghazalyh/ptv3`. Branch: `parity-floating-player-both`.
+Last checked HEAD: `abeb7a3f4bc18f8d83e1e8a577f5753746e8d339`, the single iOS-only build request.
+Latest application source: `c8603bb87d6d2dc3a82bfeb2eac6a14025c27203`.
+The documentation-only commit containing this note advances HEAD: recheck the live HEAD and record the new SHA before any future source changes.
+The iOS trigger was EXACTLY ONE update to `.github/ios-speech-release-request.txt`, workflow `.github/workflows/ios-speech-release.yml`, marker `[ios-only]`. Authorization CONSUMED. Do NOT monitor, poll, rerun or duplicate that native build; iOS build outcome, signed IPA, hashes, release assets and Telegram delivery remain UNVERIFIED.
+The prior Windows-only request `4de348dac0c8f075eab1a7e38c30d66bedbeee72` is CONSUMED; do not trigger Windows or PS4. Prior source CI `42701777382` SUCCESS, previous iOS-only run `42701777008` SUCCESS and Windows Build #187 run `42523244713` SUCCESS are HISTORICAL, not verification of the new Home feature or newest iOS build.
+
+## LATEST HOME AND TRACKING DEVELOPMENT
+
+Shared Flutter Home feature source `c8603bb87d6d2dc3a82bfeb2eac6a14025c27203`: owner can drag Home sections, hide/show each section with an eye icon, restore hidden rows, and reset order/visibility. Local keys `home_section_order_v1` and `home_section_hidden_v1`; private TorriODB `playtorrio/settings-v1.json` optionally contains `homeSectionOrder` and `homeHiddenSections`. Windows/iPad app syncs via private TorriODB on foreground resume and periodic refresh; existing user settings and private addon URLs are protected. Source tests were added; newest source and native behavior are not independently verified.
+Read-only audit 2026-11-11: local media progress checkpoint roughly every 5 seconds, GitHub Continue Watching and watched-history offline journals/merges, timestamped episode progress and completion tombstones, opt-in private iOS/Windows redacted diagnostic telemetry are implemented. Caveats: Trakt/Simkl pause/completion scrobbling path is skipped when GitHub Library sync is configured, and final player-dispose sync is asynchronous, so force-quit completion cannot be guaranteed. No repair was committed in the audit.
+
+Private `mghazalyh/torriodb` branch `main` credentials, settings, history UNCHANGED by this documentation update. Protected Windows/iOS playback, MPV, FFmpeg, VideoToolbox, subtitles, Auto Sync, Night Mode, TorBox, Torrentio, Trakt, Simkl, My List, Continue Watching, History, Similar Content, Home personalization and TorriODB. `mghazalyh/playtorrio-ps4`, branch `ps4-fullhd-debrid-quality`, UNTOUCHED.
+
+MANDATORY files: `SESSION_RECOVERY_PROMPT.md`, `AGENTS.md`, `handover.md`, `CURRENT_SESSION_HANDOVER.md`, `NEXT_SESSION.md`, `docs/torriodb_key_vault_plan.md`, `docs/ios-personalized-catalog-trial.md`, `.github/RELEASE_DELIVERY_POLICY.md`, `.github/SESSION_HANDOVER_DIAGNOSTICS.md`.
+
+**STOP: No new native request or build without fresh explicit owner authorization. No monitoring/polling of the consumed iOS request.**
+
+---
+
 ## 2026-11-10 SGT — FAILED iOS #20 ANALYZER REPAIRED; ONE REPLACEMENT iOS BUILD AUTHORIZED
 
 **Owner request:** "build failed pls fix and rebuild and leave." The original iOS-only workflow [run 42698609855](https://github.com/mghazalyh/ptv3/actions/runs/42698609855), run #20, source `c4d95e0743435e3ec6e9a7a65c8edb99ff5dc38a`, FAILED during "Analyze storage code" before native packaging; signed IPA and release publication were skipped. Source CI [42698609684](https://github.com/mghazalyh/ptv3/actions/runs/42698609684) FAILED Linux analyzer for the SAME issue, while Windows compatibility job succeeded. Both logs give exactly one warning: `invalid_use_of_visible_for_testing_member` at `lib/pages/details/details_page.dart:525:60`. It occurred because production UI calls `SimilarRecommendationsService.resolveForNavigation()` which had been mistakenly annotated `@visibleForTesting`. **Corrective source change:** remove ONLY that annotation from the public resolver; keep the resolver, privacy-safe telemetry, CinemaMeta and addon fallbacks, existing tests, player and native frameworks unchanged. The analyzer remains responsible for catching future issues.

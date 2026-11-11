@@ -1,3 +1,11 @@
+# PLAYTORRIO NON-OPTIONAL HANDOVER RULE — 2026-11-11 SGT
+
+At the end of **every single PlayTorrio response**, not only build or source-edit responses, append a complete standalone copyable `PLAYTORRIO EMERGENCY RECOVERY` handover (repository and current verified HEAD; application source; latest requested/consumed builds; protected features; private TorriODB/PS4; current audit findings; mandatory recovery file list; stop rules; verified/unverified status). The handover MUST include this same instruction so the requirement survives handoff to a new conversation. Follow it without waiting for another owner reminder, even when the answer is only a few lines. After the handover, sample current time dynamically and end with `⏰ Current time in SGT: YYYY-MM-DD HH:MM:SS`. Do not fabricate a build result or repeat an old timestamp. Source build triggers must never be inferred from this documentation update.
+
+For current source/release snapshot see the top of `SESSION_RECOVERY_PROMPT.md`. The last checked pre-documentation HEAD was `abeb7a3f4bc18f8d83e1e8a577f5753746e8d339`, application source `c8603bb87d6d2dc3a82bfeb2eac6a14025c27203`; recheck HEAD because documentation advances it. iOS-only request was already submitted once and consumed. Do not poll or duplicate. Private TorriODB and PS4 untouched. Owner's latest review found potential Trakt/Simkl scrobbling gap under GitHub sync and asynchronous final player position sync; no source repair yet.
+
+---
+
 ## VERIFIED REPAIR SOURCE CHECKS — 2026-11-09 SGT, NO NATIVE REBUILD
 
 The following source validation of the Build #186 fix is now VERIFIED successful: lightweight CI [run 42513033765](https://github.com/mghazalyh/ptv3/actions/runs/42513033765), exact tested source commit `8880225dfdc5f97ce1aac46ff273ac766b801f4c`, completed **SUCCESS** in BOTH jobs: `Flutter analyzer + critical regression tests (Linux)` and `Windows shared-player Auto Sync compatibility (no native package build)`. Both analyzer steps passed, the Linux regression suite including `test/home_section_order_test.dart` passed, and the Windows compatibility preflight passed.

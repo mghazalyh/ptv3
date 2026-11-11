@@ -42,6 +42,11 @@ class WatchSourceProfile {
   final List<String> codecs;
   final List<String> hdrFormats;
   final List<String> releaseTypes;
+  final List<String> audioFormats;
+  final List<String> audioChannels;
+  final List<String> addonPriority;
+  final String subtitleSource;
+  final bool excludeLowQuality;
   final double minSizeGb;
   final double maxSizeGb;
   final int minSeeders;
@@ -59,6 +64,11 @@ class WatchSourceProfile {
     this.codecs = const [],
     this.hdrFormats = const [],
     this.releaseTypes = const [],
+    this.audioFormats = const [],
+    this.audioChannels = const [],
+    this.addonPriority = const ['Torrentio', 'Comet', 'MediaFusion'],
+    this.subtitleSource = 'any',
+    this.excludeLowQuality = true,
     this.minSizeGb = 0,
     this.maxSizeGb = 0,
     this.minSeeders = 0,
@@ -79,12 +89,17 @@ class WatchSourceProfile {
   static const allCodecs = <String>['HEVC', 'H.264', 'AV1'];
   static const allHdr = <String>['Dolby Vision', 'HDR10+', 'HDR10', 'SDR'];
   static const allReleases = <String>['REMUX', 'BluRay', 'WEB-DL', 'WEBRip', 'HDTV'];
-  static const cachePolicies = <String>['prefer', 'cachedOnly', 'all'];
+  static const allAudioFormats = <String>['Atmos', 'TrueHD', 'DTS', 'EAC3', 'AAC'];
+  static const allAudioChannels = <String>['Stereo', '5.1', '7.1'];
+  static const subtitleSources = <String>['any', 'embedded', 'external'];
+  static const cachePolicies = <String>['prefer', 'cachedOnly', 'readyOnly', 'all'];
   static const subtitlePolicies = <String>['prefer', 'require', 'none', 'all'];
 
   WatchSourceProfile copyWith({
     List<String>? resolutions, List<String>? addons, List<String>? codecs,
     List<String>? hdrFormats, List<String>? releaseTypes,
+    List<String>? audioFormats, List<String>? audioChannels,
+    List<String>? addonPriority, String? subtitleSource, bool? excludeLowQuality,
     double? minSizeGb, double? maxSizeGb, int? minSeeders,
     String? cachePolicy, String? subtitlePolicy, String? subtitleLanguage,
     bool? preferEnglishAudio, bool? allowUnknown, bool? deduplicate,
@@ -95,6 +110,11 @@ class WatchSourceProfile {
     codecs: codecs ?? this.codecs,
     hdrFormats: hdrFormats ?? this.hdrFormats,
     releaseTypes: releaseTypes ?? this.releaseTypes,
+    audioFormats: audioFormats ?? this.audioFormats,
+    audioChannels: audioChannels ?? this.audioChannels,
+    addonPriority: addonPriority ?? this.addonPriority,
+    subtitleSource: subtitleSource ?? this.subtitleSource,
+    excludeLowQuality: excludeLowQuality ?? this.excludeLowQuality,
     minSizeGb: minSizeGb ?? this.minSizeGb,
     maxSizeGb: maxSizeGb ?? this.maxSizeGb,
     minSeeders: minSeeders ?? this.minSeeders,
@@ -149,6 +169,14 @@ class WatchSourceProfile {
       codecs: _strings(raw['codecs'], allCodecs, fallback.codecs),
       hdrFormats: _strings(raw['hdrFormats'], allHdr, fallback.hdrFormats),
       releaseTypes: _strings(raw['releaseTypes'], allReleases, fallback.releaseTypes),
+      audioFormats: _strings(raw['audioFormats'], allAudioFormats, fallback.audioFormats),
+      audioChannels: _strings(raw['audioChannels'], allAudioChannels, fallback.audioChannels),
+      addonPriority: _addonNames(raw['addonPriority']).isNotEmpty
+          ? _addonNames(raw['addonPriority']) : fallback.addonPriority,
+      subtitleSource: subtitleSources.contains(raw['subtitleSource'])
+          ? raw['subtitleSource'] as String : 'any',
+      excludeLowQuality: raw['excludeLowQuality'] is bool
+          ? raw['excludeLowQuality'] as bool : true,
       minSizeGb: number(raw['minSizeGb'], 0),
       maxSizeGb: number(raw['maxSizeGb'], 0),
       minSeeders: raw['minSeeders'] is int
@@ -173,6 +201,9 @@ class WatchSourceProfile {
   Map<String, dynamic> toJson() => {
     'resolutions': resolutions, 'addons': addons, 'codecs': codecs,
     'hdrFormats': hdrFormats, 'releaseTypes': releaseTypes,
+    'audioFormats': audioFormats, 'audioChannels': audioChannels,
+    'addonPriority': addonPriority, 'subtitleSource': subtitleSource,
+    'excludeLowQuality': excludeLowQuality,
     'minSizeGb': minSizeGb, 'maxSizeGb': maxSizeGb,
     'minSeeders': minSeeders, 'cachePolicy': cachePolicy,
     'subtitlePolicy': subtitlePolicy, 'subtitleLanguage': subtitleLanguage,
@@ -339,6 +370,41 @@ abstract final class WatchSourceEngine {
     return null;
   }
 
+  static String? audioFormat(StreamSource source) {
+    final raw = ((source.name ?? '') + ' ' + (source.title ?? '')).toLowerCase();
+    if (raw.contains('atmos')) return 'Atmos';
+    if (raw.contains('truehd')) return 'TrueHD';
+    if (raw.contains('dts')) return 'DTS';
+    if (raw.contains('eac3') || raw.contains('ddp')) return 'EAC3';
+    if (raw.contains('aac')) return 'AAC';
+    return null;
+  }
+
+  static String? audioChannels(StreamSource source) {
+    final raw = ((source.name ?? '') + ' ' + (source.title ?? '')).toLowerCase();
+    if (RegExp(r'\b7[.]1\b').hasMatch(raw)) return '7.1';
+    if (RegExp(r'\b5[.]1\b').hasMatch(raw)) return '5.1';
+    if (RegExp(r'\bstereo\b|\b2[.]0\b').hasMatch(raw)) return 'Stereo';
+    return null;
+  }
+
+  static String? subtitleSource(StreamSource source) {
+    if (source.subtitles != null && source.subtitles!.isNotEmpty) return 'external';
+    final raw = ((source.name ?? '') + ' ' + (source.title ?? '') +
+        ' ' + (source.description ?? '')).toLowerCase();
+    if (raw.contains('embedded subs') || raw.contains('internal subs')) {
+      return 'embedded';
+    }
+    if (raw.contains('external subs')) return 'external';
+    return null;
+  }
+
+  static bool isLowQuality(StreamSource source) {
+    final raw = ((source.name ?? '') + ' ' + (source.title ?? '')).toLowerCase();
+    return raw.contains('hdcam') ||
+        RegExp(r'\b(cam|telesync|dvdscr|screener)\b').hasMatch(raw);
+  }
+
   static int? seeders(StreamSource source) {
     final text = (source.title ?? '') + ' ' + (source.description ?? '');
     final match = RegExp(r'(?:seeders?\s*[:=]?\s*|👤\s*)(\d+)',
@@ -380,6 +446,12 @@ abstract final class WatchSourceEngine {
     if (!_match(source.codec, profile.codecs, profile.allowUnknown)) return false;
     if (!_match(hdr(source), profile.hdrFormats, profile.allowUnknown)) return false;
     if (!_match(release(source), profile.releaseTypes, profile.allowUnknown)) return false;
+    if (!_match(audioFormat(source), profile.audioFormats, profile.allowUnknown)) return false;
+    if (!_match(audioChannels(source), profile.audioChannels, profile.allowUnknown)) return false;
+    if (!_match(subtitleSource(source),
+        profile.subtitleSource == 'any' ? const [] : [profile.subtitleSource],
+        profile.allowUnknown)) return false;
+    if (profile.excludeLowQuality && isLowQuality(source)) return false;
     final size = source.sizeBytes;
     if (profile.minSizeGb > 0 &&
         (size == null ? !profile.allowUnknown : size < profile.minSizeGb * 1073741824)) {
@@ -397,6 +469,8 @@ abstract final class WatchSourceEngine {
     }
     if (profile.cachePolicy == 'cachedOnly' &&
         cacheTier(source, verified) != 'verified') return false;
+    if (profile.cachePolicy == 'readyOnly' &&
+        !['verified', 'reported'].contains(cacheTier(source, verified))) return false;
     final subs = hasSubtitles(source);
     if (profile.subtitlePolicy == 'require' && subs != true) return false;
     if (profile.subtitlePolicy == 'none' && subs == true) return false;
@@ -404,7 +478,7 @@ abstract final class WatchSourceEngine {
   }
 
   static double? _rank(StreamSource s, String criterion,
-      Map<String, bool> verified, int original) {
+      Map<String, bool> verified, int original, WatchSourceProfile profile) {
     switch (criterion) {
       case 'cache':
         switch (cacheTier(s, verified)) {
@@ -426,9 +500,11 @@ abstract final class WatchSourceEngine {
       case 'size': return s.sizeBytes;
       case 'provider':
         final name = s.addonName.toLowerCase();
-        if (name.contains('torrentio')) return 3;
-        if (name.contains('comet')) return 2;
-        if (name.contains('mediafusion')) return 1;
+        for (var i = 0; i < profile.addonPriority.length; i++) {
+          if (name.contains(profile.addonPriority[i].toLowerCase())) {
+            return (profile.addonPriority.length - i).toDouble();
+          }
+        }
         return 0;
       case 'seeders': return seeders(s)?.toDouble();
       case 'release':
@@ -485,8 +561,8 @@ abstract final class WatchSourceEngine {
       };
       selected.sort((a, b) {
         for (final rule in profile.sorting) {
-          final ar = _rank(a, rule.criterion, verified, original[a] ?? 0);
-          final br = _rank(b, rule.criterion, verified, original[b] ?? 0);
+          final ar = _rank(a, rule.criterion, verified, original[a] ?? 0, profile);
+          final br = _rank(b, rule.criterion, verified, original[b] ?? 0, profile);
           if (ar == null && br == null) continue;
           if (ar == null) return 1;
           if (br == null) return -1;

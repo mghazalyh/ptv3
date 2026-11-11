@@ -234,12 +234,40 @@ class _WatchSourcePreferencesPageState
                   _choices('Release quality', WatchSourceProfile.allReleases,
                       p.releaseTypes,
                       (v) => _save(p.copyWith(releaseTypes: v))),
+                  _choices('Audio formats', WatchSourceProfile.allAudioFormats,
+                      p.audioFormats, (v) => _save(p.copyWith(audioFormats: v))),
+                  _choices('Audio channels', WatchSourceProfile.allAudioChannels,
+                      p.audioChannels, (v) => _save(p.copyWith(audioChannels: v))),
+                  SwitchListTile.adaptive(
+                    title: const Text('Exclude CAM, telesync and screener'),
+                    value: p.excludeLowQuality,
+                    onChanged: (v) => _save(p.copyWith(excludeLowQuality: v)),
+                  ),
+                  _heading('Addon priority',
+                      'Choose the order used by Preferred Addon sorting.'),
+                  for (var i = 0; i < 3; i++)
+                    _select('Addon rank ' + (i + 1).toString(),
+                      p.addonPriority.length > i ? p.addonPriority[i] : 'Torrentio',
+                      const ['Torrentio', 'Comet', 'MediaFusion'],
+                      (value) {
+                        final next = List<String>.from(p.addonPriority);
+                        while (next.length < 3) { next.add('Torrentio'); }
+                        final old = next.indexOf(value);
+                        if (old >= 0 && old != i) {
+                          next[old] = next[i];
+                        }
+                        next[i] = value;
+                        _save(p.copyWith(addonPriority: next));
+                      }),
                   _heading('Cache and subtitles',
                       'Verified TorBox cache requires a locally configured key. '
                       'Unknown cache is never reported as verified.'),
                   _select('TorBox cache', p.cachePolicy,
                       WatchSourceProfile.cachePolicies, (v) =>
                           _save(p.copyWith(cachePolicy: v))),
+                  _select('Subtitle source', p.subtitleSource,
+                      WatchSourceProfile.subtitleSources,
+                      (v) => _save(p.copyWith(subtitleSource: v))),
                   _select('Subtitle requirement', p.subtitlePolicy,
                       WatchSourceProfile.subtitlePolicies, (v) =>
                           _save(p.copyWith(subtitlePolicy: v))),
@@ -254,7 +282,7 @@ class _WatchSourcePreferencesPageState
                         p.minSizeGb.toStringAsFixed(0) + ' GB'),
                     subtitle: Slider(
                       min: 0, max: 60, divisions: 60,
-                      value: p.minSizeGb.clamp(0.0, 60.0),
+                      value: p.minSizeGb.clamp(0.0, 60.0).toDouble(),
                       onChanged: (v) => _save(p.copyWith(minSizeGb: v)),
                     ),
                   ),
@@ -264,7 +292,7 @@ class _WatchSourcePreferencesPageState
                           p.maxSizeGb.toStringAsFixed(0) + ' GB')),
                     subtitle: Slider(
                       min: 0, max: 100, divisions: 100,
-                      value: p.maxSizeGb.clamp(0.0, 100.0),
+                      value: p.maxSizeGb.clamp(0.0, 100.0).toDouble(),
                       onChanged: (v) => _save(p.copyWith(maxSizeGb: v)),
                     ),
                   ),

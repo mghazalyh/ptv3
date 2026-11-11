@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -32,6 +33,7 @@ class TorriodbPortableSync {
   static const settingsPath = 'playtorrio/settings-v1.json';
   static const _pendingKey = 'torriodb_portable_sync_dirty_v1';
   static const _deletedFieldsKey = 'torriodb_portable_sync_deleted_fields_v1';
+  static const _syncedDigestsKey = 'torriodb_portable_sync_digests_v1';
 
   static const Map<String, Map<String, String>> preferenceFields = {
     'tmdb': {'apiKey': 'local_tmdb_discover_api_key'},
@@ -418,7 +420,6 @@ class TorriodbPortableSync {
           _applying = true;
           try {
             await applyRemoteLayout();
-          await applyRemotePreferences();
             await applyRemotePreferences();
           } finally {
             _applying = false;
@@ -429,6 +430,7 @@ class TorriodbPortableSync {
         try {
           await _restoreAddons(settingDoc['addons'] as List, prefs);
           await applyRemoteLayout();
+          await applyRemotePreferences();
         } finally {
           _applying = false;
         }
@@ -521,13 +523,35 @@ class TorriodbPortableSync {
 
   Future<void> _applyProviders(SharedPreferences prefs,
       Map<String, dynamic> providers, {Set<String> except = const {}}) async {
+    final previousJson = prefs.getString(_syncedDigestsKey);
+    final previousDigests = <String, String>{};
+    try {
+      if (previousJson != null) {
+        final parsed = jsonDecode(previousJson);
+        if (parsed is Map) {
+          for (final item in parsed.entries) {
+            if (item.key is String && item.value is String) {
+              previousDigests[item.key as String] = item.value as String;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      debugPrint('[TorriODB] Last-sync digest unavailable (' +
+          error.runtimeType.toString() + ')');
+    }
+    final nextDigests = Map<String, String>.from(previousDigests);
+    String digest(String value) =>
+        crypto.sha256.convert(utf8.encode(value)).toString();
     for (final entry in preferenceFields.entries) {
       if (except.contains(entry.key) || !providers.containsKey(entry.key)) continue;
       final raw = providers[entry.key];
       if (raw is! Map) continue;
       for (final field in entry.value.entries) {
+        final identity = entry.key + '.' + field.key;
         if (raw.containsKey('_deleted_' + field.key)) {
           await prefs.remove(field.value);
+          nextDigests.remove(identity);
           continue;
         }
         if (!raw.containsKey(field.key)) continue;
@@ -541,18 +565,23 @@ class TorriodbPortableSync {
         } else if (value is String) {
           if (value.isNotEmpty) {
             final existing = prefs.getString(field.value);
-            if (existing == null || existing.isEmpty || existing == value) {
+            if (existing == null || existing.isEmpty || existing == value ||
+                previousDigests[identity] == digest(existing)) {
+              // Known remote rotations win only when the local field still
+              // matches the value last synchronized on this device.
               await prefs.setString(field.value, value);
+              nextDigests[identity] = digest(value);
             } else {
-              // Unknown first-sync conflicts retain the working local value.
-              // Subsequent provider-local writes are explicitly dirty.
-              debugPrint('[TorriODB] Nonempty credential conflict retained locally for ' +
-                  entry.key + '.' + field.key);
+              // First-sync conflicts fail safely: protect working local keys.
+              debugPrint('[TorriODB] Credential conflict preserved locally: ' +
+                  identity);
+              nextDigests.remove(identity);
             }
           }
         }
       }
     }
+    await prefs.setString(_syncedDigestsKey, jsonEncode(nextDigests));
     final tmdb = providers['tmdb'];
     if (tmdb is Map && !except.contains('tmdb')) {
       await TmdbDiscoverService.instance.saveKey(

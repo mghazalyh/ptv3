@@ -61,9 +61,10 @@ void main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await EnvService.initialize();
   await GitHubLibraryCloud.instance.initialize();
+  await DockSettings.initialize();
+  await WatchSourcePreferencesService.initialize();
   await TorriodbPortableSync.instance.refresh(force: true);
   await HomeSectionOrderService.initialize();
-  await WatchSourcePreferencesService.initialize();
   await PlayerSettings.initialize();
   if (Platform.isWindows && NightModeDiagnostics.instance.isActive) {
     final audit = WindowsSettingsRecovery.lastAudit;
@@ -81,7 +82,6 @@ void main() async {
     ContinueReadingService.initialize(),
     ReaderSettings.initialize(),
     CustomBackgroundService.initialize(),
-    DockSettings.initialize(),
     GlassSettings.initialize(),
     HomePageSettings.initialize(),
     IptvController.instance.init(),

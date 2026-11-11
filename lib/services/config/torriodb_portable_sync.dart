@@ -14,6 +14,8 @@ import '../continue_watching/github_sync_transport.dart';
 import '../metadata/tvdb_series_service.dart';
 import '../metadata/tmdb_discover_service.dart';
 import '../home/home_section_order_service.dart';
+import '../theme/dock_settings.dart';
+import '../stream/watch_source_preferences.dart';
 import '../my_list/github_library_cloud.dart';
 
 /// Portable provider keys and addon settings stored in the OWNER'S PRIVATE
@@ -29,6 +31,7 @@ class TorriodbPortableSync {
   static const keyPath = 'playtorrio/api-keys-v1.json';
   static const settingsPath = 'playtorrio/settings-v1.json';
   static const _pendingKey = 'torriodb_portable_sync_dirty_v1';
+  static const _deletedFieldsKey = 'torriodb_portable_sync_deleted_fields_v1';
 
   static const Map<String, Map<String, String>> preferenceFields = {
     'tmdb': {'apiKey': 'local_tmdb_discover_api_key'},
@@ -142,6 +145,11 @@ class TorriodbPortableSync {
       'addons': entries,
       if (order != null) 'homeSectionOrder': order,
       if (hidden != null) 'homeHiddenSections': hidden,
+      if (raw.containsKey('dockPreferences'))
+        'dockPreferences': DockSettings.normalize(raw['dockPreferences']),
+      if (raw.containsKey('watchSourcePreferences'))
+        'watchSourcePreferences': WatchSourcePreferencesService.normalize(
+            raw['watchSourcePreferences']),
     };
   }
 
@@ -157,10 +165,71 @@ class TorriodbPortableSync {
     return merged;
   }
 
+  /// An initialized vault can still lack locally configured keys (notably
+  /// TorBox on devices upgraded from older installations). Backfill missing
+  /// or empty remote fields without overwriting populated manual cloud edits.
+  /// Tombstones prevent later backfilling after a deliberate local deletion.
+  static Map<String, dynamic> backfillMissingProviderFields(
+      Map<String, dynamic> remote, Map<String, dynamic> local,
+      {Set<String> deletedFields = const {}}) {
+    final merged = Map<String, dynamic>.from(remote);
+    for (final entry in local.entries) {
+      if (!preferenceFields.containsKey(entry.key) && entry.key != 'tvdb') continue;
+      if (entry.value is! Map) continue;
+      final localFields = Map<String, dynamic>.from(entry.value as Map);
+      final remoteFields = merged[entry.key] is Map
+          ? Map<String, dynamic>.from(merged[entry.key] as Map)
+          : <String, dynamic>{};
+      for (final field in localFields.entries) {
+        if (deletedFields.contains(entry.key + '.' + field.key) ||
+            remoteFields.containsKey('_deleted_' + field.key)) continue;
+        final existing = remoteFields[field.key];
+        if (existing == null || existing == '') {
+          if (field.value.toString().isNotEmpty) {
+            remoteFields[field.key] = field.value;
+          }
+        }
+      }
+      if (remoteFields.isNotEmpty) merged[entry.key] = remoteFields;
+    }
+    return merged;
+  }
+
+  /// Mark an intentional deletion rather than interpreting missing values
+  /// as a request to destroy credentials on other devices.
+  Future<void> markCredentialDeleted(String provider, String field) async {
+    if (!preferenceFields.containsKey(provider) ||
+        !preferenceFields[provider]!.containsKey(field)) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final old = prefs.getStringList(_deletedFieldsKey) ?? <String>[];
+      final identifier = provider + '.' + field;
+      await prefs.setStringList(_deletedFieldsKey, {...old, identifier}.toList());
+    } catch (error) {
+      debugPrint('[TorriODB] Delete marker save failed (' +
+          error.runtimeType.toString() + ')');
+    }
+    await markChanged(provider);
+  }
+
+  Future<void> clearCredentialDeletion(String provider, String field) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final old = prefs.getStringList(_deletedFieldsKey) ?? <String>[];
+      final identifier = provider + '.' + field;
+      await prefs.setStringList(_deletedFieldsKey,
+          old.where((s) => s != identifier).toList());
+    } catch (error) {
+      debugPrint('[TorriODB] Clear marker unavailable (' +
+          error.runtimeType.toString() + ')');
+    }
+  }
+
   /// Records only which provider was changed, never its secret in the journal.
   Future<void> markChanged(String provider) async {
     if (_applying) return;
     if (provider != 'settings' && provider != 'homeOrder' &&
+        provider != 'dock' && provider != 'watchSources' &&
         provider != 'tvdb' &&
         !preferenceFields.containsKey(provider)) return;
     try {
@@ -232,16 +301,41 @@ class TorriodbPortableSync {
       // specific provider since its last successful upload.
       final wanted = wasInitialized
           ? dirty.where((name) => name != 'settings' &&
-              name != 'homeOrder').toSet()
+              name != 'homeOrder' && name != 'dock' &&
+              name != 'watchSources').toSet()
           : {...local.keys};
-      final merged = mergeProviderEdits(remoteProviders, local, wanted);
-      if (wanted.isNotEmpty || (!wasInitialized && merged.isNotEmpty)) {
+      final localDeleted = prefs.getStringList(_deletedFieldsKey)?.toSet()
+          ?? <String>{};
+      final changed = mergeProviderEdits(remoteProviders, local, wanted);
+      final merged = backfillMissingProviderFields(changed, local,
+          deletedFields: localDeleted);
+      // Explicit deletes are represented as tombstones, rather than an empty
+      // field that another device could later backfill.
+      for (final identifier in localDeleted) {
+        final dot = identifier.indexOf('.');
+        if (dot < 1) continue;
+        final provider = identifier.substring(0, dot);
+        final field = identifier.substring(dot + 1);
+        final providerMap = merged[provider] is Map
+            ? Map<String, dynamic>.from(merged[provider] as Map)
+            : <String, dynamic>{};
+        providerMap.remove(field);
+        providerMap['_deleted_' + field] =
+            DateTime.now().millisecondsSinceEpoch;
+        merged[provider] = providerMap;
+      }
+      final remoteChanged = jsonEncode(remoteProviders) != jsonEncode(merged);
+      if (wanted.isNotEmpty || remoteChanged ||
+          (!wasInitialized && merged.isNotEmpty)) {
         await _write(client, headers, keyPath, remoteKeys?.sha, {
           'schemaVersion': 1,
           'initialized': true,
           'providers': merged,
         });
         dirty.removeAll(wanted);
+        if (localDeleted.isNotEmpty) {
+          await prefs.remove(_deletedFieldsKey);
+        }
       }
       _applying = true;
       try {
@@ -259,6 +353,8 @@ class TorriodbPortableSync {
       final settingWasInitialized = settingDoc['initialized'] == true;
       final changedAddons = dirty.contains('settings');
       final changedOrder = dirty.contains('homeOrder');
+      final changedDock = dirty.contains('dock');
+      final changedWatchSources = dirty.contains('watchSources');
       final initialAddons = !settingWasInitialized && localAddons.isNotEmpty;
       final localOrder = HomeSectionOrderService.normalize(
         prefs.getStringList(HomeSectionOrderService.storageKey) ?? <String>[]);
@@ -277,7 +373,18 @@ class TorriodbPortableSync {
         );
       }
 
-      if (changedAddons || changedOrder || initialAddons || initialLayout) {
+      Future<void> applyRemotePreferences() async {
+        if (!changedDock && settingDoc.containsKey('dockPreferences')) {
+          await DockSettings.restoreFromCloud(settingDoc['dockPreferences']);
+        }
+        if (!changedWatchSources && settingDoc.containsKey('watchSourcePreferences')) {
+          await WatchSourcePreferencesService.restoreFromCloud(
+              settingDoc['watchSourcePreferences']);
+        }
+      }
+
+      if (changedAddons || changedOrder || changedDock ||
+          changedWatchSources || initialAddons || initialLayout) {
         // A layout-only change retains the remote addons and vice versa.
         // Both layout fields travel as one change to avoid partial updates.
         final useLocalLayout = changedOrder || initialLayout;
@@ -286,6 +393,13 @@ class TorriodbPortableSync {
           'initialized': true,
           'addons': changedAddons || initialAddons
               ? localAddons : settingDoc['addons'],
+          if (changedDock) 'dockPreferences': DockSettings.snapshot()
+          else if (settingDoc.containsKey('dockPreferences'))
+            'dockPreferences': settingDoc['dockPreferences'],
+          if (changedWatchSources)
+            'watchSourcePreferences': WatchSourcePreferencesService.current.value.toJson()
+          else if (settingDoc.containsKey('watchSourcePreferences'))
+            'watchSourcePreferences': settingDoc['watchSourcePreferences'],
           if (useLocalLayout) ...{
             'homeSectionOrder': localOrder,
             'homeHiddenSections': localHidden,
@@ -298,10 +412,14 @@ class TorriodbPortableSync {
         });
         dirty.remove('settings');
         dirty.remove('homeOrder');
+        dirty.remove('dock');
+        dirty.remove('watchSources');
         if (!useLocalLayout && settingWasInitialized) {
           _applying = true;
           try {
             await applyRemoteLayout();
+          await applyRemotePreferences();
+            await applyRemotePreferences();
           } finally {
             _applying = false;
           }
@@ -317,7 +435,7 @@ class TorriodbPortableSync {
       }
       await prefs.setStringList(_pendingKey, dirty.toList()..sort());
       lastSuccessfulSync = DateTime.now();
-      status.value = 'Private TorriODB keys, addons and Home layout synced';
+      status.value = 'Private TorriODB keys and preferences synchronized';
     } on GitHubSyncDeferred {
       status.value = 'GitHub rate limited; credentials preserved locally';
     } on FormatException {
@@ -408,10 +526,11 @@ class TorriodbPortableSync {
       final raw = providers[entry.key];
       if (raw is! Map) continue;
       for (final field in entry.value.entries) {
-        if (!raw.containsKey(field.key)) {
+        if (raw.containsKey('_deleted_' + field.key)) {
           await prefs.remove(field.value);
           continue;
         }
+        if (!raw.containsKey(field.key)) continue;
         final value = raw[field.key];
         if (field.key == 'expiryMs') {
           if (value is int && value >= 0) {
@@ -420,10 +539,16 @@ class TorriodbPortableSync {
             await prefs.remove(field.value);
           }
         } else if (value is String) {
-          if (value.isEmpty) {
-            await prefs.remove(field.value);
-          } else {
-            await prefs.setString(field.value, value);
+          if (value.isNotEmpty) {
+            final existing = prefs.getString(field.value);
+            if (existing == null || existing.isEmpty || existing == value) {
+              await prefs.setString(field.value, value);
+            } else {
+              // Unknown first-sync conflicts retain the working local value.
+              // Subsequent provider-local writes are explicitly dirty.
+              debugPrint('[TorriODB] Nonempty credential conflict retained locally for ' +
+                  entry.key + '.' + field.key);
+            }
           }
         }
       }

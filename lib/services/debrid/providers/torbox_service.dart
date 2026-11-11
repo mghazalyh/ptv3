@@ -25,7 +25,12 @@ class TorBoxService {
     } else {
       await prefs.setString(_key, trimmed);
     }
-    await TorriodbPortableSync.instance.markChanged('torbox');
+    if (trimmed.isEmpty) {
+      await TorriodbPortableSync.instance.markCredentialDeleted('torbox', 'apiKey');
+    } else {
+      await TorriodbPortableSync.instance.clearCredentialDeletion('torbox', 'apiKey');
+      await TorriodbPortableSync.instance.markChanged('torbox');
+    }
   }
 
   Future<bool> hasKey() async {

@@ -99,6 +99,34 @@ void main() {
     expect((merged['futureProvider'] as Map)['apiKey'], 'unknown-value');
   });
 
+  test('backfills missing TorBox key without overwriting other cloud keys', () {
+    final result = TorriodbPortableSync.backfillMissingProviderFields({
+      'tmdb': {'apiKey': 'cloud-key'},
+      'torbox': {'apiKey': ''},
+    }, {
+      'tmdb': {'apiKey': 'local-key'},
+      'torbox': {'apiKey': 'local-torbox-key'},
+    });
+    expect((result['tmdb'] as Map)['apiKey'], 'cloud-key');
+    expect((result['torbox'] as Map)['apiKey'], 'local-torbox-key');
+  });
+
+  test('portable settings normalize dock and source preferences', () {
+    final parsed = TorriodbPortableSync.parseSettings(jsonEncode({
+      'schemaVersion': 1, 'initialized': true, 'addons': [],
+      'dockPreferences': {
+        'visible': false, 'items': {'networks': false, 'manga': false},
+      },
+      'watchSourcePreferences': {
+        'preset': 'Balanced',
+        'movie': {'resolutions': ['4K','1080p']},
+        'episode': {'resolutions': ['1080p']},
+      },
+    }));
+    expect((parsed['dockPreferences'] as Map)['visible'], isFalse);
+    expect((parsed['watchSourcePreferences'] as Map)['preset'], 'Balanced');
+  });
+
   test('portable addons require a valid private manifest base URL', () {
     const manifest = {
       'id': 'user.catalog',

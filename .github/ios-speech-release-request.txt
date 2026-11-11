@@ -1,10 +1,20 @@
-PERSONALIZED_CATALOG_TRIAL — ONE OWNER-AUTHORIZED iOS 15 TROLLSTORE BUILD — 2026-11-11 SGT
-REPOSITORY: mghazalyh/ptv3
-BRANCH: parity-floating-player-both
-LATEST VERIFIED APPLICATION SOURCE BEFORE THIS REQUEST: c8603bb87d6d2dc3a82bfeb2eac6a14025c27203
-OWNER REQUEST: generate build ios based on latest changes
-SCOPE: Exactly ONE new iOS 15 / iPadOS signed TrollStore build via .github/workflows/ios-speech-release.yml. Include the latest cross-device TorriODB-backed Home section ordering, per-section hide/show and restore controls, and all existing shared functionality from the specified source commit.
-TRIGGER: Only this .github/ios-speech-release-request.txt update. No workflow_dispatch, no Windows release marker and no PS4 build. Preserve PERSONALIZED_CATALOG_TRIAL prerelease behavior, ad hoc signed device-arm64 IPA, SHA256SUMS, GitHub Release and Telegram delivery behavior.
-PROTECT: MPV, FFmpeg, VideoToolbox, iOS Night Mode, TorBox, Torrentio, subtitles, Auto Sync, Trakt, Simkl, watched history, My List, Continue Watching, personalized catalogs and private TorriODB. Do not alter credentials, existing TorriODB settings, history, the PS4 repository, or other release request files.
-VALIDATION: The workflow must run its existing Flutter analyzer, regression tests, native build, IPA integrity and signing checks. Success, file sizes, SHA256 and delivery are not verified by this request.
-STOP: After this single request commit succeeds, do not monitor or poll native Actions, jobs, artifacts, GitHub Releases, Telegram or device telemetry. Do not retry or duplicate. Fresh owner authorization is required for any additional native build.
+PLAYTORRIO — ONE NEW OWNER-AUTHORIZED iOS 15 / iPadOS TROLLSTORE RELEASE REQUEST — 2026-11-11 SGT
+
+OWNER INSTRUCTION
+"trigger the ios build now and leave"
+
+SOURCE
+Repository: mghazalyh/ptv3
+Branch: parity-floating-player-both
+Latest verified HEAD before iOS request: 54c2182e5ce59aac460d33e0863135a0bf287741
+Latest application source: 34cd94679a04085eb16af3ca9026ba1782948c83
+
+BUILD AUTHORIZATION
+Request EXACTLY ONE iOS 15+ signed TrollStore-compatible IPA from existing .github/workflows/ios-speech-release.yml via this single marker-file edit.
+Use the latest shared Flutter source with Watch Sources filters/sorts, Home button, whole-dock visibility, TorriODB local-key safeguards, manual volume, Home scrollbar removal and vertically expanding Similar Content.
+Preserve native MPV, FFmpeg, VideoToolbox, Night Mode, Equalizer, subtitles, auto subtitle sync, TorBox, Torrentio, Comet, MediaFusion, Trakt/Simkl, watched progress, Continue Watching, My List, Xperience/BingeCat and private TorriODB.
+Do not modify Windows native release request, paired native release request or PS4 repository. No Windows, Android, macOS or PS4 packaging authorized by this request.
+Keep all existing iOS signing, release, checksum and Telegram delivery steps and gates.
+
+STOP BOUNDARY
+Owner authorized this ONE iOS-only build request. Once this commit is created, DO NOT check, monitor, poll, rerun, retry, duplicate or inspect native workflow runs, status, jobs, artifacts, IPA, release, checksums, Telegram or telemetry unless owner gives fresh explicit instruction. Do not claim success or delivery without verification.

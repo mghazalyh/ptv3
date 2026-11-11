@@ -53,6 +53,10 @@ jobs:
             lib/pages/settings/home_section_order_page.dart \
             lib/pages/settings/appearance/home_ui_settings_page.dart \
             lib/services/config/torriodb_portable_sync.dart \
+            lib/services/stream/watch_source_preferences.dart \
+            lib/pages/settings/watch_source_preferences_page.dart \
+            lib/pages/player/watch_screen.dart \
+            lib/widgets/player/player_volume_control.dart \
             lib/pages/settings/addons_settings_page.dart \
             lib/services/addon/connected_catalog_history_bridge.dart \
             lib/services/trakt/trakt_pkce.dart \
@@ -117,6 +121,7 @@ jobs:
             test/github_progress_v1_compat_test.dart \
             test/github_sync_gate_test.dart \
             test/torriodb_portable_sync_test.dart \
+            test/watch_source_preferences_test.dart \
             test/home_section_order_test.dart \
             test/github_watched_history_merge_test.dart \
             test/watched_history_timeline_test.dart \

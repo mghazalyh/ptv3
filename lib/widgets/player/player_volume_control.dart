@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'player_glass.dart';
 
-/// Manual volume slider; Windows keys and mouse wheel never modify player gain.
+/// Manual 0–100% playback gain control.
+/// Hardware volume keys belong to Windows; mouse wheel never changes gain.
 class PlayerVolumeControl extends StatefulWidget {
-  final double volume; // 0.0 to 1.0 (100%)
+  final double volume;
   final bool isMuted;
   final ValueChanged<double> onVolumeChanged;
   final VoidCallback onToggleMute;
@@ -23,171 +24,112 @@ class PlayerVolumeControl extends StatefulWidget {
 }
 
 class _PlayerVolumeControlState extends State<PlayerVolumeControl> {
-  bool _isHovered = false;
   static const double _trackWidth = 96.0;
+  bool _isHovered = false;
 
-  IconData _getVolumeIcon() {
-    if (widget.isMuted || widget.volume == 0) {
+  IconData _volumeIcon() {
+    if (widget.isMuted || widget.volume <= 0) {
       return Icons.volume_off_rounded;
     }
-    if (widget.volume > 1.0) {
-      return Icons.volume_up_rounded;
-    }
-    if (widget.volume < 0.5) {
-      return Icons.volume_down_rounded;
-    }
-    return Icons.volume_up_rounded;
+    return widget.volume < 0.5
+        ? Icons.volume_down_rounded : Icons.volume_up_rounded;
   }
 
-  void _updateFromPosition(double localX) {
-    final fraction = (localX / _trackWidth).clamp(0.0, 1.0);
+  void _onPosition(double x) {
+    final fraction = (x / _trackWidth).clamp(0.0, 1.0);
     widget.onVolumeChanged((fraction * 100).round() / 100.0);
   }
 
-  double _getFractionFromVolume(double volume) =>
-      widget.isMuted ? 0.0 : volume.clamp(0.0, 1.0);
-
   @override
   Widget build(BuildContext context) {
-    final effectiveVol = widget.isMuted ? 0.0 : widget.volume;
-    final fillFraction = _getFractionFromVolume(effectiveVol);
-    final isBoosting = false;
-    final boostColor = Colors.white;
-    final pct = (effectiveVol * 100).round();
-
-    return Listener(
-      // Wheel input is intentionally ignored: slider is click/drag only.
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Mute / Unmute Button
-            PlayerIconButton(
-              size: 40,
-              iconSize: 22,
-              icon: Icon(
-                _getVolumeIcon(),
-                color: isBoosting ? boostColor : (widget.isMuted ? PlayerTheme.inkSubtle : Colors.white),
-              ),
-              tooltip: widget.isMuted ? 'Unmute' : 'Mute',
-              onPressed: widget.onToggleMute,
-            ),
-
-            const SizedBox(width: 4),
-
-            // Volume Slider Track
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onHorizontalDragUpdate: (e) => _updateFromPosition(e.localPosition.dx),
-              onTapDown: (e) => _updateFromPosition(e.localPosition.dx),
-              child: Container(
-                width: _trackWidth,
-                height: 32,
-                alignment: Alignment.center,
-                child: Stack(
-                  alignment: Alignment.centerLeft,
-                  children: [
-                    // Background track
-                    Container(
-                      height: 6,
-                      width: _trackWidth,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-
-                    // 100% Threshold Notch Line
-                    Positioned(
-                      left: _trackWidth - 1.5,
-                      child: Container(
-                        width: 1.5,
-                        height: 9,
+    final current = widget.isMuted ? 0.0 : widget.volume.clamp(0.0, 1.0);
+    final percent = (current * 100).round();
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PlayerIconButton(
+            size: 40,
+            iconSize: 22,
+            icon: Icon(_volumeIcon(),
+                color: widget.isMuted ? PlayerTheme.inkSubtle : Colors.white),
+            tooltip: widget.isMuted ? 'Unmute' : 'Mute',
+            onPressed: widget.onToggleMute,
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragUpdate: (e) => _onPosition(e.localPosition.dx),
+            onTapDown: (e) => _onPosition(e.localPosition.dx),
+            child: SizedBox(
+              width: _trackWidth,
+              height: 32,
+              child: Center(
+                child: SizedBox(
+                  width: _trackWidth,
+                  height: 18,
+                  child: Stack(
+                    alignment: Alignment.centerLeft,
+                    children: [
+                      Container(
+                        width: _trackWidth,
+                        height: 6,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.40),
-                          borderRadius: BorderRadius.circular(1),
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(99),
                         ),
                       ),
-                    ),
-
-                    // Filled track
-                    Container(
-                      height: 6,
-                      width: _trackWidth * fillFraction,
-                      decoration: BoxDecoration(
-                        gradient: isBoosting
-                          ? LinearGradient(
-                              colors: [
-                                Colors.white,
-                                const Color(0xFFFF8A00),
-                                if (widget.volume > 1.75) const Color(0xFFFF3D00),
-                              ],
-                            )
-                          : null,
-                        color: isBoosting ? null : Colors.white.withValues(alpha: 0.9),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-
-                    // Thumb dot
-                    Positioned(
-                      left: (_trackWidth * fillFraction - 6).clamp(0.0, _trackWidth - 12),
-                      child: Container(
-                        width: 12,
-                        height: 12,
+                      Container(
+                        width: _trackWidth * current,
+                        height: 6,
                         decoration: BoxDecoration(
-                          color: isBoosting ? boostColor : Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: isBoosting ? boostColor.withValues(alpha: 0.6) : Colors.black54,
-                              blurRadius: isBoosting ? 6 : 4,
-                              spreadRadius: isBoosting ? 1 : 0,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
+                          color: Colors.white.withValues(alpha: 0.90),
+                          borderRadius: BorderRadius.circular(99),
                         ),
                       ),
-                    ),
-                  ],
+                      Positioned(
+                        left: (_trackWidth * current - 6)
+                            .clamp(0.0, _trackWidth - 12),
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black54,
+                                blurRadius: 4,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-
-            // Percentage Readout
-            if (isBoosting || _isHovered) ...[
-              const SizedBox(width: 6),
-              Container(
-                constraints: const BoxConstraints(minWidth: 38),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isBoosting)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 2),
-                        child: Icon(
-                          Icons.bolt_rounded,
-                          size: 13,
-                          color: boostColor,
-                        ),
-                      ),
-                    Text(
-                      '$pct%',
-                      style: TextStyle(
-                        color: isBoosting ? boostColor : PlayerTheme.inkMuted,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ],
+          ),
+          if (_isHovered) ...[
+            const SizedBox(width: 6),
+            SizedBox(
+              width: 42,
+              child: Text(
+                '$percent%',
+                style: const TextStyle(
+                  color: PlayerTheme.inkMuted,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  fontFeatures: [FontFeature.tabularFigures()],
                 ),
               ),
-            ],
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

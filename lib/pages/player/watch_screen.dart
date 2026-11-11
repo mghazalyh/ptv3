@@ -14,6 +14,7 @@ import '../../models/movie/movie_detail.dart';
 
 import '../../models/stream/stream_model.dart';
 import '../../services/player/audio_language_priority.dart';
+import '../../services/player/debrid_source_readiness.dart';
 import '../../services/stream/watch_source_preferences.dart';
 import '../settings/watch_source_preferences_page.dart';
 import './player_screen.dart';
@@ -103,11 +104,17 @@ class _WatchScreenState extends State<WatchScreen>
         );
 
     _animController.forward();
+    WatchSourcePreferencesService.current.addListener(_onPreferencesChanged);
     _loadStreams();
+  }
+
+  void _onPreferencesChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    WatchSourcePreferencesService.current.removeListener(_onPreferencesChanged);
     _sourceBatchTimer?.cancel();
     _cacheCheckTimer?.cancel();
     _animController.dispose();
@@ -538,6 +545,8 @@ class _WatchScreenState extends State<WatchScreen>
                       child: _SourceCard(
                         source: filtered[index],
                         availableSources: filtered,
+                        allSources: _sources,
+                        torboxCached: _verifiedCache[WatchSourceEngine.hashOf(filtered[index])],
                         backdropUrl:
                             widget.detail.background ?? widget.detail.poster,
                         logoUrl: widget.detail.logo,
@@ -1080,6 +1089,8 @@ class _WatchScreenState extends State<WatchScreen>
         return _SourceCard(
           source: sources[index],
           availableSources: sources,
+          allSources: _sources,
+          torboxCached: _verifiedCache[WatchSourceEngine.hashOf(sources[index])],
           backdropUrl: widget.detail.background ?? widget.detail.poster,
           logoUrl: widget.detail.logo,
           detail: widget.detail,
@@ -1560,6 +1571,8 @@ class _WatchScreenState extends State<WatchScreen>
 class _SourceCard extends StatefulWidget {
   final StreamSource source;
   final List<StreamSource> availableSources;
+  final List<StreamSource> allSources;
+  final bool? torboxCached;
   final String? backdropUrl;
   final String? logoUrl;
   final MovieDetail detail;
@@ -1569,6 +1582,8 @@ class _SourceCard extends StatefulWidget {
   const _SourceCard({
     required this.source,
     required this.availableSources,
+    required this.allSources,
+    this.torboxCached,
     this.backdropUrl,
     this.logoUrl,
     required this.detail,
@@ -1618,6 +1633,18 @@ class _SourceCardState extends State<_SourceCard> {
     if (s.isHDR) badges.add(_badge('HDR', const Color(0xFFFFD43B)));
     if (s.codec != null) badges.add(_badge(s.codec!, _C.textTertiary));
     if (s.fileSize != null) badges.add(_badge(s.fileSize!, _C.textTertiary));
+    if (widget.torboxCached == true) {
+      badges.add(_badge('TorBox Cached', const Color(0xFF10B981)));
+    } else if (widget.torboxCached == false) {
+      badges.add(_badge('TorBox Not Cached', _C.textTertiary));
+    } else if (DebridSourceReadiness.isExplicitlyPending(s)) {
+      badges.add(_badge('Pending Download', const Color(0xFFFFD43B)));
+    }
+    final sourceHash = WatchSourceEngine.hashOf(s);
+    final alternatives = sourceHash == null ? <StreamSource>[]
+        : widget.allSources.where((other) => !identical(other, s) &&
+            WatchSourceEngine.hashOf(other) == sourceHash &&
+            other.fileIdx == s.fileIdx).toList();
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -1766,6 +1793,44 @@ class _SourceCardState extends State<_SourceCard> {
                           const SizedBox(height: 8),
                           Wrap(spacing: 4, runSpacing: 4, children: badges),
                         ],
+                        if (alternatives.isNotEmpty)
+                          TextButton.icon(
+                            icon: const Icon(Icons.layers_rounded, size: 16),
+                            label: Text('Other providers (' + alternatives.length.toString() + ')'),
+                            onPressed: () async {
+                              final picked = await showModalBottomSheet<StreamSource>(
+                                context: context,
+                                builder: (sheetContext) => SafeArea(
+                                  child: ListView(
+                                    shrinkWrap: true,
+                                    children: [
+                                      const ListTile(title: Text('Alternative providers')),
+                                      for (final alternate in alternatives)
+                                        ListTile(
+                                          title: Text(alternate.addonName),
+                                          subtitle: Text(alternate.displayTitle,
+                                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                                          onTap: () => Navigator.pop(sheetContext, alternate),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                              if (!mounted || picked == null) return;
+                              Navigator.push(context, MaterialPageRoute<void>(
+                                builder: (_) => PlayerScreen(
+                                  source: picked,
+                                  availableSources: widget.allSources,
+                                  title: picked.displayTitle,
+                                  backdropUrl: widget.backdropUrl,
+                                  logoUrl: widget.logoUrl,
+                                  detail: widget.detail,
+                                  episode: widget.episode,
+                                  initialPosition: widget.initialPosition,
+                                ),
+                              ));
+                            },
+                          ),
                       ],
                     ),
                   ),

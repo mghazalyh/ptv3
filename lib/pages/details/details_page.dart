@@ -125,7 +125,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   final ScrollController _castScrollController = ScrollController();
   final ScrollController _seasonScrollController = ScrollController();
   final ScrollController _relatedScrollController = ScrollController();
-  final ScrollController _similarScrollController = ScrollController();
+
 
   bool _canScrollEpisodesLeft = false;
   bool _canScrollEpisodesRight = true;
@@ -143,9 +143,9 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   bool _canScrollSeasonsRight = true;
   bool _isHoveringSeasons = false;
 
-  bool _canScrollSimilarLeft = false;
-  bool _canScrollSimilarRight = true;
-  bool _isHoveringSimilar = false;
+
+
+
 
   @override
   void initState() {
@@ -162,7 +162,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     _castScrollController.addListener(_updateCastScrollButtons);
     _relatedScrollController.addListener(_updateRelatedScrollButtons);
     _seasonScrollController.addListener(_updateSeasonScrollButtons);
-    _similarScrollController.addListener(_updateSimilarScrollButtons);
+
 
     _fetchDetails();
     unawaited(WatchedHistoryService.syncGitHubHistory(force: true));
@@ -177,7 +177,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     _castScrollController.dispose();
     _seasonScrollController.dispose();
     _relatedScrollController.dispose();
-    _similarScrollController.dispose();
+
     super.dispose();
   }
 
@@ -244,25 +244,6 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     }
   }
 
-  void _updateSimilarScrollButtons() {
-    if (!_similarScrollController.hasClients) return;
-    final canLeft = _similarScrollController.position.pixels > 0;
-    final canRight = _similarScrollController.position.pixels < _similarScrollController.position.maxScrollExtent;
-    if (_canScrollSimilarLeft != canLeft || _canScrollSimilarRight != canRight) {
-      setState(() {
-        _canScrollSimilarLeft = canLeft;
-        _canScrollSimilarRight = canRight;
-      });
-    }
-  }
-
-  void _scrollList(ScrollController controller, double directionMultiplier) {
-    if (!controller.hasClients) return;
-    final viewportWidth = controller.position.viewportDimension;
-    final scrollAmount = viewportWidth * 0.7 * directionMultiplier;
-    final target = (controller.position.pixels + scrollAmount).clamp(0.0, controller.position.maxScrollExtent);
-    controller.animateTo(target, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
-  }
 
   Future<void> _fetchDetails() async {
     String effectiveBaseUrl = widget.movie.addonBaseUrl;
@@ -400,7 +381,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         _isFetchingSimilar = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _updateSimilarScrollButtons();
+        
       });
       // Show cards immediately, then fill missing origin/language/network on
       // at most the first six. UI does not block on extra metadata calls.
@@ -415,22 +396,6 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     }
   }
 
-  // Horizontal carousels do not reveal newly appended cards automatically.
-  void _scrollToNewSimilarCards(int previousVisibleCount) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_similarScrollController.hasClients ||
-          _similarVisibleCount <= previousVisibleCount) return;
-      final cardWidth = _isDesktop() ? 160.0 : 130.0;
-      final target = (previousVisibleCount * (cardWidth + _Space.md))
-          .clamp(0.0, _similarScrollController.position.maxScrollExtent)
-          .toDouble();
-      _similarScrollController.animateTo(target,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOutCubic);
-      _updateSimilarScrollButtons();
-    });
-  }
-
   Future<void> _loadMoreSimilar() async {
     if (_isFetchingMoreSimilar || _detail == null) return;
     if (_similarVisibleCount < _similarItems.length) {
@@ -442,7 +407,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         _similarLoadMoreEmpty = false;
       });
       SimilarRecommendationsService.recordVisibleItemsExpanded();
-      _scrollToNewSimilarCards(previousVisibleCount);
+  
       return;
     }
     if (!_similarHasMore) return;
@@ -501,7 +466,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         _similarLoadMoreEmpty = incoming.isEmpty;
       });
       if (incoming.isNotEmpty) {
-        _scrollToNewSimilarCards(previousVisibleCount);
+    
       } else {
         SimilarRecommendationsService.recordNoNewCards();
       }
@@ -1719,79 +1684,40 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   }
 
   Widget _buildSimilarRow() {
-    final isDesktop = _isDesktop();
+    final isDesktop = _isDesktop(context);
     final cardWidth = isDesktop ? 160.0 : 130.0;
-    final cardHeight = cardWidth * 1.5 + 132; // poster + rich metadata
-    final fadeWidth = isDesktop ? 60.0 : 40.0;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHoveringSimilar = true),
-      onExit: (_) => setState(() => _isHoveringSimilar = false),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader(_similarFromTmdb
-              ? (_isSeries ? 'Recommended Shows' : 'Recommended Movies')
-              : 'Similar Content'),
-          if (_similarFromTmdb)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Wrap(
-                spacing: 6,
-                children: [
-                  const Text('Suggestions via TMDB',
-                      style: TextStyle(color: Colors.white54, fontSize: 11)),
-                  if (_similarTvdbId != null)
-                    InkWell(
-                      onTap: () => launchUrl(
-                        Uri.parse('https://thetvdb.com/')),
-                      child: const Text('· Series metadata by TheTVDB',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          decoration: TextDecoration.underline,
-                          fontSize: 11,
-                        )),
-                    ),
-                ],
+    final cardHeight = cardWidth * 1.5 + 132;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(_similarFromTmdb
+            ? (_isSeries ? 'Recommended Shows' : 'Recommended Movies')
+            : 'Similar Content'),
+        if (_similarFromTmdb)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text('Suggestions via TMDB',
+              style: const TextStyle(color: Colors.white54, fontSize: 11)),
+          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final columns = width >= 1120 ? 6 : width >= 760 ? 4
+                : width >= 430 ? 3 : 2;
+            final cellWidth = (width - (columns - 1) * _Space.md) / columns;
+            return GridView.builder(
+              key: const ValueKey('similar-vertical-grid'),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _similarItems.length > _similarVisibleCount
+                  ? _similarVisibleCount : _similarItems.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: _Space.md,
+                mainAxisSpacing: _Space.md,
+                childAspectRatio: cellWidth / (cardHeight + 12),
               ),
-            ),
-          SizedBox(
-            height: cardHeight,
-            child: Stack(
-              clipBehavior: Clip.hardEdge,
-              children: [
-                ShaderMask(
-                  shaderCallback: (Rect bounds) {
-                    final leftFadeStop = bounds.width > 0 ? (fadeWidth / bounds.width).clamp(0.01, 0.2) : 0.05;
-                    final rightFadeStop = bounds.width > 0 ? (1.0 - (fadeWidth / bounds.width)).clamp(0.8, 0.99) : 0.95;
-
-                    return LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        _canScrollSimilarLeft ? Colors.transparent : Colors.black,
-                        Colors.black,
-                        Colors.black,
-                        _canScrollSimilarRight ? Colors.transparent : Colors.black,
-                      ],
-                      stops: [
-                        0.0,
-                        leftFadeStop,
-                        rightFadeStop,
-                        1.0,
-                      ],
-                    ).createShader(bounds);
-                  },
-                  blendMode: BlendMode.dstIn,
-                  child: ListView.separated(
-                    clipBehavior: Clip.hardEdge,
-                    controller: _similarScrollController,
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    itemCount: _similarItems.length > _similarVisibleCount
-                        ? _similarVisibleCount : _similarItems.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: _Space.md),
-                    itemBuilder: (context, index) {
+              itemBuilder: (context, index) {
                       final item = _similarItems[index];
                       return SizedBox(
                         width: cardWidth,
@@ -1929,68 +1855,11 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                           ),
                         ),
                       );
-                    },
-                  ),
-                ),
-                if (isDesktop) ...[
-                  if (_canScrollSimilarLeft)
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 60,
-                      child: Container(
-                        width: fadeWidth + 10,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                            colors: [
-                              _Palette.bg,
-                              _Palette.bg.withValues(alpha: 0.0),
-                            ],
-                          ),
-                        ),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: _buildScrollArrow(
-                            Icons.arrow_back_ios_new_rounded,
-                            () => _scrollList(_similarScrollController, -1),
-                            _isHoveringSimilar,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (_canScrollSimilarRight)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      bottom: 60,
-                      child: Container(
-                        width: fadeWidth + 10,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.centerRight,
-                            end: Alignment.centerLeft,
-                            colors: [
-                              _Palette.bg,
-                              _Palette.bg.withValues(alpha: 0.0),
-                            ],
-                          ),
-                        ),
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: _buildScrollArrow(
-                            Icons.arrow_forward_ios_rounded,
-                            () => _scrollList(_similarScrollController, 1),
-                            _isHoveringSimilar,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ],
-            ),
-          ),
+
+              },
+            );
+          },
+        ),
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Text(

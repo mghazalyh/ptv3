@@ -152,7 +152,7 @@ class WatchSourceProfile {
       minSizeGb: number(raw['minSizeGb'], 0),
       maxSizeGb: number(raw['maxSizeGb'], 0),
       minSeeders: raw['minSeeders'] is int
-          ? ((raw['minSeeders'] as int).clamp(0, 100000)) : 0,
+          ? ((raw['minSeeders'] as int).clamp(0, 100000)).toInt() : 0,
       cachePolicy: cachePolicies.contains(raw['cachePolicy'])
           ? raw['cachePolicy'] as String : 'prefer',
       subtitlePolicy: subtitlePolicies.contains(raw['subtitlePolicy'])

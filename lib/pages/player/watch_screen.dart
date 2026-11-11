@@ -14,7 +14,8 @@ import '../../models/movie/movie_detail.dart';
 
 import '../../models/stream/stream_model.dart';
 import '../../services/player/audio_language_priority.dart';
-import '../../services/player/debrid_source_readiness.dart';
+import '../../services/stream/watch_source_preferences.dart';
+import '../settings/watch_source_preferences_page.dart';
 import './player_screen.dart';
 import '../../services/stream/stream_service.dart';
 import '../../services/theme/glass_settings.dart';
@@ -72,6 +73,10 @@ class _WatchScreenState extends State<WatchScreen>
   final List<StreamSource> _sources = [];
   final List<StreamSource> _pendingSources = [];
   Timer? _sourceBatchTimer;
+  Timer? _cacheCheckTimer;
+  bool _checkingCache = false;
+  final Map<String, bool> _verifiedCache = <String, bool>{};
+  final Set<String> _checkedHashes = <String>{};
   bool _isLoadingSources = true;
 
   // Animation
@@ -104,6 +109,7 @@ class _WatchScreenState extends State<WatchScreen>
   @override
   void dispose() {
     _sourceBatchTimer?.cancel();
+    _cacheCheckTimer?.cancel();
     _animController.dispose();
     _sourcesScrollController.dispose();
     _mainScrollController.dispose();
@@ -153,81 +159,93 @@ class _WatchScreenState extends State<WatchScreen>
     setState(() {
       _sources.addAll(batch);
       _isLoadingSources = false;
+    });    _scheduleCacheCheck();
+  }
+
+  void _scheduleCacheCheck() {
+    _cacheCheckTimer?.cancel();
+    _cacheCheckTimer = Timer(const Duration(milliseconds: 800), () {
+      unawaited(_verifyCachedSources());
     });
   }
+
+  Future<void> _verifyCachedSources() async {
+    if (!mounted || _checkingCache) return;
+    final pending = _sources.where((source) {
+      final hash = WatchSourceEngine.hashOf(source);
+      return hash != null && !_checkedHashes.contains(hash);
+    }).take(80).toList();
+    if (pending.isEmpty) return;
+    for (final source in pending) {
+      final hash = WatchSourceEngine.hashOf(source);
+      if (hash != null) _checkedHashes.add(hash);
+    }
+    _checkingCache = true;
+    try {
+      final verified = await TorBoxCacheVerifier.instance.verify(pending);
+      if (mounted && verified.isNotEmpty) {
+        setState(() => _verifiedCache.addAll(verified));
+      }
+    } catch (error) {
+      debugPrint('[WatchSources] Cache lookup unavailable (' +
+          error.runtimeType.toString() + ')');
+    } finally {
+      _checkingCache = false;
+      if (_sources.any((source) {
+        final hash = WatchSourceEngine.hashOf(source);
+        return hash != null && !_checkedHashes.contains(hash);
+      })) {
+        _scheduleCacheCheck();
+      }
+    }
+  }
+
+  Widget _buildPrefsButton() => IconButton(
+    tooltip: 'Watch Sources Preferences',
+    icon: const Icon(Icons.tune_rounded, size: 20, color: Colors.white70),
+    onPressed: () async {
+      await Navigator.push(context, MaterialPageRoute<void>(
+        builder: (_) => const WatchSourcePreferencesPage(),
+      ));
+      if (mounted) setState(() {});
+    },
+  );
 
   String? _selectedAddonFilter;
   String? _selectedSizeFilter;
 
   List<StreamSource> get _filteredSources {
-    var list = List<StreamSource>.from(_sources);
+    final profile = WatchSourcePreferencesService.current.value
+        .forEpisode(widget.selectedEpisode != null);
+    var list = WatchSourceEngine.process(_sources, profile,
+        verified: _verifiedCache);
     if (_selectedAddonFilter != null) {
       list = list.where((s) => s.addonName == _selectedAddonFilter).toList();
     }
-    if (_selectedSizeFilter != null) {
-      switch (_selectedSizeFilter) {
-        case '<1gb':
-          list = list.where((s) {
-            final sz = s.sizeBytes;
-            return sz != null && sz < 1024 * 1024 * 1024;
-          }).toList();
-          break;
-        case '1-5gb':
-          list = list.where((s) {
-            final sz = s.sizeBytes;
-            return sz != null && sz >= 1024 * 1024 * 1024 && sz <= 5.0 * 1024 * 1024 * 1024;
-          }).toList();
-          break;
-        case '5-15gb':
-          list = list.where((s) {
-            final sz = s.sizeBytes;
-            return sz != null && sz > 5.0 * 1024 * 1024 * 1024 && sz <= 15.0 * 1024 * 1024 * 1024;
-          }).toList();
-          break;
-        case '15-30gb':
-          list = list.where((s) {
-            final sz = s.sizeBytes;
-            return sz != null && sz > 15.0 * 1024 * 1024 * 1024 && sz <= 30.0 * 1024 * 1024 * 1024;
-          }).toList();
-          break;
-        case '>30gb':
-          list = list.where((s) {
-            final sz = s.sizeBytes;
-            return sz != null && sz > 30.0 * 1024 * 1024 * 1024;
-          }).toList();
-          break;
-      }
+    final selector = _selectedSizeFilter;
+    if (selector == 'largest') {
+      list.sort((a, b) =>
+          (b.sizeBytes ?? -1).compareTo(a.sizeBytes ?? -1));
+    } else if (selector == 'smallest') {
+      list.sort((a, b) =>
+          (a.sizeBytes ?? double.infinity)
+              .compareTo(b.sizeBytes ?? double.infinity));
+    } else if (selector != null) {
+      final gb = 1024.0 * 1024 * 1024;
+      final filtered = list.where((s) {
+        final size = s.sizeBytes;
+        if (size == null) return false;
+        switch (selector) {
+          case '<1gb': return size < gb;
+          case '1-5gb': return size >= gb && size <= 5 * gb;
+          case '5-15gb': return size > 5 * gb && size <= 15 * gb;
+          case '15-30gb': return size > 15 * gb && size <= 30 * gb;
+          case '>30gb': return size > 30 * gb;
+          default: return true;
+        }
+      }).toList();
+      if (filtered.isNotEmpty) list = filtered;
     }
-
-    // English audio metadata wins before size or quality for Torrentio.
-    // Language of the actual container is verified after playback starts.
-    final originalOrder = <StreamSource, int>{};
-    for (var i = 0; i < list.length; i++) {
-      originalOrder[list[i]] = i;
-    }
-    list.sort((a, b) {
-      // A provider-labelled '[TB download]' is a queued debrid job, not an
-      // instant-play movie. Put it last BEFORE language, size and quality.
-      // Sources without that label are not certified available.
-      final readiness = DebridSourceReadiness.sortTier(a)
-          .compareTo(DebridSourceReadiness.sortTier(b));
-      if (readiness != 0) return readiness;
-      final preference = AudioLanguagePriority.torrentioAudioRank(a)
-          .compareTo(AudioLanguagePriority.torrentioAudioRank(b));
-      if (preference != 0) return preference;
-      final int secondary;
-      if (_selectedSizeFilter == 'largest') {
-        secondary = (b.sizeBytes ?? 0).compareTo(a.sizeBytes ?? 0);
-      } else if (_selectedSizeFilter == 'smallest') {
-        secondary = (a.sizeBytes ?? double.infinity)
-            .compareTo(b.sizeBytes ?? double.infinity);
-      } else {
-        secondary = b.qualityRank.compareTo(a.qualityRank);
-      }
-      return secondary != 0
-          ? secondary
-          : originalOrder[a]!.compareTo(originalOrder[b]!);
-    });
     return list;
   }
 
@@ -472,6 +490,7 @@ class _WatchScreenState extends State<WatchScreen>
                             _buildSizeFilterDropdown(),
                             const SizedBox(width: 8),
                             _buildAddonFilterDropdown(),
+                             _buildPrefsButton(),
                           ],
                         ),
                       ),
@@ -1011,6 +1030,7 @@ class _WatchScreenState extends State<WatchScreen>
                   _buildSizeFilterDropdown(),
                   const SizedBox(width: 8),
                   _buildAddonFilterDropdown(),
+                             _buildPrefsButton(),
                 ],
               ),
           ],

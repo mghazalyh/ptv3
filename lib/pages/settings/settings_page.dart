@@ -26,6 +26,7 @@ import 'updates_settings_page.dart';
 import 'about_settings_page.dart';
 import 'storage_settings_page.dart';
 import 'torbox_quick_settings_page.dart';
+import 'watch_source_preferences_page.dart';
 import 'settings_transfer_page.dart';
 import '../../services/p2p/p2p_settings_service.dart';
 import '../../widgets/p2p/p2p_warning_dialog.dart';
@@ -214,6 +215,15 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               ),
 
+
+              _SettingsCategoryTile(
+                icon: Icons.tune_rounded,
+                iconColor: const Color(0xFF7C5CFF),
+                title: 'Watch Sources Preferences',
+                subtitle: 'Torrentio, Comet, MediaFusion filters, cache, and three-level sorting',
+                onTap: () => _navigateTo(const WatchSourcePreferencesPage()),
+              ),
+              const SizedBox(height: 12),
 
               _SettingsCategoryTile(
                 icon: Icons.storage_rounded,

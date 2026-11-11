@@ -11,6 +11,7 @@ import './pages/home/home_page.dart';
 import './services/addon/addon_manager.dart';
 import './services/my_list/github_library_cloud.dart';
 import './services/config/torriodb_portable_sync.dart';
+import './services/stream/watch_source_preferences.dart';
 import './services/theme/app_theme_service.dart';
 import './services/updater/app_updater_service.dart';
 import './services/books/continue_reading_service.dart';
@@ -62,6 +63,7 @@ void main() async {
   await GitHubLibraryCloud.instance.initialize();
   await TorriodbPortableSync.instance.refresh(force: true);
   await HomeSectionOrderService.initialize();
+  await WatchSourcePreferencesService.initialize();
   await PlayerSettings.initialize();
   if (Platform.isWindows && NightModeDiagnostics.instance.isActive) {
     final audit = WindowsSettingsRecovery.lastAudit;

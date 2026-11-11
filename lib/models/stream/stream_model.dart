@@ -11,6 +11,7 @@ class StreamSource {
   final String addonName;
   final Map<String, dynamic>? behaviorHints;
   final List<String>? sources;
+  final List<Map<String, dynamic>>? subtitles;
   final Map<String, String>? headers;
 
   StreamSource({
@@ -24,6 +25,7 @@ class StreamSource {
     required this.addonName,
     this.behaviorHints,
     this.sources,
+    this.subtitles,
     this.headers,
   });
 
@@ -69,6 +71,12 @@ class StreamSource {
       addonName: addonName,
       behaviorHints: hints,
       sources: srcList,
+      subtitles: json['subtitles'] is List
+          ? (json['subtitles'] as List)
+              .whereType<Map>()
+              .map((entry) => Map<String, dynamic>.from(entry))
+              .toList()
+          : null,
       headers: headersMap,
     );
   }

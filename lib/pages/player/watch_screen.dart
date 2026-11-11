@@ -21,6 +21,7 @@ import '../../services/theme/glass_settings.dart';
 import '../../widgets/common/performance_liquid_lens.dart';
 import '../settings/settings_page.dart';
 import '../details/details_page.dart';
+import '../home/home_page.dart';
 import '../../utils/navigation/route_transitions.dart';
 
 // ---------------------------------------------------------------------------
@@ -275,7 +276,9 @@ class _WatchScreenState extends State<WatchScreen>
         Positioned(
           top: MediaQuery.of(context).padding.top + 8,
           left: 12,
-          child: _buildBackButton(),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                _buildBackButton(), _buildHomeButton(),
+              ]),
         ),
       ],
     );
@@ -1503,6 +1506,31 @@ class _WatchScreenState extends State<WatchScreen>
       ),
     );
   }
+  Widget _buildHomeButton() => Container(
+    width: 44,
+    height: 44,
+    margin: const EdgeInsets.only(left: 8),
+    decoration: BoxDecoration(
+      color: _C.bg.withValues(alpha: 0.7),
+      shape: BoxShape.circle,
+      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+    ),
+    child: IconButton(
+      tooltip: 'Go to Home',
+      icon: const Icon(Icons.home_rounded, color: Colors.white, size: 22),
+      onPressed: () {
+        final nav = Navigator.of(context);
+        if (nav.canPop()) {
+          nav.popUntil((route) => route.isFirst);
+        } else {
+          nav.pushReplacement(
+            MaterialPageRoute<void>(builder: (_) => const HomePage()),
+          );
+        }
+      },
+    ),
+  );
+
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

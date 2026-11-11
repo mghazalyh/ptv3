@@ -3340,13 +3340,10 @@ class _PlayerScreenState extends State<PlayerScreen>
 
             if (event is KeyDownEvent) {
               if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
-                  event.logicalKey == LogicalKeyboardKey.audioVolumeUp) {
-                _applyVolume((_volume + 0.05).clamp(0.0, PlayerVolumeControl.maxVolume), showHud: true);
-                return KeyEventResult.handled;
-              } else if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+                  event.logicalKey == LogicalKeyboardKey.arrowDown ||
+                  event.logicalKey == LogicalKeyboardKey.audioVolumeUp ||
                   event.logicalKey == LogicalKeyboardKey.audioVolumeDown) {
-                _applyVolume((_volume - 0.05).clamp(0.0, PlayerVolumeControl.maxVolume), showHud: true);
-                return KeyEventResult.handled;
+                return KeyEventResult.ignored; // System volume keys belong to Windows.
               } else if (event.logicalKey == LogicalKeyboardKey.keyM) {
                 _toggleMute(showHud: true);
                 return KeyEventResult.handled;
@@ -3370,13 +3367,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             return KeyEventResult.ignored;
           },
           child: Listener(
-            onPointerSignal: (pointerSignal) {
-              if (pointerSignal is PointerScrollEvent) {
-                final delta = pointerSignal.scrollDelta.dy < 0 ? 0.05 : -0.05;
-                final next = (_volume + delta).clamp(0.0, PlayerVolumeControl.maxVolume);
-                _applyVolume((next * 100).round() / 100.0, showHud: true);
-              }
-            },
+            // Wheel signals are not a player volume shortcut.
             child: MouseRegion(
               cursor: (_showControls || _isLoading || _activeMenu != null)
                   ? SystemMouseCursors.basic

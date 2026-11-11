@@ -2,14 +2,14 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'player_glass.dart';
 
-/// Interactive volume slider with high-gain boost support (up to 250%).
+/// Manual volume slider; Windows keys and mouse wheel never modify player gain.
 class PlayerVolumeControl extends StatefulWidget {
-  final double volume; // 0.0 to 2.50 (250%)
+  final double volume; // 0.0 to 1.0 (100%)
   final bool isMuted;
   final ValueChanged<double> onVolumeChanged;
   final VoidCallback onToggleMute;
 
-  static const double maxVolume = 2.50;
+  static const double maxVolume = 1.0;
 
   const PlayerVolumeControl({
     super.key,
@@ -48,39 +48,22 @@ class _PlayerVolumeControlState extends State<PlayerVolumeControl> {
 
   void _updateFromPosition(double localX) {
     final fraction = (localX / _trackWidth).clamp(0.0, 1.0);
-    double newVol;
-    if (fraction <= 0.55) {
-      newVol = (fraction / 0.55) * 1.0;
-    } else {
-      newVol = 1.0 + ((fraction - 0.55) / 0.45) * 1.50;
-    }
-    widget.onVolumeChanged((newVol * 100).round() / 100.0);
+    widget.onVolumeChanged((fraction * 100).round() / 100.0);
   }
 
-  double _getFractionFromVolume(double v) {
-    if (widget.isMuted) return 0.0;
-    if (v <= 1.0) {
-      return (v * 0.55).clamp(0.0, 0.55);
-    }
-    return (0.55 + ((v - 1.0) / 1.50) * 0.45).clamp(0.55, 1.0);
-  }
+  double _getFractionFromVolume(double volume) =>
+      widget.isMuted ? 0.0 : volume.clamp(0.0, 1.0);
 
   @override
   Widget build(BuildContext context) {
     final effectiveVol = widget.isMuted ? 0.0 : widget.volume;
     final fillFraction = _getFractionFromVolume(effectiveVol);
-    final isBoosting = !widget.isMuted && widget.volume > 1.001;
-    final boostColor = _getBoostColor();
+    final isBoosting = false;
+    final boostColor = Colors.white;
     final pct = (effectiveVol * 100).round();
 
     return Listener(
-      onPointerSignal: (pointerSignal) {
-        if (pointerSignal is PointerScrollEvent) {
-          final delta = pointerSignal.scrollDelta.dy < 0 ? 0.05 : -0.05;
-          final next = (widget.volume + delta).clamp(0.0, PlayerVolumeControl.maxVolume);
-          widget.onVolumeChanged((next * 100).round() / 100.0);
-        }
-      },
+      // Wheel input is intentionally ignored: slider is click/drag only.
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
@@ -125,7 +108,7 @@ class _PlayerVolumeControlState extends State<PlayerVolumeControl> {
 
                     // 100% Threshold Notch Line
                     Positioned(
-                      left: _trackWidth * 0.55 - 0.75,
+                      left: _trackWidth - 1.5,
                       child: Container(
                         width: 1.5,
                         height: 9,

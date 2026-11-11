@@ -322,7 +322,7 @@ abstract final class PlayerSettings {
               bassDb: bassDb.value, trebleDb: trebleDb.value);
         }
       });
-      await platform.setProperty('volume-max', '200');
+      await platform.setProperty('volume-max', '100');
       await _applyBrightnessWithFallback(player, extraBrightness.value);
 
       // 2. Hardware Decoder — let MPV pick natively

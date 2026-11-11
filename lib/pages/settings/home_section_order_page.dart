@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../../models/movie/movie_section.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../services/home/home_section_order_service.dart';
+import '../../services/theme/dock_settings.dart';
+import 'appearance/dock_settings_page.dart';
 
 /// Drag the handle beside an individual Home row to change its priority.
 /// Catalogs may be configured here even when currently offline or empty.
@@ -146,6 +148,29 @@ class _HomeSectionOrderPageState extends State<HomeSectionOrderPage> {
                   'Unavailable catalogs keep their place until they load.',
                   style: TextStyle(color: Colors.white70, height: 1.5),
                 ),
+              ),
+              ValueListenableBuilder<bool>(
+                valueListenable: DockSettings.visibleNotifier,
+                builder: (context, visible, _) => Column(children: [
+                  SwitchListTile.adaptive(
+                    title: const Text('Show Bottom Navigation Dock'),
+                    subtitle: const Text('Hide or restore the complete bottom icon bar.'),
+                    value: visible,
+                    onChanged: (value) async {
+                      try {
+                        await DockSettings.setDockVisible(value);
+                      } catch (error) {
+                        debugPrint('[HomeOrder] Dock toggle failed (${error.runtimeType})');
+                      }
+                    },
+                  ),
+                  TextButton.icon(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute<void>(
+                      builder: (_) => const DockSettingsPage())),
+                    icon: const Icon(Icons.tune_rounded),
+                    label: const Text('Customize individual dock icons'),
+                  ),
+                ]),
               ),
               Expanded(
                 child: ReorderableListView.builder(

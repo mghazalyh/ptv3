@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/torriodb_portable_sync.dart';
 
 enum DockItemKey {
   home(
@@ -111,6 +112,9 @@ enum DockItemKey {
 
 abstract final class DockSettings {
   static const String _prefPrefix = 'dock_item_enabled_';
+  static const String _visibleKey = 'dock_visible_v1';
+  static final ValueNotifier<bool> visibleNotifier = ValueNotifier<bool>(true);
+  static bool get isVisible => visibleNotifier.value;
 
   /// Reactive notifier containing the map of enabled dock item keys.
   static final ValueNotifier<Map<String, bool>> enabledNotifier =
@@ -121,6 +125,7 @@ abstract final class DockSettings {
   /// Initialize and load saved state from SharedPreferences.
   static Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
+    visibleNotifier.value = prefs.getBool(_visibleKey) ?? true;
     final map = <String, bool>{};
 
     for (final item in DockItemKey.values) {
@@ -152,6 +157,7 @@ abstract final class DockSettings {
     final updated = Map<String, bool>.from(enabledNotifier.value);
     updated[key] = enabled;
     enabledNotifier.value = updated;
+    await TorriodbPortableSync.instance.markChanged('dock');
   }
 
   /// Reset all dock item toggles to enabled default.
@@ -166,5 +172,48 @@ abstract final class DockSettings {
     enabledNotifier.value = {
       for (final item in DockItemKey.values) item.key: true,
     };
+    await setDockVisible(true);
+    await TorriodbPortableSync.instance.markChanged('dock');
+  }
+
+  static Future<void> setDockVisible(bool visible, {bool fromCloud = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_visibleKey, visible);
+    visibleNotifier.value = visible;
+    if (!fromCloud) await TorriodbPortableSync.instance.markChanged('dock');
+  }
+
+  static Map<String, dynamic> snapshot() => {
+    'visible': isVisible,
+    'items': {for (final entry in enabledNotifier.value.entries) entry.key: entry.value},
+  };
+
+  static Map<String, dynamic> normalize(Object? raw) {
+    if (raw is! Map || raw['visible'] is! bool || raw['items'] is! Map) {
+      throw const FormatException('Invalid dock configuration');
+    }
+    final items = Map<String, dynamic>.from(raw['items'] as Map);
+    final allowed = DockItemKey.values.map((e) => e.key).toSet();
+    if (items.keys.any((key) => !allowed.contains(key)) ||
+        items.values.any((value) => value is! bool)) {
+      throw const FormatException('Invalid dock icon preference');
+    }
+    return {'visible': raw['visible'], 'items': items};
+  }
+
+  static Future<void> restoreFromCloud(Object? raw) async {
+    final parsed = normalize(raw);
+    final items = Map<String, dynamic>.from(parsed['items'] as Map);
+    final prefs = await SharedPreferences.getInstance();
+    final updated = Map<String, bool>.from(enabledNotifier.value);
+    for (final item in DockItemKey.values) {
+      if (!item.isRemovable) continue;
+      if (items[item.key] is bool) {
+        await prefs.setBool('$_prefPrefix${item.key}', items[item.key] as bool);
+        updated[item.key] = items[item.key] as bool;
+      }
+    }
+    enabledNotifier.value = updated;
+    await setDockVisible(parsed['visible'] as bool, fromCloud: true);
   }
 }

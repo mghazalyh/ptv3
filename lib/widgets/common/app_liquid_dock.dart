@@ -87,7 +87,11 @@ class AppLiquidDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<Map<String, bool>>(
+    return ValueListenableBuilder<bool>(
+      valueListenable: DockSettings.visibleNotifier,
+      builder: (context, visible, _) {
+        if (!visible) return const SizedBox.shrink();
+        return ValueListenableBuilder<Map<String, bool>>(
       valueListenable: DockSettings.enabledNotifier,
       builder: (context, enabledMap, _) {
         final items = <DockItem>[];
@@ -280,6 +284,8 @@ class AppLiquidDock extends StatelessWidget {
         }
 
         return LiquidDock(items: items);
+        },
+        );
       },
     );
   }

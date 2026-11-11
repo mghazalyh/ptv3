@@ -57,6 +57,21 @@ class _DockSettingsPageState extends State<DockSettingsPage> {
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                   children: [
+                    ValueListenableBuilder<bool>(
+                      valueListenable: DockSettings.visibleNotifier,
+                      builder: (context, visible, _) => SwitchListTile.adaptive(
+                        title: const Text('Show Bottom Navigation Dock'),
+                        subtitle: const Text('Hide the entire dock without changing individual icons.'),
+                        value: visible,
+                        onChanged: (value) async {
+                          try {
+                            await DockSettings.setDockVisible(value);
+                          } catch (error) {
+                            debugPrint('[DockSettings] Toggle failed (${error.runtimeType})');
+                          }
+                        },
+                      ),
+                    ),
                     // Header Description Card
                     Container(
                       padding: const EdgeInsets.all(18),

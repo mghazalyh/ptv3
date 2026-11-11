@@ -130,7 +130,7 @@ class WatchSourceProfile {
   static List<String> _strings(Object? raw, List<String> allowed,
       List<String> fallback) {
     if (raw is! List || raw.length > 100) return fallback;
-    if (raw.any((v) => v is! String || (v as String).length > 128)) {
+    if (raw.any((v) => v is! String || v.length > 128)) {
       return fallback;
     }
     return (raw.cast<String>().where(allowed.contains).toSet()).toList();

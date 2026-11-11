@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/movie/movie.dart';
 import '../../models/movie/video.dart';
@@ -87,7 +86,6 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   bool _openingSimilarItem = false;
   bool _isFetchingSimilar = false;
   bool _similarFromTmdb = false;
-  int? _similarTvdbId;
   int? _similarVerifiedTvdbTmdbId;
   static const int _similarPageSize = 8;
   int _similarVisibleCount = _similarPageSize;
@@ -245,6 +243,19 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   }
 
 
+  // Cast, seasons, and related content still need the shared carousel helper.
+  // Only the Similar Content row changed to a vertical grid.
+  void _scrollList(ScrollController controller, double directionMultiplier) {
+    if (!controller.hasClients) return;
+    final viewportWidth = controller.position.viewportDimension;
+    final scrollAmount = viewportWidth * 0.7 * directionMultiplier;
+    final target = (controller.position.pixels + scrollAmount)
+        .clamp(0.0, controller.position.maxScrollExtent);
+    controller.animateTo(target,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic);
+  }
+
   Future<void> _fetchDetails() async {
     String effectiveBaseUrl = widget.movie.addonBaseUrl;
     String effectiveType = widget.movie.type;
@@ -369,8 +380,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       setState(() {
         _similarItems = result.items;
         _similarFromTmdb = result.fromTmdb;
-        _similarTvdbId = result.tvdbId;
-        _similarVerifiedTvdbTmdbId = result.verifiedTvdbTmdbId;
+          _similarVerifiedTvdbTmdbId = result.verifiedTvdbTmdbId;
         _similarHasMore = result.hasMore;
         // BestSimilar has no next page; start the TMDB continuation at page 1.
         _similarTmdbPage = result.fromTmdb ? 1 : 0;
@@ -1897,7 +1907,6 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
               ),
             ),
         ],
-      ),
     );
   }
 

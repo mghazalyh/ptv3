@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'player_glass.dart';
 
@@ -38,12 +37,6 @@ class _PlayerVolumeControlState extends State<PlayerVolumeControl> {
       return Icons.volume_down_rounded;
     }
     return Icons.volume_up_rounded;
-  }
-
-  Color _getBoostColor() {
-    if (widget.volume <= 1.0) return Colors.white;
-    if (widget.volume > 1.75) return const Color(0xFFFF3D00); // Deep Flame Orange/Red
-    return const Color(0xFFFF8A00); // Amber/Orange
   }
 
   void _updateFromPosition(double localX) {

@@ -308,7 +308,9 @@ class _WatchScreenState extends State<WatchScreen>
         _captureCacheCode('watch_cache_verified_miss');
       }
       if (!result.completed) {
-        _captureCacheCode('watch_cache_lookup_failed');
+        _captureCacheCode(result.failureCode == 'file_unverified'
+            ? 'watch_cache_file_unverified'
+            : 'watch_cache_lookup_failed');
       }
       if (mounted) {
         setState(() {
@@ -316,7 +318,8 @@ class _WatchScreenState extends State<WatchScreen>
           if (!result.completed) {
             _cacheFailureCode = result.failureCode;
           }
-          if (result.failureCode == 'missing_key') {
+          if (result.failureCode == 'missing_key' ||
+              result.failureCode == 'file_unverified') {
             for (final source in pending) {
               final key = _cacheKey(source);
               if (key != null) _cacheAttempts[key] = _maxCacheAttempts;
@@ -1660,8 +1663,10 @@ class _WatchScreenState extends State<WatchScreen>
               color: _C.textSecondary, size: 40),
           const SizedBox(height: 16),
           Text(
-            failed ? 'Unable to verify TorBox cache'
-                : 'No verified cached sources',
+            _cacheFailureCode == 'file_unverified'
+                ? 'Cached episode not confirmed'
+                : failed ? 'Unable to verify TorBox cache'
+                    : 'No verified cached sources',
             style: const TextStyle(
               color: _C.textPrimary, fontSize: 18,
               fontWeight: FontWeight.w600),
@@ -1671,9 +1676,11 @@ class _WatchScreenState extends State<WatchScreen>
           Text(
             _cacheFailureCode == 'missing_key'
                 ? 'Add your TorBox API key in Settings to verify cached sources.'
-                : failed
-                    ? 'Cache verification did not complete. Unverified and uncached sources remain hidden.'
-                    : 'No sources were confirmed cached for this title. Uncached sources remain hidden.',
+                : _cacheFailureCode == 'file_unverified'
+                    ? 'TorBox could not confirm the selected video in the cached file list. Addon-ready links remain available separately.'
+                    : failed
+                        ? 'Cache verification did not complete. Unverified and uncached sources remain hidden.'
+                        : 'No sources were confirmed cached for this title. Uncached sources remain hidden.',
             style: const TextStyle(color: _C.textSecondary, fontSize: 13),
             textAlign: TextAlign.center,
           ),

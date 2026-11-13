@@ -57,6 +57,7 @@ abstract final class PlayerDiagnosticCodes {
     'watch_cache_hash_missing',
     'watch_cache_hash_found',
     'watch_cache_lookup_started',
+    'watch_cache_file_unverified',
     'sync_manual_requested',
     'sync_timer_due',
     'sync_timer_attempt',

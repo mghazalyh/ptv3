@@ -184,6 +184,7 @@ jobs:
           flutter test test/torriodb_portable_sync_test.dart
           flutter test test/source_compatibility_rank_test.dart
           flutter test test/playback_metric_sanitizer_test.dart
+          flutter test test/player_debug_telemetry_test.dart
           flutter test test/player_audio_presets_test.dart
           flutter test test/paused_http_recovery_test.dart
           flutter test test/watched_history_recommendations_test.dart

@@ -10,6 +10,15 @@ import 'windows_playback_telemetry.dart';
 abstract final class PlayerDebugTelemetry {
   static Timer? _delayedFlush;
 
+  /// Safe failure grouping. Pause/reconnect failures belong to source issues.
+  static String failureReasonFor(String stage) {
+    if (stage.startsWith('subtitle_')) return 'subtitle_failure';
+    if (stage.startsWith('source_') || stage.startsWith('pause_')) {
+      return 'source_failure';
+    }
+    return 'sync_failure';
+  }
+
   static void record(String stage, {bool? failure}) {
     if (!PlayerDiagnosticCodes.events.contains(stage)) return;
     if (Platform.isWindows) {
@@ -24,11 +33,7 @@ abstract final class PlayerDebugTelemetry {
       return;
     }
     if (failure != true) return;
-    final reason = stage.startsWith('subtitle_')
-        ? 'subtitle_failure'
-        : stage.startsWith('source_')
-            ? 'source_failure'
-            : 'sync_failure';
+    final reason = failureReasonFor(stage);
     unawaited(_flush(reason));
     _delayedFlush?.cancel();
     _delayedFlush = Timer(const Duration(seconds: 36), () {

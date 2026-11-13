@@ -2749,7 +2749,8 @@ class _PlayerScreenState extends State<PlayerScreen>
               before: baseline,
               after: _player.state.position,
               attempts: _httpReconnectAttempts)) {
-            PlayerDebugTelemetry.record('pause_resume_stall_detected');
+            PlayerDebugTelemetry.record('pause_resume_stall_detected',
+                failure: true);
             unawaited(_reconnectPausedHttp());
           }
           _httpResumePosition = null;

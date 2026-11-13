@@ -159,6 +159,7 @@ jobs:
             test/player_picture_audio_test.dart \
             test/player_audio_presets_test.dart \
             test/playback_metric_sanitizer_test.dart \
+            test/player_debug_telemetry_test.dart \
             test/windows_settings_recovery_test.dart \
             test/windows_playback_telemetry_test.dart \
             test/playback_frame_health_test.dart \

@@ -336,16 +336,57 @@ abstract final class WatchSourceEngine {
     final magnet = source.magnetUrl ?? '';
     final match = RegExp(r'btih:([0-9a-f]{40})', caseSensitive: false)
         .firstMatch(magnet);
-    return match?.group(1)?.toLowerCase();
+    if (match != null) return match.group(1)?.toLowerCase();
+    // Stremio may provide the torrent only in its P2P source hints.
+    for (final hint in source.sources ?? const <String>[]) {
+      final candidate = RegExp(r'(?:dht:|btih:)([0-9a-f]{40})(?![0-9a-f])',
+          caseSensitive: false).firstMatch(hint);
+      if (candidate != null) return candidate.group(1)?.toLowerCase();
+    }
+    return null;
   }
 
   /// Cache verification is scoped to the requested torrent file when supplied.
   /// A cached torrent hash alone cannot verify another episode's file index.
-  static String? cacheKeyOf(StreamSource source) {
+  static String? cacheKeyOf(StreamSource source,
+      {int? season, int? episode}) {
     final hash = hashOf(source);
     if (hash == null) return null;
     final index = source.fileIdx;
+    // A season pack without a fileIdx must not reuse another episode's hit.
+    if (season != null && episode != null) {
+      return '${hash}:s${season}e${episode}:${index}';
+    }
     return index == null ? hash : '${hash}:${index}';
+  }
+
+  /// A playable HTTP link cannot by itself prove a TorBox torrent cache hit.
+  static bool isPlayableDirectStream(StreamSource source) {
+    final uri = Uri.tryParse(source.url ?? '');
+    return uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.isNotEmpty &&
+        !uri.host.endsWith('.invalid') &&
+        !DebridSourceReadiness.isExplicitlyPending(source);
+  }
+
+  /// Only explicitly TorBox-configured playable addon links are reported
+  /// ready. They MUST NOT be displayed as TorBox API verified.
+  static bool isTorBoxAddonReady(StreamSource source) {
+    if (!isPlayableDirectStream(source)) return false;
+    final provider = source.addonName;
+    final label = source.name ?? '';
+    return RegExp(r'\b(torbox|tb|trb)\b', caseSensitive: false)
+            .hasMatch(provider) ||
+        RegExp(r'^\s*\[tb\+?\]', caseSensitive: false)
+            .hasMatch(label);
+  }
+
+  static bool isAddonReportedReady(StreamSource source) {
+    if (!isPlayableDirectStream(source)) return false;
+    if (isTorBoxAddonReady(source)) return true;
+    return RegExp(r'^\s*\[(rd|ad|pm)\+?\]', caseSensitive: false)
+        .hasMatch(source.name ?? '');
   }
 
   static String? resolution(StreamSource source) {
@@ -432,14 +473,14 @@ abstract final class WatchSourceEngine {
     return null;
   }
 
-  static String cacheTier(StreamSource source, Map<String, bool> verified) {
-    final key = cacheKeyOf(source);
+  static String cacheTier(StreamSource source, Map<String, bool> verified,
+      {int? season, int? episode}) {
+    if (DebridSourceReadiness.isExplicitlyPending(source)) return 'pending';
+    final key = cacheKeyOf(source, season: season, episode: episode);
     if (key != null && verified.containsKey(key)) {
       return verified[key] == true ? 'verified' : 'uncached';
     }
-    if (DebridSourceReadiness.isExplicitlyPending(source)) return 'pending';
-    final name = (source.name ?? '').toLowerCase();
-    if (RegExp(r'^\s*\[(tb|rd|ad|pm)\+?\]').hasMatch(name)) return 'reported';
+    if (isAddonReportedReady(source)) return 'reported';
     return 'unknown';
   }
 
@@ -447,7 +488,7 @@ abstract final class WatchSourceEngine {
       allowed.isEmpty || (value == null ? unknown : allowed.contains(value));
 
   static bool _allowed(StreamSource source, WatchSourceProfile profile,
-      Map<String, bool> verified) {
+      Map<String, bool> verified, {int? season, int? episode}) {
     if (profile.addons.isNotEmpty &&
         !profile.addons.any((name) =>
             source.addonName.toLowerCase().contains(name.toLowerCase()))) return false;
@@ -477,9 +518,11 @@ abstract final class WatchSourceEngine {
       }
     }
     if (profile.cachePolicy == 'cachedOnly' &&
-        cacheTier(source, verified) != 'verified') return false;
+        cacheTier(source, verified,
+            season: season, episode: episode) != 'verified') return false;
     if (profile.cachePolicy == 'readyOnly' &&
-        !['verified', 'reported'].contains(cacheTier(source, verified))) return false;
+        !['verified', 'reported'].contains(cacheTier(source, verified,
+            season: season, episode: episode))) return false;
     final subs = hasSubtitles(source);
     if (profile.subtitlePolicy == 'require' && subs != true) return false;
     if (profile.subtitlePolicy == 'none' && subs == true) return false;
@@ -487,10 +530,11 @@ abstract final class WatchSourceEngine {
   }
 
   static double? _rank(StreamSource s, String criterion,
-      Map<String, bool> verified, int original, WatchSourceProfile profile) {
+      Map<String, bool> verified, int original, WatchSourceProfile profile,
+      {int? season, int? episode}) {
     switch (criterion) {
       case 'cache':
-        switch (cacheTier(s, verified)) {
+        switch (cacheTier(s, verified, season: season, episode: episode)) {
           case 'verified': return 4;
           case 'reported': return 3;
           case 'unknown': return 2;
@@ -549,9 +593,14 @@ abstract final class WatchSourceEngine {
   }
 
   static List<StreamSource> process(List<StreamSource> sources,
-      WatchSourceProfile profile, {Map<String, bool> verified = const {}}) {
+      WatchSourceProfile profile, {
+      Map<String, bool> verified = const {},
+      int? season,
+      int? episode,
+    }) {
     try {
-      var selected = sources.where((s) => _allowed(s, profile, verified)).toList();
+      var selected = sources.where((s) => _allowed(s, profile, verified,
+          season: season, episode: episode)).toList();
       // Fail open when a missing provider field or strict setting eliminates all
       // results. Do not silently leave users without a playback choice.
       if (selected.isEmpty && sources.isNotEmpty &&
@@ -572,8 +621,10 @@ abstract final class WatchSourceEngine {
       };
       selected.sort((a, b) {
         for (final rule in profile.sorting) {
-          final ar = _rank(a, rule.criterion, verified, original[a] ?? 0, profile);
-          final br = _rank(b, rule.criterion, verified, original[b] ?? 0, profile);
+          final ar = _rank(a, rule.criterion, verified, original[a] ?? 0, profile,
+              season: season, episode: episode);
+          final br = _rank(b, rule.criterion, verified, original[b] ?? 0, profile,
+              season: season, episode: episode);
           if (ar == null && br == null) continue;
           if (ar == null) return 1;
           if (br == null) return -1;
@@ -593,7 +644,8 @@ abstract final class WatchSourceEngine {
       // Strict cache filtering must fail closed even when sorting fails.
       if (profile.cachePolicy == 'cachedOnly') {
         return sources.where((source) =>
-            cacheTier(source, verified) == 'verified').toList();
+            cacheTier(source, verified,
+                season: season, episode: episode) == 'verified').toList();
       }
       return List<StreamSource>.of(sources);
     }

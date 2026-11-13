@@ -3,7 +3,8 @@
 abstract final class SubtitleAutoSyncPolicy {
   static const interval = Duration(minutes: 5);
   // Poll cheaply so a skipped five-minute deadline is retried when playback resumes.
-  static const pollInterval = Duration(seconds: 30);
+  static const pollInterval = Duration(seconds: 5);
+  static const initialSubtitleDelay = Duration(seconds: 10);
   static const failedRetryInterval = Duration(minutes: 2);
 
   static String? skipReason({

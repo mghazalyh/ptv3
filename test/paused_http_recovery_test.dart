@@ -12,6 +12,19 @@ void main() {
         now.subtract(const Duration(hours: 2)), now), isFalse);
     expect(PausedHttpRecovery.needsReopen(true, null, now), isFalse);
   });
+  test('resume should reuse a healthy connection', () {
+    bool stalled(Duration after, {bool http = true, bool playing = true,
+        int attempts = 0}) => PausedHttpRecovery.stalledAfterResume(
+      isHttpVod: http, requestedPlayback: playing,
+      before: const Duration(minutes: 31), after: after,
+      attempts: attempts);
+    expect(stalled(const Duration(minutes: 31, seconds: 2)), isFalse);
+    expect(stalled(const Duration(minutes: 31)), isTrue);
+    expect(stalled(const Duration(minutes: 31), http: false), isFalse);
+    expect(stalled(const Duration(minutes: 31), playing: false), isFalse);
+    expect(stalled(const Duration(minutes: 31),
+        attempts: PausedHttpRecovery.maxAttempts), isFalse);
+  });
   test('real iPad ffurl_read error: only recent resume and bounded attempts', () {
     const error = 'Playback error: tcp: ffurl_read returned 0xfffffcf7';
     expect(PausedHttpRecovery.canRetryError(error, true,

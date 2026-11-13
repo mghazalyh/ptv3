@@ -3,11 +3,24 @@
 abstract final class PausedHttpRecovery {
   static const longPause = Duration(seconds: 90);
   static const resumeErrorWindow = Duration(seconds: 45);
+  // Give the existing connection time to recover before reconnecting.
+  static const resumeStallWindow = Duration(seconds: 14);
   static const maxAttempts = 2;
 
   static bool needsReopen(bool isHttpVod, DateTime? pausedAt, DateTime now) =>
       isHttpVod && pausedAt != null && !now.isBefore(pausedAt) &&
       now.difference(pausedAt) >= longPause;
+
+  /// A long pause is not itself evidence of a disconnected HTTP stream.
+  static bool stalledAfterResume({
+    required bool isHttpVod,
+    required bool requestedPlayback,
+    required Duration before,
+    required Duration after,
+    required int attempts,
+  }) =>
+      isHttpVod && requestedPlayback && attempts < maxAttempts &&
+      after < before + const Duration(milliseconds: 750);
 
   static bool isReadFailure(String text) {
     final error = text.toLowerCase();

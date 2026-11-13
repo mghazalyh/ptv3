@@ -6,6 +6,12 @@ abstract final class PlayerDiagnosticCodes {
     'equalizer_filter_failed',
     'equalizer_runtime_bypassed',
     'watch_progress_saved',
+    'pause_resume_existing_connection',
+    'pause_resume_stall_detected',
+    'pause_resume_reopened',
+    'pause_resume_reopen_failed',
+    'playback_first_frame_slow',
+    'subtitle_background_sync_scheduled',
     // Fixed-value, opt-in recommendation outcome events. Never include a
     // title, provider query, TMDB ID, watch history or user identifier.
     'similar_movie_loaded',

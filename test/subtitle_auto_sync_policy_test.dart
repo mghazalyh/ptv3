@@ -5,7 +5,9 @@ import 'package:playtorrio/services/player/subtitle_auto_sync_platform.dart';
 void main() {
   test('five-minute cadence with external cues, active playback', () {
     expect(SubtitleAutoSyncPolicy.interval, const Duration(minutes: 5));
-    expect(SubtitleAutoSyncPolicy.pollInterval, const Duration(seconds: 30));
+    expect(SubtitleAutoSyncPolicy.pollInterval, const Duration(seconds: 5));
+    expect(SubtitleAutoSyncPolicy.initialSubtitleDelay,
+        const Duration(seconds: 10));
     expect(SubtitleAutoSyncPolicy.failedRetryInterval, const Duration(minutes: 2));
     bool run({bool playing = true, bool loading = false, bool busy = false,
       bool cues = true, bool source = true, bool supported = true}) =>

@@ -242,7 +242,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   DateTime? _httpResumedAt;
   bool _httpReconnecting = false;
   int _httpReconnectAttempts = 0;
+  Timer? _httpResumeWatchdog;
+  Duration? _httpResumePosition;
   int _streamGeneration = 0;
+  int? _firstFrameMs;
+  int _firstFrameMetricGeneration = -1;
 
   @override
   void initState() {
@@ -287,6 +291,8 @@ class _PlayerScreenState extends State<PlayerScreen>
           final justPaused = _isPlaying && !playing;
           final justResumed = !_isPlaying && playing;
           if (justPaused && !_httpReconnecting && !_player.state.buffering) {
+            _httpResumeWatchdog?.cancel();
+            _httpResumePosition = null;
             _httpPausedAt ??= DateTime.now();
           }
           if (justResumed && !_httpReconnecting) {
@@ -303,6 +309,20 @@ class _PlayerScreenState extends State<PlayerScreen>
       _player.stream.position.listen((pos) {
         _position = pos;
         _positionNotifier.value = pos;
+        if (_firstFrameMs == null && pos > const Duration(milliseconds: 500) &&
+            _sourceOpeningAt != null) {
+          _firstFrameMs = DateTime.now().difference(_sourceOpeningAt!)
+              .inMilliseconds.clamp(0, 120000).toInt();
+          if (_firstFrameMs! >= 12000) {
+            PlayerDebugTelemetry.record('playback_first_frame_slow');
+          }
+        }
+        if (_httpResumePosition != null &&
+            pos >= _httpResumePosition! + const Duration(milliseconds: 750)) {
+          _httpResumeWatchdog?.cancel();
+          _httpResumePosition = null;
+          PlayerDebugTelemetry.record('pause_resume_existing_connection');
+        }
         if (_sourceOpeningWatchdog != null &&
             pos > _sourceOpeningBaseline + const Duration(milliseconds: 700)) {
           _sourceOpeningWatchdog?.cancel();
@@ -400,6 +420,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       _logoAnimController.repeat(reverse: true);
     }
     ++_streamGeneration;
+    _httpResumeWatchdog?.cancel();
+    _httpResumePosition = null;
+    _firstFrameMs = null;
     _sourceOpeningWatchdog?.cancel();
     _sourceOpeningWatchdog = null;
     _debridPlaceholderCheck?.cancel();
@@ -1015,7 +1038,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       // English subtitles from OpenSubtitles or another configured provider.
       await _autoEnableEnglishEmbedded(epoch);
       if (_isSubtitleEnabled || _subtitleManuallySelected) return;
-      for (final variant in PlaybackAutoselection.preferredExternal(groups)) {
+      for (final variant in PlaybackAutoselection.preferredExternal(
+          groups, mediaTitle: _currentSource.name ?? '')) {
         if (!mounted || epoch != _audioMediaEpoch ||
             _subtitleManuallySelected || _isSubtitleEnabled) break;
         final loaded = await _loadSubtitle(variant,
@@ -1192,7 +1216,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         'frame-drop-count', 'decoder-frame-drop-count',
         'vo-delayed-frame-count', 'mistimed-frame-count',
         'avsync', 'demuxer-cache-duration',
-        'hwdec-current', 'vf', 'framedrop', 'video-sync',
+        'video-codec', 'video-params/w', 'video-params/h',
+        'estimated-vf-fps', 'hwdec-current', 'vf', 'framedrop', 'video-sync',
       ]) {
         if (!mounted || !_performanceSamplingEnabled ||
             generation != _streamGeneration) break;
@@ -1224,6 +1249,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Aggregate real Flutter compositor build/raster timings, not just MPV
       // decode counters. The latter can read zero while the UI misses frames.
       properties.addAll(_frameHealth.takeSnapshot());
+      if (_firstFrameMs != null &&
+          _firstFrameMetricGeneration != generation) {
+        properties['first-frame-ms'] = _firstFrameMs;
+        _firstFrameMetricGeneration = generation;
+      }
       if (Platform.isWindows) {
         await _recoverWindowsRendering(properties, generation);
         if (WindowsPlaybackTelemetry.instance.isActive) {
@@ -1631,12 +1661,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  // Quiet by default, even when manually requested. Fixed diagnostic codes
+  // keep the outcome inspectable without intrusive banners or media content.
   void _showAutoSyncMessage(String message) {
-    if (!mounted || _syncIsAutomatic) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message),
-      duration: const Duration(seconds: 5),
-    ));
+    if (message.isEmpty) return;
   }
 
   Future<void> _autoSyncToSpokenAudio(int epoch, {bool automatic = false}) async {
@@ -1937,12 +1965,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final epoch = expectedEpoch ?? _audioMediaEpoch;
     if (!automatic) _subtitleManuallySelected = true;
     PlayerDebugTelemetry.record('subtitle_download_started');
-    if (!automatic && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Downloading ${variant.language} subtitle...'),
-        duration: const Duration(seconds: 2),
-      ));
-    }
+    // Subtitle download progress is intentionally silent.
 
     String? path;
     try {
@@ -2092,13 +2115,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (_subtitleDelayMs != 0) {
         await _applyLiveDelay(_subtitleDelayMs / 1000.0);
       }
-      if (!automatic && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(selection == SubtitleTrackReadiness.selected
-              ? '${variant.language} subtitle selected (${result.cues.length} cues)'
-              : '${variant.language} subtitle sent to player; selection unverified'),
-          duration: const Duration(seconds: 3),
-        ));
+      if (Platform.isIOS || Platform.isWindows) {
+        _nextAutoSyncDueAt =
+            DateTime.now().add(SubtitleAutoSyncPolicy.initialSubtitleDelay);
+        PlayerDebugTelemetry.record('subtitle_background_sync_scheduled');
       }
       debugPrint('[PlayerSubtitles] Subtitle attachment completed');
       return true;
@@ -2691,7 +2711,9 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _togglePlayPause() {
     if (_httpReconnecting || _isLoading) return;
+    _httpResumeWatchdog?.cancel();
     if (_player.state.playing) {
+      _httpResumePosition = null;
       _httpPausedAt = DateTime.now();
       unawaited(_player.pause());
     } else {
@@ -2700,11 +2722,29 @@ class _PlayerScreenState extends State<PlayerScreen>
           _httpVodUrl != null, _httpPausedAt, now);
       _httpResumedAt = now;
       _httpPausedAt = null;
+      // Reuse the existing MPV stream. Reopen only if its position fails
+      // to advance during a bounded post-resume watchdog window.
       if (longPause && _httpReconnectAttempts < PausedHttpRecovery.maxAttempts) {
-        unawaited(_reconnectPausedHttp());
-      } else {
-        unawaited(_player.play());
+        final generation = _streamGeneration;
+        final baseline = _player.state.position;
+        _httpResumePosition = baseline;
+        _httpResumeWatchdog = Timer(PausedHttpRecovery.resumeStallWindow, () {
+          if (!mounted || generation != _streamGeneration ||
+              _httpReconnecting || _httpResumePosition == null) return;
+          if (PausedHttpRecovery.stalledAfterResume(
+              isHttpVod: _httpVodUrl != null,
+              requestedPlayback: _player.state.playing ||
+                  _player.state.buffering,
+              before: baseline,
+              after: _player.state.position,
+              attempts: _httpReconnectAttempts)) {
+            PlayerDebugTelemetry.record('pause_resume_stall_detected');
+            unawaited(_reconnectPausedHttp());
+          }
+          _httpResumePosition = null;
+        });
       }
+      unawaited(_player.play());
     }
     _startHideControlsTimer();
   }
@@ -2715,6 +2755,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _reconnectPausedHttp() async {
     if (!mounted || _httpReconnecting || _httpVodUrl == null ||
         _httpReconnectAttempts >= PausedHttpRecovery.maxAttempts) return;
+    _httpResumeWatchdog?.cancel();
+    _httpResumePosition = null;
     final generation = _streamGeneration;
     final url = _httpVodUrl!;
     final headers = Map<String, String>.from(_httpVodHeaders ?? {});
@@ -2739,6 +2781,23 @@ class _PlayerScreenState extends State<PlayerScreen>
           ).timeout(const Duration(seconds: 35));
           if (!mounted || generation != _streamGeneration) return;
           await PlayerSettings.applyPostOpenProperties(_player);
+          // Preserve the selected subtitle across a genuine reconnect.
+          if (_isSubtitleEnabled && _currentSubtitlePath != null) {
+            try {
+              await _player.setSubtitleTrack(SubtitleTrack.uri(
+                _resolveSubtitleUri(_currentSubtitlePath!),
+                title: _currentSubtitleVariant?.language ?? 'Subtitle',
+              ));
+              await PlayerSettings.applySubtitleStyling(_player);
+              if (_subtitleDelayMs != 0) {
+                await _applyLiveDelay(_subtitleDelayMs / 1000.0);
+              }
+            } catch (error) {
+              debugPrint('[PlayerScreen] Subtitle reattach: ${error.runtimeType}');
+              PlayerDebugTelemetry.record('subtitle_attach_failed',
+                  failure: true);
+            }
+          }
           await _player.setRate(_playbackRate);
           await _player.setVolume((_isMuted ? 0.0 : _volume) * 100.0);
           if (!mounted || generation != _streamGeneration) return;
@@ -2760,6 +2819,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             _preferEnglishAudioTrack();
           }
           _httpResumedAt = DateTime.now();
+          PlayerDebugTelemetry.record('pause_resume_reopened');
           _startHideControlsTimer();
           return;
         } catch (error) {
@@ -2772,6 +2832,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
       }
       if (!mounted || generation != _streamGeneration) return;
+      PlayerDebugTelemetry.record('pause_resume_reopen_failed', failure: true);
       setState(() {
         _isLoading = false;
         _statusMessage = 'Stream connection expired. Select another source.';
@@ -3245,6 +3306,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _playbackPerformanceTimer?.cancel();
     _sourceOpeningWatchdog?.cancel();
     _debridPlaceholderCheck?.cancel();
+    _httpResumeWatchdog?.cancel();
     ++_sourceRecoveryEpoch;
     if (_frameTimingsRegistered) {
       SchedulerBinding.instance.removeTimingsCallback(_onFlutterFrameTimings);
@@ -3672,7 +3734,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           extraBrightness: _brightnessPreview ?? PlayerSettings.extraBrightness.value,
                           isBrightnessMenuActive: _activeMenu == 'brightness',
                           isDiagnosticsActive: _showDiagnostics,
-                          isAutoSyncBusy: _autoSyncBusy,
+                          isAutoSyncBusy: false,
                           onAutoSync: () => unawaited(_autoSyncSubtitles()),
                           onToggleDiagnostics: _toggleDiagnostics,
                           isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,

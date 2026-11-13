@@ -1474,6 +1474,7 @@ class _WatchScreenState extends State<WatchScreen>
               style: PerformanceGlassStyles.menuButton,
               child: Container(
                 height: 36,
+                constraints: const BoxConstraints(maxWidth: 220),
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),

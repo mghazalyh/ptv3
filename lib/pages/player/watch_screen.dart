@@ -250,23 +250,24 @@ class _WatchScreenState extends State<WatchScreen>
           _cacheAttempts[key] = (_cacheAttempts[key] ?? 0) + 1;
         }
       }
-      outcome = await TorBoxCacheVerifier.instance.verifyWithStatus(pending);
-      if (outcome.statuses.values.any((cached) => cached)) {
+      final result = await TorBoxCacheVerifier.instance.verifyWithStatus(pending);
+      outcome = result;
+      if (result.statuses.values.any((cached) => cached)) {
         _captureCacheCode('watch_cache_verified_hit');
       }
-      if (outcome.statuses.values.any((cached) => !cached)) {
+      if (result.statuses.values.any((cached) => !cached)) {
         _captureCacheCode('watch_cache_verified_miss');
       }
-      if (!outcome.completed) {
+      if (!result.completed) {
         _captureCacheCode('watch_cache_lookup_failed');
       }
       if (mounted) {
         setState(() {
-          _verifiedCache.addAll(outcome!.statuses);
-          if (!outcome!.completed) {
-            _cacheFailureCode = outcome!.failureCode;
+          _verifiedCache.addAll(result.statuses);
+          if (!result.completed) {
+            _cacheFailureCode = result.failureCode;
           }
-          if (outcome!.failureCode == 'missing_key') {
+          if (result.failureCode == 'missing_key') {
             for (final source in pending) {
               final key = WatchSourceEngine.cacheKeyOf(source);
               if (key != null) _cacheAttempts[key] = _maxCacheAttempts;

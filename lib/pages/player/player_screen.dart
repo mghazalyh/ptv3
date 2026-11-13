@@ -1048,7 +1048,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       await _autoEnableEnglishEmbedded(epoch);
       if (_isSubtitleEnabled || _subtitleManuallySelected) return;
       for (final variant in PlaybackAutoselection.preferredExternal(
-          groups, mediaTitle: _currentSource.name ?? '')) {
+          groups, mediaTitle: _currentSource.title ?? _currentSource.name ?? '')) {
         if (!mounted || epoch != _audioMediaEpoch ||
             _subtitleManuallySelected || _isSubtitleEnabled) break;
         final loaded = await _loadSubtitle(variant,
@@ -1682,7 +1682,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Embedded subtitles do not expose timed text through media_kit.
       // Find external English text rather than guessing based on track names.
       final candidates = PlaybackAutoselection.preferredExternal(
-        _subtitleGroups, mediaTitle: _currentSource.name ?? '',
+        _subtitleGroups, mediaTitle: _currentSource.title ?? _currentSource.name ?? '',
       );
       var loaded = false;
       for (final variant in candidates.take(3)) {
@@ -1949,7 +1949,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _autoSyncByReleaseName(int epoch) async {
     final ranked = PlaybackAutoselection.preferredExternal(
-      _subtitleGroups, mediaTitle: _currentSource.name ?? '',
+      _subtitleGroups, mediaTitle: _currentSource.title ?? _currentSource.name ?? '',
     );
     final alternatives = ranked.where((v) =>
         v.downloadUrl != _currentSubtitleVariant?.downloadUrl).take(6);

@@ -51,6 +51,18 @@ void main() {
         ['Wyzie', 'OpenSubtitles', 'Subdl']);
   });
 
+  test('subtitles prefer the actual release when matching external cues', () {
+    final groups = <SubtitleLanguageGroup>[
+      SubtitleLanguageGroup(language: 'English', variants: [
+        external('OpenSubtitles', 'en', title: 'Show.S01E03.BluRay'),
+        external('OpenSubtitles', 'en', title: 'Show.S01E03.WEB-DL.H265'),
+      ]),
+    ];
+    final ranked = PlaybackAutoselection.preferredExternal(
+        groups, mediaTitle: 'Show.S01E03.WEB-DL.H265');
+    expect(ranked.first.title, 'Show.S01E03.WEB-DL.H265');
+  });
+
   test('next episode is numbered, including next season, not raw listing order', () {
     final e1 = Video(id: 'tt42:1:1', title: 'Pilot', season: 1, episode: 1);
     final e2 = Video(id: 'tt42:1:2', title: 'Second', season: 1, episode: 2);

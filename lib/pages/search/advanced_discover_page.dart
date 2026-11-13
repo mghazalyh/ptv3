@@ -20,7 +20,8 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
     'KR': 'South Korea', 'FR': 'France', 'DE': 'Germany',
     'ES': 'Spain', 'IT': 'Italy', 'BR': 'Brazil', 'MX': 'Mexico',
     'CN': 'China', 'TR': 'Türkiye', 'TH': 'Thailand',
-    'ID': 'Indonesia', 'PH': 'Philippines', 'SE': 'Sweden',
+    'ID': 'Indonesia', 'MY': 'Malaysia', 'SG': 'Singapore',
+    'PH': 'Philippines', 'SE': 'Sweden',
     'NO': 'Norway', 'DK': 'Denmark', 'ZA': 'South Africa',
   };
   static const languages = <String, String>{
@@ -29,7 +30,8 @@ class _AdvancedDiscoverPageState extends State<AdvancedDiscoverPage> {
     'ja': 'Japanese', 'ko': 'Korean', 'zh': 'Chinese',
     'hi': 'Hindi', 'ta': 'Tamil', 'te': 'Telugu',
     'ar': 'Arabic', 'pt': 'Portuguese', 'tr': 'Turkish',
-    'th': 'Thai', 'id': 'Indonesian', 'tl': 'Filipino',
+    'th': 'Thai', 'id': 'Indonesian', 'ms': 'Malay (Bahasa Melayu)',
+    'tl': 'Filipino',
     'sv': 'Swedish', 'no': 'Norwegian', 'da': 'Danish',
     'ru': 'Russian',
   };

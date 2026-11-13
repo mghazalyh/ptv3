@@ -18,6 +18,7 @@ import '../../utils/navigation/route_transitions.dart';
 import '../discover/discover_page.dart';
 import 'person_credits_page.dart';
 import '../player/watch_screen.dart';
+import '../../services/stream/source_availability_service.dart';
 import '../../services/continue_watching/watched_history_service.dart';
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -74,6 +75,9 @@ class DetailsPage extends StatefulWidget {
 class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStateMixin {
   MovieDetail? _detail;
   bool _isLoading = true;
+  SourceAvailabilityResult? _sourceAvailability;
+  bool _checkingSourceAvailability = false;
+  int _availabilitySerial = 0;
 
   int? _selectedSeason;
   int? _previousSeason;
@@ -168,6 +172,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
 
   @override
   void dispose() {
+    _availabilitySerial++;
     _animController.dispose();
     for (final c in _episodeControllers.values) {
       c.dispose();
@@ -190,6 +195,126 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
           type: _resolvedType ?? _detail!.type,
           selectedEpisode: ep,
         ),
+      ),
+    );
+  }
+
+
+  /// Probe only an opened details page. Discovery cards never start stream
+  /// lookups. A series count refers to the first episode in the selected season.
+  Future<void> _checkSourceAvailability({bool refresh = false}) async {
+    final detail = _detail;
+    if (detail == null) return;
+    final episode = _isSeries
+        ? (_currentSeasonEpisodes.isNotEmpty
+            ? _currentSeasonEpisodes.first
+            : (detail.videos.isNotEmpty ? detail.videos.first : null))
+        : null;
+    final requestSerial = ++_availabilitySerial;
+    if (_isSeries && episode == null) {
+      if (mounted) {
+        setState(() {
+          _checkingSourceAvailability = false;
+          _sourceAvailability = null;
+        });
+      }
+      return;
+    }
+    setState(() {
+      _checkingSourceAvailability = true;
+      _sourceAvailability = null;
+    });
+    try {
+      final result = await SourceAvailabilityService.instance.inspect(
+        type: _resolvedType ?? detail.type,
+        id: episode?.id ?? detail.id,
+        title: detail.name,
+        year: int.tryParse(detail.year ?? ''),
+        season: episode?.season,
+        episode: episode?.episode,
+        embedded: episode?.streams ?? const [],
+        refresh: refresh,
+      );
+      if (!mounted || requestSerial != _availabilitySerial) return;
+      setState(() {
+        _checkingSourceAvailability = false;
+        _sourceAvailability = result;
+      });
+    } catch (_) {
+      if (!mounted || requestSerial != _availabilitySerial) return;
+      setState(() {
+        _checkingSourceAvailability = false;
+        _sourceAvailability = null;
+      });
+    }
+  }
+
+  Widget _buildSourceAvailability() {
+    final detail = _detail;
+    if (detail == null) return const SizedBox.shrink();
+    final episode = _isSeries
+        ? (_currentSeasonEpisodes.isNotEmpty
+            ? _currentSeasonEpisodes.first
+            : (detail.videos.isNotEmpty ? detail.videos.first : null))
+        : null;
+    final qualifier = episode == null
+        ? ''
+        : 'S' + (episode.season?.toString() ?? '?') +
+            'E' + (episode.episode?.toString() ?? '?') + ' · ';
+    String description;
+    IconData statusIcon;
+    Color statusColor;
+    if (_isSeries && episode == null) {
+      description = 'No episode metadata available to check';
+      statusIcon = Icons.info_outline_rounded;
+      statusColor = Colors.white54;
+    } else if (_checkingSourceAvailability) {
+      description = qualifier + 'Checking sources...';
+      statusIcon = Icons.hourglass_top_rounded;
+      statusColor = Colors.white70;
+    } else if (_sourceAvailability == null) {
+      description = qualifier + 'Source availability unavailable';
+      statusIcon = Icons.help_outline_rounded;
+      statusColor = Colors.white70;
+    } else if (_sourceAvailability!.count > 0) {
+      final count = _sourceAvailability!.count;
+      description = qualifier + count.toString() +
+          (count == 1 ? ' candidate source' : ' candidate sources') +
+          (_sourceAvailability!.complete ? ' found' : ' found (partial)');
+      statusIcon = Icons.check_circle_outline_rounded;
+      statusColor = const Color(0xFF81C784);
+    } else if (_sourceAvailability!.complete) {
+      description = qualifier + 'No sources reported';
+      statusIcon = Icons.not_interested_rounded;
+      statusColor = Colors.white60;
+    } else {
+      description = qualifier + 'Source check incomplete';
+      statusIcon = Icons.help_outline_rounded;
+      statusColor = Colors.white70;
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        children: [
+          Icon(statusIcon, color: statusColor, size: 17),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              description,
+              key: const ValueKey('details-source-availability'),
+              style: TextStyle(color: statusColor, fontSize: 12),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Recheck sources',
+            icon: const Icon(Icons.refresh_rounded, size: 19),
+            color: Colors.white70,
+            onPressed: (_checkingSourceAvailability ||
+                    (_isSeries && episode == null))
+                ? null
+                : () => unawaited(_checkSourceAvailability(refresh: true)),
+          ),
+        ],
       ),
     );
   }
@@ -353,6 +478,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         }
       });
       _animController.forward();
+      unawaited(_checkSourceAvailability());
       
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -867,6 +993,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                 ),
               const SizedBox(height: _Space.lg),
               _buildPlayButton(fullWidth: true),
+              _buildSourceAvailability(),
               const SizedBox(height: _Space.sm),
               _buildLibraryButton(fullWidth: true),
             ],
@@ -930,6 +1057,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
             _buildLibraryButton(fullWidth: false),
           ],
         ),
+        _buildSourceAvailability(),
         if (meta.description != null && meta.description!.isNotEmpty) ...[
           const SizedBox(height: _Space.lg),
           _buildSynopsis(meta.description!),
@@ -1375,6 +1503,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                         _selectedSeason = season;
                       });
                       _updateEpisodesForSeason();
+                      unawaited(_checkSourceAvailability());
                     }
                   },
                   scaleAmount: 1.02,

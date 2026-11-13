@@ -55,6 +55,7 @@ jobs:
             lib/services/config/torriodb_portable_sync.dart \
             lib/services/stream/watch_source_preferences.dart \
             lib/services/stream/source_compatibility_rank.dart \
+            lib/services/stream/source_availability_service.dart \
             lib/models/stream/stream_model.dart \
             lib/pages/settings/watch_source_preferences_page.dart \
             lib/pages/player/watch_screen.dart \
@@ -120,6 +121,7 @@ jobs:
             test/advanced_discover_text_ui_test.dart \
             test/tmdb_rate_limit_test.dart \
             test/tmdb_advanced_discover_test.dart \
+            test/source_availability_service_test.dart \
             test/tmdb_text_filter_search_test.dart \
             test/tmdb_trending_strict_filters_test.dart \
             test/github_progress_merge_test.dart \

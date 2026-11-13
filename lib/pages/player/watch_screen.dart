@@ -21,6 +21,7 @@ import '../../services/stream/watch_source_preferences.dart';
 import '../settings/watch_source_preferences_page.dart';
 import './player_screen.dart';
 import '../../services/stream/stream_service.dart';
+import '../../services/stream/source_availability_service.dart';
 import '../../services/theme/glass_settings.dart';
 import '../../widgets/common/performance_liquid_lens.dart';
 import '../settings/settings_page.dart';
@@ -197,6 +198,31 @@ class _WatchScreenState extends State<WatchScreen>
 
   Future<void> _loadStreams() async {
     final streamId = widget.selectedEpisode?.id ?? widget.detail.id;
+
+    // Reuse the short-lived detail-page probe, including one still in flight.
+    // Never ask the same addons twice simply because Watch was opened.
+    final existing = SourceAvailabilityService.instance.existing(
+      type: widget.type,
+      id: streamId,
+      title: widget.detail.name,
+      year: int.tryParse(widget.detail.year ?? ''),
+      season: widget.selectedEpisode?.season,
+      episode: widget.selectedEpisode?.episode,
+    );
+    if (existing != null) {
+      try {
+        final checked = await existing;
+        if (!mounted) return;
+        if (checked.sources.isNotEmpty) {
+          _pendingSources.addAll(checked.sources);
+          _flushPendingSources();
+          if (mounted) setState(() => _isLoadingSources = false);
+          return;
+        }
+      } catch (_) {
+        // A failed preflight must not suppress normal Watch source discovery.
+      }
+    }
 
     // 1. Immediately inject any embedded streams from the video (e.g. Torbox/Debrid direct streams)
     if (widget.selectedEpisode != null && widget.selectedEpisode!.streams.isNotEmpty) {

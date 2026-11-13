@@ -86,6 +86,27 @@ void main() {
       ).toQuery(), throwsFormatException);
     });
 
+    test('Malay discovery supports Malaysian and Singaporean productions', () {
+      for (final mediaType in [DiscoverType.movie, DiscoverType.series]) {
+        for (final origin in ['MY', 'SG']) {
+          final filters = DiscoverFilters(
+            type: mediaType, country: origin, originalLanguage: 'ms');
+          final query = filters.toQuery();
+          expect(query['with_origin_country'], origin);
+          expect(query['with_original_language'], 'ms');
+          expect(TmdbDiscoverService.matchesTitleFilters({
+            'original_language': 'ms',
+            'origin_country': [origin],
+            'genre_ids': <int>[],
+          }, filters), isTrue);
+          expect(TmdbDiscoverService.matchesTitleFilters({
+            'original_language': 'id',
+            'origin_country': [origin],
+          }, filters), isFalse);
+        }
+      }
+    });
+
     test('text search enforces genre from genre_ids, even without discover API', () {
       const filters = DiscoverFilters(
         type: DiscoverType.series,

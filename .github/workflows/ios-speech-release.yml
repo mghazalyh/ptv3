@@ -116,6 +116,7 @@ jobs:
             lib/services/player/audio_language_priority.dart \
             lib/services/player/playback_autoselection.dart \
             lib/services/stream/source_compatibility_rank.dart \
+            lib/services/stream/source_availability_service.dart \
             lib/services/player/paused_http_recovery.dart \
             lib/services/player/automatic_skip_policy.dart \
             lib/services/player/playback_diagnostics_probe.dart \
@@ -312,6 +313,7 @@ jobs:
       - name: Test TMDB Discover filters and year matching
         run: |
           flutter test test/tmdb_advanced_discover_test.dart
+          flutter test test/source_availability_service_test.dart
           flutter test test/tmdb_text_filter_search_test.dart
           flutter test test/tmdb_trending_strict_filters_test.dart
           flutter test test/series_run_service_test.dart

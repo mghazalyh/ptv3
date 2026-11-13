@@ -48,6 +48,11 @@ abstract final class PlayerDiagnosticCodes {
     'source_auto_exhausted',
     'source_recovery_cross_addon_started',
     'source_recovery_no_ready_candidates',
+    // Fixed, privacy-safe cache verification outcomes from Watch Sources.
+    // Never upload torrent hashes, addon URLs, titles or credential details.
+    'watch_cache_verified_hit',
+    'watch_cache_verified_miss',
+    'watch_cache_lookup_failed',
     'sync_manual_requested',
     'sync_timer_due',
     'sync_timer_attempt',

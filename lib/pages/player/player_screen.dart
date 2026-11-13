@@ -995,6 +995,11 @@ class _PlayerScreenState extends State<PlayerScreen>
         _currentSubtitlePath = null;
         _currentCues = [];
       });
+      // Embedded tracks can be visible but have no readable timed cues.
+      // Schedule a silent release-matched external text fallback for speech sync.
+      _nextAutoSyncDueAt =
+          DateTime.now().add(SubtitleAutoSyncPolicy.initialSubtitleDelay);
+      PlayerDebugTelemetry.record('subtitle_background_sync_scheduled');
       debugPrint('[PlayerSubtitles] Selected embedded English: ${preferred.title}');
       _setSubtitleScale(_subtitleScale);
       unawaited(PlayerSettings.applySubtitleStyling(_player));
@@ -1032,6 +1037,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       );
       if (!mounted || epoch != _audioMediaEpoch) return;
       setState(() => _subtitleGroups = groups);
+      if (_isSubtitleEnabled && _currentSubtitlePath == null &&
+          !_subtitleManuallySelected) {
+        _nextAutoSyncDueAt =
+            DateTime.now().add(SubtitleAutoSyncPolicy.initialSubtitleDelay);
+      }
       if (_subtitleManuallySelected || _isSubtitleEnabled) return;
 
       // Prefer labeled English forced/embedded subtitles. If missing, download
@@ -1670,6 +1680,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _autoSyncToSpokenAudio(int epoch, {bool automatic = false}) async {
     var cues = _currentCues;
     if (_currentSubtitlePath == null || cues.length < 2) {
+      // Respect any manually selected embedded subtitles.
+      if (automatic && _subtitleManuallySelected) return;
       // Embedded subtitles do not expose timed text through media_kit.
       // Find external English text rather than guessing based on track names.
       final candidates = PlaybackAutoselection.preferredExternal(
@@ -1678,7 +1690,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       var loaded = false;
       for (final variant in candidates.take(3)) {
         if (!mounted || epoch != _audioMediaEpoch) return;
-        if (await _loadSubtitle(variant, automatic: false, expectedEpoch: epoch)) {
+        if (await _loadSubtitle(variant, automatic: false,
+            quiet: true, expectedEpoch: epoch)) {
           loaded = true;
           break;
         }
@@ -1960,10 +1973,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<bool> _loadSubtitle(
     SubtitleVariant variant, {
     bool automatic = false,
+    bool quiet = false,
     int? expectedEpoch,
   }) async {
     final epoch = expectedEpoch ?? _audioMediaEpoch;
-    if (!automatic) _subtitleManuallySelected = true;
+    if (!automatic && !quiet) _subtitleManuallySelected = true;
     PlayerDebugTelemetry.record('subtitle_download_started');
     // Subtitle download progress is intentionally silent.
 
@@ -1979,7 +1993,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     if (path == null || !await File(path).exists()) {
       PlayerDebugTelemetry.record('subtitle_download_failed', failure: true);
-      if (!automatic && mounted) {
+      if (!automatic && !quiet && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Subtitle download failed or contained no usable text'),
         ));
@@ -1996,7 +2010,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       result = SubtitleParser.parse(content);
       if (!SubtitleActivationGuard.hasRenderableCues(result)) {
         PlayerDebugTelemetry.record('subtitle_parse_failed', failure: true);
-        if (!automatic && mounted) {
+        if (!automatic && !quiet && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Subtitle file has no readable timed captions'),
           ));
@@ -2050,7 +2064,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
       if (selection == SubtitleTrackReadiness.inactive) {
         PlayerDebugTelemetry.record('subtitle_attach_failed', failure: true);
-        if (!automatic && mounted) {
+        if (!automatic && !quiet && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Subtitle downloaded, but player did not select the track'),
           ));
@@ -2084,7 +2098,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
         if (visible == false) {
           PlayerDebugTelemetry.record('subtitle_renderer_hidden', failure: true);
-          if (!automatic && mounted) {
+          if (!automatic && !quiet && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('Player subtitle rendering is disabled'),
             ));
@@ -2125,7 +2139,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (error) {
       PlayerDebugTelemetry.record('subtitle_attach_failed', failure: true);
       debugPrint('[PlayerSubtitles] Activation failed: ${error.runtimeType}');
-      if (!automatic && mounted) {
+      if (!automatic && !quiet && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Subtitle downloaded but could not be activated'),
         ));

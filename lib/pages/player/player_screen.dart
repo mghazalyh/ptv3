@@ -192,7 +192,6 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _subtitleManuallySelected = false;
   bool _subtitleAutoPending = false;
   bool _autoSyncBusy = false;
-  bool _syncIsAutomatic = false;
   Timer? _periodicAutoSyncTimer;
   DateTime? _nextAutoSyncDueAt;
   bool _autoSyncSucceeded = false;
@@ -1616,7 +1615,6 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _autoSyncSubtitles({bool automatic = false}) async {
     if (_autoSyncBusy || _isLoading) return;
     final epoch = _audioMediaEpoch;
-    _syncIsAutomatic = automatic;
     _autoSyncSucceeded = false;
     setState(() => _autoSyncBusy = true);
     if (!automatic) PlayerDebugTelemetry.record('sync_manual_requested');
@@ -1666,7 +1664,6 @@ class _PlayerScreenState extends State<PlayerScreen>
             ? SubtitleAutoSyncPolicy.interval
             : SubtitleAutoSyncPolicy.failedRetryInterval);
       }
-      _syncIsAutomatic = false;
       if (mounted) setState(() => _autoSyncBusy = false);
     }
   }

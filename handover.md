@@ -1,3 +1,11 @@
+## 2026-11-14 SGT — VERIFIED source quality gate for TorBox and iPad sources repair
+
+Latest tested source commit `e948241f0c5076365727b19c92cc53d20dd91ad8` on `mghazalyh/ptv3` `parity-floating-player-both`. Shared source CI [43501197370](https://github.com/mghazalyh/ptv3/actions/runs/43501197370) completed SUCCESS for Linux Flutter analyzer, all critical regression tests including new `test/watch_source_toolbar_layout_test.dart` and `test/watch_source_preferences_test.dart`, and Windows shared-player test-only compatibility. Source regressions covered verified-only/ready-only strict modes, HTTP addon-ready vs API verification, DHT hash hints, selected episode filename matching and unknown file indexes, narrow iPad toolbar bounds. No local Dart/Flutter SDK or native iOS packaging validation available.
+
+User authorized exactly one additional iOS-only build request from these changes. Final single change to `.github/ios-speech-release-request.txt` must be made after documentation, then STOP without polling, rerunning, retrying or claiming native artifact success. No Windows, paired, PS4 or private TorriODB edits. The 2026-11-14 source/telemetry and layout details immediately follow this entry. Permanent complete copyable handover plus SGT timestamp rule remains.
+
+---
+
 ## 2026-11-14 SGT — TorBox direct-ready recognition, episode cache file checks and iPad Watch Sources overflow
 
 Owner request: Fix newest installed iOS #225 reporting no cached sources for popular titles despite private TorriODB active addon configuration, fix the iPad Watch Sources "All Sources" selector clipping outside the right pane, and trigger ONE new signed iOS-only build after source repair. Latest previous native request: `d92993ba1603ee9c14bef68cd11372a5f995680d`, consumed. Shared Flutter branch `mghazalyh/ptv3` `parity-floating-player-both`. Recheck HEAD before future edits. No Windows, PS4, paired release or TorriODB writing is authorized.

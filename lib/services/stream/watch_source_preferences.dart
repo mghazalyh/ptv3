@@ -339,6 +339,15 @@ abstract final class WatchSourceEngine {
     return match?.group(1)?.toLowerCase();
   }
 
+  /// Cache verification is scoped to the requested torrent file when supplied.
+  /// A cached torrent hash alone cannot verify another episode's file index.
+  static String? cacheKeyOf(StreamSource source) {
+    final hash = hashOf(source);
+    if (hash == null) return null;
+    final index = source.fileIdx;
+    return index == null ? hash : '${hash}:${index}';
+  }
+
   static String? resolution(StreamSource source) {
     if (source.quality == '4K') return '4K';
     if (source.quality == '1080p') return '1080p';
@@ -424,9 +433,9 @@ abstract final class WatchSourceEngine {
   }
 
   static String cacheTier(StreamSource source, Map<String, bool> verified) {
-    final hash = hashOf(source);
-    if (hash != null && verified.containsKey(hash)) {
-      return verified[hash] == true ? 'verified' : 'uncached';
+    final key = cacheKeyOf(source);
+    if (key != null && verified.containsKey(key)) {
+      return verified[key] == true ? 'verified' : 'uncached';
     }
     if (DebridSourceReadiness.isExplicitlyPending(source)) return 'pending';
     final name = (source.name ?? '').toLowerCase();
@@ -545,7 +554,8 @@ abstract final class WatchSourceEngine {
       var selected = sources.where((s) => _allowed(s, profile, verified)).toList();
       // Fail open when a missing provider field or strict setting eliminates all
       // results. Do not silently leave users without a playback choice.
-      if (selected.isEmpty && sources.isNotEmpty) {
+      if (selected.isEmpty && sources.isNotEmpty &&
+          profile.cachePolicy != 'cachedOnly') {
         selected = List<StreamSource>.of(sources);
       }
       if (profile.deduplicate) {
@@ -580,9 +590,25 @@ abstract final class WatchSourceEngine {
       return selected;
     } catch (error) {
       debugPrint('[WatchSources] Sort/filter fallback: ' + error.runtimeType.toString());
+      // Strict cache filtering must fail closed even when sorting fails.
+      if (profile.cachePolicy == 'cachedOnly') {
+        return sources.where((source) =>
+            cacheTier(source, verified) == 'verified').toList();
+      }
       return List<StreamSource>.of(sources);
     }
   }
+}
+
+/// Cache lookups return a typed outcome so network and schema failures can be
+/// distinguished from a genuine successful negative cache result.
+class TorBoxCacheVerification {
+  final Map<String, bool> statuses;
+  final bool completed;
+  final String? failureCode;
+
+  const TorBoxCacheVerification(this.statuses,
+      {required this.completed, this.failureCode});
 }
 
 /// Never marks a source verified from an addon title alone.
@@ -590,56 +616,157 @@ abstract final class WatchSourceEngine {
 class TorBoxCacheVerifier {
   TorBoxCacheVerifier._();
   static final instance = TorBoxCacheVerifier._();
-  final _resultCache = <String, bool>{};
+
+  final Map<String, bool> _resultCache = <String, bool>{};
   DateTime? _cachedAt;
 
+  /// TorBox's object response represents a cached torrent using a metadata
+  /// object (name, hash, size, optional files), not necessarily a boolean.
+  /// Absent hashes in a successful response are uncached. Unexpected shapes
+  /// remain unknown, never verified.
+  static Map<String, bool> parseCacheResponse(
+      Object? document, Iterable<StreamSource> sources) {
+    if (document is! Map ||
+        document['success'] != true ||
+        document['data'] is! Map) {
+      return const <String, bool>{};
+    }
+
+    final entries = <String, Object?>{
+      for (final entry in (document['data'] as Map).entries)
+        entry.key.toString().toLowerCase(): entry.value,
+    };
+    final parsed = <String, bool>{};
+
+    for (final source in sources) {
+      final hash = WatchSourceEngine.hashOf(source);
+      final key = WatchSourceEngine.cacheKeyOf(source);
+      if (hash == null || key == null) continue;
+
+      if (!entries.containsKey(hash)) {
+        parsed[key] = false;
+        continue;
+      }
+
+      final value = entries[hash];
+      bool? cached;
+      if (value is bool) {
+        cached = value;
+      } else if (value == null) {
+        cached = false;
+      } else if (value is Map) {
+        if (value['cached'] is bool) {
+          cached = value['cached'] as bool;
+        } else if (value['is_cached'] is bool) {
+          cached = value['is_cached'] as bool;
+        } else if ((value['hash']?.toString().toLowerCase() == hash) ||
+            value.containsKey('name') ||
+            value.containsKey('files')) {
+          cached = true;
+        }
+
+        // A hash-only cache hit is insufficient when the addon identifies a
+        // specific torrent file. The checkcached request includes list_files.
+        if (cached == true && source.fileIdx != null) {
+          final files = value['files'];
+          if (files is List) {
+            cached = files.any((file) =>
+                file is Map &&
+                int.tryParse(file['id']?.toString() ?? '') == source.fileIdx);
+          } else {
+            cached = null;
+          }
+        }
+      }
+      if (cached != null) parsed[key] = cached;
+    }
+    return parsed;
+  }
+
   Future<Map<String, bool>> verify(List<StreamSource> sources) async {
-    final hashes = sources.map(WatchSourceEngine.hashOf)
-        .whereType<String>().toSet().toList();
-    if (hashes.isEmpty) return const {};
+    return (await verifyWithStatus(sources)).statuses;
+  }
+
+  Future<TorBoxCacheVerification> verifyWithStatus(
+      List<StreamSource> sources) async {
     if (_cachedAt != null &&
         DateTime.now().difference(_cachedAt!) > const Duration(minutes: 45)) {
       _resultCache.clear();
+      _cachedAt = null;
     }
-    final missing = hashes.where((h) => !_resultCache.containsKey(h)).take(80).toList();
-    if (missing.isNotEmpty) {
-      try {
-        final key = await TorBoxService().getKey();
-        if (key != null && key.isNotEmpty) {
-          final uri = Uri.https('api.torbox.app',
-              '/v1/api/torrents/checkcached',
-              {'hash': missing.join(','), 'format': 'object'});
-          final response = await http.get(uri,
-              headers: {'Authorization': 'Bearer ' + key})
-              .timeout(const Duration(seconds: 10));
-          if (response.statusCode == 200) {
-            final document = jsonDecode(response.body);
-            if (document is Map && document['success'] == true) {
-              final data = document['data'];
-              if (data is Map) {
-                for (final entry in data.entries) {
-                  final hash = entry.key.toString().toLowerCase();
-                  if (!missing.contains(hash)) continue;
-                  final value = entry.value;
-                  if (value is bool) {
-                    _resultCache[hash] = value;
-                  } else if (value is Map && value['cached'] is bool) {
-                    _resultCache[hash] = value['cached'] as bool;
-                  } else if (value is Map && value['is_cached'] is bool) {
-                    _resultCache[hash] = value['is_cached'] as bool;
-                  }
-                }
-              }
-              _cachedAt = DateTime.now();
-            }
-          }
-        }
-      } catch (error) {
-        debugPrint('[WatchSources] Cache check unavailable: ' +
-            error.runtimeType.toString());
+
+    final unique = <String, StreamSource>{};
+    for (final source in sources) {
+      final key = WatchSourceEngine.cacheKeyOf(source);
+      if (key != null) unique.putIfAbsent(key, () => source);
+    }
+    if (unique.isEmpty) {
+      return const TorBoxCacheVerification({}, completed: true);
+    }
+
+    final missing = unique.entries
+        .where((entry) => !_resultCache.containsKey(entry.key))
+        .take(80)
+        .map((entry) => entry.value)
+        .toList();
+    if (missing.isEmpty) {
+      return TorBoxCacheVerification({
+        for (final key in unique.keys)
+          if (_resultCache.containsKey(key)) key: _resultCache[key]!,
+      }, completed: true);
+    }
+
+    try {
+      final key = await TorBoxService().getKey();
+      if (key == null || key.trim().isEmpty) {
+        return TorBoxCacheVerification({
+          for (final cacheKey in unique.keys)
+            if (_resultCache.containsKey(cacheKey))
+              cacheKey: _resultCache[cacheKey]!,
+        }, completed: false, failureCode: 'missing_key');
       }
+
+      final hashes = missing.map(WatchSourceEngine.hashOf)
+          .whereType<String>().toSet().toList();
+      final uri = Uri.https('api.torbox.app',
+          '/v1/api/torrents/checkcached', {
+        'hash': hashes.join(','),
+        'format': 'object',
+        'list_files': 'true',
+      });
+      final response = await http.get(uri,
+          headers: {'Authorization': 'Bearer $key'})
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        debugPrint('[WatchSources] Cache lookup HTTP ${response.statusCode}');
+        return TorBoxCacheVerification({
+          for (final cacheKey in unique.keys)
+            if (_resultCache.containsKey(cacheKey))
+              cacheKey: _resultCache[cacheKey]!,
+        }, completed: false, failureCode: 'http_error');
+      }
+
+      final parsed = parseCacheResponse(jsonDecode(response.body), missing);
+      _resultCache.addAll(parsed);
+      if (parsed.isNotEmpty) _cachedAt = DateTime.now();
+      final complete = missing.every((source) =>
+          _resultCache.containsKey(WatchSourceEngine.cacheKeyOf(source)));
+
+      return TorBoxCacheVerification({
+        for (final cacheKey in unique.keys)
+          if (_resultCache.containsKey(cacheKey))
+            cacheKey: _resultCache[cacheKey]!,
+      }, completed: complete,
+          failureCode: complete ? null : 'unexpected_response');
+    } catch (error) {
+      debugPrint('[WatchSources] Cache check unavailable: '
+          '${error.runtimeType}');
+      return TorBoxCacheVerification({
+        for (final cacheKey in unique.keys)
+          if (_resultCache.containsKey(cacheKey))
+            cacheKey: _resultCache[cacheKey]!,
+      }, completed: false, failureCode: 'network_error');
     }
-    return {for (final h in hashes) if (_resultCache.containsKey(h))
-      h: _resultCache[h]!};
   }
 }

@@ -8,6 +8,7 @@ import '../config/windows_settings_recovery.dart';
 import '../my_list/github_library_cloud.dart';
 import 'night_mode_diagnostics.dart';
 import 'player_diagnostic_codes.dart';
+import 'playback_metric_sanitizer.dart';
 import 'private_diagnostic_log_path.dart';
 
 /// Strictly allowlisted Windows player capability diagnostics.
@@ -235,6 +236,7 @@ class WindowsPlaybackTelemetry {
       'utc': DateTime.now().toUtc().toIso8601String(),
       'buffering': buffering,
     };
+    sample.addAll(PlaybackMetricSanitizer.fromProperties(properties));
 
     for (final property in const <String>[
       'frame-drop-count', 'decoder-frame-drop-count',

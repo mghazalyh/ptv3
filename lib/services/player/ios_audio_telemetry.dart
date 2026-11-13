@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../my_list/github_library_cloud.dart';
 import 'player_diagnostic_codes.dart';
+import 'playback_metric_sanitizer.dart';
 import 'private_diagnostic_log_path.dart';
 
 /// Explicitly opt-in, strictly allowlisted MPV filter diagnostics for the
@@ -162,6 +163,7 @@ class IosAudioTelemetry {
       'utc': DateTime.now().toUtc().toIso8601String(),
       'buffering': buffering,
     };
+    sample.addAll(PlaybackMetricSanitizer.fromProperties(properties));
     for (final property in const <String>[
       'frame-drop-count', 'decoder-frame-drop-count',
       'vo-delayed-frame-count', 'mistimed-frame-count',

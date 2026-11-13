@@ -98,6 +98,13 @@ class _WatchSourcePreferencesPageState
     ],
   );
 
+  static const _cachePolicyLabels = <String, String>{
+    'prefer': 'Prefer cached, show other sources',
+    'cachedOnly': 'Verified cached only',
+    'readyOnly': 'Verified or addon-reported ready',
+    'all': 'All sources',
+  };
+
   Widget _select(String label, String selected, List<String> choices,
       ValueChanged<String> onChanged) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -108,7 +115,12 @@ class _WatchSourcePreferencesPageState
       isExpanded: true,
       items: [
         for (final value in choices)
-          DropdownMenuItem(value: value, child: Text(value)),
+          DropdownMenuItem(
+            value: value,
+            child: Text(label == 'TorBox cache'
+                ? (_cachePolicyLabels[value] ?? value)
+                : value),
+          ),
       ],
       onChanged: (value) {
         if (value != null) onChanged(value);
@@ -260,8 +272,9 @@ class _WatchSourcePreferencesPageState
                         _save(p.copyWith(addonPriority: next));
                       }),
                   _heading('Cache and subtitles',
-                      'Verified TorBox cache requires a locally configured key. '
-                      'Unknown cache is never reported as verified.'),
+                      'Verified cache requires your local TorBox key. '
+                      'Verified cached only hides uncached, unverified and '
+                      'pending sources without an automatic fallback.'),
                   _select('TorBox cache', p.cachePolicy,
                       WatchSourceProfile.cachePolicies, (v) =>
                           _save(p.copyWith(cachePolicy: v))),

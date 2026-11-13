@@ -678,6 +678,11 @@ class TorBoxCacheVerifier {
           }
         }
       }
+      // A torrent-level yes/no result cannot prove an episode's selected
+      // file is cached. Require a populated per-file listing for that case.
+      if (cached == true && source.fileIdx != null && value is! Map) {
+        cached = null;
+      }
       if (cached != null) parsed[key] = cached;
     }
     return parsed;

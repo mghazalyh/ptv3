@@ -39,6 +39,15 @@ class StreamSource {
     if (json['sources'] is List) {
       srcList = (json['sources'] as List).map((e) => e.toString()).toList();
     }
+    String? hintHash;
+    for (final hint in srcList ?? const <String>[]) {
+      final match = RegExp(r'(?:dht:|btih:)([0-9a-f]{40})(?![0-9a-f])',
+          caseSensitive: false).firstMatch(hint);
+      if (match != null) {
+        hintHash = match.group(1)?.toLowerCase();
+        break;
+      }
+    }
 
     int? fIdx;
     if (json['fileIdx'] is int) {
@@ -66,7 +75,7 @@ class StreamSource {
       description: json['description']?.toString(),
       url: json['url']?.toString(),
       externalUrl: json['externalUrl']?.toString(),
-      infoHash: json['infoHash']?.toString(),
+      infoHash: json['infoHash']?.toString() ?? hintHash,
       fileIdx: fIdx,
       addonName: addonName,
       behaviorHints: hints,

@@ -93,6 +93,76 @@ void main() {
     expect(restored.addonPriority.first, 'MediaFusion');
   });
 
+  test('verified cached only never restores uncached or unknown sources', () {
+    const hash = '0123456789012345678901234567890123456789';
+    final cached = source('Movie.1080p', hash: hash);
+    final unknown = source('Movie.4K', addon: 'MediaFusion');
+    final uncached = source('Movie.1080p', addon: 'Comet',
+        hash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+    const profile = WatchSourceProfile(cachePolicy: 'cachedOnly');
+
+    expect(WatchSourceEngine.process([unknown, uncached], profile,
+        verified: {hash: true}), isEmpty);
+    expect(WatchSourceEngine.process([unknown, uncached, cached], profile,
+        verified: {hash: true}), [cached]);
+    expect(WatchSourceEngine.process([cached], profile), isEmpty);
+    expect(WatchSourceEngine.process([cached], profile,
+        verified: {hash: false}), isEmpty);
+  });
+
+  test('TorBox object results verify cached torrents, not addon labels', () {
+    const hash = '0123456789012345678901234567890123456789';
+    const other = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    final matched = source('Episode.1080p', hash: hash, fileIndex: 2);
+    final unmatched = source('Episode.1080p', hash: hash, fileIndex: 4);
+    final uncached = source('Episode.1080p', hash: other);
+    final payload = {
+      'success': true,
+      'data': {
+        hash: {
+          'name': 'Example torrent',
+          'hash': hash,
+          'size': 123456,
+          'files': [
+            {'id': 2, 'name': 'S01E02.mkv', 'size': 120000},
+          ],
+        },
+      },
+    };
+
+    final parsed = TorBoxCacheVerifier.parseCacheResponse(payload,
+        [matched, unmatched, uncached]);
+    expect(parsed[WatchSourceEngine.cacheKeyOf(matched)], isTrue);
+    expect(parsed[WatchSourceEngine.cacheKeyOf(unmatched)], isFalse);
+    expect(parsed[WatchSourceEngine.cacheKeyOf(uncached)], isFalse);
+    expect(WatchSourceEngine.process([matched, unmatched, uncached],
+        const WatchSourceProfile(cachePolicy: 'cachedOnly'),
+        verified: parsed), [matched]);
+  });
+
+  test('unrecognized cache responses cannot invent verified matches', () {
+    const hash = '0123456789012345678901234567890123456789';
+    final indexed = source('Episode.1080p', hash: hash, fileIndex: 0);
+    final noIndex = source('Movie.1080p', hash: hash);
+    const boolPayload = {
+      'success': true,
+      'data': {hash: true},
+    };
+    final parsed = TorBoxCacheVerifier.parseCacheResponse(boolPayload,
+        [indexed, noIndex]);
+    // A raw torrent-level boolean cannot validate a specific episode file.
+    expect(parsed.containsKey(WatchSourceEngine.cacheKeyOf(indexed)), isFalse);
+    expect(parsed[WatchSourceEngine.cacheKeyOf(noIndex)], isTrue);
+
+    final malformed = TorBoxCacheVerifier.parseCacheResponse({
+      'success': true, 'data': {hash: {'unexpected': 'data'}},
+    }, [indexed, noIndex]);
+    expect(malformed, isEmpty);
+    expect(TorBoxCacheVerifier.parseCacheResponse({
+      'success': false, 'data': {hash: true},
+    }, [noIndex]), isEmpty);
+  });
+
   test('invalid configuration values fall back without throwing', () {
     final parsed = WatchSourceProfile.fromJson({
       'cachePolicy': 'impossible',

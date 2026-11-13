@@ -601,10 +601,11 @@ abstract final class WatchSourceEngine {
     try {
       var selected = sources.where((s) => _allowed(s, profile, verified,
           season: season, episode: episode)).toList();
-      // Fail open when a missing provider field or strict setting eliminates all
-      // results. Do not silently leave users without a playback choice.
+      // Balanced/All may retain playback choices when metadata filters
+      // eliminate everything. Both strict modes must never fail open.
       if (selected.isEmpty && sources.isNotEmpty &&
-          profile.cachePolicy != 'cachedOnly') {
+          profile.cachePolicy != 'cachedOnly' &&
+          profile.cachePolicy != 'readyOnly') {
         selected = List<StreamSource>.of(sources);
       }
       if (profile.deduplicate) {
@@ -641,11 +642,15 @@ abstract final class WatchSourceEngine {
       return selected;
     } catch (error) {
       debugPrint('[WatchSources] Sort/filter fallback: ' + error.runtimeType.toString());
-      // Strict cache filtering must fail closed even when sorting fails.
-      if (profile.cachePolicy == 'cachedOnly') {
-        return sources.where((source) =>
-            cacheTier(source, verified,
-                season: season, episode: episode) == 'verified').toList();
+      // Both strict modes must fail closed if filtering or sorting throws.
+      if (profile.cachePolicy == 'cachedOnly' ||
+          profile.cachePolicy == 'readyOnly') {
+        return sources.where((source) {
+          final tier = cacheTier(source, verified,
+              season: season, episode: episode);
+          return tier == 'verified' ||
+              (profile.cachePolicy == 'readyOnly' && tier == 'reported');
+        }).toList();
       }
       return List<StreamSource>.of(sources);
     }

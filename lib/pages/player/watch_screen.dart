@@ -1183,9 +1183,9 @@ class _WatchScreenState extends State<WatchScreen>
               sizeFilter: _buildSizeFilterDropdown(),
               addonFilter: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: constraints.maxWidth < 220
+                  maxWidth: constraints.maxWidth < 220.0
                       ? constraints.maxWidth
-                      : 220,
+                      : 220.0,
                 ),
                 child: _buildAddonFilterDropdown(),
               ),

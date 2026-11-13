@@ -1,19 +1,20 @@
-PLAYTORRIO — ONE NEW OWNER-AUTHORIZED iOS-ONLY RELEASE REQUEST — 2026-11-14 SGT
+PLAYTORRIO — ONE OWNER-AUTHORIZED REPLACEMENT iOS-ONLY BUILD — 2026-11-14 SGT
 
-OWNER INSTRUCTION
-"implement this and make the changes, trigger the build on github, make it ios only build for now. once triggered build on github, your job is done, i will let u know if build fail."
+OWNER REQUEST
+"build fail, please fix and send build to github again"
 
-SOURCE
+REPLACEMENT SOURCE
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Verified source HEAD immediately before this iOS-only request: 9e897e7ec42bfc7a6c02526852826aa99cff50da
-Use shared Flutter sources with strict TorBox Verified Cached Only mode, real cache object parsing, file-index-aware validation where available, bounded network retries, clear empty/error states, temporary view-all override, privacy-safe opt-in cache event codes, and updated regression tests.
-Preserve existing movie and episode source preferences, addon selection, quality sorting, fallback behavior outside strict cache-only mode, TorriODB portable preferences, and every unrelated subsystem.
+Verified source/release-notes HEAD before request: ee187402e43c29b3f00643f993aa7c741312b46d
+Prior failed iOS-only request: 4466e02bfb57bc75b0a9f41c113ef87b6b88f79b
+Corrective source: 8c4050ffa7458cb5fdac741e405d40889ea40ccb
+Fix: eliminate nullable cache-verification result assertions from Flutter setState by capturing the awaited TorBox verification outcome as a non-null local value. Preserve previous cached-only features and regression tests.
+Exact failed iOS job logs were not accessible through available push-run lookup. This targeted repair is not claimed as independently proven root cause; new analyzer/test/build results remain unverified.
 
 BUILD SCOPE
-Trigger EXACTLY ONE iOS 15 / iPadOS TrollStore signed IPA using .github/workflows/ios-speech-release.yml via this single marker-file change.
-Preserve existing FFmpeg/libmpv, VideoToolbox, native Night Mode, Equalizer, subtitles, speech subtitle sync, Trakt/Simkl, TorBox, addon playback, credential protection, release signing, checksum and Telegram delivery gates.
-Do not modify or trigger Windows, paired, PS4, Android or macOS packaging. No workflow_dispatch or rerun of older builds.
+Request EXACTLY ONE new iOS 15 / iPadOS TrollStore signed IPA using .github/workflows/ios-speech-release.yml on this branch, via this marker-file edit only. Preserve native frameworks, VideoToolbox, FFmpeg/MPV, subtitles, Night Mode, TorBox, addon integrations, authentication, TorriODB credentials, release checksums, signing and Telegram link delivery.
+Do NOT trigger Windows, paired, PS4, Android or other packaging; do NOT rerun the failed iOS workflow.
 
-STOP BOUNDARY
-This single iOS authorization is consumed by this marker edit. Once submitted, DO NOT poll, inspect, monitor, rerun, retry or duplicate the native workflow, release, IPA, checksums, Telegram or device telemetry until the owner reports the outcome or gives new explicit instructions. Source analyzer, tests, native packaging and delivery are NOT independently verified at request submission.
+STOP
+This fresh owner authorization is consumed upon this commit. Do not inspect, poll, monitor, retry or duplicate the new iOS build, artifacts, GitHub release, Telegram or device telemetry after submission. Wait for owner feedback on success/failure.

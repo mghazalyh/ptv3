@@ -115,6 +115,7 @@ jobs:
             lib/services/addon/addon_manager.dart \
             lib/services/player/audio_language_priority.dart \
             lib/services/player/playback_autoselection.dart \
+            lib/services/stream/source_compatibility_rank.dart \
             lib/services/player/paused_http_recovery.dart \
             lib/services/player/automatic_skip_policy.dart \
             lib/services/player/playback_diagnostics_probe.dart \
@@ -143,6 +144,9 @@ jobs:
             lib/pages/settings/updates_settings_page.dart \
             lib/services/player/player_settings.dart \
             lib/services/player/player_picture_audio.dart \
+            lib/services/player/player_audio_presets.dart \
+            lib/services/player/playback_metric_sanitizer.dart \
+            lib/widgets/player/player_audio_menu.dart \
             lib/services/player/ios_audio_telemetry.dart \
             lib/services/player/ios_night_mode_preflight.dart \
             lib/services/player/night_mode_diagnostics.dart \
@@ -178,6 +182,11 @@ jobs:
           flutter test test/github_progress_v1_compat_test.dart
           flutter test test/github_sync_gate_test.dart
           flutter test test/torriodb_portable_sync_test.dart
+          flutter test test/source_compatibility_rank_test.dart
+          flutter test test/playback_metric_sanitizer_test.dart
+          flutter test test/player_audio_presets_test.dart
+          flutter test test/paused_http_recovery_test.dart
+          flutter test test/watched_history_recommendations_test.dart
           flutter test test/watch_source_preferences_test.dart
           flutter test test/watch_source_toolbar_layout_test.dart
           flutter test test/home_section_order_test.dart

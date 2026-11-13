@@ -150,6 +150,7 @@ jobs:
             lib/pages/player/player_screen.dart \
             lib/pages/player/watch_screen.dart \
             lib/services/stream/watch_source_preferences.dart \
+            lib/models/stream/stream_model.dart \
             lib/pages/settings/watch_source_preferences_page.dart \
             lib/services/player/player_diagnostic_codes.dart \
             lib/services/metadata/tmdb_discover_service.dart \
@@ -178,6 +179,7 @@ jobs:
           flutter test test/github_sync_gate_test.dart
           flutter test test/torriodb_portable_sync_test.dart
           flutter test test/watch_source_preferences_test.dart
+          flutter test test/watch_source_toolbar_layout_test.dart
           flutter test test/home_section_order_test.dart
           flutter test test/github_watched_history_merge_test.dart
           flutter test test/github_watchlist_v1_regression_test.dart

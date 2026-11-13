@@ -15,6 +15,8 @@ import '../../models/movie/movie_detail.dart';
 import '../../models/stream/stream_model.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/debrid_source_readiness.dart';
+import '../../services/player/ios_audio_telemetry.dart';
+import '../../services/player/windows_playback_telemetry.dart';
 import '../../services/stream/watch_source_preferences.dart';
 import '../settings/watch_source_preferences_page.dart';
 import './player_screen.dart';
@@ -219,6 +221,12 @@ class _WatchScreenState extends State<WatchScreen>
     });
   }
 
+  void _captureCacheCode(String code) {
+    // Each recorder enforces platform-specific opt-in and a fixed allowlist.
+    IosAudioTelemetry.instance.captureCode(code);
+    WindowsPlaybackTelemetry.instance.captureCode(code);
+  }
+
   Future<void> _verifyCachedSources() async {
     if (!mounted || _checkingCache) return;
 
@@ -243,6 +251,15 @@ class _WatchScreenState extends State<WatchScreen>
         }
       }
       outcome = await TorBoxCacheVerifier.instance.verifyWithStatus(pending);
+      if (outcome.statuses.values.any((cached) => cached)) {
+        _captureCacheCode('watch_cache_verified_hit');
+      }
+      if (outcome.statuses.values.any((cached) => !cached)) {
+        _captureCacheCode('watch_cache_verified_miss');
+      }
+      if (!outcome.completed) {
+        _captureCacheCode('watch_cache_lookup_failed');
+      }
       if (mounted) {
         setState(() {
           _verifiedCache.addAll(outcome!.statuses);

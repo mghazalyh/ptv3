@@ -363,7 +363,7 @@ abstract final class HomePageSettings {
           supportsSearch: false,
           supportsSkip: false,
         ),
-        movies: movies,
+        movies: filterRecommendationItems(movies),
         isCurated: true,
       );
     } catch (e) {
@@ -456,6 +456,56 @@ abstract final class HomePageSettings {
         item.title.toLowerCase().startsWith('because you');
   }
 
+  /// Remove duplicate recommendations and completed films; a completed
+  /// episode is not evidence that its entire series should be hidden.
+  static List<Movie> filterRecommendationItems(List<Movie> candidates, {
+    List<WatchedTitle>? watched, Set<String>? seen,
+  }) {
+    final history = watched ?? WatchedHistoryService.items.value;
+    final completedMovies = history.where((item) =>
+        Movie.canonicalType(item.type) == 'movie' && item.completed).toList();
+    final used = seen ?? <String>{};
+    final results = <Movie>[];
+    for (final movie in candidates) {
+      final type = Movie.canonicalType(movie.type);
+      final normalized = movie.name.toLowerCase().trim().replaceAll(
+          RegExp(r'[^a-z0-9]+'), ' ');
+      final year = movie.year?.trim() ?? '';
+      if (normalized.isEmpty) continue;
+      final key = '$type:$normalized:$year';
+      final idKey = '$type:${movie.id.toLowerCase().trim()}';
+      if (type == 'movie' && completedMovies.any((item) {
+        final idMatch = movie.id.isNotEmpty &&
+            item.id.toLowerCase() == movie.id.toLowerCase();
+        final nameMatch = item.title.toLowerCase().trim().replaceAll(
+                RegExp(r'[^a-z0-9]+'), ' ') == normalized &&
+            (item.year == null || year.isEmpty ||
+                item.year!.trim() == year);
+        return idMatch || nameMatch;
+      })) continue;
+      if (used.contains(key) ||
+          (movie.id.isNotEmpty && used.contains(idKey))) continue;
+      used.add(key);
+      if (movie.id.isNotEmpty) used.add(idKey);
+      results.add(movie);
+    }
+    return results;
+  }
+
+  static MovieSection withFilteredRecommendations(
+      MovieSection row, List<Movie> filtered) {
+    if (filtered.length == row.movies.length) return row;
+    return MovieSection(
+      title: row.title, subtitle: row.subtitle, contentType: row.contentType,
+      addonBaseUrl: row.addonBaseUrl, sourceAddonId: row.sourceAddonId,
+      catalog: row.catalog, movies: filtered, isCurated: row.isCurated,
+      relatedSourceTitle: row.relatedSourceTitle,
+      relatedSourceYear: row.relatedSourceYear,
+      relatedSourceImdbId: row.relatedSourceImdbId,
+      relatedSourceTmdbId: row.relatedSourceTmdbId,
+    );
+  }
+
   static List<MovieSection> retainValidRecommendations(
       List<MovieSection> previous, List<MovieSection> incoming, {
         required bool showList,
@@ -480,7 +530,15 @@ abstract final class HomePageSettings {
         selected[row.catalog.id] = row;
       }
     }
-    return selected.values.toList();
+    final used = <String>{};
+    final result = <MovieSection>[];
+    for (final row in selected.values) {
+      final filtered = filterRecommendationItems(row.movies, seen: used);
+      if (filtered.isNotEmpty) {
+        result.add(withFilteredRecommendations(row, filtered));
+      }
+    }
+    return result;
   }
 
   /// Up to three *different* played titles, including completed history.
@@ -535,7 +593,10 @@ abstract final class HomePageSettings {
       for (final movie in row.movies) {
         final dedup = Movie.canonicalType(movie.type) + ':' +
             movie.name.toLowerCase().trim() + ':' + (movie.year ?? '');
-        if (recommendedIds.add(dedup)) uniqueMovies.add(movie);
+        if (recommendedIds.add(dedup) &&
+            filterRecommendationItems([movie]).isNotEmpty) {
+          uniqueMovies.add(movie);
+        }
       }
       if (uniqueMovies.isEmpty) continue;
       sections.add(MovieSection(
@@ -688,7 +749,7 @@ abstract final class HomePageSettings {
           supportsSearch: false,
           supportsSkip: false,
         ),
-        movies: movies,
+        movies: filterRecommendationItems(movies),
         isCurated: true,
       );
 
@@ -741,7 +802,7 @@ abstract final class HomePageSettings {
           supportsSearch: false,
           supportsSkip: false,
         ),
-        movies: movies,
+        movies: filterRecommendationItems(movies),
         isCurated: true,
       );
 

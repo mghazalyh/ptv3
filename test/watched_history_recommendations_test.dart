@@ -84,6 +84,28 @@ void main() {
     expect(WatchedHistoryService.items.value.length, 4);
   });
 
+  test('completed movies excluded; unfinished series and new films retained', () {
+    final watched = [
+      WatchedTitle(id: 'tt42', title: 'Finished Film', type: 'movie',
+          completed: true, lastWatchedAt: DateTime.utc(2026, 11, 1)),
+      WatchedTitle(id: 'tt63', title: 'Series', type: 'series',
+          lastWatchedAt: DateTime.utc(2026, 11, 1)),
+    ];
+    final items = [
+      Movie(id: 'tt42', name: 'Finished Film', type: 'movie',
+          addonBaseUrl: ''),
+      Movie(id: 'tt101', name: 'New Film', type: 'movie',
+          addonBaseUrl: ''),
+      Movie(id: 'different', name: 'New Film', type: 'movie',
+          addonBaseUrl: ''),
+      Movie(id: 'tt63', name: 'Series', type: 'series',
+          addonBaseUrl: ''),
+    ];
+    expect(HomePageSettings.filterRecommendationItems(
+        items, watched: watched).map((movie) => movie.name),
+        ['New Film', 'Series']);
+  });
+
   test('old recommendation row survives null/empty replacement', () {
     final original = section('bestsimilar_watching_1');
     final retained = HomePageSettings.retainValidRecommendations(

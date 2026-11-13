@@ -4,6 +4,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:playtorrio/services/config/torriodb_portable_sync.dart';
 
 void main() {
+  test('legacy portable settings gain monotonic validated revisions', () {
+    expect(TorriodbPortableSync.nextSettingsRevision(null), 1);
+    expect(TorriodbPortableSync.nextSettingsRevision(12), 13);
+    expect(TorriodbPortableSync.nextSettingsRevision(2000000000),
+        2000000000);
+    final legacy = TorriodbPortableSync.parseSettings(jsonEncode({
+      'schemaVersion': 1, 'initialized': true, 'addons': [],
+    }));
+    expect(legacy['syncRevision'], 0);
+    final revised = TorriodbPortableSync.parseSettings(jsonEncode({
+      'schemaVersion': 1, 'initialized': true, 'addons': [],
+      'syncRevision': 4,
+    }));
+    expect(revised['syncRevision'], 4);
+    for (final invalid in [-1, 'future', 2.5, 3000000000]) {
+      expect(() => TorriodbPortableSync.parseSettings(jsonEncode({
+        'schemaVersion': 1, 'initialized': true, 'addons': [],
+        'syncRevision': invalid,
+      })), throwsFormatException);
+    }
+  });
+
   test('portable settings preserve and validate section order', () {
     final doc = TorriodbPortableSync.parseSettings(jsonEncode({
       'schemaVersion': 1,

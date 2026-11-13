@@ -112,6 +112,21 @@ class TorriodbPortableSync {
     };
   }
 
+  /// The private settings schema remains v1 for older installed devices.
+  /// Revision is optional to preserve their read compatibility.
+  static int safeSettingsRevision(Object? raw) {
+    if (raw == null) return 0;
+    if (raw is! int || raw < 0 || raw > 2000000000) {
+      throw const FormatException('Invalid settings revision');
+    }
+    return raw;
+  }
+
+  static int nextSettingsRevision(Object? current) {
+    final revision = safeSettingsRevision(current);
+    return revision >= 2000000000 ? revision : revision + 1;
+  }
+
   static Map<String, dynamic> parseSettings(String text) {
     if (text.length > 1000000) throw const FormatException('Settings too large');
     final raw = jsonDecode(text);
@@ -119,6 +134,7 @@ class TorriodbPortableSync {
         raw['initialized'] is! bool || raw['addons'] is! List) {
       throw const FormatException('Invalid portable settings schema');
     }
+    final revision = safeSettingsRevision(raw['syncRevision']);
     final entries = raw['addons'] as List;
     if (entries.length > 100) {
       throw const FormatException('Too many portable addons');
@@ -144,6 +160,7 @@ class TorriodbPortableSync {
     return {
       'schemaVersion': 1,
       'initialized': raw['initialized'],
+      'syncRevision': revision,
       'addons': entries,
       if (order != null) 'homeSectionOrder': order,
       if (hidden != null) 'homeHiddenSections': hidden,
@@ -393,6 +410,9 @@ class TorriodbPortableSync {
         await _write(client, headers, settingsPath, remoteSettings?.sha, {
           'schemaVersion': 1,
           'initialized': true,
+          // Monotonic version allows future client upgrades to identify
+          // stale exports. GitHub's conditional SHA still prevents races.
+          'syncRevision': nextSettingsRevision(settingDoc['syncRevision']),
           'addons': changedAddons || initialAddons
               ? localAddons : settingDoc['addons'],
           if (changedDock) 'dockPreferences': DockSettings.snapshot()

@@ -14,7 +14,8 @@ abstract final class SourceCompatibilityRank {
       score += 10;
     }
     final codec = source.codec?.toLowerCase() ?? '';
-    if (codec.contains('h264') || codec.contains('avc')) score += 12;
+    if (codec.contains('h264') || codec.contains('h.264') ||
+        codec.contains('avc')) score += 12;
     if (codec.contains('h265') || codec.contains('hevc')) score += 10;
     if (codec.contains('av1')) score += isIOS ? -25 : 2;
     final title = '${source.title ?? ''} ${source.name ?? ''}'.toLowerCase();

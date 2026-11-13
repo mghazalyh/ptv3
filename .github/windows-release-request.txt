@@ -1,40 +1,23 @@
-PLAYTORRIO — ONE NEW OWNER-AUTHORIZED WINDOWS-ONLY x64 RELEASE REQUEST — 2026-11-11 SGT
+PLAYTORRIO — ONE NEW OWNER-AUTHORIZED WINDOWS-ONLY x64 RELEASE REQUEST — 2026-11-14 SGT
 
 OWNER REQUEST
-"ensure for applicable settings sensible defaults ... go and implement all of it now. make changes and trigger only windows build for now. and leave."
+"start a build for windows version now on github n leave"
 
 REPOSITORY AND EXACT SOURCE
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Verified application source HEAD immediately before this request: 34cd94679a04085eb16af3ca9026ba1782948c83
-Existing previous Windows-only request: 8758ad646afcef2d72489258ff608df37db36251 (authorization consumed).
+Verified branch HEAD immediately before this Windows trigger: b7061e89bc4617e3a7c6d5e8c2ffaee818afad9e
+Latest application source/test commit: e948241f0c5076365727b19c92cc53d20dd91ad8
+Source CI on latest iOS trigger: https://github.com/mghazalyh/ptv3/actions/runs/43502170981 completed SUCCESS.
+Source CI with Watch Sources regressions: https://github.com/mghazalyh/ptv3/actions/runs/43501197370 completed SUCCESS.
+Previous iOS-only workflow run: 43502170697 completed SUCCESS before this new request.
+This Windows marker edit is the ONLY authorized new native build trigger.
 
-SCOPE — WINDOWS x64 ONLY
-Request exactly ONE new Windows x64 native release from the branch HEAD, containing:
-1. Unified Torrentio, Comet, MediaFusion Watch Sources settings with sensible fail-open defaults, separate movie/episode profiles, resolution/size/cache/codec/HDR/audio/subtitle/release filters, adjustable three-level ascending/descending sort, presets, and expandable duplicate-provider links.
-2. TorBox verified-cache presentation; no inference from addon text alone.
-3. Watch Sources direct Home navigation, complete bottom dock visibility toggle while retaining per-icon preferences.
-4. Private TorriODB portable sync safety: backfill missing cloud credentials from local devices without erasing working keys; explicit deletes, conflict protection, dock and source settings sync. Real device keys are NOT included in this public request.
-5. Windows volume keys delegated to Windows, in-app slider click/drag only and 0–100% without boost, mouse-wheel never controls volume, mute preserved.
-6. Remove custom Home vertical scroll track, preserve mouse/touch scrolling.
-7. Similar movies and shows load more into a responsive VERTICAL grid, preserve other existing horizontal carousels.
-8. Source regression tests and changes to source-only validation gates.
+WINDOWS x64 ONLY
+Use .github/workflows/windows-advanced-discover.yml triggered by a push modifying ONLY .github/windows-release-request.txt with commit message [windows-only]. Windows job builds x64 Setup EXE and portable ZIP through existing signed/release-delivery pipeline. [windows-only] explicitly skips paired iOS packaging and iOS publish paths.
+Include current shared Flutter source: TorBox cache verified versus direct addon-ready badges, Stremio hash hints, episode filename matching, opt-in cache diagnostics, balanced source preferences and iPad/narrow Watch Sources panel overflow repair, plus all existing player, FFmpeg, MPV, Night Mode, Equalizer, streaming/addons, subtitle Auto Sync, Trakt/Simkl, history, Home, dock, TorriODB and settings functionality.
+The release-notes file was updated for Windows in source commit b7061e89bc4617e3a7c6d5e8c2ffaee818afad9e.
+No source code, keys, private TorriODB, PS4, or prior iOS release request file should be changed by this Windows-only trigger.
 
-SOURCE VALIDATION BOUNDARY
-The latest Linux Flutter analyzer and Windows compatibility analyzer had advanced to regression tests at request time; their overall success and all native build outcomes remain UNVERIFIED. Do not assert tests, packaging, or release succeeded without evidence. Native workflow must run its own test gates before packaging.
-
-TRIGGER
-This file edit is the ONLY native release trigger for this owner instruction.
-Workflow: .github/workflows/windows-advanced-discover.yml
-Commit message must contain [windows-only], so no iOS build is packaged.
-Do NOT modify .github/release-request.txt, .github/ios-speech-release-request.txt, or any PS4 / private TorriODB repositories.
-
-PROTECTED
-MPV, FFmpeg, VideoToolbox, Night Mode, Equalizer, TorBox, Torrentio, Comet, MediaFusion, debrid streaming, subtitles, Auto Subtitle Sync, Trakt, Simkl, Continue Watching, Watched History, My List, Home ordering/visibility, personalized catalogs, Xperience, BingeCat, and private credentials.
-
-EXPECTED DELIVERABLES ONLY IF WORKFLOW SUCCEEDS
-Windows x64 Setup EXE, portable ZIP, checksums, GitHub Release, Telegram download links.
-No source-only CI success implies actual Windows device acceptance.
-
-MANDATORY STOP
-Authorization is consumed by this single Windows-only release request. STOP IMMEDIATELY AFTER SUBMISSION. Do not inspect, monitor, poll, rerun, retry, or duplicate the native Windows workflow, jobs, artifacts, releases, checksums, Telegram, or telemetry. No iOS or PS4 build authorized.
+STOP BOUNDARY
+This explicit Windows build authorization is consumed by this one marker commit. After GitHub accepts the commit STOP immediately: do not inspect, poll, monitor, rerun, retry, duplicate, download or check Windows workflow, release, installer, ZIP, checksum, Telegram or private telemetry without new owner instruction. Do not start iOS, PS4, Android, macOS or paired packaging. Build, signing, delivery, published assets and device acceptance remain UNVERIFIED.

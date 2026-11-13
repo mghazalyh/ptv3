@@ -672,6 +672,206 @@ class TorBoxCacheVerifier {
   final Map<String, bool> _resultCache = <String, bool>{};
   DateTime? _cachedAt;
 
+  /// Stremio's fileIdx and TorBox's file ID are different concepts.
+  /// Match episode filenames instead of assuming the integers are equal.
+  static String? _episodeCode(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final match = RegExp(r'\bs(\d{1,2})[ ._-]*e(\d{1,3})\b',
+        caseSensitive: false).firstMatch(raw) ??
+        RegExp(r'\b(\d{1,2})x(\d{1,3})\b',
+            caseSensitive: false).firstMatch(raw);
+    if (match == null) return null;
+    final season = int.tryParse(match.group(1) ?? '');
+    final episode = int.tryParse(match.group(2) ?? '');
+    if (season == null || episode == null) return null;
+    return '${season}:${episode}';
+  }
+
+  static bool _isVideoFile(String name) => RegExp(
+    r'\.(mkv|mp4|m4v|avi|mov|wmv|ts|webm)
+  /// object (name, hash, size, optional files), not necessarily a boolean.
+  /// Absent hashes in a successful response are uncached. Unexpected shapes
+  /// remain unknown, never verified.
+  static Map<String, bool> parseCacheResponse(
+      Object? document, Iterable<StreamSource> sources) {
+    if (document is! Map ||
+        document['success'] != true ||
+        document['data'] is! Map) {
+      return const <String, bool>{};
+    }
+
+    final entries = <String, Object?>{
+      for (final entry in (document['data'] as Map).entries)
+        entry.key.toString().toLowerCase(): entry.value,
+    };
+    final parsed = <String, bool>{};
+
+    for (final source in sources) {
+      final hash = WatchSourceEngine.hashOf(source);
+      final key = WatchSourceEngine.cacheKeyOf(source);
+      if (hash == null || key == null) continue;
+
+      if (!entries.containsKey(hash)) {
+        parsed[key] = false;
+        continue;
+      }
+
+      final value = entries[hash];
+      bool? cached;
+      if (value is bool) {
+        cached = value;
+      } else if (value == null) {
+        cached = false;
+      } else if (value is Map) {
+        if (value['cached'] is bool) {
+          cached = value['cached'] as bool;
+        } else if (value['is_cached'] is bool) {
+          cached = value['is_cached'] as bool;
+        } else if ((value['hash']?.toString().toLowerCase() == hash) ||
+            value.containsKey('name') ||
+            value.containsKey('files')) {
+          cached = true;
+        }
+
+        // A hash-only cache hit is insufficient when the addon identifies a
+        // specific torrent file. The checkcached request includes list_files.
+        if (cached == true && source.fileIdx != null) {
+          final files = value['files'];
+          if (files is List) {
+            cached = files.any((file) =>
+                file is Map &&
+                int.tryParse(file['id']?.toString() ?? '') == source.fileIdx);
+          } else {
+            cached = null;
+          }
+        }
+      }
+      // A torrent-level yes/no result cannot prove an episode's selected
+      // file is cached. Require a populated per-file listing for that case.
+      if (cached == true && source.fileIdx != null && value is! Map) {
+        cached = null;
+      }
+      if (cached != null) parsed[key] = cached;
+    }
+    return parsed;
+  }
+
+  Future<Map<String, bool>> verify(List<StreamSource> sources) async {
+    return (await verifyWithStatus(sources)).statuses;
+  }
+
+  Future<TorBoxCacheVerification> verifyWithStatus(
+      List<StreamSource> sources) async {
+    if (_cachedAt != null &&
+        DateTime.now().difference(_cachedAt!) > const Duration(minutes: 45)) {
+      _resultCache.clear();
+      _cachedAt = null;
+    }
+
+    final unique = <String, StreamSource>{};
+    for (final source in sources) {
+      final key = WatchSourceEngine.cacheKeyOf(source);
+      if (key != null) unique.putIfAbsent(key, () => source);
+    }
+    if (unique.isEmpty) {
+      return const TorBoxCacheVerification({}, completed: true);
+    }
+
+    final missing = unique.entries
+        .where((entry) => !_resultCache.containsKey(entry.key))
+        .take(80)
+        .map((entry) => entry.value)
+        .toList();
+    if (missing.isEmpty) {
+      return TorBoxCacheVerification({
+        for (final key in unique.keys)
+          if (_resultCache.containsKey(key)) key: _resultCache[key]!,
+      }, completed: true);
+    }
+
+    try {
+      final key = await TorBoxService().getKey();
+      if (key == null || key.trim().isEmpty) {
+        return TorBoxCacheVerification({
+          for (final cacheKey in unique.keys)
+            if (_resultCache.containsKey(cacheKey))
+              cacheKey: _resultCache[cacheKey]!,
+        }, completed: false, failureCode: 'missing_key');
+      }
+
+      final hashes = missing.map(WatchSourceEngine.hashOf)
+          .whereType<String>().toSet().toList();
+      final uri = Uri.https('api.torbox.app',
+          '/v1/api/torrents/checkcached', {
+        'hash': hashes.join(','),
+        'format': 'object',
+        'list_files': 'true',
+      });
+      final response = await http.get(uri,
+          headers: {'Authorization': 'Bearer $key'})
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        debugPrint('[WatchSources] Cache lookup HTTP ${response.statusCode}');
+        return TorBoxCacheVerification({
+          for (final cacheKey in unique.keys)
+            if (_resultCache.containsKey(cacheKey))
+              cacheKey: _resultCache[cacheKey]!,
+        }, completed: false, failureCode: 'http_error');
+      }
+
+      final parsed = parseCacheResponse(jsonDecode(response.body), missing);
+      _resultCache.addAll(parsed);
+      if (parsed.isNotEmpty) _cachedAt = DateTime.now();
+      final complete = missing.every((source) =>
+          _resultCache.containsKey(WatchSourceEngine.cacheKeyOf(source)));
+
+      return TorBoxCacheVerification({
+        for (final cacheKey in unique.keys)
+          if (_resultCache.containsKey(cacheKey))
+            cacheKey: _resultCache[cacheKey]!,
+      }, completed: complete,
+          failureCode: complete ? null : 'unexpected_response');
+    } catch (error) {
+      debugPrint('[WatchSources] Cache check unavailable: '
+          '${error.runtimeType}');
+      return TorBoxCacheVerification({
+        for (final cacheKey in unique.keys)
+          if (_resultCache.containsKey(cacheKey))
+            cacheKey: _resultCache[cacheKey]!,
+      }, completed: false, failureCode: 'network_error');
+    }
+  }
+}
+,
+    caseSensitive: false,
+  ).hasMatch(name);
+
+  static bool? _fileAvailability(StreamSource source, Object? rawFiles,
+      {int? season, int? episode}) {
+    if (rawFiles is! List) return null;
+    final videos = <String>[];
+    for (final file in rawFiles) {
+      if (file is! Map) continue;
+      final name = file['name']?.toString() ?? '';
+      if (_isVideoFile(name)) videos.add(name);
+    }
+    if (videos.isEmpty) return null;
+    final target = season != null && episode != null
+        ? '${season}:${episode}'
+        : _episodeCode('${source.title ?? ''} ${source.description ?? ''}');
+    if (target != null) {
+      final episodes = videos.map(_episodeCode).toList();
+      if (episodes.contains(target)) return true;
+      // Do not call a torrent uncached if its files lack episode names.
+      if (episodes.every((value) => value != null)) return false;
+      return null;
+    }
+    // A single-video torrent has no ambiguous video-file index.
+    if (videos.length == 1) return true;
+    return null;
+  }
+
   /// TorBox's object response represents a cached torrent using a metadata
   /// object (name, hash, size, optional files), not necessarily a boolean.
   /// Absent hashes in a successful response are uncached. Unexpected shapes

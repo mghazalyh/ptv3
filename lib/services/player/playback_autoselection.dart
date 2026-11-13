@@ -1,6 +1,8 @@
 import '../../models/movie/video.dart';
 import '../../models/stream/stream_model.dart';
 import '../../models/subtitle/subtitle_model.dart';
+import 'dart:io';
+import '../stream/source_compatibility_rank.dart';
 import 'audio_language_priority.dart';
 
 /// Deterministic per-media English subtitle and continuous episode defaults.
@@ -121,6 +123,8 @@ abstract final class PlaybackAutoselection {
           value += 5;
         }
         value -= AudioLanguagePriority.torrentioAudioRank(source) * 2;
+        value += SourceCompatibilityRank.score(source,
+            isIOS: Platform.isIOS);
         return value;
       }
       return score(b).compareTo(score(a));

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +11,7 @@ import '../config/torriodb_portable_sync.dart';
 import '../debrid/providers/torbox_service.dart';
 import '../player/audio_language_priority.dart';
 import '../player/debrid_source_readiness.dart';
+import 'source_compatibility_rank.dart';
 
 /// All optional fields are fail-open. Missing metadata must not hide playback.
 class SourceSortRule {
@@ -637,6 +639,12 @@ abstract final class WatchSourceEngine {
               .compareTo(AudioLanguagePriority.torrentioAudioRank(b));
           if (compare != 0) return compare;
         }
+        // Respect explicit sorting, but choose the more compatible
+        // candidate when the user's sorting rules yield a tie.
+        final compatibility = SourceCompatibilityRank.score(b,
+            isIOS: Platform.isIOS).compareTo(
+            SourceCompatibilityRank.score(a, isIOS: Platform.isIOS));
+        if (compatibility != 0) return compatibility;
         return (original[a] ?? 0).compareTo(original[b] ?? 0);
       });
       return selected;

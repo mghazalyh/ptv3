@@ -1,5 +1,7 @@
 import '../../models/stream/stream_model.dart';
 import 'debrid_source_readiness.dart';
+import 'dart:io';
+import '../stream/source_compatibility_rank.dart';
 
 /// Pure, session-local bounded opening recovery. No IO, URL logs, upload or P2P.
 class SourceRecoveryAction {
@@ -88,6 +90,8 @@ class PlaybackSourceRecovery {
         }
         if (source.quality == active.quality) score += 5;
         if (source.codec == active.codec) score += 1;
+        score += SourceCompatibilityRank.score(source,
+            isIOS: Platform.isIOS);
         return score;
       }
       valid.sort((a, b) => rank(b).compareTo(rank(a)));

@@ -1,3 +1,29 @@
+# CURRENT PLAYTORRIO OWNER-AUTHORIZED IMPLEMENTATION CHECKPOINT — 14 NOVEMBER 2026
+
+**Latest application source commit:** `4e61fcc19eeccbce5b481c2883c24ad3b1754a2e` on `parity-floating-player-both`. This source is awaiting completed regression CI at the time of writing. Subsequent documentation or iOS trigger commits will advance HEAD without changing app source.
+
+**The owner explicitly authorized this source development and exactly ONE subsequent iOS-only native build.** Do not trigger Windows, paired or PS4 packaging. The previously submitted Windows-only request at `e90deabdba79865fc1078e16b5436ae605844feb` is consumed and its outcome unverified. After the iOS-only marker commit is accepted, STOP immediately without monitoring, retries or checking artifacts. Never claim native success before verification.
+
+Implemented changes on this branch:
+1. Device-aware heuristic compatibility scoring of stream sources in Watch Sources tie-breaks, automatic source fallback and next-episode selection, retaining strict verified-cache truth.
+2. Quietly sampled, allowlisted opt-in iOS/Windows performance metrics including first-frame latency, decoded codec, FPS and frame dimensions, preserving all privacy and consent boundaries.
+3. Automatic subtitle alignment starts ~10 seconds after embedded or external English subtitle activation; checks quietly, matches external release titles, suppresses status banners, preserves manual selection and online-speech consent safeguards.
+4. Recommendation deduplication and exclusion of completed films, preserving uncompleted series and unaffected curated row identity.
+5. Backward-compatible optional sync revision tracking in private portable settings documents; SHA-guarded cloud updates, credentials preserved locally.
+6. On-device Flat / Dialogue / Cinema / Warm stereo tone presets via existing tested EQ filters, locally saved by existing settings mechanism.
+7. Additional unit tests and Linux/Windows source CI checks across these features.
+8. For HTTP video paused beyond 90 seconds, first resume the existing media stream normally, only reopening at the preserved position if a bounded watchdog or an actual network error indicates failure; subtitle and playback settings are restored after a genuine reconnection.
+
+**Source checkpoint status:** CI outcomes must be checked before issuing the single authorized iOS build marker. Native iOS result and iPad runtime behavior remain unverified. The latest source CI endpoint is `https://github.com/mghazalyh/ptv3/actions`. The private `mghazalyh/torriodb` repository and independent PS4 project were NOT edited.
+
+**Protected functionality remains mandatory:** native MPV/FFmpeg/VideoToolbox, native frameworks, iOS/Windows playback and audio, Trakt/Simkl, TorBox/addons, subtitle tracks and timing, Continue Watching, watched history, My List, portable preference/library sync, home ordering, personalized catalogs, login/credential safeguards, native signing and delivery pipeline.
+
+**Required next-step boundaries:** Confirm source regression CI, repair actual warnings/tests if necessary, then update ONLY `.github/ios-speech-release-request.txt` once with `[ios-only]` for the authorized native iOS request. After trigger, STOP. Do not check either consumed build.
+
+> Below this checkpoint are older historical sections. Do not revive any consumed native build authorizations from them.
+
+---
+
 ## VERIFIED REPAIR SOURCE CHECKS — 2026-11-09 SGT, NO NATIVE REBUILD
 
 The following source validation of the Build #186 fix is now VERIFIED successful: lightweight CI [run 42513033765](https://github.com/mghazalyh/ptv3/actions/runs/42513033765), exact tested source commit `8880225dfdc5f97ce1aac46ff273ac766b801f4c`, completed **SUCCESS** in BOTH jobs: `Flutter analyzer + critical regression tests (Linux)` and `Windows shared-player Auto Sync compatibility (no native package build)`. Both analyzer steps passed, the Linux regression suite including `test/home_section_order_test.dart` passed, and the Windows compatibility preflight passed.

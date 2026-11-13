@@ -263,8 +263,9 @@ class _WatchScreenState extends State<WatchScreen>
       if (mounted) {
         setState(() {
           _verifiedCache.addAll(outcome!.statuses);
-          _cacheFailureCode =
-              outcome!.completed ? null : outcome!.failureCode;
+          if (!outcome!.completed) {
+            _cacheFailureCode = outcome!.failureCode;
+          }
           if (outcome!.failureCode == 'missing_key') {
             for (final source in pending) {
               final key = WatchSourceEngine.cacheKeyOf(source);
@@ -283,8 +284,11 @@ class _WatchScreenState extends State<WatchScreen>
         if (_hasRetryableCacheSources) {
           // Process fresh batches quickly; back off after transient failures.
           final failed = outcome == null || !outcome.completed;
+          final highestAttempt = _cacheAttempts.values.fold<int>(
+              1, (highest, current) =>
+                  current > highest ? current : highest);
           _scheduleCacheCheck(delay: failed
-              ? const Duration(seconds: 3)
+              ? Duration(seconds: 2 * highestAttempt * highestAttempt)
               : const Duration(milliseconds: 150));
         }
       }

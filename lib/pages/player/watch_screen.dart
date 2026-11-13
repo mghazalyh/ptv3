@@ -1159,36 +1159,40 @@ class _WatchScreenState extends State<WatchScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        // Keep the source header and filter controls on separate lines.
+        // iPad landscape uses a narrow right pane: an unwrapped Row clips
+        // the All Sources filter at the edge of that pane.
+        const Row(
           children: [
-            const Row(
-              children: [
-                Icon(Icons.stream_rounded, color: _C.accent, size: 20),
-                SizedBox(width: _S.xs),
-                Text(
-                  'Watch Sources',
-                  style: TextStyle(
-                    color: _C.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-            if (_sources.isNotEmpty)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildSizeFilterDropdown(),
-                  const SizedBox(width: 8),
-                  _buildAddonFilterDropdown(),
-                             _buildPrefsButton(),
-                ],
+            Icon(Icons.stream_rounded, color: _C.accent, size: 20),
+            SizedBox(width: _S.xs),
+            Text(
+              'Watch Sources',
+              style: TextStyle(
+                color: _C.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
               ),
+            ),
           ],
         ),
+        if (_sources.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) => WatchSourceFilterToolbar(
+              sizeFilter: _buildSizeFilterDropdown(),
+              addonFilter: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth < 220
+                      ? constraints.maxWidth
+                      : 220,
+                ),
+                child: _buildAddonFilterDropdown(),
+              ),
+              preferencesButton: _buildPrefsButton(),
+            ),
+          ),
+        ],
         const SizedBox(height: _S.sm),
 
         // Source count
@@ -1478,12 +1482,16 @@ class _WatchScreenState extends State<WatchScreen>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      currentText,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                    Flexible(
+                      child: Text(
+                        currentText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -1669,22 +1677,32 @@ class _WatchScreenState extends State<WatchScreen>
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 18),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _retryCacheVerification,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry verification'),
-              ),
-              TextButton(
-                onPressed: () => setState(
-                    () => _showAllSourcesTemporarily = true),
-                child: const Text('View all sources temporarily'),
-              ),
-            ],
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 245),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _retryCacheVerification,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry verification'),
+                ),
+                if (_sources.any(WatchSourceEngine.isAddonReportedReady))
+                  TextButton(
+                    onPressed: () => setState(
+                      () => _showAddonReadyTemporarily = true),
+                    child: const Text('Show addon-ready links',
+                        textAlign: TextAlign.center),
+                  ),
+                TextButton(
+                  onPressed: () => setState(
+                      () => _showAllSourcesTemporarily = true),
+                  child: const Text('View all sources temporarily',
+                      textAlign: TextAlign.center),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1831,6 +1849,10 @@ class _SourceCardState extends State<_SourceCard> {
       badges.add(_badge('TorBox Not Cached', _C.textTertiary));
     } else if (DebridSourceReadiness.isExplicitlyPending(s)) {
       badges.add(_badge('Pending Download', const Color(0xFFFFD43B)));
+    } else if (WatchSourceEngine.isTorBoxAddonReady(s)) {
+      badges.add(_badge('TorBox Ready (addon)', const Color(0xFF60A5FA)));
+    } else if (WatchSourceEngine.isAddonReportedReady(s)) {
+      badges.add(_badge('Debrid Ready (addon)', const Color(0xFF60A5FA)));
     }
     final sourceHash = WatchSourceEngine.hashOf(s);
     final alternatives = sourceHash == null ? <StreamSource>[]

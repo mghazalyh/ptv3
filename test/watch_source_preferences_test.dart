@@ -191,6 +191,10 @@ void main() {
     expect(WatchSourceEngine.cacheTier(cometLink, {}), 'reported');
     expect(WatchSourceEngine.cacheTier(generic, {}), 'unknown');
     expect(WatchSourceEngine.cacheTier(pending, {}), 'pending');
+    expect(WatchSourceEngine.process([generic],
+        const WatchSourceProfile(cachePolicy: 'readyOnly')), isEmpty);
+    expect(WatchSourceEngine.process([pending],
+        const WatchSourceProfile(cachePolicy: 'readyOnly')), isEmpty);
     expect(WatchSourceEngine.process([torboxLink],
         const WatchSourceProfile(cachePolicy: 'readyOnly')), [torboxLink]);
     expect(WatchSourceEngine.process([torboxLink],

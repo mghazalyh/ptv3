@@ -1,20 +1,25 @@
-PLAYTORRIO — ONE OWNER-AUTHORIZED REPLACEMENT iOS-ONLY BUILD — 2026-11-14 SGT
+PLAYTORRIO — ONE OWNER-AUTHORIZED iOS-ONLY CACHE AND IPAD WATCH SOURCES RELEASE — 2026-11-14 SGT
 
-OWNER REQUEST
-"build fail, please fix and send build to github again"
+OWNER INSTRUCTION
+"fix this and trigger another ios build also, the sources screen, 'all sources' button overflowed out of the ipad viewport so button is only showing partially and the rest is out of the screen fix that shit as well"
 
-REPLACEMENT SOURCE
+SOURCE AND QUALITY GATE
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Verified source/release-notes HEAD before request: ee187402e43c29b3f00643f993aa7c741312b46d
-Prior failed iOS-only request: 4466e02bfb57bc75b0a9f41c113ef87b6b88f79b
-Corrective source: 8c4050ffa7458cb5fdac741e405d40889ea40ccb
-Fix: eliminate nullable cache-verification result assertions from Flutter setState by capturing the awaited TorBox verification outcome as a non-null local value. Preserve previous cached-only features and regression tests.
-Exact failed iOS job logs were not accessible through available push-run lookup. This targeted repair is not claimed as independently proven root cause; new analyzer/test/build results remain unverified.
+Verified source CI commit: e948241f0c5076365727b19c92cc53d20dd91ad8
+Shared quality gate: https://github.com/mghazalyh/ptv3/actions/runs/43501197370
+Quality gate: completed SUCCESS, Linux Flutter analyzer + critical regression tests and Windows shared-player test-only checks.
+HEAD before this single trigger marker edit: 9bd8f31b59bcdb30c31ca88c68440b0ca89c0845
+Preserve source code after successful tests; documentation changes were recovery handover only.
+Signed IPA, release, checksums and Telegram delivery are NOT verified by the source quality gate.
 
-BUILD SCOPE
-Request EXACTLY ONE new iOS 15 / iPadOS TrollStore signed IPA using .github/workflows/ios-speech-release.yml on this branch, via this marker-file edit only. Preserve native frameworks, VideoToolbox, FFmpeg/MPV, subtitles, Night Mode, TorBox, addon integrations, authentication, TorriODB credentials, release checksums, signing and Telegram link delivery.
-Do NOT trigger Windows, paired, PS4, Android or other packaging; do NOT rerun the failed iOS workflow.
+AUTHORIZED FEATURES
+Fix TorBox cache availability presentation for configured direct addon HTTP streams using a distinct TorBox Ready (addon) badge, not a false TorBox API-verified Cached badge. Recognize Stremio DHT hash hints. Verify selected cached TV episodes using TorBox file names and episode-scoped keys, not mismatched TorBox file IDs. Preserve fail-closed strict cached-only and ready-only filters; expose a temporary addon-ready alternative without changing saved preferences. Add privacy-safe opt-in cache diagnostics and source regression tests.
+Fix iPad narrow Watch Sources right pane by wrapping All Sizes, All Sources and Settings controls within viewport and ellipsizing long addon labels; stack cached-only fallback buttons. Widget regression tested.
 
-STOP
-This fresh owner authorization is consumed upon this commit. Do not inspect, poll, monitor, retry or duplicate the new iOS build, artifacts, GitHub release, Telegram or device telemetry after submission. Wait for owner feedback on success/failure.
+BUILD
+Trigger EXACTLY ONE iOS 15/iPadOS signed TrollStore-compatible IPA using .github/workflows/ios-speech-release.yml via THIS one marker-file change. Preserve native libmpv, FFmpeg, VideoToolbox, Night Mode/Equalizer, subtitle and audio processing, TorBox and all addon integrations, Trakt/Simkl, history/progress, Home settings, portable TorriODB and device privacy.
+NO WINDOWS, PAIRED, PS4, ANDROID OR MACOS NATIVE BUILDS. Do not touch their marker files or PS4 repo; do not use workflow_dispatch.
+
+STOP BOUNDARY
+Once this commit is accepted, this fresh owner authorization is consumed. DO NOT poll, inspect, rerun, retry, duplicate or monitor the native iOS workflow, IPA, GitHub Release, checksums, Telegram, private telemetry or any native build status without a new explicit owner instruction. The owner will report any failure.

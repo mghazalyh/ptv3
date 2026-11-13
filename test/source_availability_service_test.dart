@@ -14,7 +14,8 @@ void main() {
   final pending = StreamSource(
     url: 'https://example.com/pending',
     addonName: 'Test addon',
-    title: '[Pending download]',
+    name: '[TB Pending download]',
+    title: 'Pending download',
   );
 
   test('details-only probe deduplicates candidates and caches result', () async {

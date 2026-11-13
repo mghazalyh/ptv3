@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'player_glass.dart';
+import '../../services/player/player_audio_presets.dart';
 
 class PlayerAudioTrack {
   final int index;
@@ -268,6 +269,23 @@ class PlayerAudioMenu extends StatelessWidget {
             const Divider(color: PlayerTheme.edgeSoft, height: 1),
             SizedBox(height: isCompactH ? 4 : 8),
 
+            // Per-device saved stereo profiles reuse the already verified
+            // bass/treble graph rather than installing new iOS filters.
+            Wrap(
+              spacing: 6,
+              runSpacing: 2,
+              children: [
+                for (final preset in PlayerAudioPresets.values)
+                  ChoiceChip(
+                    label: Text(preset.label,
+                        style: const TextStyle(fontSize: 11)),
+                    selected: preset.matches(bassDb, trebleDb),
+                    onSelected: (_) => onEqualizerChanged(
+                        preset.bassDb, preset.trebleDb),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 5),
             _StereoToneControls(
               bassDb: bassDb,
               trebleDb: trebleDb,

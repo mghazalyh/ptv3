@@ -113,8 +113,8 @@ void main() {
   test('TorBox object results verify cached torrents, not addon labels', () {
     const hash = '0123456789012345678901234567890123456789';
     const other = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-    final matched = source('Episode.1080p', hash: hash, fileIndex: 2);
-    final unmatched = source('Episode.1080p', hash: hash, fileIndex: 4);
+    final matched = source('Show.S01E02.1080p', hash: hash, fileIndex: 2);
+    final unmatched = source('Show.S01E03.1080p', hash: hash, fileIndex: 4);
     final uncached = source('Episode.1080p', hash: other);
     final payload = {
       'success': true,
@@ -161,6 +161,100 @@ void main() {
     expect(TorBoxCacheVerifier.parseCacheResponse({
       'success': false, 'data': {hash: true},
     }, [noIndex]), isEmpty);
+  });
+
+  test('a TorBox direct HTTPS link is addon ready, not API verified', () {
+    final torboxLink = StreamSource(
+      title: 'Show.S01E02.1080p',
+      name: '[TB+] Show',
+      addonName: 'Torrentio TB',
+      url: 'https://cdn.example.org/video.mkv',
+    );
+    final cometLink = StreamSource(
+      title: 'Show.S01E02.1080p',
+      addonName: 'Comet | ElfHosted | TB',
+      url: 'https://cdn.example.org/video.mkv',
+    );
+    final generic = StreamSource(
+      title: 'Show.1080p',
+      addonName: 'Unrelated HTTP',
+      url: 'https://cdn.example.org/video.mkv',
+    );
+    final pending = StreamSource(
+      name: '[TB Download] Show',
+      addonName: 'Torrentio TB',
+      url: 'https://cdn.example.org/not-ready',
+    );
+
+    expect(WatchSourceEngine.isTorBoxAddonReady(torboxLink), isTrue);
+    expect(WatchSourceEngine.cacheTier(torboxLink, {}), 'reported');
+    expect(WatchSourceEngine.cacheTier(cometLink, {}), 'reported');
+    expect(WatchSourceEngine.cacheTier(generic, {}), 'unknown');
+    expect(WatchSourceEngine.cacheTier(pending, {}), 'pending');
+    expect(WatchSourceEngine.process([torboxLink],
+        const WatchSourceProfile(cachePolicy: 'readyOnly')), [torboxLink]);
+    expect(WatchSourceEngine.process([torboxLink],
+        const WatchSourceProfile(cachePolicy: 'cachedOnly')), isEmpty);
+  });
+
+  test('Stremio dht source hints retain usable torrent hashes', () {
+    const hash = '0123456789012345678901234567890123456789';
+    final stream = StreamSource.fromJson({
+      'name': 'Show',
+      'sources': ['tracker:https://tracker.example.org', 'dht:$hash'],
+      'fileIdx': 1,
+    }, 'Torrentio TB');
+    expect(stream.infoHash, hash);
+    expect(WatchSourceEngine.hashOf(stream), hash);
+    expect(WatchSourceEngine.cacheKeyOf(stream), '$hash:1');
+    expect(WatchSourceEngine.cacheTier(stream, {}), 'unknown');
+  });
+
+  test('episode context verifies by filename despite different TorBox IDs', () {
+    const hash = '0123456789012345678901234567890123456789';
+    final stream = source('Generic.1080p', hash: hash, fileIndex: 7);
+    final payload = {
+      'success': true,
+      'data': {
+        hash: {
+          'name': 'Full Season',
+          'hash': hash,
+          'files': [
+            {'id': 401, 'name': 'Show.S01E01.mkv'},
+            {'id': 402, 'name': 'Show.S01E02.mkv'},
+          ],
+        },
+      },
+    };
+    final episode2 = TorBoxCacheVerifier.parseCacheResponse(
+        payload, [stream], season: 1, episode: 2);
+    final episode3 = TorBoxCacheVerifier.parseCacheResponse(
+        payload, [stream], season: 1, episode: 3);
+    expect(episode2[WatchSourceEngine.cacheKeyOf(stream,
+        season: 1, episode: 2)], isTrue);
+    expect(episode3[WatchSourceEngine.cacheKeyOf(stream,
+        season: 1, episode: 3)], isFalse);
+    expect(WatchSourceEngine.process([stream],
+        const WatchSourceProfile(cachePolicy: 'cachedOnly'),
+        verified: episode2, season: 1, episode: 2), [stream]);
+    expect(WatchSourceEngine.process([stream],
+        const WatchSourceProfile(cachePolicy: 'cachedOnly'),
+        verified: episode2, season: 1, episode: 3), isEmpty);
+  });
+
+  test('ambiguous file IDs remain unverified, not a false cache miss', () {
+    const hash = '0123456789012345678901234567890123456789';
+    final stream = source('Generic.1080p', hash: hash, fileIndex: 5);
+    final payload = {
+      'success': true,
+      'data': {
+        hash: {'hash': hash, 'files': [
+          {'id': 0, 'name': 'video-a.mkv'},
+          {'id': 1, 'name': 'video-b.mkv'},
+        ]},
+      },
+    };
+    expect(TorBoxCacheVerifier.parseCacheResponse(payload, [stream]), isEmpty);
   });
 
   test('invalid configuration values fall back without throwing', () {

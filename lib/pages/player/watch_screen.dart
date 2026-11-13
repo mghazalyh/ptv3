@@ -52,6 +52,29 @@ class _S {
 // ---------------------------------------------------------------------------
 // WatchScreen
 // ---------------------------------------------------------------------------
+/// Responsive horizontal-filter group. Wraps to a second row rather than
+/// clipping the All Sources control inside a narrow iPad side pane.
+class WatchSourceFilterToolbar extends StatelessWidget {
+  final Widget sizeFilter;
+  final Widget addonFilter;
+  final Widget preferencesButton;
+
+  const WatchSourceFilterToolbar({
+    super.key,
+    required this.sizeFilter,
+    required this.addonFilter,
+    required this.preferencesButton,
+  });
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [sizeFilter, addonFilter, preferencesButton],
+  );
+}
+
 class WatchScreen extends StatefulWidget {
   final MovieDetail detail;
   final Video? selectedEpisode;
@@ -83,6 +106,7 @@ class _WatchScreenState extends State<WatchScreen>
   final Map<String, int> _cacheAttempts = <String, int>{};
   String? _cacheFailureCode;
   bool _showAllSourcesTemporarily = false;
+  bool _showAddonReadyTemporarily = false;
   bool _isLoadingSources = true;
 
   // Animation
@@ -115,7 +139,10 @@ class _WatchScreenState extends State<WatchScreen>
 
   void _onPreferencesChanged() {
     if (mounted) {
-      setState(() => _showAllSourcesTemporarily = false);
+      setState(() {
+        _showAllSourcesTemporarily = false;
+        _showAddonReadyTemporarily = false;
+      });
       _scheduleCacheCheck();
     }
   }
@@ -123,10 +150,11 @@ class _WatchScreenState extends State<WatchScreen>
   bool get _strictCacheOnly =>
       WatchSourcePreferencesService.current.value
           .forEpisode(widget.selectedEpisode != null).cachePolicy ==
-          'cachedOnly' && !_showAllSourcesTemporarily;
+          'cachedOnly' && !_showAllSourcesTemporarily &&
+      !_showAddonReadyTemporarily;
 
   bool get _hasRetryableCacheSources => _sources.any((source) {
-        final key = WatchSourceEngine.cacheKeyOf(source);
+        final key = _cacheKey(source);
         return key != null &&
             !_verifiedCache.containsKey(key) &&
             (_cacheAttempts[key] ?? 0) < _maxCacheAttempts;
@@ -140,6 +168,9 @@ class _WatchScreenState extends State<WatchScreen>
     if (_verifyingCache && count == 0) return 'Checking TorBox cache...';
     if (_strictCacheOnly) {
       return '${count} verified cached source${count == 1 ? '' : 's'}';
+    }
+    if (_showAddonReadyTemporarily) {
+      return '${count} verified or addon-ready source${count == 1 ? '' : 's'}';
     }
     return '${count} source${count == 1 ? '' : 's'} found';
   }
@@ -208,8 +239,22 @@ class _WatchScreenState extends State<WatchScreen>
       _sources.addAll(batch);
       _isLoadingSources = false;
     });
+    if (batch.any(WatchSourceEngine.isTorBoxAddonReady)) {
+      _captureCacheCode('watch_cache_addon_ready');
+    }
+    if (batch.any((source) => WatchSourceEngine.hashOf(source) == null)) {
+      _captureCacheCode('watch_cache_hash_missing');
+    }
+    if (batch.any((source) => WatchSourceEngine.hashOf(source) != null)) {
+      _captureCacheCode('watch_cache_hash_found');
+    }
     _scheduleCacheCheck();
   }
+
+  String? _cacheKey(StreamSource source) =>
+      WatchSourceEngine.cacheKeyOf(source,
+          season: widget.selectedEpisode?.season,
+          episode: widget.selectedEpisode?.episode);
 
   void _scheduleCacheCheck({
     Duration delay = const Duration(milliseconds: 800),
@@ -232,7 +277,7 @@ class _WatchScreenState extends State<WatchScreen>
 
     final seen = <String>{};
     final pending = _sources.where((source) {
-      final key = WatchSourceEngine.cacheKeyOf(source);
+      final key = _cacheKey(source);
       return key != null &&
           seen.add(key) &&
           !_verifiedCache.containsKey(key) &&
@@ -245,12 +290,16 @@ class _WatchScreenState extends State<WatchScreen>
     TorBoxCacheVerification? outcome;
     try {
       for (final source in pending) {
-        final key = WatchSourceEngine.cacheKeyOf(source);
+        final key = _cacheKey(source);
         if (key != null) {
           _cacheAttempts[key] = (_cacheAttempts[key] ?? 0) + 1;
         }
       }
-      final result = await TorBoxCacheVerifier.instance.verifyWithStatus(pending);
+      _captureCacheCode('watch_cache_lookup_started');
+      final result = await TorBoxCacheVerifier.instance.verifyWithStatus(
+          pending,
+          season: widget.selectedEpisode?.season,
+          episode: widget.selectedEpisode?.episode);
       outcome = result;
       if (result.statuses.values.any((cached) => cached)) {
         _captureCacheCode('watch_cache_verified_hit');
@@ -269,7 +318,7 @@ class _WatchScreenState extends State<WatchScreen>
           }
           if (result.failureCode == 'missing_key') {
             for (final source in pending) {
-              final key = WatchSourceEngine.cacheKeyOf(source);
+              final key = _cacheKey(source);
               if (key != null) _cacheAttempts[key] = _maxCacheAttempts;
             }
           }
@@ -316,9 +365,14 @@ class _WatchScreenState extends State<WatchScreen>
     final profile = _showAllSourcesTemporarily &&
             configured.cachePolicy == 'cachedOnly'
         ? configured.copyWith(cachePolicy: 'all')
-        : configured;
+        : _showAddonReadyTemporarily &&
+                configured.cachePolicy == 'cachedOnly'
+            ? configured.copyWith(cachePolicy: 'readyOnly')
+            : configured;
     var list = WatchSourceEngine.process(_sources, profile,
-        verified: _verifiedCache);
+        verified: _verifiedCache,
+        season: widget.selectedEpisode?.season,
+        episode: widget.selectedEpisode?.episode);
     if (_selectedAddonFilter != null) {
       list = list.where((s) => s.addonName == _selectedAddonFilter).toList();
     }
@@ -636,7 +690,7 @@ class _WatchScreenState extends State<WatchScreen>
                         source: filtered[index],
                         availableSources: filtered,
                         allSources: _sources,
-                        torboxCached: _verifiedCache[WatchSourceEngine.cacheKeyOf(filtered[index])],
+                        torboxCached: _verifiedCache[_cacheKey(filtered[index])],
                         backdropUrl:
                             widget.detail.background ?? widget.detail.poster,
                         logoUrl: widget.detail.logo,
@@ -1178,7 +1232,7 @@ class _WatchScreenState extends State<WatchScreen>
           source: sources[index],
           availableSources: sources,
           allSources: _sources,
-          torboxCached: _verifiedCache[WatchSourceEngine.cacheKeyOf(sources[index])],
+          torboxCached: _verifiedCache[_cacheKey(sources[index])],
           backdropUrl: widget.detail.background ?? widget.detail.poster,
           logoUrl: widget.detail.logo,
           detail: widget.detail,

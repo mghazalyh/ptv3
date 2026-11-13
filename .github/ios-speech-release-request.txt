@@ -1,25 +1,17 @@
-PLAYTORRIO — ONE OWNER-AUTHORIZED iOS-ONLY CACHE AND IPAD WATCH SOURCES RELEASE — 2026-11-14 SGT
+PLAYTORRIO — ONE OWNER-AUTHORIZED iOS-ONLY PLAYBACK RELIABILITY RELEASE — 14 NOVEMBER 2026 SGT
 
-OWNER INSTRUCTION
-"fix this and trigger another ios build also, the sources screen, 'all sources' button overflowed out of the ipad viewport so button is only showing partially and the rest is out of the screen fix that shit as well"
+Owner instruction: Implement intelligent source selection, background playback diagnostics, silent and automatic advanced subtitles, better personalized recommendations, robust portable settings, per-device audio presets and regression tests; fix long-pause connection/reloading; then request ONE iOS build and leave.
 
-SOURCE AND QUALITY GATE
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Verified source CI commit: e948241f0c5076365727b19c92cc53d20dd91ad8
-Shared quality gate: https://github.com/mghazalyh/ptv3/actions/runs/43501197370
-Quality gate: completed SUCCESS, Linux Flutter analyzer + critical regression tests and Windows shared-player test-only checks.
-HEAD before this single trigger marker edit: 9bd8f31b59bcdb30c31ca88c68440b0ca89c0845
-Preserve source code after successful tests; documentation changes were recovery handover only.
-Signed IPA, release, checksums and Telegram delivery are NOT verified by the source quality gate.
+Exact application source commit: 4e61fcc19eeccbce5b481c2883c24ad3b1754a2e
+Verified source regression CI: https://github.com/mghazalyh/ptv3/actions/runs/43520585847
+Source validation: SUCCESS in BOTH Linux Flutter analyzer/regression suite and Windows shared-player compatibility tests (test-only).
+HEAD before iOS-only trigger: 7665ff4917bf213de1f1a77d22855a9e974e89ac
 
-AUTHORIZED FEATURES
-Fix TorBox cache availability presentation for configured direct addon HTTP streams using a distinct TorBox Ready (addon) badge, not a false TorBox API-verified Cached badge. Recognize Stremio DHT hash hints. Verify selected cached TV episodes using TorBox file names and episode-scoped keys, not mismatched TorBox file IDs. Preserve fail-closed strict cached-only and ready-only filters; expose a temporary addon-ready alternative without changing saved preferences. Add privacy-safe opt-in cache diagnostics and source regression tests.
-Fix iPad narrow Watch Sources right pane by wrapping All Sizes, All Sources and Settings controls within viewport and ellipsizing long addon labels; stack cached-only fallback buttons. Widget regression tested.
-
-BUILD
-Trigger EXACTLY ONE iOS 15/iPadOS signed TrollStore-compatible IPA using .github/workflows/ios-speech-release.yml via THIS one marker-file change. Preserve native libmpv, FFmpeg, VideoToolbox, Night Mode/Equalizer, subtitle and audio processing, TorBox and all addon integrations, Trakt/Simkl, history/progress, Home settings, portable TorriODB and device privacy.
-NO WINDOWS, PAIRED, PS4, ANDROID OR MACOS NATIVE BUILDS. Do not touch their marker files or PS4 repo; do not use workflow_dispatch.
+BUILD AUTHORIZATION
+Trigger EXACTLY ONE iOS/iPadOS native signed release using .github/workflows/ios-speech-release.yml by changing ONLY this iOS trigger file together with release notes. Preserve native MPV, FFmpeg, VideoToolbox, signing, source recovery, TorBox and addons, subtitles, Trakt/Simkl, My List, watched history, portable TorriODB preferences and private credentials. Do not initiate Windows, paired, PS4 or any other native packaging.
+Do not use workflow_dispatch. This request is distinct from the consumed Windows-only trigger e90deabdba79865fc1078e16b5436ae605844feb, whose build outcome remains UNVERIFIED.
 
 STOP BOUNDARY
-Once this commit is accepted, this fresh owner authorization is consumed. DO NOT poll, inspect, rerun, retry, duplicate or monitor the native iOS workflow, IPA, GitHub Release, checksums, Telegram, private telemetry or any native build status without a new explicit owner instruction. The owner will report any failure.
+Immediately upon GitHub accepting THIS ONE trigger commit, the iOS native build authorization is CONSUMED. STOP. Do not check the new workflow, artifacts, Telegram delivery, release, checksums or runtime results. Do not retry or duplicate without fresh explicit owner authorization. Native build outcome, IPA, GitHub Release and Telegram delivery remain UNVERIFIED.

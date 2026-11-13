@@ -77,7 +77,10 @@ class _WatchScreenState extends State<WatchScreen>
   Timer? _cacheCheckTimer;
   bool _checkingCache = false;
   final Map<String, bool> _verifiedCache = <String, bool>{};
-  final Set<String> _checkedHashes = <String>{};
+  static const int _maxCacheAttempts = 3;
+  final Map<String, int> _cacheAttempts = <String, int>{};
+  String? _cacheFailureCode;
+  bool _showAllSourcesTemporarily = false;
   bool _isLoadingSources = true;
 
   // Animation
@@ -109,7 +112,43 @@ class _WatchScreenState extends State<WatchScreen>
   }
 
   void _onPreferencesChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() => _showAllSourcesTemporarily = false);
+      _scheduleCacheCheck();
+    }
+  }
+
+  bool get _strictCacheOnly =>
+      WatchSourcePreferencesService.current.value
+          .forEpisode(widget.selectedEpisode != null).cachePolicy ==
+          'cachedOnly' && !_showAllSourcesTemporarily;
+
+  bool get _hasRetryableCacheSources => _sources.any((source) {
+        final key = WatchSourceEngine.cacheKeyOf(source);
+        return key != null &&
+            !_verifiedCache.containsKey(key) &&
+            (_cacheAttempts[key] ?? 0) < _maxCacheAttempts;
+      });
+
+  bool get _verifyingCache => _strictCacheOnly &&
+      (_checkingCache || _hasRetryableCacheSources);
+
+  String _sourceCountText(int count) {
+    if (_isLoadingSources) return 'Searching sources...';
+    if (_verifyingCache && count == 0) return 'Checking TorBox cache...';
+    if (_strictCacheOnly) {
+      return '${count} verified cached source${count == 1 ? '' : 's'}';
+    }
+    return '${count} source${count == 1 ? '' : 's'} found';
+  }
+
+  void _retryCacheVerification() {
+    _cacheCheckTimer?.cancel();
+    setState(() {
+      _cacheAttempts.clear();
+      _cacheFailureCode = null;
+    });
+    _scheduleCacheCheck(delay: Duration.zero);
   }
 
   @override
@@ -170,40 +209,67 @@ class _WatchScreenState extends State<WatchScreen>
     _scheduleCacheCheck();
   }
 
-  void _scheduleCacheCheck() {
+  void _scheduleCacheCheck({
+    Duration delay = const Duration(milliseconds: 800),
+  }) {
     _cacheCheckTimer?.cancel();
-    _cacheCheckTimer = Timer(const Duration(milliseconds: 800), () {
+    if (!mounted || !_hasRetryableCacheSources) return;
+    _cacheCheckTimer = Timer(delay, () {
       unawaited(_verifyCachedSources());
     });
   }
 
   Future<void> _verifyCachedSources() async {
     if (!mounted || _checkingCache) return;
+
+    final seen = <String>{};
     final pending = _sources.where((source) {
-      final hash = WatchSourceEngine.hashOf(source);
-      return hash != null && !_checkedHashes.contains(hash);
+      final key = WatchSourceEngine.cacheKeyOf(source);
+      return key != null &&
+          seen.add(key) &&
+          !_verifiedCache.containsKey(key) &&
+          (_cacheAttempts[key] ?? 0) < _maxCacheAttempts;
     }).take(80).toList();
     if (pending.isEmpty) return;
-    for (final source in pending) {
-      final hash = WatchSourceEngine.hashOf(source);
-      if (hash != null) _checkedHashes.add(hash);
-    }
+
     _checkingCache = true;
+    if (mounted) setState(() {});
+    TorBoxCacheVerification? outcome;
     try {
-      final verified = await TorBoxCacheVerifier.instance.verify(pending);
-      if (mounted && verified.isNotEmpty) {
-        setState(() => _verifiedCache.addAll(verified));
+      for (final source in pending) {
+        final key = WatchSourceEngine.cacheKeyOf(source);
+        if (key != null) {
+          _cacheAttempts[key] = (_cacheAttempts[key] ?? 0) + 1;
+        }
+      }
+      outcome = await TorBoxCacheVerifier.instance.verifyWithStatus(pending);
+      if (mounted) {
+        setState(() {
+          _verifiedCache.addAll(outcome!.statuses);
+          _cacheFailureCode =
+              outcome!.completed ? null : outcome!.failureCode;
+          if (outcome!.failureCode == 'missing_key') {
+            for (final source in pending) {
+              final key = WatchSourceEngine.cacheKeyOf(source);
+              if (key != null) _cacheAttempts[key] = _maxCacheAttempts;
+            }
+          }
+        });
       }
     } catch (error) {
-      debugPrint('[WatchSources] Cache lookup unavailable (' +
-          error.runtimeType.toString() + ')');
+      debugPrint('[WatchSources] Cache lookup unavailable (${error.runtimeType})');
+      if (mounted) setState(() => _cacheFailureCode = 'network_error');
     } finally {
       _checkingCache = false;
-      if (_sources.any((source) {
-        final hash = WatchSourceEngine.hashOf(source);
-        return hash != null && !_checkedHashes.contains(hash);
-      })) {
-        _scheduleCacheCheck();
+      if (mounted) {
+        setState(() {});
+        if (_hasRetryableCacheSources) {
+          // Process fresh batches quickly; back off after transient failures.
+          final failed = outcome == null || !outcome.completed;
+          _scheduleCacheCheck(delay: failed
+              ? const Duration(seconds: 3)
+              : const Duration(milliseconds: 150));
+        }
       }
     }
   }
@@ -223,8 +289,12 @@ class _WatchScreenState extends State<WatchScreen>
   String? _selectedSizeFilter;
 
   List<StreamSource> get _filteredSources {
-    final profile = WatchSourcePreferencesService.current.value
+    final configured = WatchSourcePreferencesService.current.value
         .forEpisode(widget.selectedEpisode != null);
+    final profile = _showAllSourcesTemporarily &&
+            configured.cachePolicy == 'cachedOnly'
+        ? configured.copyWith(cachePolicy: 'all')
+        : configured;
     var list = WatchSourceEngine.process(_sources, profile,
         verified: _verifiedCache);
     if (_selectedAddonFilter != null) {
@@ -478,9 +548,7 @@ class _WatchScreenState extends State<WatchScreen>
                           ],
                         ),
                         Text(
-                          _isLoadingSources
-                              ? 'Searching sources...'
-                              : '${filtered.length} source${filtered.length == 1 ? '' : 's'} found',
+                          _sourceCountText(filtered.length),
                           style: const TextStyle(
                             color: _C.textTertiary,
                             fontSize: 12,
@@ -510,7 +578,7 @@ class _WatchScreenState extends State<WatchScreen>
             ),
 
             // ── Sources list (virtualized!) ──
-            if (_isLoadingSources && filtered.isEmpty)
+            if ((_isLoadingSources || _verifyingCache) && filtered.isEmpty)
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: _S.lg),
                 sliver: SliverList.builder(
@@ -521,7 +589,7 @@ class _WatchScreenState extends State<WatchScreen>
                   ),
                 ),
               )
-            else if (!_isLoadingSources && filtered.isEmpty)
+            else if (filtered.isEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: _S.lg),
@@ -546,7 +614,7 @@ class _WatchScreenState extends State<WatchScreen>
                         source: filtered[index],
                         availableSources: filtered,
                         allSources: _sources,
-                        torboxCached: _verifiedCache[WatchSourceEngine.hashOf(filtered[index])],
+                        torboxCached: _verifiedCache[WatchSourceEngine.cacheKeyOf(filtered[index])],
                         backdropUrl:
                             widget.detail.background ?? widget.detail.poster,
                         logoUrl: widget.detail.logo,
@@ -1049,9 +1117,7 @@ class _WatchScreenState extends State<WatchScreen>
 
         // Source count
         Text(
-          _isLoadingSources
-              ? 'Searching sources...'
-              : '${filtered.length} source${filtered.length == 1 ? '' : 's'} found',
+          _sourceCountText(filtered.length),
           style: const TextStyle(color: _C.textTertiary, fontSize: 12),
         ),
         const SizedBox(height: _S.md),
@@ -1066,11 +1132,11 @@ class _WatchScreenState extends State<WatchScreen>
   }
 
   Widget _buildSourcesList(List<StreamSource> sources, bool isDesktop) {
-    if (_isLoadingSources && sources.isEmpty) {
+    if ((_isLoadingSources || _verifyingCache) && sources.isEmpty) {
       return _buildShimmerList();
     }
 
-    if (!_isLoadingSources && sources.isEmpty) {
+    if (sources.isEmpty) {
       return _buildEmptyState();
     }
 
@@ -1090,7 +1156,7 @@ class _WatchScreenState extends State<WatchScreen>
           source: sources[index],
           availableSources: sources,
           allSources: _sources,
-          torboxCached: _verifiedCache[WatchSourceEngine.hashOf(sources[index])],
+          torboxCached: _verifiedCache[WatchSourceEngine.cacheKeyOf(sources[index])],
           backdropUrl: widget.detail.background ?? widget.detail.poster,
           logoUrl: widget.detail.logo,
           detail: widget.detail,
@@ -1496,7 +1562,57 @@ class _WatchScreenState extends State<WatchScreen>
   }
 
   Widget _buildEmptyState() {
-    return const _EmptySourcesStateWidget();
+    if (!_strictCacheOnly || _sources.isEmpty) {
+      return const _EmptySourcesStateWidget();
+    }
+    final failed = _cacheFailureCode != null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_off_rounded,
+              color: _C.textSecondary, size: 40),
+          const SizedBox(height: 16),
+          Text(
+            failed ? 'Unable to verify TorBox cache'
+                : 'No verified cached sources',
+            style: const TextStyle(
+              color: _C.textPrimary, fontSize: 18,
+              fontWeight: FontWeight.w600),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _cacheFailureCode == 'missing_key'
+                ? 'Add your TorBox API key in Settings to verify cached sources.'
+                : failed
+                    ? 'Cache verification did not complete. Unverified and uncached sources remain hidden.'
+                    : 'No sources were confirmed cached for this title. Uncached sources remain hidden.',
+            style: const TextStyle(color: _C.textSecondary, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _retryCacheVerification,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry verification'),
+              ),
+              TextButton(
+                onPressed: () => setState(
+                    () => _showAllSourcesTemporarily = true),
+                child: const Text('View all sources temporarily'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildShimmerList() {

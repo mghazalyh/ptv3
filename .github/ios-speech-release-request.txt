@@ -1,17 +1,20 @@
-PLAYTORRIO — ONE OWNER-AUTHORIZED iOS-ONLY PLAYBACK RELIABILITY RELEASE — 14 NOVEMBER 2026 SGT
+PLAYTORRIO — ONE OWNER-AUTHORIZED iOS-ONLY DISCOVERY AND DETAILS SOURCE AVAILABILITY RELEASE — 14 NOVEMBER 2026 SGT
 
-Owner instruction: Implement intelligent source selection, background playback diagnostics, silent and automatic advanced subtitles, better personalized recommendations, robust portable settings, per-device audio presets and regression tests; fix long-pause connection/reloading; then request ONE iOS build and leave.
+Owner instruction: Include Malay language and Malaysia/Singapore production countries in Discover. Automatically show candidate source counts on the movie/series Details page (episode scoped for series). Do not check sources or hide zero-source titles in Search/Discovery result cards. Minimize addon requests with short-lived caching and reuse when Watch opens. Submit EXACTLY ONE iOS build and leave.
 
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Exact application source commit: 4e61fcc19eeccbce5b481c2883c24ad3b1754a2e
-Verified source regression CI: https://github.com/mghazalyh/ptv3/actions/runs/43520585847
-Source validation: SUCCESS in BOTH Linux Flutter analyzer/regression suite and Windows shared-player compatibility tests (test-only).
-HEAD before iOS-only trigger: 7665ff4917bf213de1f1a77d22855a9e974e89ac
+Exact application source including regression repair: 128e05cf5160a36453a29f770c1bba9b59dbf31c
+Source CI: https://github.com/mghazalyh/ptv3/actions/runs/43530144175
+Source quality gate: SUCCESS, Linux Flutter analyzer and regression tests; Windows shared-player compatibility tests (test only).
+Previous successful iOS-only build confirmed by owner. New native build result NOT verified.
 
-BUILD AUTHORIZATION
-Trigger EXACTLY ONE iOS/iPadOS native signed release using .github/workflows/ios-speech-release.yml by changing ONLY this iOS trigger file together with release notes. Preserve native MPV, FFmpeg, VideoToolbox, signing, source recovery, TorBox and addons, subtitles, Trakt/Simkl, My List, watched history, portable TorriODB preferences and private credentials. Do not initiate Windows, paired, PS4 or any other native packaging.
-Do not use workflow_dispatch. This request is distinct from the consumed Windows-only trigger e90deabdba79865fc1078e16b5436ae605844feb, whose build outcome remains UNVERIFIED.
+[ios-only]
+SINGLE BUILD AUTHORIZATION
+This marker update requests exactly ONE signed iOS/iPadOS native build through .github/workflows/ios-speech-release.yml.
+No Windows build, paired release, PS4 build, workflow_dispatch, native rerun, or duplicate marker is authorized.
+Preserve MPV/FFmpeg/VideoToolbox, subtitle sync, Night Mode, TorBox, debrid, Trakt/Simkl, history, settings and private repositories.
+The previous iOS and Windows native build authorizations were consumed.
 
 STOP BOUNDARY
-Immediately upon GitHub accepting THIS ONE trigger commit, the iOS native build authorization is CONSUMED. STOP. Do not check the new workflow, artifacts, Telegram delivery, release, checksums or runtime results. Do not retry or duplicate without fresh explicit owner authorization. Native build outcome, IPA, GitHub Release and Telegram delivery remain UNVERIFIED.
+After GitHub accepts this commit, this new iOS authorization is CONSUMED. Do not poll workflow runs, inspect native job outcomes, download signed IPA, inspect release assets or checksums, inspect Telegram, retry, or trigger any other native build. Do not claim this new native release succeeded without fresh evidence from owner.

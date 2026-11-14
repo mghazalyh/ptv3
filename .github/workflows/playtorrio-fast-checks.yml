@@ -84,6 +84,10 @@ jobs:
             lib/services/player/player_picture_audio.dart \
             lib/services/player/player_audio_presets.dart \
             lib/widgets/player/player_audio_menu.dart \
+            lib/services/updater/app_updater_service.dart \
+            lib/widgets/updater/update_dialog.dart \
+            lib/pages/settings/updates_settings_page.dart \
+            lib/services/config/build_identity.dart \
             lib/services/player/playback_metric_sanitizer.dart \
             lib/services/config/windows_settings_recovery.dart \
             lib/services/player/windows_playback_telemetry.dart \
@@ -160,6 +164,7 @@ jobs:
             test/player_diagnostics_overlay_test.dart \
             test/player_picture_audio_test.dart \
             test/player_audio_presets_test.dart \
+            test/app_updater_service_test.dart \
             test/playback_metric_sanitizer_test.dart \
             test/player_debug_telemetry_test.dart \
             test/windows_settings_recovery_test.dart \

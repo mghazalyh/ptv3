@@ -31,10 +31,27 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
           builder: (context) => UpdateDialog(updateInfo: updateInfo),
         );
       } else {
+        final status = updater.lastCheckStatus;
+        final message = switch (status) {
+          AppUpdateCheckStatus.currentPublished =>
+            'You have the latest published release for this platform. '
+            'Newer source changes may still be awaiting a build.',
+          AppUpdateCheckStatus.noCompatibleRelease =>
+            'No compatible published installer was found.',
+          AppUpdateCheckStatus.lookupFailed =>
+            'Could not verify GitHub releases. Try again when online.',
+          AppUpdateCheckStatus.dismissed =>
+            'This available update was dismissed.',
+          _ => 'No new published update was confirmed.',
+        };
+        final failed = status == AppUpdateCheckStatus.lookupFailed ||
+            status == AppUpdateCheckStatus.noCompatibleRelease;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('PlayTorrio is up to date!'),
-            backgroundColor: Color(0xFF7C5CFF),
+          SnackBar(
+            content: Text(message),
+            backgroundColor: failed
+                ? Colors.redAccent
+                : const Color(0xFF7C5CFF),
             behavior: SnackBarBehavior.floating,
           ),
         );

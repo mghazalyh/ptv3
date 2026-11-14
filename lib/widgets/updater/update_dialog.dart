@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:crypto/crypto.dart' show sha256;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -499,6 +501,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
       _downloadProgress = 0.0;
     });
 
+    File? stagedFile;
     try {
       Directory? downloadsDir;
       try {
@@ -512,16 +515,25 @@ class _UpdateDialogState extends State<UpdateDialog> {
       }
 
       final extension = Platform.isWindows ? '.exe' : '.AppImage';
-      final fileName =
-          'PlayTorrio-${widget.updateInfo.latestVersion}$extension';
+      final fileName = Platform.isWindows &&
+              widget.updateInfo.assetFileName != null
+          ? widget.updateInfo.assetFileName!
+          : 'PlayTorrio-${widget.updateInfo.latestVersion}$extension';
       final filePath = path.join(dir.path, fileName);
       final file = File(filePath);
+      stagedFile = file;
+      if (Platform.isWindows && !fileName.toLowerCase().endsWith('.exe')) {
+        throw const FormatException('Expected Windows Setup EXE');
+      }
 
       final request = http.Request(
         'GET',
         Uri.parse(widget.updateInfo.downloadUrl),
       );
       final response = await request.send();
+      if (response.statusCode != 200) {
+        throw HttpException('Installer HTTP ${response.statusCode}');
+      }
 
       final contentLength = response.contentLength ?? 0;
       int downloadedBytes = 0;
@@ -546,6 +558,26 @@ class _UpdateDialogState extends State<UpdateDialog> {
       }
 
       await sink.close();
+      if (downloadedBytes == 0 ||
+          (contentLength > 0 && downloadedBytes != contentLength)) {
+        throw const FormatException('Installer download is incomplete');
+      }
+      if (Platform.isWindows) {
+        final checksumUrl = widget.updateInfo.checksumUrl;
+        if (checksumUrl == null || checksumUrl.isEmpty) {
+          throw const FormatException('Windows release has no checksum');
+        }
+        final checksum = await http.get(Uri.parse(checksumUrl));
+        if (checksum.statusCode != 200) {
+          throw HttpException('Checksum HTTP ${checksum.statusCode}');
+        }
+        final actual = (await sha256.bind(file.openRead()).first).toString();
+        if (!AppUpdaterService.checksumMatches(
+            checksum.body, fileName, actual)) {
+          throw const FormatException('Windows installer checksum mismatch');
+        }
+        debugPrint('[UpdateDialog] Windows Setup SHA256 verified');
+      }
 
       if (mounted) {
         WakelockPlus.disable();
@@ -631,11 +663,23 @@ class _UpdateDialogState extends State<UpdateDialog> {
       }
     } catch (e) {
       WakelockPlus.disable();
+      if (stagedFile != null) {
+        try {
+          if (await stagedFile.exists()) await stagedFile.delete();
+        } catch (cleanupError) {
+          debugPrint('[UpdateDialog] Invalid installer cleanup failed: '
+              '${cleanupError.runtimeType}');
+        }
+      }
+      debugPrint('[UpdateDialog] Desktop update failed: ${e.runtimeType}');
       if (mounted) {
         setState(() => _isDownloading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Download failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Download or checksum verification failed. '
+                'No installer was accepted.'),
+          ),
+        );
       }
     }
   }

@@ -111,6 +111,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   static bool _hasCheckedInitialUpdate = false;
   static bool _isShowingUpdateDialog = false;
   Timer? _homeSyncTimer;
+  DateTime? _lastUpdateCheckAt;
   AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
 
   @override
@@ -139,6 +140,13 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     if (state == AppLifecycleState.resumed) {
       // The old ten-minute throttle delayed cross-device updates on resume.
       unawaited(TorriodbPortableSync.instance.refresh(force: true));
+      if (Platform.isWindows && _hasCheckedInitialUpdate) {
+        final last = _lastUpdateCheckAt;
+        if (last == null ||
+            DateTime.now().difference(last) >= const Duration(minutes: 5)) {
+          unawaited(_checkForUpdates());
+        }
+      }
     }
   }
 
@@ -151,6 +159,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
 
   Future<void> _checkForUpdates() async {
     if (_isShowingUpdateDialog) return;
+    _lastUpdateCheckAt = DateTime.now();
     try {
       final updater = AppUpdaterService();
       final updateInfo = await updater.checkForUpdates();

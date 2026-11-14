@@ -55,4 +55,58 @@ void main() {
       ]), isNull);
     });
   });
+
+  group('Windows release provenance and checksums', () {
+    const goodUrl = 'https://github.com/mghazalyh/ptv3/releases/download/'
+        'build-v1.1.15-b192/PlayTorrio-v1.1.15-build192-Windows-Setup.exe';
+    const name = 'PlayTorrio-v1.1.15-build192-Windows-Setup.exe';
+    final good = {'name': name, 'browser_download_url': goodUrl};
+    test('matches exact release build and installer', () {
+      expect(AppUpdaterService.findWindowsSetupAsset(
+          [good], '1.1.15', 192), goodUrl);
+      expect(AppUpdaterService.findWindowsSetupAsset(
+          [good], '1.1.15', 191), isNull);
+      expect(AppUpdaterService.findWindowsSetupAsset(
+          [good], '1.1.16', 192), isNull);
+      expect(AppUpdaterService.findWindowsSetupAsset(
+          [good], '1.1.15', null), isNull);
+    });
+    test('rejects URL from wrong release or host', () {
+      expect(AppUpdaterService.findWindowsSetupAsset([
+        {'name': name,
+         'browser_download_url': goodUrl.replaceFirst(
+           'build-v1.1.15-b192/', 'build-v1.1.15-b191/')}
+      ], '1.1.15', 192), isNull);
+      expect(AppUpdaterService.findWindowsSetupAsset([
+        {'name': name,
+         'browser_download_url': 'https://example.invalid/installer.exe'}
+      ], '1.1.15', 192), isNull);
+    });
+    test('finds checksum file from matching GitHub domain', () {
+      const url = 'https://github.com/mghazalyh/ptv3/releases/download/'
+          'build-v1.1.15-b192/SHA256SUMS.txt';
+      expect(AppUpdaterService.findChecksumAsset([
+        {'name': 'SHA256SUMS.txt', 'browser_download_url': url}
+      ]), url);
+      expect(AppUpdaterService.findChecksumAsset([
+        {'name': 'SHA256SUMS.txt',
+         'browser_download_url': 'https://example.invalid/SHA256SUMS.txt'}
+      ]), isNull);
+    });
+    test('validates exact filename and matching SHA256', () {
+      const hash = '0123456789abcdef0123456789abcdef'
+          '0123456789abcdef0123456789abcdef';
+      const sums = '0123456789abcdef0123456789abcdef'
+          '0123456789abcdef0123456789abcdef  '
+          'PlayTorrio-v1.1.15-build192-Windows-Setup.exe\\n';
+      expect(AppUpdaterService.checksumMatches(sums, name, hash), isTrue);
+      expect(AppUpdaterService.checksumMatches(
+        sums, 'Older-Windows-Setup.exe', hash), isFalse);
+      expect(AppUpdaterService.checksumMatches(
+        sums, name, 'ffffffffffffffffffffffffffffffff'
+            'ffffffffffffffffffffffffffffffff'), isFalse);
+      expect(AppUpdaterService.checksumMatches(
+        'bad manifest', name, hash), isFalse);
+    });
+  });
 }

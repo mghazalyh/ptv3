@@ -1,20 +1,19 @@
-PLAYTORRIO — ONE OWNER-AUTHORIZED iOS-ONLY DISCOVERY AND DETAILS SOURCE AVAILABILITY RELEASE — 14 NOVEMBER 2026 SGT
+PLAYTORRIO — ONE OWNER-AUTHORIZED iOS-ONLY SUBTITLE SIZE PERSISTENCE RELEASE — 15 NOVEMBER 2026 SGT
 
-Owner instruction: Include Malay language and Malaysia/Singapore production countries in Discover. Automatically show candidate source counts on the movie/series Details page (episode scoped for series). Do not check sources or hide zero-source titles in Search/Discovery result cards. Minimize addon requests with short-lived caching and reuse when Watch opens. Submit EXACTLY ONE iOS build and leave.
+Owner request: Trigger a GitHub iOS build for the iPad subtitle size persistence fix, then leave without monitoring, retries, or duplicate builds.
 
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Exact application source including regression repair: 128e05cf5160a36453a29f770c1bba9b59dbf31c
-Source CI: https://github.com/mghazalyh/ptv3/actions/runs/43530144175
-Source quality gate: SUCCESS, Linux Flutter analyzer and regression tests; Windows shared-player compatibility tests (test only).
-Previous successful iOS-only build confirmed by owner. New native build result NOT verified.
+Exact subtitle persistence source commit: 21c833202dd1568a14a5465422aa1eade939533c
+Source file: lib/pages/player/player_screen.dart
+Fix: Initialize player subtitle scale from saved per-device PlayerSettings.subScale; only an explicit size adjustment writes the saved scale; episode playback, subtitle attachment/track change, and recovery reapply styling without overwriting saved size; synchronize subtitle appearance modal scale with player quick slider.
 
 [ios-only]
 SINGLE BUILD AUTHORIZATION
-This marker update requests exactly ONE signed iOS/iPadOS native build through .github/workflows/ios-speech-release.yml.
+This one marker update requests exactly ONE signed iOS/iPadOS native build via .github/workflows/ios-speech-release.yml.
 No Windows build, paired release, PS4 build, workflow_dispatch, native rerun, or duplicate marker is authorized.
-Preserve MPV/FFmpeg/VideoToolbox, subtitle sync, Night Mode, TorBox, debrid, Trakt/Simkl, history, settings and private repositories.
-The previous iOS and Windows native build authorizations were consumed.
+Preserve native MPV/FFmpeg/VideoToolbox, subtitle timing, Night Mode, TorBox, debrid, Trakt/Simkl, watch history, privacy, local settings, and all existing features.
+Previously submitted iOS and Windows build requests are consumed and must not be retriggered.
 
 STOP BOUNDARY
-After GitHub accepts this commit, this new iOS authorization is CONSUMED. Do not poll workflow runs, inspect native job outcomes, download signed IPA, inspect release assets or checksums, inspect Telegram, retry, or trigger any other native build. Do not claim this new native release succeeded without fresh evidence from owner.
+Once GitHub accepts this commit, this new iOS authorization is CONSUMED. Do not poll workflow runs, inspect native job outcomes, release artifacts, downloads, hashes, Telegram, or telemetry, retry, or trigger another build. The source commit is verified; native build completion and iPad installation / playback remain UNVERIFIED until separate owner evidence.

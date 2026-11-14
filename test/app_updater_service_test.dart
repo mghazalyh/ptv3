@@ -98,7 +98,7 @@ void main() {
           '0123456789abcdef0123456789abcdef';
       const sums = '0123456789abcdef0123456789abcdef'
           '0123456789abcdef0123456789abcdef  '
-          'PlayTorrio-v1.1.15-build192-Windows-Setup.exe\\n';
+          'PlayTorrio-v1.1.15-build192-Windows-Setup.exe\n';
       expect(AppUpdaterService.checksumMatches(sums, name, hash), isTrue);
       expect(AppUpdaterService.checksumMatches(
         sums, 'Older-Windows-Setup.exe', hash), isFalse);

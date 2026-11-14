@@ -1,23 +1,22 @@
-PLAYTORRIO — ONE NEW OWNER-AUTHORIZED WINDOWS-ONLY x64 RELEASE REQUEST — 2026-11-14 SGT
+PLAYTORRIO — ONE NEW OWNER-AUTHORIZED WINDOWS-ONLY x64 RELEASE REQUEST — 2026-11-15 00:06:32 SGT
 
-OWNER INSTRUCTION
-"ok,fix it and request a github build and leave"
+OWNER AUTHORIZATION
+"run failed , please check fix it and trigger another github build"
 
-REPOSITORY AND SOURCE
+REPOSITORY AND VERIFIED SOURCE
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Verified branch HEAD immediately before this Windows release request: 3aa2a5ee4b720da2ecbf05b499f82df66cf5ce2f
-Source commit including Windows preset UI regression test, native gate and Windows release notes: 3aa2a5ee4b720da2ecbf05b499f82df66cf5ce2f
-Previous Windows-only request: e90deabdba79865fc1078e16b5436ae605844feb (consumed).
+Verified application source HEAD: 7ecd990e176abecf2c7d7eb8e653d90c50b30e42
+Source quality gate: https://github.com/mghazalyh/ptv3/actions/runs/43613242537
+Quality gate status before triggering: COMPLETED SUCCESS, both Linux Flutter analyzer and critical regressions and Windows shared-player compatibility jobs passed.
 
-PURPOSE
-Restore packaged Windows/iOS shared audio feature parity. Flat, Dialogue, Cinema and Warm presets already exist in the shared Flutter audio menu and are wired to persistent PlayerSettings bass and treble controls. The last Windows release request predates that implementation. No Windows-only display restriction was found in the current shared player source. Add Windows native-build regression coverage for all four preset controls, selection behavior and the audio menu analyzer gate.
+FAILURE AND REPAIR
+Previously failing source run 43612030800 had two Windows audio preset menu tests fail on RenderFlex horizontal overflow by 88 pixels. Root cause confirmed from full render-tree output in diagnostic source run 43612799543: the fallback "Default audio stream playing." Text inside a Row was unconstrained. It now uses Flexible with bounded one-line ellipsis, preserving the rest of the audio menu. Both widget tests now pass on source 7ecd990e176abecf2c7d7eb8e653d90c50b30e42. Preserve four audio presets: Flat, Dialogue, Cinema, Warm.
+The Windows updater now only offers the matching published GitHub Setup EXE for the exact release tag/build, verifies SHA256 before accepting downloads, distinguishes latest published binaries from unshipped source, rechecks on app resume and avoids calling a failed update lookup "up to date". Windows-only release is published from draft only after source target and artifact size checks. Preserve all streaming, Night Mode, subtitle, addon, TorBox, Home, library and other existing shared functionality.
 
-WINDOWS x64 ONLY
-Trigger .github/workflows/windows-advanced-discover.yml by this one push modifying ONLY .github/windows-release-request.txt with commit message containing literal [windows-only]. The Windows job must build the Setup EXE and portable ZIP from this HEAD using existing native MPV, FFmpeg, TorBox, subtitle, Night Mode, debrid, addon and release-delivery safeguards. Do not trigger iOS, paired, PS4 or any other native packaging.
+WINDOWS-ONLY BUILD REQUEST
+Trigger exactly one new Windows x64 native workflow .github/workflows/windows-advanced-discover.yml via this marker-only push, with commit message containing [windows-only]. Build Setup EXE and portable ZIP from this exact SHA lineage with the existing pinned native dependencies and release safeguards. The commit marks the source to build; the Windows job uses its triggering commit SHA. The Windows release must not become available to the updater until publication checks succeed.
+Previous owner-cancelled Windows build #192 (native run 43610074778) stays cancelled. Do not rerun or retry that cancelled run. No iOS, paired iOS, PS4 or other platform builds.
 
-SCOPE
-Include all current shared Flutter functionality, including Malay language and Malaysia/Singapore Discovery filtering, Details-page source availability with bounded cache, prior subtitle and playback improvements, Trakt/Simkl, Home, TorriODB portable settings, and audio presets. No private keys or repository contents were modified.
-
-STOP BOUNDARY
-This single newly authorized Windows-only build request is consumed when GitHub accepts this commit. After submission, STOP immediately. Do not poll or inspect the new Actions run, workflow jobs, Releases, installers, ZIP, checksums, Telegram delivery or device telemetry; no rerun, retry or duplicate without fresh express permission. Native build success and Windows runtime behavior remain UNVERIFIED.
+STOP
+This authorization is consumed once GitHub accepts the one Windows-only trigger commit. Do not inspect, poll or monitor the new workflow, inspect or download release assets, check Telegram delivery, retry, rerun or duplicate the native build after submission without fresh owner authorization. Success of native build, installer publication and installed Windows behavior remain unverified until separately validated.

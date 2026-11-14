@@ -1,4 +1,3 @@
-import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:playtorrio/widgets/player/player_audio_menu.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,12 +66,7 @@ void main() {
 
     expect(chosenBass, PlayerAudioPresets.dialogue.bassDb);
     expect(chosenTreble, PlayerAudioPresets.dialogue.trebleDb);
-    final layoutError = tester.takeException();
-    if (layoutError != null) {
-      debugPrint('[AudioPresetLayout] Render tree for failing layout:');
-      debugDumpRenderTree();
-    }
-    expect(layoutError, isNull);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Windows shared audio menu highlights the persisted preset', (tester) async {

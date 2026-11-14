@@ -256,9 +256,14 @@ class PlayerAudioMenu extends StatelessWidget {
                         children: [
                           Icon(Icons.audiotrack_rounded, size: 16, color: Colors.white38),
                           SizedBox(width: 8),
-                          Text(
-                            'Default audio stream playing.',
-                            style: TextStyle(color: Colors.white54, fontSize: 13),
+                          Flexible(
+                            child: Text(
+                              'Default audio stream playing.',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  color: Colors.white54, fontSize: 13),
+                            ),
                           ),
                         ],
                       ),

@@ -1,23 +1,23 @@
 PLAYTORRIO — ONE NEW OWNER-AUTHORIZED WINDOWS-ONLY x64 RELEASE REQUEST — 2026-11-14 SGT
 
-OWNER REQUEST
-"start a build for windows version now on github n leave"
+OWNER INSTRUCTION
+"ok,fix it and request a github build and leave"
 
-REPOSITORY AND EXACT SOURCE
+REPOSITORY AND SOURCE
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Verified branch HEAD immediately before this Windows trigger: b7061e89bc4617e3a7c6d5e8c2ffaee818afad9e
-Latest application source/test commit: e948241f0c5076365727b19c92cc53d20dd91ad8
-Source CI on latest iOS trigger: https://github.com/mghazalyh/ptv3/actions/runs/43502170981 completed SUCCESS.
-Source CI with Watch Sources regressions: https://github.com/mghazalyh/ptv3/actions/runs/43501197370 completed SUCCESS.
-Previous iOS-only workflow run: 43502170697 completed SUCCESS before this new request.
-This Windows marker edit is the ONLY authorized new native build trigger.
+Verified branch HEAD immediately before this Windows release request: 3aa2a5ee4b720da2ecbf05b499f82df66cf5ce2f
+Source commit including Windows preset UI regression test, native gate and Windows release notes: 3aa2a5ee4b720da2ecbf05b499f82df66cf5ce2f
+Previous Windows-only request: e90deabdba79865fc1078e16b5436ae605844feb (consumed).
+
+PURPOSE
+Restore packaged Windows/iOS shared audio feature parity. Flat, Dialogue, Cinema and Warm presets already exist in the shared Flutter audio menu and are wired to persistent PlayerSettings bass and treble controls. The last Windows release request predates that implementation. No Windows-only display restriction was found in the current shared player source. Add Windows native-build regression coverage for all four preset controls, selection behavior and the audio menu analyzer gate.
 
 WINDOWS x64 ONLY
-Use .github/workflows/windows-advanced-discover.yml triggered by a push modifying ONLY .github/windows-release-request.txt with commit message [windows-only]. Windows job builds x64 Setup EXE and portable ZIP through existing signed/release-delivery pipeline. [windows-only] explicitly skips paired iOS packaging and iOS publish paths.
-Include current shared Flutter source: TorBox cache verified versus direct addon-ready badges, Stremio hash hints, episode filename matching, opt-in cache diagnostics, balanced source preferences and iPad/narrow Watch Sources panel overflow repair, plus all existing player, FFmpeg, MPV, Night Mode, Equalizer, streaming/addons, subtitle Auto Sync, Trakt/Simkl, history, Home, dock, TorriODB and settings functionality.
-The release-notes file was updated for Windows in source commit b7061e89bc4617e3a7c6d5e8c2ffaee818afad9e.
-No source code, keys, private TorriODB, PS4, or prior iOS release request file should be changed by this Windows-only trigger.
+Trigger .github/workflows/windows-advanced-discover.yml by this one push modifying ONLY .github/windows-release-request.txt with commit message containing literal [windows-only]. The Windows job must build the Setup EXE and portable ZIP from this HEAD using existing native MPV, FFmpeg, TorBox, subtitle, Night Mode, debrid, addon and release-delivery safeguards. Do not trigger iOS, paired, PS4 or any other native packaging.
+
+SCOPE
+Include all current shared Flutter functionality, including Malay language and Malaysia/Singapore Discovery filtering, Details-page source availability with bounded cache, prior subtitle and playback improvements, Trakt/Simkl, Home, TorriODB portable settings, and audio presets. No private keys or repository contents were modified.
 
 STOP BOUNDARY
-This explicit Windows build authorization is consumed by this one marker commit. After GitHub accepts the commit STOP immediately: do not inspect, poll, monitor, rerun, retry, duplicate, download or check Windows workflow, release, installer, ZIP, checksum, Telegram or private telemetry without new owner instruction. Do not start iOS, PS4, Android, macOS or paired packaging. Build, signing, delivery, published assets and device acceptance remain UNVERIFIED.
+This single newly authorized Windows-only build request is consumed when GitHub accepts this commit. After submission, STOP immediately. Do not poll or inspect the new Actions run, workflow jobs, Releases, installers, ZIP, checksums, Telegram delivery or device telemetry; no rerun, retry or duplicate without fresh express permission. Native build success and Windows runtime behavior remain UNVERIFIED.

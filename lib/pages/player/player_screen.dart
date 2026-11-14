@@ -188,7 +188,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   List<SubCue> _currentCues = [];
   SubFormat _currentSubFormat = SubFormat.srt;
   double _subtitleDelayMs = 0;
-  double _subtitleScale = 1.0;
+  // Global per-install preference, loaded before runApp and preserved between episodes.
+  double _subtitleScale = PlayerSettings.subScale.value;
   bool _subtitleManuallySelected = false;
   bool _subtitleAutoPending = false;
   bool _autoSyncBusy = false;
@@ -494,7 +495,6 @@ class _PlayerScreenState extends State<PlayerScreen>
         await _player.open(Media(rawUrl), play: true);
         await _applyLiveDelay(0.0);
         await PlayerSettings.applyPostOpenProperties(_player);
-        _setSubtitleScale(_subtitleScale);
         _applyVolume(_isMuted ? 0.0 : _volume);
         if (mounted) setState(() => _isLoading = false);
         _updateMediaTracks(_player.state.tracks);
@@ -664,8 +664,6 @@ class _PlayerScreenState extends State<PlayerScreen>
         debugPrint('[PlayerSpeechSync] Reset native subtitle speed failed: ${error.runtimeType}');
       }
       await PlayerSettings.applyPostOpenProperties(_player);
-
-      _setSubtitleScale(_subtitleScale);
       _applyVolume(_isMuted ? 0.0 : _volume);
 
       debugPrint('[PlayerScreen] Native open returned for ${_currentSource.addonName}');
@@ -1000,7 +998,6 @@ class _PlayerScreenState extends State<PlayerScreen>
           DateTime.now().add(SubtitleAutoSyncPolicy.initialSubtitleDelay);
       PlayerDebugTelemetry.record('subtitle_background_sync_scheduled');
       debugPrint('[PlayerSubtitles] Selected embedded English: ${preferred.title}');
-      _setSubtitleScale(_subtitleScale);
       unawaited(PlayerSettings.applySubtitleStyling(_player));
     } catch (error) {
       debugPrint('[PlayerSubtitles] Embedded English track unavailable: $error');
@@ -1491,8 +1488,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     });
 
     _player.setSubtitleTrack(SubtitleTrack(embedded.index.toString(), embedded.title, embedded.language));
-    _setSubtitleScale(_subtitleScale);
-    PlayerSettings.applySubtitleStyling(_player);
+    unawaited(PlayerSettings.applySubtitleStyling(_player));
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2122,7 +2118,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         _nativeSubtitleCueMissingLogged = false;
         _currentSubFormat = result.format;
       });
-      _setSubtitleScale(_subtitleScale);
+      await PlayerSettings.applySubtitleStyling(_player);
       if (_subtitleDelayMs != 0) {
         await _applyLiveDelay(_subtitleDelayMs / 1000.0);
       }
@@ -2164,10 +2160,25 @@ class _PlayerScreenState extends State<PlayerScreen>
     return Uri.file(pathOrUrl).toString();
   }
 
+  // Called only from an explicit user size adjustment. Never persist scale
+  // again while opening an episode, attaching a track, or recovering playback.
   void _setSubtitleScale(double scale) {
-    final clamped = scale.clamp(0.5, 3.0);
+    if (!mounted || !scale.isFinite) return;
+    final clamped = (scale.clamp(0.5, 3.0) * 100).round() / 100.0;
+    if (_subtitleScale == clamped && PlayerSettings.subScale.value == clamped) {
+      return;
+    }
     setState(() => _subtitleScale = clamped);
-    PlayerSettings.setSubScale(clamped, player: _player);
+    unawaited(_persistSubtitleScale(clamped));
+  }
+
+  Future<void> _persistSubtitleScale(double scale) async {
+    try {
+      await PlayerSettings.setSubScale(scale, player: _player);
+      debugPrint('[PlayerScreen] Subtitle scale saved on this device');
+    } catch (error) {
+      debugPrint('[PlayerScreen] Subtitle scale save failed: ${error.runtimeType}');
+    }
   }
 
   Future<bool> _applyLiveDelay(double delaySec) async {
@@ -2207,7 +2218,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _currentSubtitlePath = newPath;
       final resolvedUri = _resolveSubtitleUri(newPath);
       _player.setSubtitleTrack(SubtitleTrack.uri(resolvedUri));
-      _setSubtitleScale(_subtitleScale);
+      await PlayerSettings.applySubtitleStyling(_player);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2286,7 +2297,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 'sid', _selectedEmbeddedSubtitleIndex.toString());
           }
           await _applyLiveDelay(_subtitleDelayMs / 1000.0);
-          _setSubtitleScale(_subtitleScale);
+          await PlayerSettings.applySubtitleStyling(_player);
         }
       } else {
         await _player.play();
@@ -3359,6 +3370,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _onPlayerSettingsChanged() {
+    // The appearance modal edits PlayerSettings directly. Keep the quick
+    // slider synchronized with it so another episode cannot show stale size.
+    final savedScale = PlayerSettings.subScale.value;
+    if (mounted && _subtitleScale != savedScale) {
+      setState(() => _subtitleScale = savedScale);
+    }
     if (Platform.isWindows) {
       // This notifier is emitted by subtitle appearance changes. Re-running
       // pre-open configuration here rebuilds MPV's audio filter graph during

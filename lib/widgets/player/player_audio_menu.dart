@@ -362,9 +362,11 @@ class PlayerAudioMenu extends StatelessWidget {
                     ],
                   ),
                   SizedBox(height: isCompactH ? 5 : 8),
-                  Row(
+                  Column(
                     children: [
-                      // -0.5s
+                      Row(
+                        children: [
+                          // -0.5s
                       Expanded(
                         child: OutlinedButton(
                           style: OutlinedButton.styleFrom(
@@ -393,8 +395,12 @@ class PlayerAudioMenu extends StatelessWidget {
                           child: Text('−0.1s', style: TextStyle(fontSize: isCompactH ? 10 : 11.5, fontWeight: FontWeight.w600)),
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      // +0.1s
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          // +0.1s
                       Expanded(
                         child: OutlinedButton(
                           style: OutlinedButton.styleFrom(
@@ -422,6 +428,8 @@ class PlayerAudioMenu extends StatelessWidget {
                           onPressed: () => onDelayChanged(((delaySec + 0.5) * 10).round() / 10.0),
                           child: Text('+0.5s', style: TextStyle(fontSize: isCompactH ? 10 : 11.5, fontWeight: FontWeight.w600)),
                         ),
+                      ),
+                        ],
                       ),
                     ],
                   ),

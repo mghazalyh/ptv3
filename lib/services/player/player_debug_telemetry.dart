@@ -12,6 +12,7 @@ abstract final class PlayerDebugTelemetry {
 
   /// Safe failure grouping. Pause/reconnect failures belong to source issues.
   static String failureReasonFor(String stage) {
+    if (stage.startsWith('addon_')) return 'addon_failure';
     if (stage.startsWith('subtitle_')) return 'subtitle_failure';
     if (stage.startsWith('source_') || stage.startsWith('pause_')) {
       return 'source_failure';

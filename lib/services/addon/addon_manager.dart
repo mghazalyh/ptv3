@@ -252,6 +252,8 @@ class AddonManager {
       final catalogsToFetch = addon.manifest.catalogs;
 
       for (final catalog in catalogsToFetch) {
+        // Search-only or other required-extra catalogs have no default feed.
+        if (!catalog.isHomeEligible) continue;
         sectionFutures.add(() async {
           try {
             final movies = await MetadataService.fetchCatalog(
@@ -296,7 +298,9 @@ class AddonManager {
     // Fetch all catalogs that the addon provides
     final catalogsToFetch = addon.manifest.catalogs;
 
-    final futures = catalogsToFetch.map((catalog) async {
+    final futures = catalogsToFetch
+        .where((catalog) => catalog.isHomeEligible)
+        .map((catalog) async {
       try {
         final movies = await MetadataService.fetchCatalog(
           baseUrl: addon.baseUrl,
@@ -337,7 +341,8 @@ class AddonManager {
 
     for (final addon in active) {
       final searchCatalogs = addon.manifest.catalogs
-          .where((c) => c.supportsSearch)
+          .where((c) => c.supportsSearch &&
+              !c.extras.any((e) => e.isRequired && e.name != 'search'))
           .toList();
 
       for (final catalog in searchCatalogs) {
@@ -400,9 +405,12 @@ class AddonManager {
     for (final addon in active) {
       // Find catalogs that explicitly support filtering by genre via their 'extra' properties.
       final genreCatalogs = addon.manifest.catalogs.where((c) {
-        final supportsGenre = c.genres.isNotEmpty;
-        final isCinemetaTop = addon.manifest.id == 'com.linvo.cinemeta' && c.id == 'top';
-        return supportsGenre || isCinemetaTop;
+        final supportsGenre = c.supportsExtra('genre');
+        final isCinemetaTop =
+            addon.manifest.id == 'com.linvo.cinemeta' && c.id == 'top';
+        return (supportsGenre || isCinemetaTop) &&
+            !c.extras.any((e) => e.isRequired && e.name != 'genre') &&
+            (c.genres.isEmpty || c.genres.contains(genre));
       }).toList();
 
       for (final catalog in genreCatalogs) {

@@ -195,6 +195,35 @@ void main() {
     expect(requests, 1);
   });
 
+  test('custom IDs resolve through explicitly compatible meta addons',
+      () async {
+    final requests = <String>[];
+    MetadataService.metaGetOverride = (uri) async {
+      requests.add(uri.toString());
+      if (uri.host != 'compatible.example') return http.Response('', 404);
+      return http.Response(jsonEncode({
+        'meta': {
+          'id': 'custom:42',
+          'name': 'Custom Film',
+          'type': 'movie',
+        }
+      }), 200);
+    };
+
+    final resolved = await MetadataService.resolveCatalogMeta(
+      baseUrl: 'https://catalog-only.example',
+      type: 'movie',
+      id: 'custom:42',
+      title: 'Custom Film',
+      sourceSupportsMeta: false,
+      compatibleMetaProviders: ['https://compatible.example'],
+    );
+    expect(resolved, isNotNull);
+    expect(resolved!.detail.id, 'custom:42');
+    expect(resolved.baseUrl, 'https://compatible.example');
+    expect(requests, hasLength(1));
+  });
+
   test('malformed stream items do not discard other playable stream results',
       () async {
     final addon = InstalledAddon(

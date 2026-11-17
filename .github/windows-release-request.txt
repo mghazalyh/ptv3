@@ -1,16 +1,11 @@
 PLAYTORRIO OWNER-AUTHORIZED WINDOWS-ONLY BUILD REQUEST
-Requested at SGT: 2026-11-18 02:15:42
+Requested SGT: 2026-11-18 04:40:50
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Source revision: f3418cba1829fd82a9826101d1b17a10a866b975
-Scope: Windows x64 native application installer EXE and portable ZIP only.
-Problem: Nocturne (2026) S01E01 received and ranked an unrelated Lazarus (2025) anime release.
-Included repair: content-identity validation before cache, resolution, provider and file-size ranking.
-Included repair: apply rejection to Watch Sources, source discovery, cached results, episode autoplay, source switching and automatic recovery.
-Included diagnostics: Windows Debug Mode source-session correlation, show and episode titles, provider, original release filename, content validation verdict, rank, cache status, torrent hash, file index, and playback selection trace.
-Regression: test/source_content_identity_test.dart and updated Windows telemetry tests, included in native Windows workflow test sequence.
-Run workflow: .github/workflows/windows-advanced-discover.yml.
-Trigger marker: .github/windows-release-request.txt.
-Commit message MUST contain [windows-only] so iOS jobs are skipped.
-No iOS, Android, Linux, macOS, or PS4 native builds.
-Once this push triggers GitHub Actions, stop immediately: do not poll, inspect logs, artifacts or results, and do not submit duplicate builds.
+Latest source commit: 9130e256aa5e568a824eaeb90abeb76305316f7a
+Prerequisite: latest iOS speech release run 44165456455 completed successfully and signed iOS IPA was published.
+Build scope: Windows x64 Setup EXE and portable ZIP only.
+Include latest shared fixes: Nocturne S01E01 source-identity filtering and sorting, prevention of premature Episode 2 autoplay at 29 minutes, trustworthy episode completion policy, same-episode playback resume, and expanded Windows playback telemetry.
+Workflow: .github/workflows/windows-advanced-discover.yml
+Commit message contains [windows-only] to skip all iOS jobs.
+After triggering, leave immediately without waiting, polling, or inspecting build status.

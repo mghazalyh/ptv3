@@ -198,7 +198,7 @@ void main() {
           'streams': [
             null,
             'invalid',
-            {'behaviorHints': {1: 'invalid'}, 'url': 'https://bad.example'},
+            {'name': 'broken', 'streams': 'invalid'},
             {'name': 'HTTP', 'url': 'https://video.example/film.mp4'},
             {'name': 'YT', 'ytId': 'abcdefghijk'},
             {'name': 'torrent', 'infoHash': 'abcde'},

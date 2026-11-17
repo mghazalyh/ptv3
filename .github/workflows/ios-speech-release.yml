@@ -42,11 +42,31 @@ jobs:
           echo "iOS 15 build commit: $GITHUB_SHA"
 
       - name: Setup Flutter
+        id: flutter_setup_primary
         uses: subosito/flutter-action@v2
+        timeout-minutes: 18
+        continue-on-error: true
         with:
           flutter-version: '3.41.9'
           channel: stable
           cache: true
+
+      # The upstream Flutter action can hang during cache restore/download on
+      # GitHub macOS Intel runners. Bound the wait and retry without the cache.
+      # A failed retry remains a hard build failure; never package a missing SDK.
+      - name: Retry Flutter setup without cache
+        if: ${{ steps.flutter_setup_primary.outcome == 'failure' }}
+        uses: subosito/flutter-action@v2
+        timeout-minutes: 18
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: false
+
+      - name: Verify pinned Flutter SDK is usable
+        run: |
+          flutter --version
+          flutter --version --machine | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("frameworkVersion") == "3.41.9", "Wrong Flutter SDK version"'
 
       - name: Setup Flutter dependencies
         run: |

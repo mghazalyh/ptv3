@@ -1,17 +1,13 @@
-PLAYTORRIO: OWNER-REQUESTED ONE FIXED iOS 15 BUILD
-Date (SGT): 2026-11-18 01:38:13
-Source branch: parity-floating-player-both
+PLAYTORRIO OWNER-AUTHORIZED ONE-TIME iOS BUILD RETRY — 2026-11-18 01:50:15 SGT
 
-Build #34 GitHub Actions checks exposed two confirmed failures:
-1. Linux checks: telegram_ci.py --self-test failed when reading .github/release-notes.txt.
-2. iOS-only Telegram status/failure notifier: identical failure.
-Root cause: release notes were 726 characters, exceeding the script's strict 500-character maximum.
+Observed preceding native iOS run #35, GitHub Actions ID 44139203011, remained in progress at "Setup Flutter" for a prolonged period. There was no reported failed application test or native compilation at the time of inspection. The source CI on #35 passed both Linux and Windows shared-code gates.
 
-FIX
-Replace .github/release-notes.txt with a safe, concise and informative description under 500 characters, without URLs or credentials. Preserve Stremio protocol corrections, live-TV series regression fix, README changes, existing iOS app behavior and source code.
+FIX IMPLEMENTED
+Pin Flutter SDK version 3.41.9 as before. In ios-speech-release.yml, impose an 18-minute step timeout on the first cached setup. If that attempt fails or times out, retry the same pinned Flutter installation without cache and with its own 18-minute timeout, then verify the SDK version explicitly. If both attempts fail, the job must fail rather than proceed with a potentially damaged SDK.
+Preserve all app source code, Stremio changes, existing signing configuration, player, assets and publishing logic. The prior Telegram notes-length CI fix remains intact.
 
-SCOPE
-Trigger one native iOS 15 build from this request-file change through the existing ios-speech-release.yml workflow. Keep Apple player and signature configuration unchanged. No Windows/PS4 build, signing, LAN publishing or IPA retrieval.
+BUILD SCOPE
+Trigger exactly one replacement native iOS 15 GitHub build from the update of this request file. No Windows or PS4 native build. Preserve existing release and installed Build 232.
 
-STOP IMMEDIATELY AFTER BUILD TRIGGER
-No waiting, polling, checking jobs/status, inspecting artifacts, retries, or watchers after the push.
+ABSOLUTE STOP RULE
+After the GitHub push that triggers the iOS build, do not check its workflow, wait, poll, inspect logs, retrieve IPA, sign, publish on LAN, retry, or create watchers. End the turn immediately.

@@ -143,6 +143,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/playback_autoselection_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/episode_completion_policy_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/series_automatic_skip_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/player_diagnostics_overlay_test.dart

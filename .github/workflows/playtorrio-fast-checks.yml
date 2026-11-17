@@ -99,6 +99,7 @@ jobs:
             lib/services/player/playback_metric_sanitizer.dart \
             lib/services/config/windows_settings_recovery.dart \
             lib/services/player/windows_playback_telemetry.dart \
+            lib/services/player/episode_completion_policy.dart \
             lib/services/player/ios_audio_telemetry.dart \
             lib/services/player/private_diagnostic_log_path.dart \
             lib/widgets/player/player_sources_panel.dart \
@@ -159,6 +160,7 @@ jobs:
             test/see_all_source_integrity_test.dart \
             test/audio_language_priority_test.dart \
             test/playback_autoselection_test.dart \
+            test/episode_completion_policy_test.dart \
             test/subtitle_activation_guard_test.dart \
             test/speech_subtitle_alignment_test.dart \
             test/subtitle_rate_correction_test.dart \

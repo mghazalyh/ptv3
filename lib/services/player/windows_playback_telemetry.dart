@@ -218,6 +218,50 @@ class WindowsPlaybackTelemetry {
     });
   }
 
+  /// Native completion and its verdict are traceable to actual media metadata.
+  void captureEpisodeCompletion({
+    required String action,
+    required String reason,
+    required StreamSource source,
+    required String requestedTitle,
+    required Duration position,
+    required Duration nativeDuration,
+    required bool isBuffering,
+    String? episodeTitle,
+    int? season,
+    int? episode,
+    int? nextSeason,
+    int? nextEpisode,
+    Duration? bufferedPosition,
+    Duration? expectedRuntime,
+    Duration? recentSeekFrom,
+  }) {
+    if (!isActive) return;
+    final ahead = bufferedPosition == null
+        ? null : bufferedPosition.inMilliseconds - position.inMilliseconds;
+    _trace(<String, Object?>{
+      'action': action,
+      'reason': reason,
+      'requestedTitle': _safeText(requestedTitle),
+      'episodeTitle': _safeText(episodeTitle),
+      'season': season,
+      'episode': episode,
+      'nextSeason': nextSeason,
+      'nextEpisode': nextEpisode,
+      'positionMs': position.inMilliseconds,
+      'nativeDurationMs': nativeDuration.inMilliseconds,
+      'expectedRuntimeMs': expectedRuntime?.inMilliseconds,
+      'bufferedPositionMs': bufferedPosition?.inMilliseconds,
+      'bufferAheadMs': ahead == null ? null : ahead < 0 ? 0 : ahead,
+      'buffering': isBuffering,
+      'recentSeekFromMs': recentSeekFrom?.inMilliseconds,
+      ..._details(source),
+    });
+    if (action == 'automatic_next_episode_blocked') {
+      captureCode('episode_autoplay_blocked');
+    }
+  }
+
   static const allowedEvents = <String>{
     'brightness_changed',
     'brightness_vf_fallback',
@@ -383,13 +427,27 @@ class WindowsPlaybackTelemetry {
   /// Cumulative frame counters are converted to per-sample deltas so it is
   /// clear whether the game caused fresh missed frames.
   void capturePlaybackSample(
-      Map<String, Object?> properties, {bool buffering = false}) {
+      Map<String, Object?> properties, {
+      bool buffering = false,
+      Duration? position,
+      Duration? duration,
+      Duration? bufferedPosition,
+      }) {
     if (!isActive) return;
     final sample = <String, Object>{
       'utc': DateTime.now().toUtc().toIso8601String(),
       'buffering': buffering,
     };
     sample.addAll(PlaybackMetricSanitizer.fromProperties(properties));
+    if (position != null && position >= Duration.zero) {
+      sample['positionMs'] = position.inMilliseconds;
+    }
+    if (duration != null && duration >= Duration.zero) {
+      sample['nativeDurationMs'] = duration.inMilliseconds;
+    }
+    if (bufferedPosition != null && bufferedPosition >= Duration.zero) {
+      sample['bufferedPositionMs'] = bufferedPosition.inMilliseconds;
+    }
 
     for (final property in const <String>[
       'frame-drop-count', 'decoder-frame-drop-count',

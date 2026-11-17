@@ -1379,7 +1379,11 @@ class _PlayerScreenState extends State<PlayerScreen>
         await _recoverWindowsRendering(properties, generation);
         if (WindowsPlaybackTelemetry.instance.isActive) {
           WindowsPlaybackTelemetry.instance.capturePlaybackSample(
-              properties, buffering: _player.state.buffering);
+              properties,
+              buffering: _player.state.buffering,
+              position: _player.state.position,
+              duration: _player.state.duration,
+              bufferedPosition: _buffered);
           await WindowsPlaybackTelemetry.instance.upload(
               reason: 'playback_sample', automatic: true);
         }

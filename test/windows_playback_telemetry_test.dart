@@ -17,6 +17,46 @@ void main() {
     NightModeDiagnostics.debugModeEnabled.value = false;
   });
 
+  test('Nocturne early EOF is recorded with runtime, filename and buffer', () {
+    final telemetry = WindowsPlaybackTelemetry.forTesting(
+      client: MockClient((request) async => http.Response('{}', 201)),
+      tokenProvider: () async => 'test-only-token',
+    )..forceTestPlatform = true;
+    NightModeDiagnostics.debugModeEnabled.value = true;
+    final source = StreamSource(
+      addonName: 'Torrentio TB',
+      title: 'Nocturne.S01E01.1080p.WEB-DL',
+      url: 'https://example.test/stream?token=do-not-upload',
+    );
+    telemetry.captureEpisodeCompletion(
+      action: 'automatic_next_episode_blocked',
+      reason: 'source_shorter_than_expected_episode',
+      source: source,
+      requestedTitle: 'Nocturne',
+      episodeTitle: 'Lazarus, Come Forth!',
+      season: 1,
+      episode: 1,
+      nextSeason: 1,
+      nextEpisode: 2,
+      position: const Duration(minutes: 29),
+      nativeDuration: const Duration(minutes: 29),
+      expectedRuntime: const Duration(minutes: 62),
+      bufferedPosition: const Duration(minutes: 29, seconds: 4),
+      isBuffering: false,
+    );
+    final event = telemetry.capturedSourceTrace.last;
+    expect(event['positionMs'], 29 * 60 * 1000);
+    expect(event['nativeDurationMs'], 29 * 60 * 1000);
+    expect(event['expectedRuntimeMs'], 62 * 60 * 1000);
+    expect(event['bufferAheadMs'], 4000);
+    expect(event['action'], 'automatic_next_episode_blocked');
+    expect(event['addon'], 'Torrentio TB');
+    expect(event['episodeTitle'], 'Lazarus, Come Forth!');
+    expect(jsonEncode(event), isNot(contains('do-not-upload')));
+    expect(telemetry.capturedCodes, contains('episode_autoplay_blocked'));
+    telemetry.dispose();
+  });
+
   test('Windows developer trace preserves media and release names', () async {
     Map<String, dynamic>? report;
     final telemetry = WindowsPlaybackTelemetry.forTesting(

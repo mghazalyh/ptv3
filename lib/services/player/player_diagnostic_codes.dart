@@ -23,6 +23,7 @@ abstract final class PlayerDiagnosticCodes {
     'addon_meta_invalid',
     'addon_meta_request_failed',
     'addon_meta_fallback_started',
+    'addon_meta_fallback_resolved',
     'addon_meta_unresolved',
     'addon_watch_requested',
     'addon_watch_sources_available',

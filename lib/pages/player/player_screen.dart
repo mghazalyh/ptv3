@@ -46,6 +46,7 @@ import '../../services/player/automatic_skip_policy.dart';
 import '../../services/player/playback_diagnostics_probe.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/stream/stream_service.dart';
+import '../../services/stream/source_content_identity.dart';
 import '../../services/discord/discord_rpc_service.dart';
 
 import '../../widgets/player/player_glass.dart';
@@ -414,6 +415,20 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _initStream() async {
+    if (!SourceContentIdentity.isEligible(_currentSource,
+        title: widget.detail?.name ?? widget.title,
+        year: int.tryParse(widget.detail?.year ?? ''),
+        season: _currentEpisode?.season, episode: _currentEpisode?.episode)) {
+      PlayerDebugTelemetry.record('source_identity_rejected', failure: true);
+      if (mounted) setState(() {
+        _isLoading = false;
+        _showSourcesPanel = true;
+        _sourcesEpisode = _currentEpisode;
+        _sourcesErrorMessage =
+            'The selected release belongs to another show or episode.';
+      });
+      return;
+    }
     _sourceNativeOpening = true;
     _sourceErrorWhileOpening = false;
     if (!_logoAnimController.isAnimating) {
@@ -2432,7 +2447,10 @@ class _PlayerScreenState extends State<PlayerScreen>
 
     bool hasReadyAlternative() => PlaybackSourceRecovery.hasAlternative(
           _currentSource, candidates,
-          attemptedKeys: _sourceRecovery.failedKeys);
+          attemptedKeys: _sourceRecovery.failedKeys,
+          title: widget.detail?.name ?? widget.title,
+          year: int.tryParse(widget.detail?.year ?? ''),
+          season: episode.season, episode: episode.episode);
 
     if (hasReadyAlternative()) return candidates;
     final detail = widget.detail;
@@ -2530,6 +2548,9 @@ class _PlayerScreenState extends State<PlayerScreen>
           followPickerOrder: followPickerOrder ||
               _debridPlaceholderRecoveryRequested ||
               DebridSourceReadiness.isExplicitlyPending(_currentSource),
+          title: widget.detail?.name ?? widget.title,
+          year: int.tryParse(widget.detail?.year ?? ''),
+          season: episode.season, episode: episode.episode,
         );
         if (action == null) {
           if (!_sourceRecovery.hasQueriedAlternatives) {
@@ -2537,14 +2558,20 @@ class _PlayerScreenState extends State<PlayerScreen>
             candidates = await _loadRecoveryCandidates(episode);
             if (!mounted || epoch != _sourceRecoveryEpoch) return;
             if (PlaybackSourceRecovery.hasAlternative(_currentSource, candidates,
-                attemptedKeys: _sourceRecovery.failedKeys)) {
+                attemptedKeys: _sourceRecovery.failedKeys,
+          title: widget.detail?.name ?? widget.title,
+          year: int.tryParse(widget.detail?.year ?? ''),
+          season: episode.season, episode: episode.episode)) {
               continue;
             }
           }
           WindowsPlaybackTelemetry.instance.captureCode('source_recovery_exhausted');
           if (!PlaybackSourceRecovery.hasAlternative(
               _currentSource, candidates,
-              attemptedKeys: _sourceRecovery.failedKeys)) {
+              attemptedKeys: _sourceRecovery.failedKeys,
+          title: widget.detail?.name ?? widget.title,
+          year: int.tryParse(widget.detail?.year ?? ''),
+          season: episode.season, episode: episode.episode)) {
             PlayerDebugTelemetry.record('source_recovery_no_ready_candidates');
           }
           PlayerDebugTelemetry.record('source_auto_exhausted', failure: true);
@@ -2966,7 +2993,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       final cached = _cachedSourcesByEpisode[
         '${next.season ?? 1}:${next.episode ?? 1}'] ?? next.streams;
       StreamSource? found = PlaybackAutoselection.preferredSource(
-          cached, _currentSource);
+          cached, _currentSource, title: title, year: year,
+          season: next.season, episode: next.episode);
       if (found == null) {
         try {
           // Continue with the previously used addon (Torrentio/TorBox etc).
@@ -2978,8 +3006,10 @@ class _PlayerScreenState extends State<PlayerScreen>
             year: year,
             season: next.season,
             episode: next.episode,
-          ).where((s) => (s.url?.isNotEmpty ?? false) ||
-              (s.infoHash?.isNotEmpty ?? false))
+          ).where((s) => ((s.url?.isNotEmpty ?? false) ||
+              (s.infoHash?.isNotEmpty ?? false)) &&
+              SourceContentIdentity.isEligible(s, title: title,
+                  year: year, season: next.season, episode: next.episode))
               .first.timeout(const Duration(seconds: 11));
         } catch (error) {
           debugPrint('[PlayerAutoplay] Preferred addon had no stream: $error');
@@ -2996,8 +3026,10 @@ class _PlayerScreenState extends State<PlayerScreen>
             year: year,
             season: next.season,
             episode: next.episode,
-          ).where((s) => (s.url?.isNotEmpty ?? false) ||
-              (s.infoHash?.isNotEmpty ?? false))
+          ).where((s) => ((s.url?.isNotEmpty ?? false) ||
+              (s.infoHash?.isNotEmpty ?? false)) &&
+              SourceContentIdentity.isEligible(s, title: title,
+                  year: year, season: next.season, episode: next.episode))
               .first.timeout(const Duration(seconds: 13));
         } catch (error) {
           debugPrint('[PlayerAutoplay] General source lookup failed: $error');

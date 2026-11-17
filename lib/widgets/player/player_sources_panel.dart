@@ -6,6 +6,7 @@ import '../../models/movie/movie_detail.dart';
 import '../../models/movie/video.dart';
 import '../../models/stream/stream_model.dart';
 import '../../services/stream/stream_service.dart';
+import '../../services/stream/source_content_identity.dart';
 import '../../services/player/debrid_source_readiness.dart';
 import '../../services/anime/anime_scraper_service.dart';
 import '../../services/anime_arabic/anime_arabic_service.dart';
@@ -53,16 +54,31 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
     super.initState();
 
     if (widget.cachedSources != null && widget.cachedSources!.isNotEmpty) {
-      _sources.addAll(widget.cachedSources!);
-      _sources.sort((a, b) =>
-          DebridSourceReadiness.sortTier(a)
-              .compareTo(DebridSourceReadiness.sortTier(b)));
+      _sources.addAll(widget.cachedSources!.where((source) =>
+          SourceContentIdentity.isEligible(source,
+              title: widget.detail?.name ?? widget.episode.title,
+              year: int.tryParse(widget.detail?.year ?? ''),
+              season: widget.episode.season, episode: widget.episode.episode)));
+      _sortByIdentity();
       // Cached results may be exclusively unready debrid jobs. Always
       // discover independent providers even when the cache is nonempty.
       _startScraping(preserveExisting: true);
     } else {
       _startScraping();
     }
+  }
+
+  void _sortByIdentity() {
+    final title = widget.detail?.name ?? widget.episode.title;
+    final year = int.tryParse(widget.detail?.year ?? '');
+    _sources.sort((a, b) {
+      final verdict = SourceContentIdentity.compare(a, b,
+          title: title, year: year,
+          season: widget.episode.season, episode: widget.episode.episode);
+      if (verdict != 0) return verdict;
+      return DebridSourceReadiness.sortTier(a)
+          .compareTo(DebridSourceReadiness.sortTier(b));
+    });
   }
 
   void _startScraping({bool preserveExisting = false}) {
@@ -211,11 +227,11 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
               (source.infoHash != null && s.infoHash == source.infoHash) ||
               (source.url != null && s.url == source.url) ||
               (s.name == source.name && s.title == source.title));
-          if (!exists) {
+          if (!exists && SourceContentIdentity.isEligible(source,
+              title: title, year: year,
+              season: ep.season, episode: ep.episode)) {
             _sources.add(source);
-            _sources.sort((a, b) =>
-                DebridSourceReadiness.sortTier(a)
-                    .compareTo(DebridSourceReadiness.sortTier(b)));
+            _sortByIdentity();
           }
         });
       },

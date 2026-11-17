@@ -2,6 +2,7 @@ import '../../models/stream/stream_model.dart';
 import 'debrid_source_readiness.dart';
 import 'dart:io';
 import '../stream/source_compatibility_rank.dart';
+import '../stream/source_content_identity.dart';
 
 /// Pure, session-local bounded opening recovery. No IO, URL logs, upload or P2P.
 class SourceRecoveryAction {
@@ -30,17 +31,25 @@ class PlaybackSourceRecovery {
       '${s.url ?? ''}|${s.fileIdx ?? ''}';
 
   static bool hasAlternative(StreamSource active, List<StreamSource> sources,
-      {required Set<String> attemptedKeys}) => sources.any((source) =>
+      {required Set<String> attemptedKeys,
+       String? title, int? year, int? season, int? episode}) =>
+      sources.any((source) =>
         isHttpCandidate(source) &&
         !DebridSourceReadiness.isExplicitlyPending(source) &&
         key(source) != key(active) &&
-        !attemptedKeys.contains(key(source)));
+        !attemptedKeys.contains(key(source)) &&
+        (title == null || SourceContentIdentity.isEligible(source,
+            title: title, year: year, season: season, episode: episode)));
 
   SourceRecoveryAction? next(
     StreamSource active,
     List<StreamSource> sources, {
     bool skipCurrentRetry = false,
     bool followPickerOrder = false,
+    String? title,
+    int? year,
+    int? season,
+    int? episode,
   }) {
     if (!isHttpCandidate(active)) return null;
     final activeKey = key(active);
@@ -49,7 +58,9 @@ class PlaybackSourceRecovery {
       // Reopening an explicitly unready source returns another placeholder.
       if (!skipCurrentRetry &&
           !DebridSourceReadiness.isExplicitlyPending(active) &&
-          tries < maxRetriesPerSource) {
+          tries < maxRetriesPerSource &&
+          (title == null || SourceContentIdentity.isEligible(active,
+              title: title, year: year, season: season, episode: episode))) {
         _retryCount[activeKey] = tries + 1;
         return SourceRecoveryAction(active, retrySameSource: true);
       }
@@ -64,6 +75,8 @@ class PlaybackSourceRecovery {
         isHttpCandidate(source) &&
         !DebridSourceReadiness.isExplicitlyPending(source) &&
         !failedKeys.contains(key(source)) &&
+        (title == null || SourceContentIdentity.isEligible(source,
+            title: title, year: year, season: season, episode: episode)) &&
         key(source) != activeKey &&
         seen.add(key(source))).toList();
     if (valid.isEmpty) return null;
@@ -94,7 +107,14 @@ class PlaybackSourceRecovery {
             isIOS: Platform.isIOS);
         return score;
       }
-      valid.sort((a, b) => rank(b).compareTo(rank(a)));
+      valid.sort((a, b) {
+        if (title != null) {
+          final verdict = SourceContentIdentity.compare(a, b,
+              title: title, year: year, season: season, episode: episode);
+          if (verdict != 0) return verdict;
+        }
+        return rank(b).compareTo(rank(a));
+      });
       chosen = valid.first;
     }
     _fallbacks++;

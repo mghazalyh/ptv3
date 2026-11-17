@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../../models/addon/addon.dart';
 import '../../models/movie/movie.dart';
 import '../../models/movie/movie_detail.dart';
+import '../player/player_debug_telemetry.dart';
 
 /// Generic service for any Stremio-protocol addon.
 /// All methods are static — provide the addon's base URL and they hit the
@@ -167,22 +168,37 @@ class MetadataService {
       return _metaCache[url];
     }
 
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode != 200) return null;
-    
+    PlayerDebugTelemetry.record('addon_meta_fetch_started');
+    http.Response response;
+    try {
+      response = await http.get(Uri.parse(url))
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      PlayerDebugTelemetry.record('addon_meta_request_failed', failure: true);
+      return null;
+    }
+    if (response.statusCode != 200) {
+      PlayerDebugTelemetry.record('addon_meta_not_found', failure: true);
+      return null;
+    }
     final bodyStr = response.body.trim();
-    if (bodyStr.isEmpty) return null;
-
+    if (bodyStr.isEmpty) {
+      PlayerDebugTelemetry.record('addon_meta_empty', failure: true);
+      return null;
+    }
     try {
       final decoded = jsonDecode(bodyStr) as Map<String, dynamic>;
-      final meta = decoded['meta'] as Map<String, dynamic>?;
-
-      if (meta == null) return null;
-      
-      final result = MovieDetail.fromJson(meta);
+      final payload = decoded['meta'] as Map<String, dynamic>?;
+      if (payload == null) {
+        PlayerDebugTelemetry.record('addon_meta_empty', failure: true);
+        return null;
+      }
+      final result = MovieDetail.fromJson(payload);
       _metaCache[url] = result;
+      PlayerDebugTelemetry.record('addon_meta_loaded');
       return result;
-    } catch (e) {
+    } catch (_) {
+      PlayerDebugTelemetry.record('addon_meta_invalid', failure: true);
       return null;
     }
   }

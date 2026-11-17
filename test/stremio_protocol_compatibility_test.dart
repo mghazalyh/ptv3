@@ -56,6 +56,20 @@ void main() {
     expect(roundTrip.supportsRequest('stream', 'movie', 'custom:45'), isTrue);
   });
 
+  test('legacy extraSupported and extraRequired are not discarded', () {
+    final catalog = AddonCatalog.fromJson({
+      'id': 'older-search',
+      'type': 'movie',
+      'extraSupported': ['search', 'skip'],
+      'extraRequired': ['search'],
+    });
+    expect(catalog.supportsSearch, isTrue);
+    expect(catalog.supportsSkip, isTrue);
+    expect(catalog.hasRequiredExtra('search'), isTrue);
+    expect(catalog.isHomeEligible, isFalse);
+    expect(AddonCatalog.fromJson(catalog.toJson()).isHomeEligible, isFalse);
+  });
+
   test('catalog-only addons are valid without metadata or stream resource', () {
     final manifest = AddonManifest.fromJson({
       'id': 'example.catalog-only',

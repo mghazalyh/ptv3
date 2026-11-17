@@ -16,6 +16,7 @@ import '../../models/stream/stream_model.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/debrid_source_readiness.dart';
 import '../../services/player/ios_audio_telemetry.dart';
+import '../../services/player/player_debug_telemetry.dart';
 import '../../services/player/windows_playback_telemetry.dart';
 import '../../services/stream/watch_source_preferences.dart';
 import '../settings/watch_source_preferences_page.dart';
@@ -198,6 +199,7 @@ class _WatchScreenState extends State<WatchScreen>
 
   Future<void> _loadStreams() async {
     final streamId = widget.selectedEpisode?.id ?? widget.detail.id;
+    PlayerDebugTelemetry.record('addon_watch_requested');
 
     // Reuse the short-lived detail-page probe, including one still in flight.
     // Never ask the same addons twice simply because Watch was opened.
@@ -217,6 +219,7 @@ class _WatchScreenState extends State<WatchScreen>
           _pendingSources.addAll(checked.sources);
           _flushPendingSources();
           if (mounted) setState(() => _isLoadingSources = false);
+          _reportSourceDiscovery();
           return;
         }
       } catch (_) {
@@ -246,11 +249,26 @@ class _WatchScreenState extends State<WatchScreen>
           _flushPendingSources,
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      PlayerDebugTelemetry.record('addon_watch_search_failed', failure: true);
+    }
 
     _flushPendingSources();
     if (mounted && _isLoadingSources) {
       setState(() => _isLoadingSources = false);
+    }
+    if (mounted) _reportSourceDiscovery();
+  }
+
+  void _reportSourceDiscovery() {
+    if (_sources.isEmpty) {
+      PlayerDebugTelemetry.record('addon_watch_no_sources', failure: true);
+    } else {
+      PlayerDebugTelemetry.record('addon_watch_sources_available');
+      if (_filteredSources.isEmpty) {
+        PlayerDebugTelemetry.record(
+            'addon_watch_sources_filtered', failure: true);
+      }
     }
   }
 

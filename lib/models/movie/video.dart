@@ -28,13 +28,19 @@ class Video {
       return int.tryParse(val.toString());
     }
 
-    final rawStreams = json['streams'] as List<dynamic>?;
-    final parsedStreams = rawStreams != null
-        ? rawStreams
-            .whereType<Map>()
-            .map((s) => StreamSource.fromJson(Map<String, dynamic>.from(s), 'TorBox'))
-            .toList()
-        : const <StreamSource>[];
+    final rawStreams = json['streams'];
+    final parsedStreams = <StreamSource>[];
+    if (rawStreams is List) {
+      for (final value in rawStreams) {
+        if (value is! Map) continue;
+        try {
+          parsedStreams.add(StreamSource.fromJson(
+              Map<String, dynamic>.from(value), 'TorBox'));
+        } catch (_) {
+          // A malformed optional embedded stream must not hide the episode.
+        }
+      }
+    }
 
     return Video(
       id: json['id']?.toString() ?? '',

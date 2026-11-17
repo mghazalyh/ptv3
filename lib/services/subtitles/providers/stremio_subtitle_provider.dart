@@ -163,9 +163,11 @@ class StremioSubtitleProvider extends SubtitleProvider {
     final activeAddons = AddonManager.instance.activeSubtitleAddons;
 
     for (final addon in activeAddons) {
+      // Respect the same per-resource type and ID rules as meta and streams.
+      if (!addon.manifest.supportsRequest('subtitles', type, id)) continue;
       try {
-        final url = '${addon.baseUrl}/subtitles/$type/$id.json';
-        print('[StremioSubtitleProvider] Querying ${addon.manifest.name}: $url');
+        final url =
+            '${addon.baseUrl}/subtitles/${Uri.encodeComponent(type)}/${Uri.encodeComponent(id)}.json';
         final res = await http
             .get(Uri.parse(url), headers: _headers)
             .timeout(const Duration(seconds: 6));
@@ -214,10 +216,9 @@ class StremioSubtitleProvider extends SubtitleProvider {
               ),
             );
           }
-          print('[StremioSubtitleProvider] ${addon.manifest.name} returned $idx subtitles');
         }
-      } catch (e) {
-        print('[StremioSubtitleProvider] Error querying ${addon.manifest.name}: $e');
+      } catch (_) {
+        // Private addon URLs, IDs and remote errors must not enter logs.
       }
     }
 

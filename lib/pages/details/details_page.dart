@@ -432,9 +432,9 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       }
     }
 
-    final yearNum = widget.movie.year != null
-        ? int.tryParse(widget.movie.year!.replaceAll(RegExp(r'[^0-9]'), ''))
-        : null;
+    final yearMatch = RegExp(r'\b(?:19|20)\d{2}\b')
+        .firstMatch(widget.movie.year ?? '');
+    final yearNum = int.tryParse(yearMatch?.group(0) ?? '');
     final resolvedMetadata = await MetadataService.resolveCatalogMeta(
       baseUrl: effectiveBaseUrl,
       type: effectiveType,

@@ -19,6 +19,7 @@ import '../discover/discover_page.dart';
 import 'person_credits_page.dart';
 import '../player/watch_screen.dart';
 import '../../services/stream/source_availability_service.dart';
+import '../../services/player/player_debug_telemetry.dart';
 import '../../services/continue_watching/watched_history_service.dart';
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -186,6 +187,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
 
   Future<void> _handlePlayAction(Video? ep) async {
     if (_detail == null) return;
+    PlayerDebugTelemetry.record('addon_watch_requested');
     
     Navigator.push(
       context,
@@ -382,6 +384,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   }
 
   Future<void> _fetchDetails() async {
+    PlayerDebugTelemetry.record('addon_details_opened');
     String effectiveBaseUrl = widget.movie.addonBaseUrl;
     String effectiveType = widget.movie.type;
     String effectiveId = widget.movie.id;
@@ -437,6 +440,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
 
     // If fetchMeta failed, try fallback search to resolve
     if (meta == null && !effectiveId.startsWith('tt')) {
+      PlayerDebugTelemetry.record('addon_meta_fallback_started');
       final yearNum = widget.movie.year != null ? int.tryParse(widget.movie.year!.replaceAll(RegExp(r'[^0-9]'), '')) : null;
       final resolved = await MetadataService.findMovieByTitle(
         title: widget.movie.name,
@@ -457,7 +461,9 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       }
     }
 
-    if (meta != null && meta.type.isNotEmpty) {
+    if (meta == null) {
+      PlayerDebugTelemetry.record('addon_meta_unresolved', failure: true);
+    } else if (meta.type.isNotEmpty) {
       _resolvedType = meta.type;
     }
 

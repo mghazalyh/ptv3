@@ -1,16 +1,8 @@
-PLAYTORRIO — ONE OWNER-REQUESTED iOS-ONLY METADATA RECOVERY BUILD — 2026-11-17 SGT
+PLAYTORRIO — OWNER-REQUESTED SINGLE iOS STREMIO ADDON COMPATIBILITY BUILD — 2026-11-18 SGT
 
-REASON
-Installed iPhone v1.1.15 Build 231 opt-in private telemetry at 2026-11-17T14:48:41.838245Z reports addon_catalog_ready, addon_meta_invalid and addon_meta_unresolved. Report also includes addon_meta_loaded and does not identify the responsible addon, because addon names and titles are deliberately excluded.
+Source branch: parity-floating-player-both
+Source commit: a7b4506a3adb76539cee127199dcf3aed31cb909
 
-REPAIR
-Recover metadata when catalog-only providers do not expose meta, including standards-compatible IMDb ID fallback via Cinemeta and conservative title/year checks for provider-specific IDs. Tolerate malformed optional links, episode objects and embedded streams. Preserve all addons, original application identity, playback behavior, user settings and privacy-safe telemetry. Add metadata fallback success event and regression checks.
-Streaming Catalogs is an installed catalog-only addon and a known compatibility case, but telemetry cannot conclusively assign this specific diagnostic to that provider.
+Build scope: iOS 15 only, existing ios-speech-release.yml workflow. Preserve native player, signing assets, user settings, Torrentio/TorBox and current working Build 232. Implemented source changes include distinct tv/channel types and channel stream IDs, EPG metadata and metasDetailed catalog support, manifest behavior hints, subtitle hash/videoID/videoSize paths, and Stremio regression tests. No Windows or PS4 build. Do not touch LAN or request signing.
 
-SCOPE
-[ios-only]
-Exactly ONE new iOS 15 GitHub build request from parity-floating-player-both at the release-trigger commit following source and concise release note SHA be658fc493c5a1cf5d1ca1b803d9cdb3caf46238.
-Use existing .github/workflows/ios-speech-release.yml and its normal validation, IPA package, release and Telegram workflow.
-Do NOT trigger Windows, paired release, PS4 or separate workflow_dispatch.
-Do NOT perform Windows P12 signing or LAN installer updates in this task.
-Owner instructs: submit the GitHub build then STOP. Do not poll workflow, releases, artifacts, signing, downloads, status messages, or telemetry after this request; no retries or duplicate triggers.
+STOP RULE: Once GitHub iOS build is triggered, immediately stop. Do not inspect or poll any workflow, artifacts, logs, tests or native packages. Do not retry or create watchers.

@@ -9,6 +9,7 @@ import '../../utils/search/relevance_scorer.dart';
 import '../metadata/metadata_service.dart';
 import '../config/torriodb_portable_sync.dart';
 import 'personalized_catalog_providers.dart';
+import '../player/player_debug_telemetry.dart';
 
 /// Manages installed Stremio metadata addons.
 ///
@@ -260,8 +261,11 @@ class AddonManager {
               forceRefresh: addon.personalizedCatalogTrial,
             );
 
-            if (movies.isEmpty) return null;
-
+            if (movies.isEmpty) {
+              PlayerDebugTelemetry.record('addon_catalog_empty');
+              return null;
+            }
+            PlayerDebugTelemetry.record('addon_catalog_ready');
             return MovieSection(
               title: _catalogDisplayName(catalog),
               subtitle: addon.manifest.name,
@@ -272,6 +276,7 @@ class AddonManager {
               movies: movies,
             );
           } catch (_) {
+            PlayerDebugTelemetry.record('addon_catalog_failed', failure: true);
             return null; // Gracefully handle failure
           }
         }());
@@ -300,6 +305,8 @@ class AddonManager {
           forceRefresh: addon.personalizedCatalogTrial,
         );
 
+        PlayerDebugTelemetry.record(movies.isEmpty
+            ? 'addon_catalog_empty' : 'addon_catalog_ready');
         return MovieSection(
           title: _catalogDisplayName(catalog),
           subtitle: addon.manifest.name,
@@ -310,6 +317,7 @@ class AddonManager {
           movies: movies,
         );
       } catch (_) {
+        PlayerDebugTelemetry.record('addon_catalog_failed', failure: true);
         return null;
       }
     }).toList();
@@ -407,8 +415,11 @@ class AddonManager {
               genre: genre,
             );
 
-            if (movies.isEmpty) return null;
-
+            if (movies.isEmpty) {
+              PlayerDebugTelemetry.record('addon_catalog_empty');
+              return null;
+            }
+            PlayerDebugTelemetry.record('addon_catalog_ready');
             return MovieSection(
               title: '${_catalogDisplayName(catalog)} - $genre',
               subtitle: addon.manifest.name,

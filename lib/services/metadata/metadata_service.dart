@@ -73,22 +73,25 @@ class MetadataService {
     required String catalogId,
     String? genre,
     int? skip,
+    String? searchTerm,
+    Map<String, String> extra = const {},
     bool forceRefresh = false,
   }) async {
     final effectiveBaseUrl = (baseUrl.trim().isEmpty || !baseUrl.startsWith('http'))
         ? 'https://v3-cinemeta.strem.io'
         : (baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl);
 
-    final extra = <String>[];
-    if (genre != null) {
-      extra.add('genre=${Uri.encodeComponent(genre)}');
-    }
-    if (skip != null && skip > 0) {
-      extra.add('skip=$skip');
-    }
-
-    final extraPath = extra.isNotEmpty ? '/${extra.join("&")}' : '';
-    final url = '$effectiveBaseUrl/catalog/$type/$catalogId$extraPath.json';
+    // Stremio's extra arguments form a path segment, not URI query params.
+    final extras = <String, String>{};
+    if (genre != null && genre.isNotEmpty) extras['genre'] = genre;
+    if (searchTerm != null && searchTerm.isNotEmpty) extras['search'] = searchTerm;
+    if (skip != null && skip > 0) extras['skip'] = '$skip';
+    extras.addAll(extra);
+    final extraPath = extras.isEmpty
+        ? ''
+        : '/${extras.entries.map((entry) =>
+            '${Uri.encodeComponent(entry.key)}=${Uri.encodeComponent(entry.value)}').join('&')}';
+    final url = '$effectiveBaseUrl/catalog/${Uri.encodeComponent(type)}/${Uri.encodeComponent(catalogId)}$extraPath.json';
 
     if (!forceRefresh && _catalogCache.containsKey(url)) {
       return List.from(_catalogCache[url]!);
@@ -108,12 +111,24 @@ class MetadataService {
     }
 
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-    final metas = decoded['metas'] as List<dynamic>? ?? [];
-
-    final result = metas
-        .map((item) => Movie.fromJson(item as Map<String, dynamic>, effectiveBaseUrl, fallbackType: type))
-        .where((movie) => movie.id.isNotEmpty && movie.name.isNotEmpty)
-        .toList();
+    final metas = decoded['metas'];
+    final result = <Movie>[];
+    if (metas is List) {
+      for (final entry in metas) {
+        if (entry is! Map) continue;
+        try {
+          final movie = Movie.fromJson(
+              Map<String, dynamic>.from(entry), effectiveBaseUrl,
+              fallbackType: type);
+          if (movie.id.trim().isNotEmpty && movie.name.trim().isNotEmpty &&
+              movie.name != 'Unknown') {
+            result.add(movie);
+          }
+        } catch (_) {
+          // Ignore malformed preview entries instead of dropping the catalog.
+        }
+      }
+    }
 
     _catalogCache[url] = result;
     return List.from(result);
@@ -121,46 +136,24 @@ class MetadataService {
 
   // ── Search ────────────────────────────────────────────────────────────
 
-  /// Search an addon's catalog.
+  /// Search is an optional catalog extra, not a separate Stremio resource.
   static Future<List<Movie>> search({
     required String baseUrl,
     required String type,
     required String catalogId,
     required String query,
   }) async {
-    final effectiveBaseUrl = (baseUrl.trim().isEmpty || !baseUrl.startsWith('http'))
-        ? 'https://v3-cinemeta.strem.io'
-        : (baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl);
-
-    final encoded = Uri.encodeComponent(query);
-    final url = '$effectiveBaseUrl/catalog/$type/$catalogId/search=$encoded.json';
-
-    // We can cache searches too!
-    if (_catalogCache.containsKey(url)) {
-      return List.from(_catalogCache[url]!);
-    }
-
-    final uri = Uri.parse(url);
-    final response = await (catalogGetOverride == null
-        ? http.get(uri) : catalogGetOverride!(uri));
-    if (response.statusCode != 200) return [];
-    
-    final bodyStr = response.body.trim();
-    if (bodyStr.isEmpty) return [];
-
+    if (query.trim().isEmpty) return const [];
     try {
-      final decoded = jsonDecode(bodyStr) as Map<String, dynamic>;
-      final metas = decoded['metas'] as List<dynamic>? ?? [];
-      
-      final result = metas
-          .map((item) => Movie.fromJson(item as Map<String, dynamic>, effectiveBaseUrl, fallbackType: type))
-          .where((movie) => movie.id.isNotEmpty && movie.name.isNotEmpty)
-          .toList();
-          
-      _catalogCache[url] = result;
-      return List.from(result);
-    } catch (e) {
-      return [];
+      return await fetchCatalog(
+        baseUrl: baseUrl,
+        type: type,
+        catalogId: catalogId,
+        searchTerm: query.trim(),
+      );
+    } catch (_) {
+      // Not every provider implements search, even with a valid catalog.
+      return const [];
     }
   }
 
@@ -234,6 +227,8 @@ class MetadataService {
     required String id,
     required String title,
     int? year,
+    bool sourceSupportsMeta = true,
+    List<String> compatibleMetaProviders = const [],
   }) async {
     const cinemeta = 'https://v3-cinemeta.strem.io';
 
@@ -253,8 +248,10 @@ class MetadataService {
             );
     }
 
-    final primary = await load(baseUrl, type, id);
-    if (primary != null) return primary;
+    if (sourceSupportsMeta) {
+      final primary = await load(baseUrl, type, id);
+      if (primary != null) return primary;
+    }
 
     PlayerDebugTelemetry.record('addon_meta_fallback_started');
     try {
@@ -271,6 +268,20 @@ class MetadataService {
         if (byId != null && byId.detail.id == id) {
           PlayerDebugTelemetry.record('addon_meta_fallback_resolved');
           return byId;
+        }
+      }
+
+      // Stremio clients can combine metadata from any installed addon
+      // advertising a matching meta resource. Only pass valid IMDb IDs
+      // between providers, never addon-private IDs.
+      if (RegExp(r'^tt[0-9]+$').hasMatch(id)) {
+        for (final provider in compatibleMetaProviders) {
+          if (provider == baseUrl || provider == cinemeta) continue;
+          final byId = await load(provider, fallbackType, id);
+          if (byId != null && byId.detail.id == id) {
+            PlayerDebugTelemetry.record('addon_meta_fallback_resolved');
+            return byId;
+          }
         }
       }
 

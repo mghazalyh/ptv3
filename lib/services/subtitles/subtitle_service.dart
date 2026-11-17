@@ -28,14 +28,29 @@ class SubtitleService {
     int? season,
     int? episode,
     int? year,
+    String? videoHash,
+    int? videoSize,
   }) async {
-    final futures = _providers.map((p) => p.search(
-      movieName,
-      imdbId: imdbId,
-      season: season,
-      episode: episode,
-      year: year,
-    ));
+    final futures = _providers.map((p) {
+      if (p is StremioSubtitleProvider) {
+        return p.searchWithVideoHints(
+          movieName,
+          imdbId: imdbId,
+          season: season,
+          episode: episode,
+          year: year,
+          videoHash: videoHash,
+          videoSize: videoSize,
+        );
+      }
+      return p.search(
+        movieName,
+        imdbId: imdbId,
+        season: season,
+        episode: episode,
+        year: year,
+      );
+    });
     
     // Wait for all providers to finish (or fail)
     final results = await Future.wait(futures.map((f) => f.catchError((_) => <SubtitleVariant>[])));

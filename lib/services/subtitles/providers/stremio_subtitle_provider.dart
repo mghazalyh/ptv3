@@ -133,6 +133,33 @@ class StremioSubtitleProvider extends SubtitleProvider {
     'ca': 'Catalan',
   };
 
+  /// Build the official hash-based subtitle route, with an ID fallback.
+  static Uri buildRequestUri({
+    required String baseUrl,
+    required String type,
+    required String videoId,
+    String? videoHash,
+    int? videoSize,
+  }) {
+    final cleanHash = videoHash?.trim().toLowerCase();
+    final hasHash = cleanHash != null &&
+        RegExp(r'^[0-9a-f]{16}$').hasMatch(cleanHash);
+    final id = hasHash ? cleanHash : videoId;
+    final extras = <String, String>{
+      if (hasHash) 'videoID': videoId,
+      if (hasHash && videoSize != null && videoSize > 0)
+        'videoSize': videoSize.toString(),
+    };
+    final argPath = extras.entries
+        .map((entry) => Uri.encodeComponent(entry.key) + '=' +
+            Uri.encodeComponent(entry.value))
+        .join('&');
+    final root = baseUrl.replaceFirst(RegExp(r'/+$'), '');
+    return Uri.parse(root + '/subtitles/' + Uri.encodeComponent(type) +
+        '/' + Uri.encodeComponent(id) +
+        (argPath.isEmpty ? '' : '/' + argPath) + '.json');
+  }
+
   @override
   Future<List<SubtitleVariant>> search(
     String movieName, {
@@ -140,6 +167,22 @@ class StremioSubtitleProvider extends SubtitleProvider {
     int? season,
     int? episode,
     int? year,
+  }) => searchWithVideoHints(
+        movieName,
+        imdbId: imdbId,
+        season: season,
+        episode: episode,
+        year: year,
+      );
+
+  Future<List<SubtitleVariant>> searchWithVideoHints(
+    String movieName, {
+    String? imdbId,
+    int? season,
+    int? episode,
+    int? year,
+    String? videoHash,
+    int? videoSize,
   }) async {
     String? cleanImdbId = imdbId;
     if (cleanImdbId == null || cleanImdbId.isEmpty) {
@@ -151,7 +194,8 @@ class StremioSubtitleProvider extends SubtitleProvider {
       return [];
     }
 
-    if (!cleanImdbId.startsWith('tt')) {
+    if (!cleanImdbId.startsWith('tt') &&
+        RegExp(r'^\d+$').hasMatch(cleanImdbId)) {
       cleanImdbId = 'tt$cleanImdbId';
     }
 
@@ -166,10 +210,15 @@ class StremioSubtitleProvider extends SubtitleProvider {
       // Respect the same per-resource type and ID rules as meta and streams.
       if (!addon.manifest.supportsRequest('subtitles', type, id)) continue;
       try {
-        final url =
-            '${addon.baseUrl}/subtitles/${Uri.encodeComponent(type)}/${Uri.encodeComponent(id)}.json';
+        final uri = buildRequestUri(
+          baseUrl: addon.baseUrl,
+          type: type,
+          videoId: id,
+          videoHash: videoHash,
+          videoSize: videoSize,
+        );
         final res = await http
-            .get(Uri.parse(url), headers: _headers)
+            .get(uri, headers: _headers)
             .timeout(const Duration(seconds: 6));
 
         if (res.statusCode == 200) {
@@ -189,7 +238,8 @@ class StremioSubtitleProvider extends SubtitleProvider {
             final language = _iso3ToLangName[rawLang] ??
                 (rawLang.length <= 3 ? rawLang.toUpperCase() : rawLang);
 
-            final fileTitle = map['subtitleFileName']?.toString() ??
+            final fileTitle = map['label']?.toString() ??
+                map['subtitleFileName']?.toString() ??
                 map['movieReleaseName']?.toString() ??
                 map['title']?.toString();
             final title = fileTitle?.isNotEmpty == true

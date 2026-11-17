@@ -1030,6 +1030,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         season: _currentEpisode?.season,
         episode: _currentEpisode?.episode,
         year: searchYear,
+        videoHash: _currentSource.behaviorHints?['videoHash']?.toString(),
+        videoSize: int.tryParse(
+            _currentSource.behaviorHints?['videoSize']?.toString() ?? ''),
       );
       if (!mounted || epoch != _audioMediaEpoch) return;
       setState(() => _subtitleGroups = groups);

@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:playtorrio/models/addon/addon.dart';
+import 'package:playtorrio/models/movie/movie.dart';
+import 'package:playtorrio/models/movie/movie_detail.dart';
+import 'package:playtorrio/services/subtitles/providers/stremio_subtitle_provider.dart';
 import 'package:playtorrio/models/stream/stream_model.dart';
 import 'package:playtorrio/services/metadata/metadata_service.dart';
 import 'package:playtorrio/services/stream/stream_service.dart';
@@ -270,4 +273,93 @@ void main() {
     }, 'Provider');
     expect(stream.headers?['Referer'], 'https://video.example/');
   });
+  test('tv and channel types remain distinct from episodic series', () {
+    expect(Movie.canonicalType('tv'), 'tv');
+    expect(Movie.canonicalType('channel'), 'channel');
+    final channel = Movie.fromJson(
+        {'id': 'demo:news', 'type': 'tv', 'name': 'Demo News'},
+        'https://demo.example');
+    expect(channel.type, 'tv');
+  });
+
+  test('native EPG manifest and scheduled programme fields survive', () {
+    final manifest = AddonManifest.fromJson({
+      'id': 'demo.epg',
+      'name': 'EPG',
+      'version': '1.0.0',
+      'types': ['tv'],
+      'resources': ['catalog', 'meta', 'stream'],
+      'catalogs': [
+        {'id': 'channels', 'type': 'tv', 'extra': [{'name': 'date'}]}
+      ],
+      'behaviorHints': {'epgProvider': true},
+    });
+    expect(manifest.isEpgProvider, isTrue);
+    expect(AddonManifest.fromJson(manifest.toJson()).isEpgProvider, isTrue);
+    final channel = MovieDetail.fromJson({
+      'id': 'demo:news',
+      'type': 'tv',
+      'name': 'News',
+      'behaviorHints': {'isLive': true, 'hasScheduledVideos': true},
+      'videos': [{
+        'id': 'demo:news:epg:1',
+        'title': 'Evening News',
+        'startTime': '2026-09-12T18:00:00Z',
+        'endTime': '2026-09-12T18:30:00Z',
+      }]
+    });
+    expect(channel.isLive, isTrue);
+    expect(channel.hasScheduledVideos, isTrue);
+    expect(channel.videos.single.startTime, '2026-09-12T18:00:00Z');
+    expect(channel.videos.single.endTime, '2026-09-12T18:30:00Z');
+  });
+
+  test('EPG metasDetailed uses date and skip path and retains programmes', () async {
+    Uri? requestUri;
+    MetadataService.catalogGetOverride = (uri) async {
+      requestUri = uri;
+      return http.Response(jsonEncode({
+        'metasDetailed': [{
+          'id': 'demo:news',
+          'name': 'Demo News',
+          'type': 'tv',
+          'videos': [{
+            'id': 'demo:news:1',
+            'title': 'News',
+            'startTime': '2026-09-12T18:00:00Z',
+            'endTime': '2026-09-12T18:30:00Z'
+          }]
+        }]
+      }), 200);
+    };
+    final guide = await MetadataService.fetchGuideCatalog(
+        baseUrl: 'https://epg.example',
+        catalogId: 'channels',
+        utcDay: DateTime.utc(2026, 9, 12),
+        skip: 100);
+    expect(requestUri.toString(), contains(
+        '/catalog/tv/channels/date=2026-09-12&skip=100.json'));
+    expect(guide.single.type, 'tv');
+    expect(guide.single.videos.single.title, 'News');
+    final previews = await MetadataService.fetchCatalog(
+        baseUrl: 'https://epg.example', type: 'tv', catalogId: 'channels');
+    expect(previews.single.type, 'tv');
+  });
+
+  test('hash subtitles include videoID and videoSize with legacy fallback', () {
+    final request = StremioSubtitleProvider.buildRequestUri(
+        baseUrl: 'https://subs.example/',
+        type: 'series',
+        videoId: 'tt1234567:1:2',
+        videoHash: 'ABCDEF0123456789',
+        videoSize: 123456789);
+    expect(request.toString(), contains(
+        '/subtitles/series/abcdef0123456789/videoID=tt1234567%3A1%3A2&videoSize=123456789.json'));
+    final fallback = StremioSubtitleProvider.buildRequestUri(
+        baseUrl: 'https://subs.example',
+        type: 'movie',
+        videoId: 'tt1234567');
+    expect(fallback.path, '/subtitles/movie/tt1234567.json');
+  });
+
 }

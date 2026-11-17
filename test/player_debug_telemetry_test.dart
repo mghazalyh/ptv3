@@ -27,6 +27,7 @@ void main() {
       'addon_details_opened', 'addon_meta_fetch_started', 'addon_meta_loaded',
       'addon_meta_not_found', 'addon_meta_empty', 'addon_meta_invalid',
       'addon_meta_request_failed', 'addon_meta_fallback_started',
+      'addon_meta_fallback_resolved',
       'addon_meta_unresolved', 'addon_watch_requested',
       'addon_watch_sources_available', 'addon_watch_no_sources',
       'addon_watch_search_failed', 'addon_watch_sources_filtered',

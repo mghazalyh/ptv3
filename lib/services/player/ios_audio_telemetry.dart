@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -33,6 +34,23 @@ class IosAudioTelemetry {
   static const maxPlaybackSamples = 24;
   static const playbackSampleSeconds = 5;
   static const _minUploadInterval = Duration(seconds: 30);
+
+  /// Non-identifying display class, never a hardware ID or model.
+  @visibleForTesting
+  static String deviceClass() {
+    try {
+      final views = ui.PlatformDispatcher.instance.views;
+      if (views.isEmpty) return 'unknown';
+      final view = views.first;
+      final ratio = view.devicePixelRatio;
+      if (!ratio.isFinite || ratio <= 0) return 'unknown';
+      final side = view.physicalSize.shortestSide / ratio;
+      if (!side.isFinite || side <= 0) return 'unknown';
+      return side < 600 ? 'phone' : 'tablet';
+    } catch (_) {
+      return 'unknown';
+    }
+  }
   static const buildCommit = String.fromEnvironment(
       'PLAYTORRIO_COMMIT', defaultValue: 'unknown');
   static const buildRun = String.fromEnvironment(
@@ -302,12 +320,14 @@ class IosAudioTelemetry {
     final safeReason = const {
       'night_mode_failed', 'preflight_failed', 'native_error', 'manual',
       'playback_sample', 'sync_failure', 'subtitle_failure', 'source_failure',
+      'addon_failure',
     }.contains(reason) ? reason : 'manual';
     final report = <String, Object>{
       'schema': 1,
       'kind': 'ios_night_mode_filter_diagnostic',
       'timestampUtc': now.toIso8601String(),
       'platform': 'ios',
+      'deviceClass': deviceClass(),
       'appVersion': '1.1.15',
       'buildRun': buildRun,
       'buildCommit': buildCommit,

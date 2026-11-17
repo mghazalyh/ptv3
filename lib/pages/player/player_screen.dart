@@ -259,6 +259,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     _currentEpisode = widget.episode;
     _currentTitle = widget.title;
+    WindowsPlaybackTelemetry.instance.captureSourceSelection(
+        action: 'player_initial_source',
+        source: _currentSource, title: widget.detail?.name ?? widget.title,
+        year: int.tryParse(widget.detail?.year ?? ''),
+        season: widget.episode?.season, episode: widget.episode?.episode,
+        episodeTitle: widget.episode?.title);
     _episodeCatalog = widget.detail?.videos ?? const <Video>[];
     if (_currentEpisode != null && _episodeCatalog.length < 4) {
       unawaited(_fetchEpisodeCatalog());
@@ -419,6 +425,12 @@ class _PlayerScreenState extends State<PlayerScreen>
         title: widget.detail?.name ?? widget.title,
         year: int.tryParse(widget.detail?.year ?? ''),
         season: _currentEpisode?.season, episode: _currentEpisode?.episode)) {
+      WindowsPlaybackTelemetry.instance.captureSourceSelection(
+          action: 'source_blocked_before_open',
+          source: _currentSource, title: widget.detail?.name ?? widget.title,
+          year: int.tryParse(widget.detail?.year ?? ''),
+          season: _currentEpisode?.season, episode: _currentEpisode?.episode,
+          episodeTitle: _currentEpisode?.title);
       PlayerDebugTelemetry.record('source_identity_rejected', failure: true);
       if (mounted) setState(() {
         _isLoading = false;
@@ -3103,6 +3115,12 @@ class _PlayerScreenState extends State<PlayerScreen>
       _selectedEmbeddedSubtitleIndex = null;
     });
 
+    WindowsPlaybackTelemetry.instance.captureSourceSelection(
+        action: automaticRecovery ? 'automatic_source_recovery' : 'episode_source_switch',
+        source: newSource, title: widget.detail?.name ?? widget.title,
+        year: int.tryParse(widget.detail?.year ?? ''),
+        season: newEpisode.season, episode: newEpisode.episode,
+        episodeTitle: newEpisode.title);
     // Cleanup previous torrent engine if was P2P
     TorrentStreamService().cleanup();
 

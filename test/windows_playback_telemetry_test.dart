@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:playtorrio/services/player/night_mode_diagnostics.dart';
 import 'package:playtorrio/services/player/windows_playback_telemetry.dart';
+import 'package:playtorrio/models/stream/stream_model.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +15,49 @@ void main() {
   });
   tearDown(() {
     NightModeDiagnostics.debugModeEnabled.value = false;
+  });
+
+  test('Windows developer trace preserves media and release names', () async {
+    Map<String, dynamic>? report;
+    final telemetry = WindowsPlaybackTelemetry.forTesting(
+      client: MockClient((request) async {
+        final payload = jsonDecode(request.body) as Map<String, dynamic>;
+        report = jsonDecode(utf8.decode(
+            base64Decode(payload['content'] as String))) as Map<String, dynamic>;
+        return http.Response('{}', 201);
+      }),
+      tokenProvider: () async => 'test-only-placeholder',
+    )..forceTestPlatform = true;
+    NightModeDiagnostics.debugModeEnabled.value = true;
+    final wrong = StreamSource(addonName: 'Comet',
+        title: 'Lazarus S01E01 2025 1080p Baha WEB-DL x264.mp4');
+    final correct = StreamSource(addonName: 'Torrentio',
+        title: 'Nocturne 2026 S01E01 1080p WEB x265-RMTeam',
+        url: 'https://example.test/stream?token=abc123');
+    telemetry.beginSourceSession(title: 'Nocturne',
+        mediaId: 'tt1234567:1:1', type: 'series',
+        year: 2026, season: 1, episode: 1,
+        episodeTitle: 'Lazarus, Come Forth!');
+    telemetry.captureSourceCandidate(stage: 'discovered_source',
+        source: wrong, title: 'Nocturne', mediaId: 'tt1234567:1:1',
+        type: 'series', year: 2026, season: 1, episode: 1,
+        verdict: 'rejected');
+    telemetry.captureSourceRanking(sources: [wrong, correct],
+        sorted: [correct], title: 'Nocturne',
+        year: 2026, season: 1, episode: 1);
+    telemetry.captureSourceSelection(action: 'player_initial_source',
+        source: correct, title: 'Nocturne', season: 1, episode: 1);
+    expect(await telemetry.upload(reason: 'playback_sample'), isTrue);
+    final encoded = jsonEncode(report);
+    expect(report!['schema'], 2);
+    expect(encoded, contains('Nocturne'));
+    expect(encoded, contains('Lazarus, Come Forth!'));
+    expect(encoded, contains('Lazarus S01E01 2025'));
+    expect(encoded, contains('Torrentio'));
+    expect(encoded, contains('source_excluded'));
+    expect(encoded, contains('source_ranked'));
+    expect(encoded, isNot(contains('abc123')));
+    telemetry.dispose();
   });
 
   test('Windows telemetry is disabled without explicit Debug Mode opt in',

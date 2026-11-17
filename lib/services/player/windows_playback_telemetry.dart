@@ -10,9 +10,12 @@ import 'night_mode_diagnostics.dart';
 import 'player_diagnostic_codes.dart';
 import 'playback_metric_sanitizer.dart';
 import 'private_diagnostic_log_path.dart';
+import '../../models/stream/stream_model.dart';
+import '../stream/source_content_identity.dart';
+import '../stream/watch_source_preferences.dart';
 
-/// Strictly allowlisted Windows player capability diagnostics.
-/// No MPV raw logs, paths, URLs, titles, credentials or library records.
+/// Windows developer diagnostics capture media and release identities.
+/// Authentication tokens and streaming URLs are excluded.
 class WindowsPlaybackTelemetry {
   WindowsPlaybackTelemetry._({
     http.Client? client,
@@ -31,6 +34,7 @@ class WindowsPlaybackTelemetry {
   static const branch = 'main';
   static const maxEvents = 24;
   static const maxSamples = 24;
+  static const maxSourceTrace = 240;
   static const automaticUploadInterval = Duration(seconds: 30);
 
   final http.Client _client;
@@ -40,6 +44,9 @@ class WindowsPlaybackTelemetry {
   final List<String> _events = [];
   final Map<String, Object> _facts = {};
   final List<Map<String, Object>> _samples = [];
+  final List<Map<String, Object?>> _sourceTrace = [];
+  final Map<String, Object?> _mediaContext = {};
+  String? _sourceSessionId;
   final Map<String, int> _previousFrameCounts = {};
   final Map<String, DateTime> _lastAudioWarningAt = {};
   bool _exclusiveAudioReported = false;
@@ -64,6 +71,152 @@ class WindowsPlaybackTelemetry {
 
   @visibleForTesting
   List<String> get capturedCodes => List.unmodifiable(_events);
+
+  @visibleForTesting
+  List<Map<String, Object?>> get capturedSourceTrace =>
+      List.unmodifiable(_sourceTrace);
+
+  static String? _safeText(String? raw, {int limit = 400}) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    final value = raw
+        .replaceAll(RegExp(r'(?:https?://|magnet:\?)[^\s\r\n]+',
+            caseSensitive: false), '[redacted-url]')
+        .replaceAll(RegExp(
+            r'(?:(?:token|api[_-]?key|password|secret|authorization)'
+            r'\s*[:=]\s*)[^\s\r\n]+', caseSensitive: false),
+            '[redacted-secret]')
+        .trim();
+    return value.length <= limit ? value : value.substring(0, limit);
+  }
+
+  void _trace(Map<String, Object?> data) {
+    if (!isActive) return;
+    _sourceSessionId ??= DateTime.now().toUtc().microsecondsSinceEpoch.toString();
+    if (_sourceTrace.length >= maxSourceTrace) _sourceTrace.removeAt(0);
+    _sourceTrace.add(<String, Object?>{
+      'utc': DateTime.now().toUtc().toIso8601String(),
+      'sessionId': _sourceSessionId,
+      ...data,
+    });
+  }
+
+  Map<String, Object?> _details(StreamSource source) => <String, Object?>{
+    'addon': _safeText(source.addonName),
+    'releaseFilename': _safeText(source.title),
+    'sourceName': _safeText(source.name),
+    'description': _safeText(source.description),
+    'infoHash': _safeText(source.infoHash),
+    'fileIdx': source.fileIdx,
+    'resolution': source.quality,
+    'fileSizeBytes': source.sizeBytes,
+  };
+
+  void beginSourceSession({
+    required String title, required String mediaId, required String type,
+    String? episodeTitle, int? year, int? season, int? episode,
+  }) {
+    if (!isActive) return;
+    _sourceSessionId = DateTime.now().toUtc().microsecondsSinceEpoch.toString();
+    _mediaContext
+      ..clear()
+      ..addAll(<String, Object?>{
+        'title': _safeText(title),
+        'mediaId': _safeText(mediaId),
+        'type': _safeText(type),
+        'year': year,
+        'season': season,
+        'episode': episode,
+        'episodeTitle': _safeText(episodeTitle),
+      });
+    _trace(<String, Object?>{
+      'action': 'source_session_started',
+      'media': Map<String, Object?>.of(_mediaContext),
+    });
+  }
+
+  void captureSourceCandidate({
+    required String stage, required StreamSource source,
+    required String title, required String mediaId,
+    required String type, required String verdict,
+    int? year, int? season, int? episode,
+  }) {
+    if (!isActive) return;
+    _trace(<String, Object?>{
+      'action': stage,
+      'requestedTitle': _safeText(title),
+      'requestedMediaId': _safeText(mediaId),
+      'requestedType': _safeText(type),
+      'requestedYear': year,
+      'requestedSeason': season,
+      'requestedEpisode': episode,
+      'identityVerdict': verdict,
+      ..._details(source),
+    });
+  }
+
+  void captureSourceRanking({
+    required List<StreamSource> sources,
+    required List<StreamSource> sorted,
+    required String title,
+    int? year, int? season, int? episode,
+    Map<String, bool> verified = const {},
+  }) {
+    if (!isActive) return;
+    final mismatched = sources.where((source) =>
+        SourceContentIdentity.assess(source, title: title,
+            year: year, season: season, episode: episode)
+        == SourceIdentityVerdict.rejected).toList();
+    _trace(<String, Object?>{
+      'action': 'source_ranking_completed',
+      'requestedTitle': _safeText(title),
+      'candidateCount': sources.length,
+      'visibleCount': sorted.length,
+      'rejectedCount': mismatched.length,
+      'sorting': WatchSourcePreferencesService.current.value
+          .forEpisode(season != null && episode != null)
+          .sorting.map((r) => r.toJson()).toList(),
+    });
+    for (final source in mismatched.take(30)) {
+      _trace(<String, Object?>{
+        'action': 'source_excluded',
+        'reason': 'wrong_media_identity',
+        ..._details(source),
+      });
+    }
+    for (var index = 0; index < sorted.length && index < 50; index++) {
+      final source = sorted[index];
+      _trace(<String, Object?>{
+        'action': 'source_ranked',
+        'rank': index + 1,
+        'identityVerdict': SourceContentIdentity.assess(source,
+            title: title, year: year, season: season, episode: episode).name,
+        'cacheTier': WatchSourceEngine.cacheTier(source, verified,
+            season: season, episode: episode),
+        ..._details(source),
+      });
+    }
+  }
+
+  void captureSourceSelection({
+    required String action,
+    required StreamSource source,
+    required String title,
+    String? episodeTitle,
+    int? year, int? season, int? episode,
+  }) {
+    if (!isActive) return;
+    _trace(<String, Object?>{
+      'action': action,
+      'requestedTitle': _safeText(title),
+      'requestedYear': year,
+      'requestedSeason': season,
+      'requestedEpisode': episode,
+      'episodeTitle': _safeText(episodeTitle),
+      'identityVerdict': SourceContentIdentity.assess(source,
+          title: title, year: year, season: season, episode: episode).name,
+      ..._details(source),
+    });
+  }
 
   static const allowedEvents = <String>{
     'brightness_changed',
@@ -362,7 +515,7 @@ class WindowsPlaybackTelemetry {
       return false;
     }
     captureStorageState();
-    if (_facts.isEmpty && _events.isEmpty && _samples.isEmpty) {
+    if (_facts.isEmpty && _events.isEmpty && _samples.isEmpty && _sourceTrace.isEmpty) {
       status.value = 'No playback diagnostics captured yet';
       return false;
     }
@@ -389,8 +542,8 @@ class WindowsPlaybackTelemetry {
     final file = PrivateDiagnosticLogPath.forTimestamp(
       prefix: prefix, timestamp: now, sequence: ++_counter);
     final data = <String, Object>{
-      'schema': 1,
-      'kind': 'windows_playback_capability_diagnostic',
+      'schema': 2,
+      'kind': 'windows_playback_developer_diagnostic',
       'timestampUtc': now.toIso8601String(),
       'platform': 'windows',
       'appVersion': '1.1.15',
@@ -403,6 +556,9 @@ class WindowsPlaybackTelemetry {
       'capabilities': Map<String, Object>.from(_facts),
       'sampleIntervalSeconds': 5,
       'performanceSamples': List<Map<String, Object>>.from(_samples),
+      'sourceSessionId': _sourceSessionId ?? '',
+      'mediaContext': Map<String, Object?>.from(_mediaContext),
+      'sourceTrace': List<Map<String, Object?>>.from(_sourceTrace),
     };
 
     try {
@@ -427,6 +583,7 @@ class WindowsPlaybackTelemetry {
       }
       _events.clear();
       _samples.clear();
+      _sourceTrace.clear();
       status.value = 'Uploaded private diagnostics: $file';
       return true;
     } catch (_) {

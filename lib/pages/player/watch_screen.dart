@@ -203,6 +203,12 @@ class _WatchScreenState extends State<WatchScreen>
         ? widget.detail.id
         : (widget.selectedEpisode?.id ?? widget.detail.id);
     PlayerDebugTelemetry.record('addon_watch_requested');
+    WindowsPlaybackTelemetry.instance.beginSourceSession(
+        title: widget.detail.name, mediaId: streamId, type: widget.type,
+        year: int.tryParse(widget.detail.year ?? ''),
+        season: widget.selectedEpisode?.season,
+        episode: widget.selectedEpisode?.episode,
+        episodeTitle: widget.selectedEpisode?.title);
 
     // Reuse the short-lived detail-page probe, including one still in flight.
     // Never ask the same addons twice simply because Watch was opened.
@@ -264,6 +270,13 @@ class _WatchScreenState extends State<WatchScreen>
   }
 
   void _reportSourceDiscovery() {
+    WindowsPlaybackTelemetry.instance.captureSourceRanking(
+        sources: _sources, sorted: _filteredSources,
+        title: widget.detail.name,
+        year: int.tryParse(widget.detail.year ?? ''),
+        season: widget.selectedEpisode?.season,
+        episode: widget.selectedEpisode?.episode,
+        verified: _verifiedCache);
     if (_sources.isEmpty) {
       PlayerDebugTelemetry.record('addon_watch_no_sources', failure: true);
     } else {
@@ -1940,6 +1953,13 @@ class _SourceCardState extends State<_SourceCard> {
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () {
+              WindowsPlaybackTelemetry.instance.captureSourceSelection(
+                  action: 'watch_source_tapped',
+                  source: s, title: widget.detail.name,
+                  year: int.tryParse(widget.detail.year ?? ''),
+                  season: widget.episode?.season,
+                  episode: widget.episode?.episode,
+                  episodeTitle: widget.episode?.title);
               HapticFeedback.lightImpact();
 
               if (s.externalUrl != null && s.externalUrl!.isNotEmpty) {

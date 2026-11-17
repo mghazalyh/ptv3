@@ -30,6 +30,7 @@ import '../anime_arabic/anime_arabic_service.dart';
 import '../anime_arabic/anime_arabic_extractor.dart';
 import '../p2p/p2p_settings_service.dart';
 import '../player/player_debug_telemetry.dart';
+import '../player/windows_playback_telemetry.dart';
 import 'source_content_identity.dart';
 
 /// Service that fetches playback streams from all installed Stremio addons
@@ -88,8 +89,14 @@ class StreamService {
     int pending = addons.length + 1; // addons + local scrapers
     var rejected = 0;
     void accept(StreamSource source) {
-      if (!SourceContentIdentity.isEligible(source, title: title,
-          year: year, season: season, episode: episode)) {
+      final identity = SourceContentIdentity.assess(source, title: title,
+          year: year, season: season, episode: episode);
+      WindowsPlaybackTelemetry.instance.captureSourceCandidate(
+          stage: 'discovered_source', source: source,
+          title: title, mediaId: id, type: type,
+          year: year, season: season, episode: episode,
+          verdict: identity.name);
+      if (identity == SourceIdentityVerdict.rejected) {
         rejected++;
         return;
       }
@@ -97,7 +104,7 @@ class StreamService {
     }
     void finish() {
       if (pending != 0 || controller.isClosed) return;
-      if (rejected > 0) PlayerDebugTelemetry.record('source_identity_rejected');
+      if (rejected > 0) PlayerDebugTelemetry.record('source_identity_rejected', failure: true);
       controller.close();
     }
 

@@ -1,10 +1,10 @@
 PlayTorrio OWNER-AUTHORIZED ONE-TIME iOS-ONLY BUILD REQUEST
-Requested SGT: 2026-11-18 04:04:43
+Requested SGT: 2026-11-18
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Source commit: 9d58269b08dba8cc30320b8a9267416ce2eeba9b
+Source commit: 718d437abca31230b083adcca125373df64b067f
 Workflow: .github/workflows/ios-speech-release.yml
-Scope: iOS 15 native signed IPA only, using latest branch source and existing iOS release signing / publishing.
-Include fixes: Nocturne S01E01 premature end-of-stream protection; runtime-verified auto-next, interrupted episode source-switch resume, episode-completion diagnostics, and previous source identity validation.
-No Windows, Android, Linux, or other native builds.
-After triggering once, leave immediately. Do not wait, poll, or inspect workflow results.
+Scope: iOS 15 signed IPA only, existing release signing and publishing.
+Include: enhanced iOS playback telemetry for show and episode identity, source rankings, provider releases, audio tracks, MPV native selection and English-track decisions.
+No source sorting behavior changes. No Windows, Android, Linux, or other native builds.
+Trigger once and leave immediately. Do not wait for GitHub Actions completion.

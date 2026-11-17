@@ -1,4 +1,58 @@
-/// Models for Stremio addon manifest parsing and storage.
+/// Stremio manifest protocol models. Resource-specific capabilities and catalog
+/// extras must survive persistence in private portable settings.
+class AddonResource {
+  final String name;
+
+  /// Null means use the top-level types for a string-form resource.
+  final List<String>? types;
+
+  /// Null on an object-form resource means unrestricted identifiers.
+  final List<String>? idPrefixes;
+
+  final bool isObjectForm;
+
+  const AddonResource({
+    required this.name,
+    this.types,
+    this.idPrefixes,
+    this.isObjectForm = false,
+  });
+
+  factory AddonResource.fromJson(dynamic value) {
+    if (value is String) {
+      final clean = value.trim();
+      // Recover previously persisted Dart Map.toString() strings.
+      if (clean.startsWith('{')) {
+        final match = RegExp(r'name:\\s*([a-z_]+)').firstMatch(clean);
+        return AddonResource(name: match?.group(1) ?? '');
+      }
+      return AddonResource(name: clean);
+    }
+    if (value is Map) {
+      return AddonResource(
+        name: value['name']?.toString() ?? '',
+        isObjectForm: true,
+        types: value.containsKey('types')
+            ? _parseStringList(value['types'])
+            : null,
+        // Per the SDK, an object without idPrefixes matches all IDs,
+        // instead of inheriting the top-level restriction.
+        idPrefixes: value.containsKey('idPrefixes')
+            ? _parseStringList(value['idPrefixes'])
+            : const [],
+      );
+    }
+    return const AddonResource(name: '');
+  }
+
+  Map<String, dynamic> toJsonObject() => {
+        'name': name,
+        if (types != null) 'types': types,
+        if (idPrefixes != null) 'idPrefixes': idPrefixes,
+      };
+
+  dynamic toJson() => isObjectForm ? toJsonObject() : name;
+}
 
 class AddonManifest {
   final String id;
@@ -6,10 +60,15 @@ class AddonManifest {
   final String version;
   final String? description;
   final String? logo;
+
+  /// Kept for backwards compatibility with existing UI and settings.
   final List<String> resources;
   final List<String> types;
   final List<String> idPrefixes;
   final List<AddonCatalog> catalogs;
+
+  /// Preserves the SDK's advanced resource descriptors across restarts/sync.
+  final List<AddonResource> resourceDefinitions;
 
   AddonManifest({
     required this.id,
@@ -21,27 +80,78 @@ class AddonManifest {
     required this.types,
     required this.idPrefixes,
     required this.catalogs,
+    this.resourceDefinitions = const [],
   });
 
-  bool get supportsMeta => resources.contains('meta');
-  bool get supportsCatalog => resources.contains('catalog');
-  bool get supportsStream => resources.contains('stream');
-  bool get supportsSubtitles => resources.contains('subtitles');
+  bool supportsResource(String name) =>
+      resources.contains(name) ||
+      resourceDefinitions.any((resource) => resource.name == name);
+
+  bool get supportsMeta => supportsResource('meta');
+  bool get supportsCatalog => supportsResource('catalog');
+  bool get supportsStream => supportsResource('stream');
+  bool get supportsSubtitles => supportsResource('subtitles');
+
+  /// Stremio filters *meta/stream/subtitles* by the resource's type and ID.
+  /// Catalogs are enumerated separately; idPrefixes do not apply to them.
+  bool supportsRequest(String resource, String type, String id) {
+    if (!supportsResource(resource)) return false;
+
+    final definitions =
+        resourceDefinitions.where((entry) => entry.name == resource).toList();
+    if (definitions.isEmpty) {
+      return _matches(types, type) &&
+          (resource == 'catalog' || _matchesPrefix(idPrefixes, id));
+    }
+    return definitions.any((entry) {
+      final allowedTypes = entry.types ?? types;
+      final allowedIds = entry.isObjectForm
+          ? (entry.idPrefixes ?? const <String>[])
+          : idPrefixes;
+      return _matches(allowedTypes, type) &&
+          (resource == 'catalog' || _matchesPrefix(allowedIds, id));
+    });
+  }
+
+  static bool _matches(List<String> options, String value) =>
+      options.isEmpty || options.contains(value);
+
+  static bool _matchesPrefix(List<String> prefixes, String id) =>
+      prefixes.isEmpty || prefixes.any(id.startsWith);
 
   factory AddonManifest.fromJson(Map<String, dynamic> json) {
+    final descriptions = <AddonResource>[];
+    if (json['resources'] is List) {
+      for (final item in json['resources'] as List) {
+        final resource = AddonResource.fromJson(item);
+        if (resource.name.isNotEmpty) descriptions.add(resource);
+      }
+    }
+    final catalogs = <AddonCatalog>[];
+    if (json['catalogs'] is List) {
+      for (final item in json['catalogs'] as List) {
+        if (item is! Map) continue;
+        try {
+          final catalog = AddonCatalog.fromJson(Map<String, dynamic>.from(item));
+          if (catalog.id.isNotEmpty && catalog.type.isNotEmpty) {
+            catalogs.add(catalog);
+          }
+        } catch (_) {
+          // Preserve other catalogs when a provider ships one malformed entry.
+        }
+      }
+    }
     return AddonManifest(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? 'Unknown Addon',
       version: json['version']?.toString() ?? '0.0.0',
       description: json['description']?.toString(),
       logo: json['logo']?.toString(),
-      resources: _parseResourceList(json['resources']),
+      resources: descriptions.map((item) => item.name).toSet().toList(),
+      resourceDefinitions: descriptions,
       types: _parseStringList(json['types']),
       idPrefixes: _parseStringList(json['idPrefixes']),
-      catalogs: (json['catalogs'] as List<dynamic>?)
-              ?.map((e) => AddonCatalog.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
+      catalogs: catalogs,
     );
   }
 
@@ -51,10 +161,48 @@ class AddonManifest {
         'version': version,
         if (description != null) 'description': description,
         if (logo != null) 'logo': logo,
-        'resources': resources,
+        'resources': resourceDefinitions.isNotEmpty
+            ? resourceDefinitions.map((entry) => entry.toJson()).toList()
+            : resources,
         'types': types,
         'idPrefixes': idPrefixes,
-        'catalogs': catalogs.map((c) => c.toJson()).toList(),
+        'catalogs': catalogs.map((entry) => entry.toJson()).toList(),
+      };
+}
+
+class AddonCatalogExtra {
+  final String name;
+  final bool isRequired;
+  final List<String> options;
+  final int? optionsLimit;
+
+  const AddonCatalogExtra({
+    required this.name,
+    this.isRequired = false,
+    this.options = const [],
+    this.optionsLimit,
+  });
+
+  factory AddonCatalogExtra.fromJson(dynamic value) {
+    if (value is String) return AddonCatalogExtra(name: value);
+    if (value is Map) {
+      return AddonCatalogExtra(
+        name: value['name']?.toString() ?? '',
+        isRequired: value['isRequired'] == true,
+        options: _parseStringList(value['options']),
+        optionsLimit: value['optionsLimit'] is num
+            ? (value['optionsLimit'] as num).toInt()
+            : int.tryParse(value['optionsLimit']?.toString() ?? ''),
+      );
+    }
+    return const AddonCatalogExtra(name: '');
+  }
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        if (isRequired) 'isRequired': true,
+        if (options.isNotEmpty) 'options': options,
+        if (optionsLimit != null) 'optionsLimit': optionsLimit,
       };
 }
 
@@ -65,6 +213,7 @@ class AddonCatalog {
   final List<String> genres;
   final bool supportsSearch;
   final bool supportsSkip;
+  final List<AddonCatalogExtra> extras;
 
   AddonCatalog({
     required this.type,
@@ -73,51 +222,51 @@ class AddonCatalog {
     required this.genres,
     required this.supportsSearch,
     required this.supportsSkip,
+    this.extras = const [],
   });
 
-  factory AddonCatalog.fromJson(Map<String, dynamic> json) {
-    final extras = <Map<String, dynamic>>[];
+  bool supportsExtra(String name) =>
+      extras.any((extra) => extra.name == name) ||
+      (name == 'search' && supportsSearch) ||
+      (name == 'skip' && supportsSkip) ||
+      (name == 'genre' && genres.isNotEmpty);
 
-    // Parse both 'extra' and 'extraSupported' arrays
+  bool get hasRequiredExtras => extras.any((extra) => extra.isRequired);
+
+  bool get isHomeEligible => !hasRequiredExtras;
+
+  bool hasRequiredExtra(String name) =>
+      extras.any((extra) => extra.name == name && extra.isRequired);
+
+  factory AddonCatalog.fromJson(Map<String, dynamic> json) {
+    final extras = <AddonCatalogExtra>[];
+    // Legacy extraSupported names and current extra objects both matter.
     for (final key in ['extra', 'extraSupported']) {
-      if (json[key] is List) {
-        for (final e in json[key] as List) {
-          if (e is Map<String, dynamic>) {
-            extras.add(e);
-          } else if (e is String) {
-            extras.add({'name': e});
-          }
+      if (json[key] is! List) continue;
+      for (final item in json[key] as List) {
+        final extra = AddonCatalogExtra.fromJson(item);
+        if (extra.name.isNotEmpty &&
+            !extras.any((existing) => existing.name == extra.name)) {
+          extras.add(extra);
         }
       }
     }
 
-    List<String> genres = [];
-    bool supportsSearch = json['supportsSearch'] as bool? ?? false;
-    bool supportsSkip = json['supportsSkip'] as bool? ?? false;
-
-    for (final extra in extras) {
-      final name = extra['name']?.toString();
-      if (name == 'genre') {
-        genres = _parseStringList(extra['options']);
-      } else if (name == 'search') {
-        supportsSearch = true;
-      } else if (name == 'skip') {
-        supportsSkip = true;
-      }
-    }
-
-    // Legacy 'genres' field fallback
-    if (genres.isEmpty && json['genres'] is List) {
-      genres = _parseStringList(json['genres']);
-    }
+    var genres = <String>[];
+    final genreExtra = extras.where((extra) => extra.name == 'genre');
+    if (genreExtra.isNotEmpty) genres = genreExtra.first.options;
+    if (genres.isEmpty) genres = _parseStringList(json['genres']);
 
     return AddonCatalog(
       type: json['type']?.toString() ?? '',
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString(),
       genres: genres,
-      supportsSearch: supportsSearch,
-      supportsSkip: supportsSkip,
+      supportsSearch: json['supportsSearch'] == true ||
+          extras.any((extra) => extra.name == 'search'),
+      supportsSkip: json['supportsSkip'] == true ||
+          extras.any((extra) => extra.name == 'skip'),
+      extras: extras,
     );
   }
 
@@ -128,6 +277,8 @@ class AddonCatalog {
         'genres': genres,
         'supportsSearch': supportsSearch,
         'supportsSkip': supportsSkip,
+        if (extras.isNotEmpty)
+          'extra': extras.map((entry) => entry.toJson()).toList(),
       };
 }
 
@@ -140,6 +291,7 @@ class InstalledAddon {
   bool enableSearch;
   bool enableSubtitles;
   bool enableStreams;
+
   /// True only when the user explicitly imports an iPad catalog trial.
   final bool personalizedCatalogTrial;
 
@@ -155,10 +307,11 @@ class InstalledAddon {
   });
 
   bool get isCatalogsActive =>
-      enabled && enableCatalogs && (manifest.supportsCatalog || manifest.catalogs.isNotEmpty);
+      enabled && enableCatalogs &&
+      (manifest.supportsCatalog || manifest.catalogs.isNotEmpty);
 
-  bool get isSearchActive =>
-      enabled && enableSearch && (manifest.catalogs.any((c) => c.supportsSearch) || manifest.supportsCatalog);
+  bool get isSearchActive => enabled && enableSearch &&
+      manifest.catalogs.any((catalog) => catalog.supportsSearch);
 
   bool get isSubtitlesActive =>
       enabled && enableSubtitles && manifest.supportsSubtitles;
@@ -169,8 +322,8 @@ class InstalledAddon {
   factory InstalledAddon.fromJson(Map<String, dynamic> json) {
     return InstalledAddon(
       baseUrl: json['baseUrl']?.toString() ?? '',
-      manifest:
-          AddonManifest.fromJson(json['manifest'] as Map<String, dynamic>),
+      manifest: AddonManifest.fromJson(
+          Map<String, dynamic>.from(json['manifest'] as Map)),
       enabled: json['enabled'] as bool? ?? true,
       enableCatalogs: json['enableCatalogs'] as bool? ?? true,
       enableSearch: json['enableSearch'] as bool? ?? true,
@@ -192,34 +345,9 @@ class InstalledAddon {
       };
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
 List<String> _parseStringList(dynamic value) {
   if (value is List) {
-    return value.map((e) => e.toString()).toList();
+    return value.whereType<String>().toList();
   }
   return [];
-}
-
-/// Parses the Stremio manifest `resources` field which can be either:
-/// - A list of strings: `["catalog", "meta", "stream"]`
-/// - A list of objects: `[{"name": "stream", "types": [...], "idPrefixes": [...]}]`
-/// - A mix of both
-/// Also recovers from previously stored broken toString dumps.
-List<String> _parseResourceList(dynamic value) {
-  if (value is! List) return [];
-  
-  return value.map<String>((e) {
-    if (e is String) {
-      // Check if this is a clean resource name
-      if (!e.contains('{') && !e.contains(':')) return e;
-      // Try to recover from broken toString dump like "{name: stream, types: [...]}"
-      final match = RegExp(r'name:\s*(\w+)').firstMatch(e);
-      if (match != null) return match.group(1)!;
-      return '';
-    }
-    if (e is Map<String, dynamic>) return e['name']?.toString() ?? '';
-    if (e is Map) return e['name']?.toString() ?? '';
-    return e.toString();
-  }).where((s) => s.isNotEmpty).toList();
 }

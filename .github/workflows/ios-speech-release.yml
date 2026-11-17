@@ -161,6 +161,7 @@ jobs:
             lib/services/metadata/tmdb_discover_service.dart \
             lib/services/metadata/title_origin_language_service.dart lib/services/metadata/series_run_service.dart lib/widgets/movie/series_year_label.dart \
             lib/models/movie/movie_detail.dart \
+            lib/models/movie/video.dart \
             lib/pages/discover/discover_page.dart \
             lib/services/metadata/network_discover_service.dart \
             lib/pages/networks/networks_page.dart \
@@ -186,6 +187,7 @@ jobs:
           flutter test test/source_compatibility_rank_test.dart
           flutter test test/playback_metric_sanitizer_test.dart
           flutter test test/player_debug_telemetry_test.dart
+           flutter test test/addon_metadata_recovery_test.dart
           flutter test test/ios_audio_telemetry_test.dart
           flutter test test/player_audio_presets_test.dart
           flutter test test/paused_http_recovery_test.dart

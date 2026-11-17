@@ -1,19 +1,18 @@
-PLAYTORRIO — ONE OWNER-AUTHORIZED iOS-ONLY ADDON TELEMETRY BUILD — 17 NOVEMBER 2026 SGT
+PLAYTORRIO — OWNER-AUTHORIZED CORRECTIVE iOS-ONLY BUILD — NOVEMBER 17 2026 SGT
 
-Owner request: Improve telemetry for newly installed iPhone addons whose catalog rows load but selecting a show fails. Trigger a GitHub iOS build, then leave without monitoring.
+REASON
+Original iOS telemetry request source SHA 60f2cb6874309700be3c99b383ea9345494cf572 triggered Run #30 (44085642713). Its accompanying fast-checks and Telegram status workflows failed on the exact same release-note validation, because .github/release-notes.txt exceeded the mandatory 500-character limit.
+Corrective release-note commit 57c86e3621a6f7090994b03fda3bed044eb2ff4e shortened the highlights to 287 characters. The original workflow is pinned to the pre-fix SHA and cannot consume this change.
 
-WHAT CHANGED
-Shared privacy-safe, opt-in diagnostics now trace catalog load/empty/error, detail navigation and metadata failures, addon stream status and parse/network errors, Watch source discovery and cached-only hidden sources.
-Private TorriODB iOS reports now include only a broad phone/tablet/unknown display class, not a device identifier.
-No raw addon URLs, content titles, stream URLs, media IDs, tokens, exception text or personalized account details.
-New regression checks test allowlisted diagnostics and report privacy in the iOS native workflow.
-Preserve current Windows, iOS, player, TorBox, subtitles and application identity.
+SCOPE
+Build the same privacy-safe, opt-in iPhone addon catalog/meta/stream/watch telemetry implementation with corrected release notes.
+No changes to iOS signing, app identity, Windows binaries, subtitle logic or TorBox functionality.
 
 [ios-only]
-SINGLE BUILD AUTHORIZATION
-This marker update requests exactly ONE signed iOS 15 native IPA through .github/workflows/ios-speech-release.yml on parity-floating-player-both.
-Do not start Windows, paired, PS4, workflow_dispatch or duplicate build jobs.
-This source change instruments failures; it does not claim that the user's addon already works.
+ONE corrective iOS 15 signed IPA request on parity-floating-player-both using .github/workflows/ios-speech-release.yml.
+The workflow concurrency group prevents this request from building simultaneously with prior Run #30.
+No paired Windows/iOS, Windows-only, PS4, workflow_dispatch or extra release is authorized.
 
-STOP BOUNDARY
-Once this commit is accepted, the owner authorization is consumed. Do not poll Actions, inspect workflow completion, GitHub Releases, Telegram, assets, SHA256, telemetry or device state; do not retry or trigger a duplicate without a new owner request.
+TRACEABILITY
+Repair requested by owner: check GitHub build and fix if failed.
+Do not claim native success until jobs, signature, release and delivery actually succeed. Do not duplicate this corrective request.

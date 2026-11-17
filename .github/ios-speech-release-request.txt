@@ -1,8 +1,21 @@
-PLAYTORRIO — OWNER-REQUESTED SINGLE iOS STREMIO ADDON COMPATIBILITY BUILD — 2026-11-18 SGT
+PLAYTORRIO — ONE OWNER-REQUESTED FIXED iOS 15 BUILD — 2026-11-18 SGT
 
-Source branch: parity-floating-player-both
-Source commit: a7b4506a3adb76539cee127199dcf3aed31cb909
+PREVIOUS FAILED BUILD
+GitHub Actions run 44132642618 (Run #33) stopped in test/recommendation_media_type_test.dart, line 146:
+Expected 'series', actual 'tv'. The test used an obsolete assumption that 'tv' denotes a series.
+Stremio specifies 'tv' as a distinct live-channel media type, so application code was correct to preserve it.
 
-Build scope: iOS 15 only, existing ios-speech-release.yml workflow. Preserve native player, signing assets, user settings, Torrentio/TorBox and current working Build 232. Implemented source changes include distinct tv/channel types and channel stream IDs, EPG metadata and metasDetailed catalog support, manifest behavior hints, subtitle hash/videoID/videoSize paths, and Stremio regression tests. No Windows or PS4 build. Do not touch LAN or request signing.
+FIX
+Update the regression test to classify only actual episodic-series aliases as 'series'.
+Assert 'tv' stays 'tv', 'channel' stays 'channel', and incoming tv catalog items retain their live-channel type.
+Preserve the existing Stremio live-TV/EPG/subtitle functionality and player behavior without reverting the protocol fix.
 
-STOP RULE: Once GitHub iOS build is triggered, immediately stop. Do not inspect or poll any workflow, artifacts, logs, tests or native packages. Do not retry or create watchers.
+BUILD SCOPE
+[ios-only]
+Trigger exactly ONE replacement native iOS 15 build from the commit updating this release request.
+Use .github/workflows/ios-speech-release.yml and its existing checks, unchanged.
+Preserve bundle ID, existing settings, Torrentio/TorBox, signing credentials, Build 232 and LAN installation.
+Do NOT trigger a Windows, PS4 or other native build. Do not sign or publish any IPA in this request.
+
+OWNER STOP RULE
+As soon as this GitHub build request is pushed, stop. No checking, waiting for GitHub Actions jobs, polling, retries, signing, IPA download, LAN steps or watchers.

@@ -1,1 +1,3 @@
 iOS 15 Stremio addon compatibility improvements: preserve live TV channel IDs and native tv/channel content types; support EPG manifests and schedule metadata; parse metasDetailed and date-based EPG catalogs; support videoHash, videoID and videoSize subtitle requests with fallback for legacy addons; add regression tests. Preserve Torrentio, TorBox, user settings, playback and signing configuration. Full support for every optional Stremio transport and event resource is not certified.
+
+Build #34 regression fix: update the iOS recommendation media-type test so Stremio 'tv' live channels are no longer incorrectly expected to normalize to 'series'. Keep episodic show aliases as series, and preserve native tv/channel IDs.

@@ -141,11 +141,19 @@ void main() {
     expect(related(50, 'Episodic', duration: '8 episodes').knownIsTv, isTrue);
   });
 
-  test('normalize TV alias labels and retain missing Stremio catalog type', () {
-    for (final alias in ['series', 'tv', 'show', 'shows', 'tv_series', 'tv-series']) {
+  test('normalize series aliases but preserve Stremio live TV and channel types', () {
+    for (final alias in ['series', 'show', 'shows', 'tv_series', 'tv-series']) {
       expect(Movie.canonicalType(alias), 'series');
       expect(Movie.typeLabel(alias), 'Series');
     }
+    // 'tv' is a native Stremio live-channel type, not an episodic-series alias.
+    // Converting it to 'series' breaks /meta/tv and /stream/tv routing.
+    expect(Movie.canonicalType('tv'), 'tv');
+    expect(Movie.typeLabel('tv'), 'Live TV');
+    expect(Movie.canonicalType('channel'), 'channel');
+    expect(Movie.typeLabel('channel'), 'Channel');
+    expect(Movie.fromJson({'id': 'demo:news', 'name': 'News', 'type': 'tv'},
+        'https://addon.example').type, 'tv');
     expect(Movie.typeLabel('film'), 'Movie');
     expect(Movie.typeLabel('movie'), 'Movie');
     expect(Movie.typeLabel('unknown'), 'Title');

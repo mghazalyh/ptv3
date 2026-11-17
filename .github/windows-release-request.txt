@@ -1,22 +1,16 @@
-PLAYTORRIO — ONE NEW OWNER-AUTHORIZED WINDOWS-ONLY x64 RELEASE REQUEST — 2026-11-15 00:06:32 SGT
-
-OWNER AUTHORIZATION
-"run failed , please check fix it and trigger another github build"
-
-REPOSITORY AND VERIFIED SOURCE
+PLAYTORRIO OWNER-AUTHORIZED WINDOWS-ONLY BUILD REQUEST
+Requested at SGT: 2026-11-18 02:15:42
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Verified application source HEAD: 7ecd990e176abecf2c7d7eb8e653d90c50b30e42
-Source quality gate: https://github.com/mghazalyh/ptv3/actions/runs/43613242537
-Quality gate status before triggering: COMPLETED SUCCESS, both Linux Flutter analyzer and critical regressions and Windows shared-player compatibility jobs passed.
-
-FAILURE AND REPAIR
-Previously failing source run 43612030800 had two Windows audio preset menu tests fail on RenderFlex horizontal overflow by 88 pixels. Root cause confirmed from full render-tree output in diagnostic source run 43612799543: the fallback "Default audio stream playing." Text inside a Row was unconstrained. It now uses Flexible with bounded one-line ellipsis, preserving the rest of the audio menu. Both widget tests now pass on source 7ecd990e176abecf2c7d7eb8e653d90c50b30e42. Preserve four audio presets: Flat, Dialogue, Cinema, Warm.
-The Windows updater now only offers the matching published GitHub Setup EXE for the exact release tag/build, verifies SHA256 before accepting downloads, distinguishes latest published binaries from unshipped source, rechecks on app resume and avoids calling a failed update lookup "up to date". Windows-only release is published from draft only after source target and artifact size checks. Preserve all streaming, Night Mode, subtitle, addon, TorBox, Home, library and other existing shared functionality.
-
-WINDOWS-ONLY BUILD REQUEST
-Trigger exactly one new Windows x64 native workflow .github/workflows/windows-advanced-discover.yml via this marker-only push, with commit message containing [windows-only]. Build Setup EXE and portable ZIP from this exact SHA lineage with the existing pinned native dependencies and release safeguards. The commit marks the source to build; the Windows job uses its triggering commit SHA. The Windows release must not become available to the updater until publication checks succeed.
-Previous owner-cancelled Windows build #192 (native run 43610074778) stays cancelled. Do not rerun or retry that cancelled run. No iOS, paired iOS, PS4 or other platform builds.
-
-STOP
-This authorization is consumed once GitHub accepts the one Windows-only trigger commit. Do not inspect, poll or monitor the new workflow, inspect or download release assets, check Telegram delivery, retry, rerun or duplicate the native build after submission without fresh owner authorization. Success of native build, installer publication and installed Windows behavior remain unverified until separately validated.
+Source revision: f3418cba1829fd82a9826101d1b17a10a866b975
+Scope: Windows x64 native application installer EXE and portable ZIP only.
+Problem: Nocturne (2026) S01E01 received and ranked an unrelated Lazarus (2025) anime release.
+Included repair: content-identity validation before cache, resolution, provider and file-size ranking.
+Included repair: apply rejection to Watch Sources, source discovery, cached results, episode autoplay, source switching and automatic recovery.
+Included diagnostics: Windows Debug Mode source-session correlation, show and episode titles, provider, original release filename, content validation verdict, rank, cache status, torrent hash, file index, and playback selection trace.
+Regression: test/source_content_identity_test.dart and updated Windows telemetry tests, included in native Windows workflow test sequence.
+Run workflow: .github/workflows/windows-advanced-discover.yml.
+Trigger marker: .github/windows-release-request.txt.
+Commit message MUST contain [windows-only] so iOS jobs are skipped.
+No iOS, Android, Linux, macOS, or PS4 native builds.
+Once this push triggers GitHub Actions, stop immediately: do not poll, inspect logs, artifacts or results, and do not submit duplicate builds.

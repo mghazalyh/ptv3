@@ -252,6 +252,27 @@ class AddonCatalog {
       }
     }
 
+    // Older addons describe supported and required extras in separate
+    // extraSupported/extraRequired string lists instead of modern objects.
+    if (json['extraRequired'] is List) {
+      for (final value in json['extraRequired'] as List) {
+        final name = value?.toString() ?? '';
+        if (name.isEmpty) continue;
+        final index = extras.indexWhere((extra) => extra.name == name);
+        if (index >= 0) {
+          final previous = extras[index];
+          extras[index] = AddonCatalogExtra(
+            name: previous.name,
+            isRequired: true,
+            options: previous.options,
+            optionsLimit: previous.optionsLimit,
+          );
+        } else {
+          extras.add(AddonCatalogExtra(name: name, isRequired: true));
+        }
+      }
+    }
+
     var genres = <String>[];
     final genreExtra = extras.where((extra) => extra.name == 'genre');
     if (genreExtra.isNotEmpty) genres = genreExtra.first.options;

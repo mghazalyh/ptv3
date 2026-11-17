@@ -8,6 +8,18 @@ import '../../models/movie/movie.dart';
 import '../../models/movie/movie_detail.dart';
 import '../player/player_debug_telemetry.dart';
 
+class ResolvedAddonMetadata {
+  final MovieDetail detail;
+  final String baseUrl;
+  final String type;
+
+  const ResolvedAddonMetadata({
+    required this.detail,
+    required this.baseUrl,
+    required this.type,
+  });
+}
+
 /// Generic service for any Stremio-protocol addon.
 /// All methods are static — provide the addon's base URL and they hit the
 /// standard Stremio endpoints (catalog, meta, search).
@@ -19,6 +31,9 @@ class MetadataService {
 
   @visibleForTesting
   static Future<http.Response> Function(Uri)? manifestGetOverride;
+
+  @visibleForTesting
+  static Future<http.Response> Function(Uri)? metaGetOverride;
 
   static final Map<String, List<Movie>> _catalogCache = {};
   static final Map<String, MovieDetail> _metaCache = {};
@@ -171,7 +186,9 @@ class MetadataService {
     PlayerDebugTelemetry.record('addon_meta_fetch_started');
     http.Response response;
     try {
-      response = await http.get(Uri.parse(url))
+      response = await (metaGetOverride == null
+              ? http.get(Uri.parse(url), headers: {'Accept': 'application/json'})
+              : metaGetOverride!(Uri.parse(url)))
           .timeout(const Duration(seconds: 15));
     } catch (_) {
       PlayerDebugTelemetry.record('addon_meta_request_failed', failure: true);
@@ -194,11 +211,88 @@ class MetadataService {
         return null;
       }
       final result = MovieDetail.fromJson(payload);
+      if (result.id.trim().isEmpty || result.name.trim().isEmpty ||
+          result.name == 'Unknown') {
+        PlayerDebugTelemetry.record('addon_meta_invalid', failure: true);
+        return null;
+      }
       _metaCache[url] = result;
       PlayerDebugTelemetry.record('addon_meta_loaded');
       return result;
     } catch (_) {
       PlayerDebugTelemetry.record('addon_meta_invalid', failure: true);
+      return null;
+    }
+  }
+
+  /// A catalog addon may not implement meta, or may return an incomplete
+  /// metadata payload. Resolve from the authoritative IMDb ID first, and only
+  /// then use a conservative title/year match. Never guess a stream ID.
+  static Future<ResolvedAddonMetadata?> resolveCatalogMeta({
+    required String baseUrl,
+    required String type,
+    required String id,
+    required String title,
+    int? year,
+  }) async {
+    const cinemeta = 'https://v3-cinemeta.strem.io';
+
+    Future<ResolvedAddonMetadata?> load(String source, String mediaType,
+        String mediaId) async {
+      final detail = await fetchMeta(
+        baseUrl: source,
+        type: mediaType,
+        imdbId: mediaId,
+      );
+      return detail == null
+          ? null
+          : ResolvedAddonMetadata(
+              detail: detail,
+              baseUrl: source,
+              type: detail.type.trim().isNotEmpty ? detail.type : mediaType,
+            );
+    }
+
+    final primary = await load(baseUrl, type, id);
+    if (primary != null) return primary;
+
+    PlayerDebugTelemetry.record('addon_meta_fallback_started');
+    try {
+      final canonicalType = Movie.canonicalType(type);
+      final fallbackType = canonicalType == 'anime'
+          ? 'series'
+          : (canonicalType == 'unknown' ? 'movie' : canonicalType);
+
+      // An IMDb identifier is portable between catalog and metadata addons.
+      // A provider-specific identifier is not; never send it to Cinemeta.
+      if (RegExp(r'^tt[0-9]+$').hasMatch(id) &&
+          baseUrl.replaceAll(RegExp(r'/+$'), '') != cinemeta) {
+        final byId = await load(cinemeta, fallbackType, id);
+        if (byId != null && byId.detail.id == id) return byId;
+      }
+
+      final match = await findMovieByTitle(
+        title: title,
+        type: fallbackType,
+        year: year,
+      );
+      if (match == null) return null;
+
+      String normalize(String value) =>
+          value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+      final requestedName = normalize(title);
+      if (requestedName.isEmpty || normalize(match.name) != requestedName) {
+        return null;
+      }
+      final matchedYear = RegExp(r'[0-9]{4}').firstMatch(match.year ?? '');
+      if (year != null && matchedYear != null &&
+          int.tryParse(matchedYear.group(0)!) != year) {
+        return null;
+      }
+
+      return await load(match.addonBaseUrl, match.type, match.id);
+    } catch (_) {
+      // Provider search may be offline or unsupported; Details handles null.
       return null;
     }
   }

@@ -307,7 +307,7 @@ class StreamService {
       final uri = Uri.parse(url);
       final response = await (streamGetOverride == null
           ? http.get(uri, headers: {
-              'User-Agent': 'PlayTorrio StremioAddonClient',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
               'Accept': 'application/json',
             })
           : streamGetOverride!(uri))

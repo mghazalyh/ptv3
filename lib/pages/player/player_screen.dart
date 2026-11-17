@@ -422,7 +422,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _initStream() async {
     if (!SourceContentIdentity.isEligible(_currentSource,
-        title: widget.detail?.name ?? widget.title,
+        title: widget.detail?.name ?? '',
         year: int.tryParse(widget.detail?.year ?? ''),
         season: _currentEpisode?.season, episode: _currentEpisode?.episode)) {
       WindowsPlaybackTelemetry.instance.captureSourceSelection(

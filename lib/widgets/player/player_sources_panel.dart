@@ -56,7 +56,7 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
     if (widget.cachedSources != null && widget.cachedSources!.isNotEmpty) {
       _sources.addAll(widget.cachedSources!.where((source) =>
           SourceContentIdentity.isEligible(source,
-              title: widget.detail?.name ?? widget.episode.title,
+              title: widget.detail?.name ?? '',
               year: int.tryParse(widget.detail?.year ?? ''),
               season: widget.episode.season, episode: widget.episode.episode)));
       _sortByIdentity();
@@ -69,7 +69,7 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
   }
 
   void _sortByIdentity() {
-    final title = widget.detail?.name ?? widget.episode.title;
+    final title = widget.detail?.name ?? '';
     final year = int.tryParse(widget.detail?.year ?? '');
     _sources.sort((a, b) {
       final verdict = SourceContentIdentity.compare(a, b,

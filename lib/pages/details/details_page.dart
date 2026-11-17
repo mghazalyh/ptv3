@@ -10,6 +10,7 @@ import '../../models/my_list/my_list_item.dart';
 import '../../services/metadata/bestsimilar_scraper.dart';
 import '../../widgets/movie/similar_year_type_label.dart';
 import '../../services/metadata/metadata_service.dart';
+import '../../services/addon/addon_manager.dart';
 import '../../services/metadata/similar_recommendations_service.dart';
 import '../../services/metadata/tmdb_discover_service.dart';
 import '../../services/metadata/title_origin_language_service.dart';
@@ -435,12 +436,27 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     final yearMatch = RegExp(r'\b(?:19|20)\d{2}\b')
         .firstMatch(widget.movie.year ?? '');
     final yearNum = int.tryParse(yearMatch?.group(0) ?? '');
+    // A Stremio catalog does not promise a meta handler. Respect its
+    // manifest and let compatible metadata addons supply the full details.
+    var selectedAddonHasMeta = true;
+    final metaProviders = <String>[];
+    for (final addon in AddonManager.instance.activeAddons) {
+      if (addon.baseUrl == effectiveBaseUrl) {
+        selectedAddonHasMeta =
+            addon.manifest.supportsRequest('meta', effectiveType, effectiveId);
+      }
+      if (addon.manifest.supportsRequest('meta', effectiveType, effectiveId)) {
+        metaProviders.add(addon.baseUrl);
+      }
+    }
     final resolvedMetadata = await MetadataService.resolveCatalogMeta(
       baseUrl: effectiveBaseUrl,
       type: effectiveType,
       id: effectiveId,
       title: widget.movie.name,
       year: yearNum,
+      sourceSupportsMeta: selectedAddonHasMeta,
+      compatibleMetaProviders: metaProviders,
     );
     final meta = resolvedMetadata?.detail;
     if (resolvedMetadata != null) {

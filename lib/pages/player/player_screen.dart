@@ -266,6 +266,13 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     _currentEpisode = widget.episode;
     _currentTitle = widget.title;
+    IosAudioTelemetry.instance.captureSourceSelection(
+        action: 'player_initial_source',
+        source: _currentSource, title: widget.detail?.name ?? widget.title,
+        mediaId: widget.detail?.id,
+        year: int.tryParse(widget.detail?.year ?? ''),
+        season: widget.episode?.season, episode: widget.episode?.episode,
+        episodeTitle: widget.episode?.title);
     WindowsPlaybackTelemetry.instance.captureSourceSelection(
         action: 'player_initial_source',
         source: _currentSource, title: widget.detail?.name ?? widget.title,
@@ -383,6 +390,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         final aid = track.audio.id;
         final idx = int.tryParse(aid);
         if (idx != null && _selectedAudioTrackIndex != idx) {
+          IosAudioTelemetry.instance.captureAudioSelection(
+              action: 'native_audio_track_changed', actualTrackId: idx,
+              manual: _audioManuallySelected);
           setState(() => _selectedAudioTrackIndex = idx);
         }
       }),
@@ -503,6 +513,13 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _initStream() async {
+    IosAudioTelemetry.instance.captureSourceSelection(
+        action: 'source_open_attempt',
+        source: _currentSource, title: widget.detail?.name ?? _currentTitle,
+        mediaId: widget.detail?.id,
+        year: int.tryParse(widget.detail?.year ?? ''),
+        season: _currentEpisode?.season, episode: _currentEpisode?.episode,
+        episodeTitle: _currentEpisode?.title);
     if (!SourceContentIdentity.isEligible(_currentSource,
         title: widget.detail?.name ?? '',
         year: int.tryParse(widget.detail?.year ?? ''),
@@ -938,8 +955,28 @@ class _PlayerScreenState extends State<PlayerScreen>
       _embeddedSubtitles = embeddedSubs;
       if (active != null && active > 0) _selectedAudioTrackIndex = active;
     });
+    _captureIosAudioTrackSnapshot('media_kit_tracks');
     _preferEnglishAudioTrack();
     if (!_isLoading) unawaited(_autoEnableEnglishEmbedded(_audioMediaEpoch));
+  }
+
+
+  void _captureIosAudioTrackSnapshot(String stage) {
+    if (!IosAudioTelemetry.instance.isActive) return;
+    IosAudioTelemetry.instance.captureAudioTracks(
+      stage: stage,
+      selectedTrackId: _selectedAudioTrackIndex,
+      manual: _audioManuallySelected,
+      loading: _isLoading,
+      tracks: _audioTracks.map((track) => <String, Object?>{
+        'id': track.index,
+        'language': track.language,
+        'title': track.title,
+        'channels': track.channels,
+        'codec': track.codec,
+        'isDefault': track.isDefault,
+      }).toList(),
+    );
   }
 
   void _preferEnglishAudioTrack() {
@@ -951,7 +988,17 @@ class _PlayerScreenState extends State<PlayerScreen>
         AudioLanguagePriority.isEnglish(
           language: track.language, title: track.title,
         )).firstOrNull;
-    if (english == null || english.index == _selectedAudioTrackIndex) return;
+    if (english == null || english.index == _selectedAudioTrackIndex) {
+      IosAudioTelemetry.instance.captureAudioSelection(
+          action: english == null ? 'no_english_track_detected'
+              : 'english_track_already_selected',
+          actualTrackId: _selectedAudioTrackIndex);
+      return;
+    }
+    IosAudioTelemetry.instance.captureAudioSelection(
+        action: 'english_auto_selection_requested',
+        requestedTrackId: english.index,
+        actualTrackId: _selectedAudioTrackIndex);
     _audioAutoSelectionPending = true;
     unawaited(_selectAudioTrack(english.index, manual: false).whenComplete(() {
       _audioAutoSelectionPending = false;
@@ -959,6 +1006,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _selectAudioTrack(int index, {required bool manual}) async {
+    IosAudioTelemetry.instance.captureAudioSelection(
+        action: 'audio_switch_requested', requestedTrackId: index,
+        actualTrackId: _selectedAudioTrackIndex, manual: manual);
     if (manual) _audioManuallySelected = true;
     final epoch = _audioMediaEpoch;
     try {
@@ -992,12 +1042,29 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
       if (!mounted || epoch != _audioMediaEpoch) return;
       setState(() => _selectedAudioTrackIndex = index);
+      Object? confirmedAid;
+      try {
+        confirmedAid = await native.getProperty('aid')
+            .timeout(const Duration(milliseconds: 350));
+      } catch (_) {
+        // Native track callback reports the observed selection separately.
+      }
+      IosAudioTelemetry.instance.captureAudioSelection(
+          action: 'audio_switch_completed', requestedTrackId: index,
+          actualTrackId: int.tryParse(confirmedAid?.toString() ?? ''),
+          manual: manual,
+          reason: switched ? 'media_kit' : 'mpv_aid_fallback');
+      _captureIosAudioTrackSnapshot('after_audio_switch');
       debugPrint('[PlayerAudio] Audio track selected: $index (manual=$manual)');
       if (manual) {
         final selected = _audioTracks.where((t) => t.index == index).firstOrNull;
         _showAudioHudToast(selected?.title ?? 'Audio track $index');
       }
     } catch (error, stack) {
+      IosAudioTelemetry.instance.captureAudioSelection(
+          action: 'audio_switch_failed', requestedTrackId: index,
+          actualTrackId: _selectedAudioTrackIndex, manual: manual,
+          reason: error.runtimeType.toString());
       debugPrint('[PlayerAudio] Cannot switch audio track $index: $error\\n$stack');
       if (manual && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -1050,6 +1117,30 @@ class _PlayerScreenState extends State<PlayerScreen>
         ));
       }
       if (!mounted || epoch != _audioMediaEpoch) return;
+      if (IosAudioTelemetry.instance.isActive) {
+        int? nativeSelectedId;
+        try {
+          final selected = await native.getProperty('aid')
+              .timeout(const Duration(milliseconds: 350));
+          nativeSelectedId = int.tryParse(selected?.toString() ?? '');
+        } catch (_) {
+          // An unavailable native property must not block playback.
+        }
+        IosAudioTelemetry.instance.captureAudioTracks(
+          stage: 'native_mpv_raw_track_list',
+          selectedTrackId: nativeSelectedId,
+          manual: _audioManuallySelected,
+          loading: _isLoading,
+          tracks: found.map((track) => <String, Object?>{
+            'id': track.index,
+            'language': track.language,
+            'title': track.title,
+            'channels': track.channels,
+        'codec': track.codec,
+        'isDefault': track.isDefault,
+          }).toList(),
+        );
+      }
       if (found.length >= _audioTracks.length ||
           (found.any((t) => AudioLanguagePriority.isEnglish(
                   language: t.language, title: t.title)) &&
@@ -1063,10 +1154,14 @@ class _PlayerScreenState extends State<PlayerScreen>
           return ea.compareTo(eb);
         });
         setState(() => _audioTracks = found);
+        _captureIosAudioTrackSnapshot('native_mpv_track_list');
         debugPrint('[PlayerAudio] MPV exposed ${found.length} audio tracks');
       }
       _preferEnglishAudioTrack();
     } catch (error) {
+      IosAudioTelemetry.instance.captureAudioSelection(
+          action: 'native_track_probe_failed',
+          reason: error.runtimeType.toString());
       // Older native player builds may not expose this method. Use the
       // media_kit track stream and MPV alang preference as the fallback.
       debugPrint('[PlayerAudio] Native track inspection unavailable: $error');
@@ -1397,6 +1492,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       } else if (Platform.isIOS) {
         IosAudioTelemetry.instance.capturePlaybackSample(
           properties, buffering: _player.state.buffering,
+          selectedAudioTrackId: _selectedAudioTrackIndex,
         );
         await IosAudioTelemetry.instance.upload(
             reason: 'playback_sample', automatic: true);

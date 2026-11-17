@@ -188,7 +188,8 @@ jobs:
             test/debrid_source_readiness_test.dart \
             test/private_diagnostic_log_path_test.dart \
             test/night_mode_diagnostics_test.dart \
-            test/ios_audio_telemetry_test.dart
+            test/ios_audio_telemetry_test.dart \
+            test/ios_source_audio_diagnostics_test.dart
           do
             flutter test "$suite"
           done

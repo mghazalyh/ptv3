@@ -6,14 +6,17 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../models/stream/stream_model.dart';
 import '../my_list/github_library_cloud.dart';
+import 'audio_language_priority.dart';
+import '../stream/source_content_identity.dart';
+import '../stream/watch_source_preferences.dart';
 import 'player_diagnostic_codes.dart';
 import 'playback_metric_sanitizer.dart';
 import 'private_diagnostic_log_path.dart';
 
-/// Explicitly opt-in, strictly allowlisted MPV filter diagnostics for the
-/// owner's PRIVATE GitHub database. Never uploads raw MPV lines, media URLs,
-/// HTTP headers, tokens, titles, subtitles, or user/device identifiers.
+/// Owner-enabled diagnostics for named media, ranked streams and native audio.
+/// Authentication secrets and signed URLs are not needed for diagnosis.
 class IosAudioTelemetry {
   IosAudioTelemetry._({http.Client? client, Future<String?> Function()? tokenProvider})
       : _client = client ?? http.Client(),
@@ -32,6 +35,8 @@ class IosAudioTelemetry {
   static const prefix = 'playtorrio/diagnostics/ios/night-mode';
   static const maxEvents = 24;
   static const maxPlaybackSamples = 24;
+  static const maxSourceTrace = 160;
+  static const maxRankedSources = 300;
   static const playbackSampleSeconds = 5;
   static const _minUploadInterval = Duration(seconds: 30);
 
@@ -67,12 +72,17 @@ class IosAudioTelemetry {
   final List<String> _events = [];
   final List<Map<String, Object>> _performanceSamples = [];
   final Map<String, int> _previousFrameCounters = {};
+  final List<Map<String, Object?>> _sourceTrace = [];
+  final Map<String, Object?> _mediaContext = {};
+  String? _sourceSessionId;
   bool _loaded = false;
   bool _uploading = false;
   DateTime? _lastUpload;
   int _counter = 0;
 
   bool get isActive => (Platform.isIOS || forceTestPlatform) && enabled.value;
+  @visibleForTesting
+  List<Map<String, Object?>> get capturedSourceTrace => List.unmodifiable(_sourceTrace);
   @visibleForTesting
   List<String> get capturedCodes => List.unmodifiable(_events);
 
@@ -98,13 +108,199 @@ class IosAudioTelemetry {
       _events.clear();
       _performanceSamples.clear();
       _previousFrameCounters.clear();
+      _sourceTrace.clear();
+      _mediaContext.clear();
+      _sourceSessionId = null;
       status.value = 'iOS audio telemetry OFF';
     } else {
       status.value = 'Ready to send private Night Mode diagnostics';
     }
   }
 
-  /// Convert untrusted native logs to fixed, non-identifying error codes.
+
+  /// Preserve actual titles and release filenames; omit authenticated links.
+  static String? _safeText(String? raw, {int limit = 1500}) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    final text = raw
+        .replaceAll(RegExp(r'(?:https?://|magnet:\?)[^\s\r\n]+',
+            caseSensitive: false), '[url-omitted]')
+        .replaceAll(RegExp(
+            r'(?:(?:token|api[_-]?key|password|secret|authorization|cookie)'
+            r'\s*[:=]\s*)[^\s\r\n]+', caseSensitive: false),
+            '[credential-omitted]')
+        .trim();
+    return text.length <= limit ? text : text.substring(0, limit);
+  }
+
+  void _trace(String action, Map<String, Object?> details) {
+    if (!isActive) return;
+    _sourceSessionId ??= DateTime.now().toUtc().microsecondsSinceEpoch.toString();
+    if (_sourceTrace.length >= maxSourceTrace) _sourceTrace.removeAt(0);
+    _sourceTrace.add(<String, Object?>{
+      'utc': DateTime.now().toUtc().toIso8601String(),
+      'sessionId': _sourceSessionId,
+      'action': action,
+      ...details,
+    });
+  }
+
+  void beginSourceSession({
+    required String title, required String mediaId, required String type,
+    String? episodeTitle, int? year, int? season, int? episode,
+  }) {
+    if (!isActive) return;
+    _sourceSessionId = DateTime.now().toUtc().microsecondsSinceEpoch.toString();
+    _sourceTrace.clear();
+    _mediaContext
+      ..clear()
+      ..addAll(<String, Object?>{
+        'title': _safeText(title),
+        'mediaId': _safeText(mediaId),
+        'type': _safeText(type),
+        'year': year,
+        'season': season,
+        'episode': episode,
+        'episodeTitle': _safeText(episodeTitle),
+      });
+    _trace('source_session_started',
+        <String, Object?>{'media': Map<String, Object?>.of(_mediaContext)});
+  }
+
+  Map<String, Object?> _sourceDetails(StreamSource source,
+      {Map<String, bool> verified = const {}, int? season, int? episode}) {
+    final languages = source.behaviorHints?['audioLanguages'];
+    return <String, Object?>{
+      'addon': _safeText(source.addonName),
+      'releaseFilename': _safeText(source.title),
+      'sourceName': _safeText(source.name),
+      'description': _safeText(source.description),
+      'infoHash': _safeText(source.infoHash),
+      'fileIndex': source.fileIdx,
+      'resolution': source.quality,
+      'codec': source.codec,
+      'fileSizeBytes': source.sizeBytes,
+      'declaredAudioLanguages': languages is List
+          ? languages.take(30).map((v) => _safeText(v.toString(), limit: 40))
+              .whereType<String>().toList()
+          : <String>[],
+      'inferredAudioRank': AudioLanguagePriority.torrentioAudioRank(source),
+      'audioEvidence': source.addonName.toLowerCase().contains('torrentio')
+          ? 'torrentio_release_label' : 'unclassified_non_torrentio',
+      'cacheTier': WatchSourceEngine.cacheTier(source, verified,
+          season: season, episode: episode),
+    };
+  }
+
+  void captureSourceRanking({
+    required List<StreamSource> sources,
+    required List<StreamSource> sorted,
+    required String title,
+    required WatchSourceProfile profile,
+    Map<String, bool> verified = const {},
+    int? year, int? season, int? episode,
+    String? sizeFilter, String? addonFilter,
+  }) {
+    if (!isActive) return;
+    final ranked = <Map<String, Object?>>[];
+    for (var i = 0; i < sorted.length && i < maxRankedSources; i++) {
+      final source = sorted[i];
+      ranked.add(<String, Object?>{
+        'rank': i + 1,
+        'identityVerdict': SourceContentIdentity.assess(source,
+            title: title, year: year, season: season, episode: episode).name,
+        ..._sourceDetails(source, verified: verified,
+            season: season, episode: episode),
+      });
+    }
+    final rejected = sources.where((source) =>
+        SourceContentIdentity.assess(source, title: title,
+            year: year, season: season, episode: episode) ==
+        SourceIdentityVerdict.rejected).toList();
+    _trace('source_ranking_completed', <String, Object?>{
+      'requestedTitle': _safeText(title),
+      'candidateCount': sources.length,
+      'visibleCount': sorted.length,
+      'reportedRankCount': ranked.length,
+      'rejectedCount': rejected.length,
+      'preferEnglishAudio': profile.preferEnglishAudio,
+      'cachePolicy': profile.cachePolicy,
+      'allowUnknown': profile.allowUnknown,
+      'sorting': profile.sorting.map((rule) => rule.toJson()).toList(),
+      'sizeFilter': sizeFilter,
+      'addonFilter': _safeText(addonFilter),
+      'rankedSources': ranked,
+      'rejectedSources': rejected.take(100).map((source) =>
+          _sourceDetails(source, verified: verified,
+              season: season, episode: episode)).toList(),
+    });
+  }
+
+  void captureSourceSelection({
+    required String action, required StreamSource source,
+    required String title, String? mediaId, String? episodeTitle,
+    int? year, int? season, int? episode, int? visibleRank,
+  }) {
+    if (!isActive) return;
+    if (_mediaContext.isEmpty) {
+      beginSourceSession(title: title, mediaId: mediaId ?? title,
+          type: season == null ? 'movie' : 'series',
+          year: year, season: season, episode: episode,
+          episodeTitle: episodeTitle);
+    }
+    _trace(action, <String, Object?>{
+      'requestedTitle': _safeText(title),
+      'mediaId': _safeText(mediaId),
+      'episodeTitle': _safeText(episodeTitle),
+      'year': year, 'season': season, 'episode': episode,
+      'visibleRank': visibleRank,
+      'identityVerdict': SourceContentIdentity.assess(source,
+          title: title, year: year, season: season, episode: episode).name,
+      ..._sourceDetails(source, season: season, episode: episode),
+    });
+  }
+
+  void captureAudioTracks({
+    required String stage, required List<Map<String, Object?>> tracks,
+    int? selectedTrackId, bool manual = false, bool loading = false,
+  }) {
+    if (!isActive) return;
+    _trace('audio_tracks_observed', <String, Object?>{
+      'stage': stage, 'selectedTrackId': selectedTrackId,
+      'manualSelection': manual, 'playerLoading': loading,
+      'trackCount': tracks.length,
+      'tracks': tracks.take(40).map((item) {
+        final id = item['id'];
+        final number = id is int ? id : int.tryParse(id?.toString() ?? '');
+        final language = _safeText(item['language']?.toString(), limit: 80);
+        final title = _safeText(item['title']?.toString(), limit: 400);
+        return <String, Object?>{
+          'id': number,
+          'language': language, 'title': title,
+          'channels': item['channels'],
+          'codec': _safeText(item['codec']?.toString(), limit: 80),
+          'isDefault': item['isDefault'] == true,
+          'selected': selectedTrackId != null && number == selectedTrackId,
+          'englishLabel': AudioLanguagePriority.isEnglish(
+              language: language, title: title),
+        };
+      }).toList(),
+    });
+  }
+
+  void captureAudioSelection({
+    required String action, int? requestedTrackId, int? actualTrackId,
+    bool manual = false, String? reason,
+  }) {
+    if (!isActive) return;
+    _trace(action, <String, Object?>{
+      'requestedTrackId': requestedTrackId,
+      'actualTrackId': actualTrackId,
+      'manual': manual,
+      'reason': _safeText(reason, limit: 120),
+    });
+  }
+
+  /// Convert native errors to bounded diagnostic codes.
   /// Unrecognized messages are DROPPED rather than imperfectly redacted.
   @visibleForTesting
   static String? classify(String message) {
@@ -174,12 +370,15 @@ class IosAudioTelemetry {
   /// when iOS private diagnostics opt-in is enabled. Never forward raw native
   /// logs, untrusted property names, URLs, paths or media metadata.
   void capturePlaybackSample(
-    Map<String, Object?> properties, {bool buffering = false}
+    Map<String, Object?> properties, {
+      bool buffering = false, int? selectedAudioTrackId,
+    }
   ) {
     if (!isActive) return;
     final sample = <String, Object>{
       'utc': DateTime.now().toUtc().toIso8601String(),
       'buffering': buffering,
+      if (selectedAudioTrackId != null) 'selectedAudioTrackId': selectedAudioTrackId,
     };
     sample.addAll(PlaybackMetricSanitizer.fromProperties(properties));
     for (final property in const <String>[
@@ -289,8 +488,7 @@ class IosAudioTelemetry {
     return GitHubLibraryCloud.instance.progressAccessToken;
   }
 
-  /// Manual submit or one automatic submit per active Night Mode failure.
-  /// An uploaded report contains only enum codes and whitelisted audio facts.
+  /// Owner-enabled private upload of named source, audio and MPV diagnostics.
   Future<bool> upload({
     String reason = 'manual',
     Map<String, Object?> audio = const {},
@@ -304,7 +502,7 @@ class IosAudioTelemetry {
     if (_uploading) return false;
     if (automatic && _lastUpload != null &&
         DateTime.now().difference(_lastUpload!) < _minUploadInterval) return false;
-    if (_events.isEmpty && _performanceSamples.isEmpty) {
+    if (_events.isEmpty && _performanceSamples.isEmpty && _sourceTrace.isEmpty) {
       status.value = 'No audio or playback diagnostics captured yet';
       return false;
     }
@@ -320,11 +518,12 @@ class IosAudioTelemetry {
     final safeReason = const {
       'night_mode_failed', 'preflight_failed', 'native_error', 'manual',
       'playback_sample', 'sync_failure', 'subtitle_failure', 'source_failure',
-      'addon_failure',
+      'addon_failure', 'source_discovery', 'source_selected',
     }.contains(reason) ? reason : 'manual';
+    final sourceTraceAtUpload = List<Map<String, Object?>>.from(_sourceTrace);
     final report = <String, Object>{
-      'schema': 1,
-      'kind': 'ios_night_mode_filter_diagnostic',
+      'schema': 2,
+      'kind': 'ios_playback_source_audio_developer_diagnostic',
       'timestampUtc': now.toIso8601String(),
       'platform': 'ios',
       'deviceClass': deviceClass(),
@@ -335,6 +534,9 @@ class IosAudioTelemetry {
       'filterCandidates': const ['acompressor', 'compand'],
       'nativeErrorCodes': List<String>.from(_events),
       'audio': safeAudioFields(audio),
+      'sourceSessionId': _sourceSessionId ?? '',
+      'mediaContext': Map<String, Object?>.from(_mediaContext),
+      'sourceTrace': sourceTraceAtUpload,
       'sampleIntervalSeconds': playbackSampleSeconds,
       'performanceSamples': List<Map<String, Object>>.from(_performanceSamples),
     };
@@ -351,7 +553,7 @@ class IosAudioTelemetry {
           'X-GitHub-Api-Version': '2022-11-28',
         },
         body: jsonEncode(<String, String>{
-          'message': 'diagnostics(ios): redacted Night Mode filter report',
+          'message': 'diagnostics(ios): named source and audio language trace',
           'branch': branch,
           'content': base64Encode(utf8.encode(jsonEncode(report))),
         }),
@@ -362,6 +564,8 @@ class IosAudioTelemetry {
       }
       _events.clear();
       _performanceSamples.clear();
+      // Preserve events recorded while an upload was in progress.
+      _sourceTrace.removeWhere((entry) => sourceTraceAtUpload.contains(entry));
       status.value = 'Uploaded to private Torriodb: $remote';
       return true;
     } catch (_) {

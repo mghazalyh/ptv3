@@ -203,6 +203,12 @@ class _WatchScreenState extends State<WatchScreen>
         ? widget.detail.id
         : (widget.selectedEpisode?.id ?? widget.detail.id);
     PlayerDebugTelemetry.record('addon_watch_requested');
+    IosAudioTelemetry.instance.beginSourceSession(
+        title: widget.detail.name, mediaId: streamId, type: widget.type,
+        year: int.tryParse(widget.detail.year ?? ''),
+        season: widget.selectedEpisode?.season,
+        episode: widget.selectedEpisode?.episode,
+        episodeTitle: widget.selectedEpisode?.title);
     WindowsPlaybackTelemetry.instance.beginSourceSession(
         title: widget.detail.name, mediaId: streamId, type: widget.type,
         year: int.tryParse(widget.detail.year ?? ''),
@@ -270,6 +276,19 @@ class _WatchScreenState extends State<WatchScreen>
   }
 
   void _reportSourceDiscovery() {
+    IosAudioTelemetry.instance.captureSourceRanking(
+        sources: _sources, sorted: _filteredSources,
+        title: widget.detail.name,
+        profile: WatchSourcePreferencesService.current.value
+            .forEpisode(widget.selectedEpisode != null),
+        year: int.tryParse(widget.detail.year ?? ''),
+        season: widget.selectedEpisode?.season,
+        episode: widget.selectedEpisode?.episode,
+        verified: _verifiedCache,
+        sizeFilter: _selectedSizeFilter,
+        addonFilter: _selectedAddonFilter);
+    unawaited(IosAudioTelemetry.instance.upload(
+        reason: 'source_discovery', automatic: true));
     WindowsPlaybackTelemetry.instance.captureSourceRanking(
         sources: _sources, sorted: _filteredSources,
         title: widget.detail.name,
@@ -394,6 +413,8 @@ class _WatchScreenState extends State<WatchScreen>
       _checkingCache = false;
       if (mounted) {
         setState(() {});
+        // Capture the final visible ordering after cache verification.
+        _reportSourceDiscovery();
         if (_hasRetryableCacheSources) {
           // Process fresh batches quickly; back off after transient failures.
           final failed = outcome == null || !outcome.completed;
@@ -1953,6 +1974,17 @@ class _SourceCardState extends State<_SourceCard> {
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () {
+              IosAudioTelemetry.instance.captureSourceSelection(
+                  action: 'watch_source_tapped',
+                  source: s, title: widget.detail.name,
+                  mediaId: widget.detail.id,
+                  year: int.tryParse(widget.detail.year ?? ''),
+                  season: widget.episode?.season,
+                  episode: widget.episode?.episode,
+                  episodeTitle: widget.episode?.title,
+                  visibleRank: widget.availableSources.indexOf(s) + 1);
+              unawaited(IosAudioTelemetry.instance.upload(
+                  reason: 'source_selected', automatic: true));
               WindowsPlaybackTelemetry.instance.captureSourceSelection(
                   action: 'watch_source_tapped',
                   source: s, title: widget.detail.name,
@@ -2120,6 +2152,15 @@ class _SourceCardState extends State<_SourceCard> {
                                 ),
                               );
                               if (!mounted || picked == null) return;
+                              IosAudioTelemetry.instance.captureSourceSelection(
+                                  action: 'alternative_provider_selected',
+                                  source: picked, title: widget.detail.name,
+                                  mediaId: widget.detail.id,
+                                  year: int.tryParse(widget.detail.year ?? ''),
+                                  season: widget.episode?.season,
+                                  episode: widget.episode?.episode,
+                                  episodeTitle: widget.episode?.title,
+                                  visibleRank: widget.availableSources.indexOf(picked) + 1);
                               Navigator.push(context, MaterialPageRoute<void>(
                                 builder: (_) => PlayerScreen(
                                   source: picked,

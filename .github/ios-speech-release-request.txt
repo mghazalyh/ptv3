@@ -1,13 +1,11 @@
-PLAYTORRIO OWNER-AUTHORIZED ONE-TIME iOS BUILD RETRY — 2026-11-18 01:50:15 SGT
-
-Observed preceding native iOS run #35, GitHub Actions ID 44139203011, remained in progress at "Setup Flutter" for a prolonged period. There was no reported failed application test or native compilation at the time of inspection. The source CI on #35 passed both Linux and Windows shared-code gates.
-
-FIX IMPLEMENTED
-Pin Flutter SDK version 3.41.9 as before. In ios-speech-release.yml, impose an 18-minute step timeout on the first cached setup. If that attempt fails or times out, retry the same pinned Flutter installation without cache and with its own 18-minute timeout, then verify the SDK version explicitly. If both attempts fail, the job must fail rather than proceed with a potentially damaged SDK.
-Preserve all app source code, Stremio changes, existing signing configuration, player, assets and publishing logic. The prior Telegram notes-length CI fix remains intact.
-
-BUILD SCOPE
-Trigger exactly one replacement native iOS 15 GitHub build from the update of this request file. No Windows or PS4 native build. Preserve existing release and installed Build 232.
-
-ABSOLUTE STOP RULE
-After the GitHub push that triggers the iOS build, do not check its workflow, wait, poll, inspect logs, retrieve IPA, sign, publish on LAN, retry, or create watchers. End the turn immediately.
+PlayTorrio OWNER-AUTHORIZED ONE-TIME iOS-ONLY BUILD REQUEST
+Requested SGT: 2026-11-18 02:55:30
+Repository: mghazalyh/ptv3
+Branch: parity-floating-player-both
+Latest verified source commit: 245069b67f51acede5cafa7596e74cede80584ed
+Workflow: .github/workflows/ios-speech-release.yml
+Build: fresh iOS 15 IPA using the latest shared Flutter source and current existing signing / publishing workflow.
+Include: Windows-developed Nocturne/Lazarus source identity guard, content-first ranking, autoplay/recovery safeguards, and updated diagnostic code.
+Scope: iOS only. Do not trigger Windows, Android, Linux, macOS standalone, PS4, or any paired native release.
+User instruction: trigger GitHub Actions once and leave immediately. No polling, waiting, checking logs, build status or artifact publishing.
+One-time authorization: "now generate latest build for ios,and then leave"

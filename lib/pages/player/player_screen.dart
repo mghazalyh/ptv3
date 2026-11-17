@@ -31,6 +31,7 @@ import '../../services/player/player_settings.dart';
 import '../../services/player/ios_audio_telemetry.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/playback_autoselection.dart';
+import '../../services/player/episode_completion_policy.dart';
 import '../../services/player/ios_speech_transcriber.dart';
 import '../../services/player/windows_whisper_transcriber.dart';
 import '../../services/player/subtitle_auto_sync_policy.dart';
@@ -208,6 +209,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   List<Video> _episodeCatalog = const [];
   bool _episodeCatalogComplete = false;
   int _lastAutoplayEpoch = -1;
+  int _lastHandledCompletionGeneration = -1;
+  Duration _lastNonzeroPlaybackPosition = Duration.zero;
+  DateTime? _recentSeekAt;
+  Duration? _recentSeekFrom;
+  bool _prematureEpisodeEnd = false;
 
   // Skip Segments State (IntroDB)
   List<MediaSkipSegment> _skipSegments = [];
@@ -315,6 +321,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       }),
       _player.stream.position.listen((pos) {
         _position = pos;
+        if (pos > Duration.zero) _lastNonzeroPlaybackPosition = pos;
         _positionNotifier.value = pos;
         if (_firstFrameMs == null && pos > const Duration(milliseconds: 500) &&
             _sourceOpeningAt != null) {
@@ -394,22 +401,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _player.stream.error.listen((error) {
         _onControllerError(error);
       }),
-      _player.stream.completed.listen((completed) {
-        if (completed && mounted && !_isLoading) {
-          // TorBox status stubs are 20-30 second playable videos; they must
-          // never trigger automatic navigation to the following TV episode.
-          if (_debridPlaceholderRecoveryRequested ||
-              _isDebridPlaceholderDuration(_player.state.duration)) {
-            _recoverDebridPlaceholder();
-            return;
-          }
-          _savePlaybackProgress();
-          if (_lastAutoplayEpoch != _audioMediaEpoch) {
-            _lastAutoplayEpoch = _audioMediaEpoch;
-            unawaited(_goToNextEpisode());
-          }
-        }
-      }),
+      _player.stream.completed.listen(_handleNativeCompletion),
     ]);
 
     _initStream();
@@ -418,6 +410,95 @@ class _PlayerScreenState extends State<PlayerScreen>
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+  }
+
+  void _noteSeek(Duration from) {
+    _recentSeekAt = DateTime.now();
+    _recentSeekFrom = from;
+  }
+
+  void _handleNativeCompletion(bool completed) {
+    if (!completed || !mounted) return;
+    final nativePosition = _player.state.position;
+    final position = nativePosition > Duration.zero
+        ? nativePosition : _lastNonzeroPlaybackPosition;
+    final duration = _player.state.duration > Duration.zero
+        ? _player.state.duration : _duration;
+    final episode = _currentEpisode;
+    final pendingSeek = _recentSeekAt != null &&
+        DateTime.now().difference(_recentSeekAt!) <
+            const Duration(seconds: 30);
+    final assessment = EpisodeCompletionPolicy.assess(
+        position: position,
+        nativeDuration: duration,
+        episodeRuntime: episode?.runtime,
+        seriesRuntime: widget.detail?.runtime,
+        buffering: _player.state.buffering,
+        recentSeek: pendingSeek,
+        recentSeekFrom: _recentSeekFrom);
+    final placeholder = _debridPlaceholderRecoveryRequested ||
+        _isDebridPlaceholderDuration(duration);
+    final ignored = _isLoading || _sourceNativeOpening ||
+        _httpReconnecting || _lastHandledCompletionGeneration ==
+            _streamGeneration;
+    final nextEpisode = _nextEpisode;
+    final action = ignored
+        ? 'ignored_loading_or_duplicate'
+        : placeholder
+            ? 'debrid_placeholder_recovery'
+            : episode == null || nextEpisode == null
+                ? 'no_automatic_next_episode'
+                : assessment.allowAutoplay
+                    ? 'automatic_next_episode_allowed'
+                    : 'automatic_next_episode_blocked';
+    WindowsPlaybackTelemetry.instance.captureEpisodeCompletion(
+        action: action,
+        reason: assessment.reason,
+        source: _currentSource,
+        requestedTitle: widget.detail?.name ?? widget.title,
+        episodeTitle: episode?.title,
+        season: episode?.season,
+        episode: episode?.episode,
+        position: position,
+        nativeDuration: duration,
+        bufferedPosition: _buffered,
+        expectedRuntime: assessment.expectedRuntime,
+        isBuffering: _player.state.buffering,
+        recentSeekFrom: pendingSeek ? _recentSeekFrom : null,
+        nextSeason: nextEpisode?.season,
+        nextEpisode: nextEpisode?.episode);
+    if (ignored) return;
+    _lastHandledCompletionGeneration = _streamGeneration;
+    if (placeholder) {
+      _recoverDebridPlaceholder();
+      return;
+    }
+    if (episode == null || nextEpisode == null) {
+      _savePlaybackProgress();
+      return;
+    }
+    if (!assessment.allowAutoplay) {
+      _prematureEpisodeEnd = true;
+      PlayerDebugTelemetry.record('episode_autoplay_blocked', failure: true);
+      _savePlaybackProgress();
+      setState(() {
+        _isLoading = false;
+        _showControls = true;
+        _showSourcesPanel = true;
+        _sourcesEpisode = episode;
+        _sourcesErrorMessage =
+            'This stream ended before the episode could be confirmed '
+            'complete. Choose another source to continue this episode.';
+      });
+      unawaited(WindowsPlaybackTelemetry.instance.upload(
+          reason: 'source_failure'));
+      return;
+    }
+    _savePlaybackProgress();
+    if (_lastAutoplayEpoch != _audioMediaEpoch) {
+      _lastAutoplayEpoch = _audioMediaEpoch;
+      unawaited(_goToNextEpisode(automatic: true));
+    }
   }
 
   Future<void> _initStream() async {
@@ -447,6 +528,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       _logoAnimController.repeat(reverse: true);
     }
     ++_streamGeneration;
+    _lastNonzeroPlaybackPosition = Duration.zero;
+    _recentSeekAt = null;
+    _recentSeekFrom = null;
+    _prematureEpisodeEnd = false;
     _httpResumeWatchdog?.cancel();
     _httpResumePosition = null;
     _firstFrameMs = null;
@@ -2915,6 +3000,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _seekRelative(Duration offset) {
     final cur = _player.state.position;
+    _noteSeek(cur);
     final dur = _player.state.duration;
     final target = cur + offset;
     final clamped = target < Duration.zero
@@ -2985,9 +3071,26 @@ class _PlayerScreenState extends State<PlayerScreen>
       showId: widget.detail?.id ?? '',
       catalogComplete: _episodeCatalogComplete);
 
-  Future<void> _goToNextEpisode() async {
+  Future<void> _goToNextEpisode({bool automatic = false}) async {
     final next = _nextEpisode;
     if (next == null || _nextEpisodeBusy || !mounted) return;
+    WindowsPlaybackTelemetry.instance.captureEpisodeCompletion(
+        action: automatic ? 'automatic_next_episode_requested' :
+            'manual_next_episode_requested',
+        reason: automatic ? 'native_end_verified' : 'user_requested',
+        source: _currentSource,
+        requestedTitle: widget.detail?.name ?? widget.title,
+        episodeTitle: _currentEpisode?.title,
+        season: _currentEpisode?.season,
+        episode: _currentEpisode?.episode,
+        nextSeason: next.season, nextEpisode: next.episode,
+        position: _player.state.position,
+        nativeDuration: _player.state.duration,
+        bufferedPosition: _buffered,
+        expectedRuntime: EpisodeCompletionPolicy.expectedRuntime(
+            episodeRuntime: _currentEpisode?.runtime,
+            seriesRuntime: widget.detail?.runtime),
+        isBuffering: _player.state.buffering);
     final epoch = _audioMediaEpoch;
     setState(() {
       _nextEpisodeBusy = true;
@@ -3219,6 +3322,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       // can trigger the existing next-episode completion path.
       final duration = _player.state.duration;
       final padded = target + const Duration(milliseconds: 300);
+      _noteSeek(_player.state.position);
       _player.seek(duration > Duration.zero && padded > duration
           ? duration : padded);
     }
@@ -3290,8 +3394,16 @@ class _PlayerScreenState extends State<PlayerScreen>
   void _savePlaybackProgress() {
     if (widget.detail == null) return;
 
-    final pos = _player.state.position.inSeconds;
-    final dur = _player.state.duration.inSeconds;
+    final pos = (_player.state.position > Duration.zero
+        ? _player.state.position : _lastNonzeroPlaybackPosition).inSeconds;
+    final expected = EpisodeCompletionPolicy.expectedRuntime(
+        episodeRuntime: _currentEpisode?.runtime,
+        seriesRuntime: widget.detail?.runtime);
+    if (_prematureEpisodeEnd && expected == null) return;
+    final dur = EpisodeCompletionPolicy.effectiveProgressDuration(
+        nativeDuration: _player.state.duration,
+        episodeRuntime: _currentEpisode?.runtime,
+        seriesRuntime: widget.detail?.runtime).inSeconds;
     if (dur <= 0) return;
 
     ContinueWatchingService.saveProgress(
@@ -3307,8 +3419,16 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// uploading progress/history on pause or player exit.
   void _saveAndSyncLastPosition() {
     final detail = widget.detail;
-    final position = _player.state.position.inSeconds;
-    final duration = _player.state.duration.inSeconds;
+    final position = (_player.state.position > Duration.zero
+        ? _player.state.position : _lastNonzeroPlaybackPosition).inSeconds;
+    final expected = EpisodeCompletionPolicy.expectedRuntime(
+        episodeRuntime: _currentEpisode?.runtime,
+        seriesRuntime: widget.detail?.runtime);
+    final duration = EpisodeCompletionPolicy.effectiveProgressDuration(
+        nativeDuration: _player.state.duration,
+        episodeRuntime: _currentEpisode?.runtime,
+        seriesRuntime: widget.detail?.runtime).inSeconds;
+    if (_prematureEpisodeEnd && expected == null) return;
     final source = _currentSource;
     final episode = _currentEpisode;
     unawaited(() async {
@@ -3832,7 +3952,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                           onPlayPause: () {
                             _togglePlayPause();
                           },
-                          onSeek: (pos) => _player.seek(pos),
+                          onSeek: (pos) {
+                            _noteSeek(_player.state.position);
+                            _player.seek(pos);
+                          },
                           onSeekBack10: () {
                             _seekRelative(const Duration(seconds: -10));
                           },

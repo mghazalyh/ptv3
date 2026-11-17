@@ -187,7 +187,7 @@ jobs:
           flutter test test/source_compatibility_rank_test.dart
           flutter test test/playback_metric_sanitizer_test.dart
           flutter test test/player_debug_telemetry_test.dart
-           flutter test test/addon_metadata_recovery_test.dart
+            flutter test test/addon_metadata_recovery_test.dart
           flutter test test/ios_audio_telemetry_test.dart
           flutter test test/player_audio_presets_test.dart
           flutter test test/paused_http_recovery_test.dart

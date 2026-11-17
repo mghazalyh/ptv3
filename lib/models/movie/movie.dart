@@ -4,7 +4,6 @@ class Movie {
   static String canonicalType(String? input) {
     switch (input?.trim().toLowerCase()) {
       case 'series':
-      case 'tv':
       case 'tvshow':
       case 'tv_show':
       case 'tv-series':
@@ -13,6 +12,10 @@ class Movie {
       case 'show':
       case 'serial':
         return 'series';
+      case 'tv':
+        return 'tv';
+      case 'channel':
+        return 'channel';
       case 'movie':
       case 'movies':
       case 'film':
@@ -29,6 +32,8 @@ class Movie {
       case 'series': return 'Series';
       case 'movie': return 'Movie';
       case 'anime': return 'Anime';
+      case 'tv': return 'Live TV';
+      case 'channel': return 'Channel';
       default: return 'Title';
     }
   }

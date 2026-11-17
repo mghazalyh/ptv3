@@ -107,7 +107,9 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
 
   bool get _isSeries {
     final t = _resolvedType ?? _detail?.type ?? widget.movie.type;
-    return t == 'series' || t == 'tv' || t == 'anime' || (_detail != null && _detail!.videos.isNotEmpty);
+    return t == 'series' || t == 'anime' ||
+        (t != 'tv' && t != 'channel' &&
+            _detail != null && _detail!.videos.isNotEmpty);
   }
 
   late AnimationController _animController;
@@ -196,7 +198,10 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         page: WatchScreen(
           detail: _detail!,
           type: _resolvedType ?? _detail!.type,
-          selectedEpisode: ep,
+          selectedEpisode: (_resolvedType ?? _detail!.type) == 'tv' ||
+                  (_resolvedType ?? _detail!.type) == 'channel'
+              ? null
+              : ep,
         ),
       ),
     );

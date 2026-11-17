@@ -60,6 +60,8 @@ class AddonManifest {
   final String version;
   final String? description;
   final String? logo;
+  final Map<String, dynamic> behaviorHints;
+  bool get isEpgProvider => behaviorHints['epgProvider'] == true;
 
   /// Kept for backwards compatibility with existing UI and settings.
   final List<String> resources;
@@ -76,6 +78,7 @@ class AddonManifest {
     required this.version,
     this.description,
     this.logo,
+    this.behaviorHints = const {},
     required this.resources,
     required this.types,
     required this.idPrefixes,
@@ -147,6 +150,9 @@ class AddonManifest {
       version: json['version']?.toString() ?? '0.0.0',
       description: json['description']?.toString(),
       logo: json['logo']?.toString(),
+      behaviorHints: json['behaviorHints'] is Map
+          ? Map<String, dynamic>.from(json['behaviorHints'] as Map)
+          : const {},
       resources: descriptions.map((item) => item.name).toSet().toList(),
       resourceDefinitions: descriptions,
       types: _parseStringList(json['types']),
@@ -161,6 +167,7 @@ class AddonManifest {
         'version': version,
         if (description != null) 'description': description,
         if (logo != null) 'logo': logo,
+        if (behaviorHints.isNotEmpty) 'behaviorHints': behaviorHints,
         'resources': resourceDefinitions.isNotEmpty
             ? resourceDefinitions.map((entry) => entry.toJson()).toList()
             : resources,

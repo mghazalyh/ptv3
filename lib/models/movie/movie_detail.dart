@@ -15,6 +15,10 @@ class MovieDetail {
   final List<String> cast;
   final List<String> director;
   final String? runtime;
+  final Map<String, dynamic> behaviorHints;
+  bool get isLive => type == 'tv' || behaviorHints['isLive'] == true;
+  bool get hasScheduledVideos => behaviorHints['hasScheduledVideos'] == true;
+  String? get defaultVideoId => behaviorHints['defaultVideoId']?.toString();
   final List<Link> links;
   final List<Video> videos;
   final String? tmdbId;
@@ -35,6 +39,7 @@ class MovieDetail {
     this.cast = const [],
     this.director = const [],
     this.runtime,
+    this.behaviorHints = const {},
     this.links = const [],
     this.videos = const [],
     this.tmdbId,
@@ -57,6 +62,9 @@ class MovieDetail {
       cast: _parseStringList(json['cast']),
       director: _parseStringList(json['director']),
       runtime: json['runtime']?.toString(),
+      behaviorHints: json['behaviorHints'] is Map
+          ? Map<String, dynamic>.from(json['behaviorHints'] as Map)
+          : const {},
       links: _parseEntries(json['links'], Link.fromJson),
       videos: _parseEntries(json['videos'], Video.fromJson),
       tmdbId: json['moviedb_id']?.toString(),

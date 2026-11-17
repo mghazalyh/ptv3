@@ -8,6 +8,8 @@ class Video {
   final String? released;
   final String? thumbnail;
   final String? overview;
+  final String? startTime;
+  final String? endTime;
   final List<StreamSource> streams;
 
   Video({
@@ -18,6 +20,8 @@ class Video {
     this.released,
     this.thumbnail,
     this.overview,
+    this.startTime,
+    this.endTime,
     this.streams = const [],
   });
 
@@ -50,6 +54,8 @@ class Video {
       released: json['released']?.toString(),
       thumbnail: json['thumbnail']?.toString(),
       overview: json['overview']?.toString() ?? json['description']?.toString(),
+      startTime: json['startTime']?.toString(),
+      endTime: json['endTime']?.toString(),
       streams: parsedStreams,
     );
   }

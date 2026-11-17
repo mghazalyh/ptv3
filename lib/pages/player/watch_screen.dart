@@ -198,7 +198,9 @@ class _WatchScreenState extends State<WatchScreen>
   }
 
   Future<void> _loadStreams() async {
-    final streamId = widget.selectedEpisode?.id ?? widget.detail.id;
+    final streamId = widget.type == 'tv' || widget.type == 'channel'
+        ? widget.detail.id
+        : (widget.selectedEpisode?.id ?? widget.detail.id);
     PlayerDebugTelemetry.record('addon_watch_requested');
 
     // Reuse the short-lived detail-page probe, including one still in flight.

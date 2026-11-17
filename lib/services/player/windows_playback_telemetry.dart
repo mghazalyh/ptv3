@@ -384,7 +384,7 @@ class WindowsPlaybackTelemetry {
     final approvedReason = const {
       'manual', 'brightness_changed', 'night_mode_changed',
       'audio_filter_failure', 'playback_sample', 'sync_failure',
-       'subtitle_failure', 'source_failure',
+       'subtitle_failure', 'source_failure', 'addon_failure',
     }.contains(reason) ? reason : 'manual';
     final file = PrivateDiagnosticLogPath.forTimestamp(
       prefix: prefix, timestamp: now, sequence: ++_counter);

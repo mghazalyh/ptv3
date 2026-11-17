@@ -23,7 +23,7 @@ class AddonResource {
       final clean = value.trim();
       // Recover previously persisted Dart Map.toString() strings.
       if (clean.startsWith('{')) {
-        final match = RegExp(r'name:\\s*([a-z_]+)').firstMatch(clean);
+        final match = RegExp(r'name:\s*([a-z_]+)').firstMatch(clean);
         return AddonResource(name: match?.group(1) ?? '');
       }
       return AddonResource(name: clean);

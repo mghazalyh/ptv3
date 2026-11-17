@@ -271,17 +271,15 @@ class MetadataService {
         }
       }
 
-      // Stremio clients can combine metadata from any installed addon
-      // advertising a matching meta resource. Only pass valid IMDb IDs
-      // between providers, never addon-private IDs.
-      if (RegExp(r'^tt[0-9]+$').hasMatch(id)) {
-        for (final provider in compatibleMetaProviders) {
-          if (provider == baseUrl || provider == cinemeta) continue;
-          final byId = await load(provider, fallbackType, id);
-          if (byId != null && byId.detail.id == id) {
-            PlayerDebugTelemetry.record('addon_meta_fallback_resolved');
-            return byId;
-          }
+      // A declared resource-specific idPrefix makes even custom IDs
+      // eligible for another metadata addon. The caller has already filtered
+      // providers through each manifest's supportsRequest('meta', type, id).
+      for (final provider in compatibleMetaProviders) {
+        if (provider == baseUrl || provider == cinemeta) continue;
+        final byId = await load(provider, fallbackType, id);
+        if (byId != null && byId.detail.id == id) {
+          PlayerDebugTelemetry.record('addon_meta_fallback_resolved');
+          return byId;
         }
       }
 

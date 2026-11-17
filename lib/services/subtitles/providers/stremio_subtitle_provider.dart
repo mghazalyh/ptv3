@@ -144,7 +144,7 @@ class StremioSubtitleProvider extends SubtitleProvider {
     final cleanHash = videoHash?.trim().toLowerCase();
     final hasHash = cleanHash != null &&
         RegExp(r'^[0-9a-f]{16}$').hasMatch(cleanHash);
-    final id = hasHash ? cleanHash : videoId;
+    final id = hasHash ? cleanHash! : videoId;
     final extras = <String, String>{
       if (hasHash) 'videoID': videoId,
       if (hasHash && videoSize != null && videoSize > 0)

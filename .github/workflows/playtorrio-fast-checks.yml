@@ -74,6 +74,9 @@ jobs:
             lib/widgets/movie/movie_slider_section.dart \
             lib/services/metadata/tvdb_series_service.dart \
             lib/models/movie/movie.dart \
+            lib/models/movie/movie_detail.dart \
+            lib/models/movie/video.dart \
+            lib/services/metadata/metadata_service.dart \
             lib/pages/home/home_page.dart \
             lib/pages/history/watched_history_page.dart \
             lib/services/continue_watching/watched_history_timeline.dart \
@@ -167,6 +170,7 @@ jobs:
             test/app_updater_service_test.dart \
             test/playback_metric_sanitizer_test.dart \
             test/player_debug_telemetry_test.dart \
+            test/addon_metadata_recovery_test.dart \
             test/windows_settings_recovery_test.dart \
             test/windows_playback_telemetry_test.dart \
             test/playback_frame_health_test.dart \
@@ -272,6 +276,8 @@ jobs:
           flutter test test/night_mode_diagnostics_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/ios_audio_telemetry_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/addon_metadata_recovery_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/playback_frame_health_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

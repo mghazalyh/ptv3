@@ -432,39 +432,22 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       }
     }
 
-    var meta = await MetadataService.fetchMeta(
+    final yearNum = widget.movie.year != null
+        ? int.tryParse(widget.movie.year!.replaceAll(RegExp(r'[^0-9]'), ''))
+        : null;
+    final resolvedMetadata = await MetadataService.resolveCatalogMeta(
       baseUrl: effectiveBaseUrl,
       type: effectiveType,
-      imdbId: effectiveId,
+      id: effectiveId,
+      title: widget.movie.name,
+      year: yearNum,
     );
-
-    // If fetchMeta failed, try fallback search to resolve
-    if (meta == null && !effectiveId.startsWith('tt')) {
-      PlayerDebugTelemetry.record('addon_meta_fallback_started');
-      final yearNum = widget.movie.year != null ? int.tryParse(widget.movie.year!.replaceAll(RegExp(r'[^0-9]'), '')) : null;
-      final resolved = await MetadataService.findMovieByTitle(
-        title: widget.movie.name,
-        type: widget.movie.type,
-        year: yearNum,
-      );
-      if (resolved != null) {
-        effectiveBaseUrl = resolved.addonBaseUrl;
-        effectiveType = resolved.type;
-        effectiveId = resolved.id;
-        _resolvedBaseUrl = effectiveBaseUrl;
-        _resolvedType = effectiveType;
-        meta = await MetadataService.fetchMeta(
-          baseUrl: resolved.addonBaseUrl,
-          type: resolved.type,
-          imdbId: resolved.id,
-        );
-      }
-    }
-
-    if (meta == null) {
+    final meta = resolvedMetadata?.detail;
+    if (resolvedMetadata != null) {
+      _resolvedBaseUrl = resolvedMetadata.baseUrl;
+      _resolvedType = resolvedMetadata.type;
+    } else {
       PlayerDebugTelemetry.record('addon_meta_unresolved', failure: true);
-    } else if (meta.type.isNotEmpty) {
-      _resolvedType = meta.type;
     }
 
     if (mounted) {

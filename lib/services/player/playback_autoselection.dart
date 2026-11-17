@@ -3,6 +3,7 @@ import '../../models/stream/stream_model.dart';
 import '../../models/subtitle/subtitle_model.dart';
 import 'dart:io';
 import '../stream/source_compatibility_rank.dart';
+import '../stream/source_content_identity.dart';
 import 'audio_language_priority.dart';
 
 /// Deterministic per-media English subtitle and continuous episode defaults.
@@ -102,11 +103,16 @@ abstract final class PlaybackAutoselection {
   }
 
   static StreamSource? preferredSource(
-      List<StreamSource> candidates, StreamSource previous) {
+      List<StreamSource> candidates, StreamSource previous, {
+      String? title, int? year, int? season, int? episode,
+      }) {
     if (candidates.isEmpty) return null;
     final usable = candidates.where((source) =>
-        (source.url?.isNotEmpty ?? false) ||
-        (source.infoHash?.isNotEmpty ?? false)).toList();
+        ((source.url?.isNotEmpty ?? false) ||
+         (source.infoHash?.isNotEmpty ?? false)) &&
+        (title == null || SourceContentIdentity.isEligible(source,
+            title: title, year: year, season: season, episode: episode)))
+        .toList();
     if (usable.isEmpty) return null;
     final addon = previous.addonName.toLowerCase().trim();
     final previousLabel = previous.name?.toLowerCase().trim() ?? '';
@@ -126,6 +132,11 @@ abstract final class PlaybackAutoselection {
         value += SourceCompatibilityRank.score(source,
             isIOS: Platform.isIOS);
         return value;
+      }
+      if (title != null) {
+        final identity = SourceContentIdentity.compare(a, b, title: title,
+            year: year, season: season, episode: episode);
+        if (identity != 0) return identity;
       }
       return score(b).compareTo(score(a));
     });

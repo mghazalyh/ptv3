@@ -12,6 +12,7 @@ import '../debrid/providers/torbox_service.dart';
 import '../player/audio_language_priority.dart';
 import '../player/debrid_source_readiness.dart';
 import 'source_compatibility_rank.dart';
+import 'source_content_identity.dart';
 
 /// All optional fields are fail-open. Missing metadata must not hide playback.
 class SourceSortRule {
@@ -597,18 +598,24 @@ abstract final class WatchSourceEngine {
   static List<StreamSource> process(List<StreamSource> sources,
       WatchSourceProfile profile, {
       Map<String, bool> verified = const {},
+      String? title,
+      int? year,
       int? season,
       int? episode,
     }) {
+    final candidates = title == null || title.trim().isEmpty
+        ? List<StreamSource>.of(sources)
+        : sources.where((s) => SourceContentIdentity.isEligible(s,
+            title: title, year: year, season: season, episode: episode)).toList();
     try {
-      var selected = sources.where((s) => _allowed(s, profile, verified,
+      var selected = candidates.where((s) => _allowed(s, profile, verified,
           season: season, episode: episode)).toList();
       // Balanced/All may retain playback choices when metadata filters
       // eliminate everything. Both strict modes must never fail open.
-      if (selected.isEmpty && sources.isNotEmpty &&
+      if (selected.isEmpty && candidates.isNotEmpty &&
           profile.cachePolicy != 'cachedOnly' &&
           profile.cachePolicy != 'readyOnly') {
-        selected = List<StreamSource>.of(sources);
+        selected = List<StreamSource>.of(candidates);
       }
       if (profile.deduplicate) {
         final seen = <String>{};
@@ -623,6 +630,11 @@ abstract final class WatchSourceEngine {
         for (var i = 0; i < selected.length; i++) selected[i]: i,
       };
       selected.sort((a, b) {
+        if (title != null && title.trim().isNotEmpty) {
+          final content = SourceContentIdentity.compare(a, b, title: title,
+              year: year, season: season, episode: episode);
+          if (content != 0) return content;
+        }
         for (final rule in profile.sorting) {
           final ar = _rank(a, rule.criterion, verified, original[a] ?? 0, profile,
               season: season, episode: episode);
@@ -653,14 +665,14 @@ abstract final class WatchSourceEngine {
       // Both strict modes must fail closed if filtering or sorting throws.
       if (profile.cachePolicy == 'cachedOnly' ||
           profile.cachePolicy == 'readyOnly') {
-        return sources.where((source) {
+        return candidates.where((source) {
           final tier = cacheTier(source, verified,
               season: season, episode: episode);
           return tier == 'verified' ||
               (profile.cachePolicy == 'readyOnly' && tier == 'reported');
         }).toList();
       }
-      return List<StreamSource>.of(sources);
+      return List<StreamSource>.of(candidates);
     }
   }
 }

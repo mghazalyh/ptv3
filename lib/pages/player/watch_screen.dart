@@ -19,6 +19,7 @@ import '../../services/player/ios_audio_telemetry.dart';
 import '../../services/player/player_debug_telemetry.dart';
 import '../../services/player/windows_playback_telemetry.dart';
 import '../../services/stream/watch_source_preferences.dart';
+import '../../services/stream/source_content_identity.dart';
 import '../settings/watch_source_preferences_page.dart';
 import './player_screen.dart';
 import '../../services/stream/stream_service.dart';
@@ -420,6 +421,8 @@ class _WatchScreenState extends State<WatchScreen>
             : configured;
     var list = WatchSourceEngine.process(_sources, profile,
         verified: _verifiedCache,
+        title: widget.detail.name,
+        year: int.tryParse(widget.detail.year ?? ''),
         season: widget.selectedEpisode?.season,
         episode: widget.selectedEpisode?.episode);
     if (_selectedAddonFilter != null) {
@@ -427,12 +430,24 @@ class _WatchScreenState extends State<WatchScreen>
     }
     final selector = _selectedSizeFilter;
     if (selector == 'largest') {
-      list.sort((a, b) =>
-          (b.sizeBytes ?? -1).compareTo(a.sizeBytes ?? -1));
+      list.sort((a, b) {
+        final identity = SourceContentIdentity.compare(a, b,
+            title: widget.detail.name, year: int.tryParse(widget.detail.year ?? ''),
+            season: widget.selectedEpisode?.season,
+            episode: widget.selectedEpisode?.episode);
+        return identity != 0 ? identity :
+            (b.sizeBytes ?? -1).compareTo(a.sizeBytes ?? -1);
+      });
     } else if (selector == 'smallest') {
-      list.sort((a, b) =>
-          (a.sizeBytes ?? double.infinity)
-              .compareTo(b.sizeBytes ?? double.infinity));
+      list.sort((a, b) {
+        final identity = SourceContentIdentity.compare(a, b,
+            title: widget.detail.name, year: int.tryParse(widget.detail.year ?? ''),
+            season: widget.selectedEpisode?.season,
+            episode: widget.selectedEpisode?.episode);
+        return identity != 0 ? identity :
+            (a.sizeBytes ?? double.infinity)
+                .compareTo(b.sizeBytes ?? double.infinity);
+      });
     } else if (selector != null) {
       final gb = 1024.0 * 1024 * 1024;
       final filtered = list.where((s) {

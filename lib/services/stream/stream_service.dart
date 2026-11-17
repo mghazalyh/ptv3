@@ -30,6 +30,7 @@ import '../anime_arabic/anime_arabic_service.dart';
 import '../anime_arabic/anime_arabic_extractor.dart';
 import '../p2p/p2p_settings_service.dart';
 import '../player/player_debug_telemetry.dart';
+import 'source_content_identity.dart';
 
 /// Service that fetches playback streams from all installed Stremio addons
 /// and built-in scrapers.
@@ -85,6 +86,20 @@ class StreamService {
     _registerBuiltInScrapers();
 
     int pending = addons.length + 1; // addons + local scrapers
+    var rejected = 0;
+    void accept(StreamSource source) {
+      if (!SourceContentIdentity.isEligible(source, title: title,
+          year: year, season: season, episode: episode)) {
+        rejected++;
+        return;
+      }
+      if (!controller.isClosed) controller.add(source);
+    }
+    void finish() {
+      if (pending != 0 || controller.isClosed) return;
+      if (rejected > 0) PlayerDebugTelemetry.record('source_identity_rejected');
+      controller.close();
+    }
 
     // Local scrapers
     final isImdb = id.startsWith('tt');
@@ -97,25 +112,21 @@ class StreamService {
       season: season,
       episode: episode,
       imdbId: cleanImdbId,
-    ).listen((source) {
-      if (!controller.isClosed) controller.add(source);
-    }, onDone: () {
+    ).listen(accept, onDone: () {
       pending--;
-      if (pending == 0 && !controller.isClosed) controller.close();
+      finish();
     });
 
     for (final addon in addons) {
       _fetchFromAddon(addon, type, id).then((sources) {
         if (!controller.isClosed) {
           for (final source in sources) {
-            controller.add(source);
+            accept(source);
           }
         }
       }).catchError((_) {}).whenComplete(() {
         pending--;
-        if (pending == 0 && !controller.isClosed) {
-          controller.close();
-        }
+        finish();
       });
     }
 
@@ -242,7 +253,10 @@ class StreamService {
                 (source.infoHash == null || source.infoHash!.isEmpty)) {
               return;
             }
-            controller.add(source);
+            if (SourceContentIdentity.isEligible(source,
+                title: title, year: year, season: season, episode: episode)) {
+              controller.add(source);
+            }
           }
         },
         onError: (_) {},
@@ -267,7 +281,10 @@ class StreamService {
       _fetchFromAddon(matchingAddon, type, id).then((sources) {
         if (!controller.isClosed) {
           for (final source in sources) {
-            controller.add(source);
+            if (SourceContentIdentity.isEligible(source,
+                title: title, year: year, season: season, episode: episode)) {
+              controller.add(source);
+            }
           }
         }
       }).catchError((_) {}).whenComplete(() {

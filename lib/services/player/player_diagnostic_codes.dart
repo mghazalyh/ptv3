@@ -77,6 +77,7 @@ abstract final class PlayerDiagnosticCodes {
     'source_debrid_pending',
     'source_debrid_placeholder',
     'source_auto_next',
+    'source_identity_rejected',
     'source_auto_exhausted',
     'source_recovery_cross_addon_started',
     'source_recovery_no_ready_candidates',

@@ -29,6 +29,7 @@ import '../anime/anime_scraper_service.dart';
 import '../anime_arabic/anime_arabic_service.dart';
 import '../anime_arabic/anime_arabic_extractor.dart';
 import '../p2p/p2p_settings_service.dart';
+import '../player/player_debug_telemetry.dart';
 
 /// Service that fetches playback streams from all installed Stremio addons
 /// and built-in scrapers.
@@ -288,13 +289,19 @@ class StreamService {
       // Check idPrefixes filtering if declared by addon
       if (addon.manifest.idPrefixes.isNotEmpty) {
         final matchesPrefix = addon.manifest.idPrefixes.any((p) => id.startsWith(p));
-        if (!matchesPrefix) return [];
+        if (!matchesPrefix) {
+          PlayerDebugTelemetry.record('addon_stream_unsupported_id');
+          return [];
+        }
       }
 
       // Check types filtering if declared by addon
       if (addon.manifest.types.isNotEmpty) {
         final matchesType = addon.manifest.types.contains(type);
-        if (!matchesType) return [];
+        if (!matchesType) {
+          PlayerDebugTelemetry.record('addon_stream_unsupported_type');
+          return [];
+        }
       }
 
       final pathId = Uri.encodeComponent(id);
@@ -308,20 +315,34 @@ class StreamService {
         },
       ).timeout(const Duration(seconds: 15));
 
-      if (response.statusCode != 200) return [];
-
+      if (response.statusCode != 200) {
+        PlayerDebugTelemetry.record('addon_stream_response_failed', failure: true);
+        return [];
+      }
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final streams = data['streams'] as List<dynamic>?;
-
-      if (streams == null || streams.isEmpty) return [];
-
-      return streams
+      if (streams == null || streams.isEmpty) {
+        PlayerDebugTelemetry.record('addon_stream_empty');
+        return [];
+      }
+      final candidates = streams
           .whereType<Map>()
-          .map((json) => StreamSource.fromJson(Map<String, dynamic>.from(json), addon.manifest.name))
-          .where((s) => s.url != null || s.infoHash != null || s.externalUrl != null)
+          .map((json) => StreamSource.fromJson(
+              Map<String, dynamic>.from(json), addon.manifest.name))
+          .where((source) => source.url != null ||
+              source.infoHash != null || source.externalUrl != null)
           .toList();
-    } catch (e, st) {
-      debugPrint('Addon ${addon.manifest.name} failed: $e\n$st');
+      PlayerDebugTelemetry.record(
+          candidates.isEmpty ? 'addon_stream_empty' : 'addon_stream_ready');
+      return candidates;
+    } on FormatException {
+      PlayerDebugTelemetry.record('addon_stream_invalid', failure: true);
+      return [];
+    } on TypeError {
+      PlayerDebugTelemetry.record('addon_stream_invalid', failure: true);
+      return [];
+    } catch (_) {
+      PlayerDebugTelemetry.record('addon_stream_request_failed', failure: true);
       return [];
     }
   }

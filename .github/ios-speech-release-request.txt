@@ -1,21 +1,17 @@
-PLAYTORRIO — ONE OWNER-REQUESTED FIXED iOS 15 BUILD — 2026-11-18 SGT
+PLAYTORRIO: OWNER-REQUESTED ONE FIXED iOS 15 BUILD
+Date (SGT): 2026-11-18 01:38:13
+Source branch: parity-floating-player-both
 
-PREVIOUS FAILED BUILD
-GitHub Actions run 44132642618 (Run #33) stopped in test/recommendation_media_type_test.dart, line 146:
-Expected 'series', actual 'tv'. The test used an obsolete assumption that 'tv' denotes a series.
-Stremio specifies 'tv' as a distinct live-channel media type, so application code was correct to preserve it.
+Build #34 GitHub Actions checks exposed two confirmed failures:
+1. Linux checks: telegram_ci.py --self-test failed when reading .github/release-notes.txt.
+2. iOS-only Telegram status/failure notifier: identical failure.
+Root cause: release notes were 726 characters, exceeding the script's strict 500-character maximum.
 
 FIX
-Update the regression test to classify only actual episodic-series aliases as 'series'.
-Assert 'tv' stays 'tv', 'channel' stays 'channel', and incoming tv catalog items retain their live-channel type.
-Preserve the existing Stremio live-TV/EPG/subtitle functionality and player behavior without reverting the protocol fix.
+Replace .github/release-notes.txt with a safe, concise and informative description under 500 characters, without URLs or credentials. Preserve Stremio protocol corrections, live-TV series regression fix, README changes, existing iOS app behavior and source code.
 
-BUILD SCOPE
-[ios-only]
-Trigger exactly ONE replacement native iOS 15 build from the commit updating this release request.
-Use .github/workflows/ios-speech-release.yml and its existing checks, unchanged.
-Preserve bundle ID, existing settings, Torrentio/TorBox, signing credentials, Build 232 and LAN installation.
-Do NOT trigger a Windows, PS4 or other native build. Do not sign or publish any IPA in this request.
+SCOPE
+Trigger one native iOS 15 build from this request-file change through the existing ios-speech-release.yml workflow. Keep Apple player and signature configuration unchanged. No Windows/PS4 build, signing, LAN publishing or IPA retrieval.
 
-OWNER STOP RULE
-As soon as this GitHub build request is pushed, stop. No checking, waiting for GitHub Actions jobs, polling, retries, signing, IPA download, LAN steps or watchers.
+STOP IMMEDIATELY AFTER BUILD TRIGGER
+No waiting, polling, checking jobs/status, inspecting artifacts, retries, or watchers after the push.

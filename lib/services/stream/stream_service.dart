@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../models/addon/addon.dart';
@@ -34,6 +35,14 @@ import '../player/player_debug_telemetry.dart';
 /// and built-in scrapers.
 class StreamService {
   StreamService._();
+
+  @visibleForTesting
+  static Future<http.Response> Function(Uri)? streamGetOverride;
+
+  @visibleForTesting
+  static Future<List<StreamSource>> fetchAddonStreamsForTesting(
+      InstalledAddon addon, String type, String id) =>
+      _fetchFromAddon(addon, type, id);
 
   static void _registerBuiltInScrapers() {
     if (P2pSettingsService.isP2pEnabled.value) {
@@ -285,52 +294,50 @@ class StreamService {
     String id,
   ) async {
     try {
-      // Check idPrefixes filtering if declared by addon
-      if (addon.manifest.idPrefixes.isNotEmpty) {
-        final matchesPrefix = addon.manifest.idPrefixes.any((p) => id.startsWith(p));
-        if (!matchesPrefix) {
-          PlayerDebugTelemetry.record('addon_stream_unsupported_id');
-          return [];
-        }
-      }
-
-      // Check types filtering if declared by addon
-      if (addon.manifest.types.isNotEmpty) {
-        final matchesType = addon.manifest.types.contains(type);
-        if (!matchesType) {
-          PlayerDebugTelemetry.record('addon_stream_unsupported_type');
-          return [];
-        }
+      // SDK advanced resource descriptors override top-level filters.
+      // Do not contact addons with no compatible stream resource.
+      if (!addon.manifest.supportsRequest('stream', type, id)) {
+        PlayerDebugTelemetry.record('addon_stream_unsupported_id');
+        return [];
       }
 
       final pathId = Uri.encodeComponent(id);
       final url = '${addon.baseUrl}/stream/$type/$pathId.json';
 
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 15));
+      final uri = Uri.parse(url);
+      final response = await (streamGetOverride == null
+          ? http.get(uri, headers: {
+              'User-Agent': 'PlayTorrio StremioAddonClient',
+              'Accept': 'application/json',
+            })
+          : streamGetOverride!(uri))
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode != 200) {
         PlayerDebugTelemetry.record('addon_stream_response_failed', failure: true);
         return [];
       }
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final streams = data['streams'] as List<dynamic>?;
-      if (streams == null || streams.isEmpty) {
-        PlayerDebugTelemetry.record('addon_stream_empty');
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map || decoded['streams'] is! List) {
+        PlayerDebugTelemetry.record('addon_stream_invalid', failure: true);
         return [];
       }
-      final candidates = streams
-          .whereType<Map>()
-          .map((json) => StreamSource.fromJson(
-              Map<String, dynamic>.from(json), addon.manifest.name))
-          .where((source) => source.url != null ||
-              source.infoHash != null || source.externalUrl != null)
-          .toList();
+      final streams = decoded['streams'] as List;
+      final candidates = <StreamSource>[];
+      for (final entry in streams) {
+        if (entry is! Map) continue;
+        try {
+          final source = StreamSource.fromJson(
+              Map<String, dynamic>.from(entry), addon.manifest.name);
+          if ((source.url?.isNotEmpty ?? false) ||
+              (source.infoHash?.isNotEmpty ?? false) ||
+              (source.externalUrl?.isNotEmpty ?? false)) {
+            candidates.add(source);
+          }
+        } catch (_) {
+          // A single invalid stream must not discard good sources.
+        }
+      }
       PlayerDebugTelemetry.record(
           candidates.isEmpty ? 'addon_stream_empty' : 'addon_stream_ready');
       return candidates;

@@ -1,19 +1,19 @@
-PLAYTORRIO — ONE OWNER-AUTHORIZED iOS-ONLY SUBTITLE SIZE PERSISTENCE RELEASE — 15 NOVEMBER 2026 SGT
+PLAYTORRIO — ONE OWNER-AUTHORIZED iOS-ONLY ADDON TELEMETRY BUILD — 17 NOVEMBER 2026 SGT
 
-Owner request: Trigger a GitHub iOS build for the iPad subtitle size persistence fix, then leave without monitoring, retries, or duplicate builds.
+Owner request: Improve telemetry for newly installed iPhone addons whose catalog rows load but selecting a show fails. Trigger a GitHub iOS build, then leave without monitoring.
 
-Repository: mghazalyh/ptv3
-Branch: parity-floating-player-both
-Exact subtitle persistence source commit: 21c833202dd1568a14a5465422aa1eade939533c
-Source file: lib/pages/player/player_screen.dart
-Fix: Initialize player subtitle scale from saved per-device PlayerSettings.subScale; only an explicit size adjustment writes the saved scale; episode playback, subtitle attachment/track change, and recovery reapply styling without overwriting saved size; synchronize subtitle appearance modal scale with player quick slider.
+WHAT CHANGED
+Shared privacy-safe, opt-in diagnostics now trace catalog load/empty/error, detail navigation and metadata failures, addon stream status and parse/network errors, Watch source discovery and cached-only hidden sources.
+Private TorriODB iOS reports now include only a broad phone/tablet/unknown display class, not a device identifier.
+No raw addon URLs, content titles, stream URLs, media IDs, tokens, exception text or personalized account details.
+New regression checks test allowlisted diagnostics and report privacy in the iOS native workflow.
+Preserve current Windows, iOS, player, TorBox, subtitles and application identity.
 
 [ios-only]
 SINGLE BUILD AUTHORIZATION
-This one marker update requests exactly ONE signed iOS/iPadOS native build via .github/workflows/ios-speech-release.yml.
-No Windows build, paired release, PS4 build, workflow_dispatch, native rerun, or duplicate marker is authorized.
-Preserve native MPV/FFmpeg/VideoToolbox, subtitle timing, Night Mode, TorBox, debrid, Trakt/Simkl, watch history, privacy, local settings, and all existing features.
-Previously submitted iOS and Windows build requests are consumed and must not be retriggered.
+This marker update requests exactly ONE signed iOS 15 native IPA through .github/workflows/ios-speech-release.yml on parity-floating-player-both.
+Do not start Windows, paired, PS4, workflow_dispatch or duplicate build jobs.
+This source change instruments failures; it does not claim that the user's addon already works.
 
 STOP BOUNDARY
-Once GitHub accepts this commit, this new iOS authorization is CONSUMED. Do not poll workflow runs, inspect native job outcomes, release artifacts, downloads, hashes, Telegram, or telemetry, retry, or trigger another build. The source commit is verified; native build completion and iPad installation / playback remain UNVERIFIED until separate owner evidence.
+Once this commit is accepted, the owner authorization is consumed. Do not poll Actions, inspect workflow completion, GitHub Releases, Telegram, assets, SHA256, telemetry or device state; do not retry or trigger a duplicate without a new owner request.

@@ -268,7 +268,10 @@ class MetadataService {
       if (RegExp(r'^tt[0-9]+$').hasMatch(id) &&
           baseUrl.replaceAll(RegExp(r'/+$'), '') != cinemeta) {
         final byId = await load(cinemeta, fallbackType, id);
-        if (byId != null && byId.detail.id == id) return byId;
+        if (byId != null && byId.detail.id == id) {
+          PlayerDebugTelemetry.record('addon_meta_fallback_resolved');
+          return byId;
+        }
       }
 
       final match = await findMovieByTitle(
@@ -281,7 +284,8 @@ class MetadataService {
       String normalize(String value) =>
           value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
       final requestedName = normalize(title);
-      if (requestedName.isEmpty || normalize(match.name) != requestedName) {
+      if (requestedName.isEmpty || normalize(match.name) != requestedName ||
+          Movie.canonicalType(match.type) != fallbackType) {
         return null;
       }
       final matchedYear = RegExp(r'[0-9]{4}').firstMatch(match.year ?? '');
@@ -290,7 +294,11 @@ class MetadataService {
         return null;
       }
 
-      return await load(match.addonBaseUrl, match.type, match.id);
+      final resolved = await load(match.addonBaseUrl, match.type, match.id);
+      if (resolved != null) {
+        PlayerDebugTelemetry.record('addon_meta_fallback_resolved');
+      }
+      return resolved;
     } catch (_) {
       // Provider search may be offline or unsupported; Details handles null.
       return null;

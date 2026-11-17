@@ -1,18 +1,16 @@
-PLAYTORRIO — OWNER-AUTHORIZED CORRECTIVE iOS-ONLY BUILD — NOVEMBER 17 2026 SGT
+PLAYTORRIO — ONE OWNER-REQUESTED iOS-ONLY METADATA RECOVERY BUILD — 2026-11-17 SGT
 
 REASON
-Original iOS telemetry request source SHA 60f2cb6874309700be3c99b383ea9345494cf572 triggered Run #30 (44085642713). Its accompanying fast-checks and Telegram status workflows failed on the exact same release-note validation, because .github/release-notes.txt exceeded the mandatory 500-character limit.
-Corrective release-note commit 57c86e3621a6f7090994b03fda3bed044eb2ff4e shortened the highlights to 287 characters. The original workflow is pinned to the pre-fix SHA and cannot consume this change.
+Installed iPhone v1.1.15 Build 231 opt-in private telemetry at 2026-11-17T14:48:41.838245Z reports addon_catalog_ready, addon_meta_invalid and addon_meta_unresolved. Report also includes addon_meta_loaded and does not identify the responsible addon, because addon names and titles are deliberately excluded.
+
+REPAIR
+Recover metadata when catalog-only providers do not expose meta, including standards-compatible IMDb ID fallback via Cinemeta and conservative title/year checks for provider-specific IDs. Tolerate malformed optional links, episode objects and embedded streams. Preserve all addons, original application identity, playback behavior, user settings and privacy-safe telemetry. Add metadata fallback success event and regression checks.
+Streaming Catalogs is an installed catalog-only addon and a known compatibility case, but telemetry cannot conclusively assign this specific diagnostic to that provider.
 
 SCOPE
-Build the same privacy-safe, opt-in iPhone addon catalog/meta/stream/watch telemetry implementation with corrected release notes.
-No changes to iOS signing, app identity, Windows binaries, subtitle logic or TorBox functionality.
-
 [ios-only]
-ONE corrective iOS 15 signed IPA request on parity-floating-player-both using .github/workflows/ios-speech-release.yml.
-The workflow concurrency group prevents this request from building simultaneously with prior Run #30.
-No paired Windows/iOS, Windows-only, PS4, workflow_dispatch or extra release is authorized.
-
-TRACEABILITY
-Repair requested by owner: check GitHub build and fix if failed.
-Do not claim native success until jobs, signature, release and delivery actually succeed. Do not duplicate this corrective request.
+Exactly ONE new iOS 15 GitHub build request from parity-floating-player-both at the release-trigger commit following source and concise release note SHA be658fc493c5a1cf5d1ca1b803d9cdb3caf46238.
+Use existing .github/workflows/ios-speech-release.yml and its normal validation, IPA package, release and Telegram workflow.
+Do NOT trigger Windows, paired release, PS4 or separate workflow_dispatch.
+Do NOT perform Windows P12 signing or LAN installer updates in this task.
+Owner instructs: submit the GitHub build then STOP. Do not poll workflow, releases, artifacts, signing, downloads, status messages, or telemetry after this request; no retries or duplicate triggers.

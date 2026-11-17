@@ -130,6 +130,8 @@ jobs:
             lib/services/config/build_identity.dart \
             lib/models/movie/movie.dart \
             lib/services/metadata/bestsimilar_scraper.dart \
+            lib/services/stream/stream_service.dart \
+            lib/services/subtitles/providers/stremio_subtitle_provider.dart \
             lib/services/metadata/metadata_service.dart \
             lib/widgets/movie/movie_card.dart \
             lib/models/movie/movie_section.dart \
@@ -187,7 +189,8 @@ jobs:
           flutter test test/source_compatibility_rank_test.dart
           flutter test test/playback_metric_sanitizer_test.dart
           flutter test test/player_debug_telemetry_test.dart
-            flutter test test/addon_metadata_recovery_test.dart
+           flutter test test/stremio_protocol_compatibility_test.dart
+           flutter test test/addon_metadata_recovery_test.dart
           flutter test test/ios_audio_telemetry_test.dart
           flutter test test/player_audio_presets_test.dart
           flutter test test/paused_http_recovery_test.dart

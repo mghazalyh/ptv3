@@ -1,11 +1,10 @@
 PlayTorrio OWNER-AUTHORIZED ONE-TIME iOS-ONLY BUILD REQUEST
-Requested SGT: 2026-11-18 02:55:30
+Requested SGT: 2026-11-18 04:04:43
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Latest verified source commit: 245069b67f51acede5cafa7596e74cede80584ed
+Source commit: 9d58269b08dba8cc30320b8a9267416ce2eeba9b
 Workflow: .github/workflows/ios-speech-release.yml
-Build: fresh iOS 15 IPA using the latest shared Flutter source and current existing signing / publishing workflow.
-Include: Windows-developed Nocturne/Lazarus source identity guard, content-first ranking, autoplay/recovery safeguards, and updated diagnostic code.
-Scope: iOS only. Do not trigger Windows, Android, Linux, macOS standalone, PS4, or any paired native release.
-User instruction: trigger GitHub Actions once and leave immediately. No polling, waiting, checking logs, build status or artifact publishing.
-One-time authorization: "now generate latest build for ios,and then leave"
+Scope: iOS 15 native signed IPA only, using latest branch source and existing iOS release signing / publishing.
+Include fixes: Nocturne S01E01 premature end-of-stream protection; runtime-verified auto-next, interrupted episode source-switch resume, episode-completion diagnostics, and previous source identity validation.
+No Windows, Android, Linux, or other native builds.
+After triggering once, leave immediately. Do not wait, poll, or inspect workflow results.

@@ -214,6 +214,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   DateTime? _recentSeekAt;
   Duration? _recentSeekFrom;
   bool _prematureEpisodeEnd = false;
+  Duration? _resumeAfterSourceSwitch;
 
   // Skip Segments State (IntroDB)
   List<MediaSkipSegment> _skipSegments = [];
@@ -604,7 +605,11 @@ class _PlayerScreenState extends State<PlayerScreen>
         _speechMediaUrl = rawUrl;
         print('[PlayerScreen] Initializing offline local file playback.');
         await PlayerSettings.applyPreOpenProperties(_player);
-        await _player.open(Media(rawUrl), play: true);
+        await _player.open(Media(rawUrl,
+            start: _resumeAfterSourceSwitch ??
+                (identical(_currentEpisode, widget.episode)
+                    ? widget.initialPosition : null)), play: true);
+        _resumeAfterSourceSwitch = null;
         await _applyLiveDelay(0.0);
         await PlayerSettings.applyPostOpenProperties(_player);
         _applyVolume(_isMuted ? 0.0 : _volume);
@@ -762,12 +767,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         Media(
           cleanUri.toString(),
           httpHeaders: isTorrentStream ? null : playerHeaders,
-          start: identical(_currentEpisode, widget.episode)
-              ? widget.initialPosition : null,
+          start: _resumeAfterSourceSwitch ??
+              (identical(_currentEpisode, widget.episode)
+                  ? widget.initialPosition : null),
         ),
         play: true,
       );
 
+      _resumeAfterSourceSwitch = null;
       await _applyLiveDelay(0.0);
       // Reused libmpv players must not carry a rate correction to another media.
       try {
@@ -3188,6 +3195,22 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _switchStream(StreamSource newSource, Video newEpisode,
       {bool automaticRecovery = false}) async {
     _progressSaveTimer?.cancel();
+    final previousEpisode = _currentEpisode;
+    final sameEpisode = previousEpisode != null &&
+        previousEpisode.season != null && previousEpisode.episode != null &&
+        previousEpisode.season == newEpisode.season &&
+        previousEpisode.episode == newEpisode.episode &&
+        (previousEpisode.id == newEpisode.id ||
+         previousEpisode.id.isEmpty || newEpisode.id.isEmpty);
+    final oldPosition = _player.state.position > Duration.zero
+        ? _player.state.position : _lastNonzeroPlaybackPosition;
+    // A failed stream may end halfway through an episode. When the user
+    // chooses another source for that same episode, resume close to where
+    // playback stopped instead of silently starting over at 00:00.
+    _resumeAfterSourceSwitch = sameEpisode &&
+            oldPosition > const Duration(seconds: 20)
+        ? oldPosition - const Duration(seconds: 5)
+        : null;
     if (!automaticRecovery) {
       _sourceRecoveryEpoch++;
       _sourceRecovery.reset();

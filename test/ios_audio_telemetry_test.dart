@@ -100,6 +100,7 @@ void main() {
     final report = jsonDecode(utf8.decode(
       base64Decode(wrapper['content'] as String))) as Map<String, dynamic>;
     expect(report['platform'], 'ios');
+    expect(report['deviceClass'], isIn(['phone', 'tablet', 'unknown']));
     expect(report['reason'], 'night_mode_failed');
     expect(report['nativeErrorCodes'],
       ['missing_filter_acompressor', 'audio_filter_init_failed']);

@@ -57,14 +57,8 @@ class MovieDetail {
       cast: _parseStringList(json['cast']),
       director: _parseStringList(json['director']),
       runtime: json['runtime']?.toString(),
-      links: (json['links'] as List<dynamic>?)
-              ?.map((e) => Link.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      videos: (json['videos'] as List<dynamic>?)
-              ?.map((e) => Video.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
+      links: _parseEntries(json['links'], Link.fromJson),
+      videos: _parseEntries(json['videos'], Video.fromJson),
       tmdbId: json['moviedb_id']?.toString(),
       originCountries: [
         for (final value in (json['origin_country'] is List
@@ -85,4 +79,21 @@ List<String> _parseStringList(dynamic value) {
   if (value is String) return [value];
   if (value is List) return value.map((e) => e.toString()).toList();
   return [];
+}
+
+/// Optional addon fields must not invalidate an otherwise usable meta result.
+/// Ignore malformed entries without leaking their content to diagnostics.
+List<T> _parseEntries<T>(
+    dynamic value, T Function(Map<String, dynamic>) parse) {
+  if (value is! List) return <T>[];
+  final result = <T>[];
+  for (final item in value) {
+    if (item is! Map) continue;
+    try {
+      result.add(parse(Map<String, dynamic>.from(item)));
+    } catch (_) {
+      // A malformed optional episode/link is not a metadata-wide failure.
+    }
+  }
+  return result;
 }

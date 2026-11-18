@@ -2,6 +2,7 @@ import AVFoundation
 import Flutter
 import Speech
 import UIKit
+import Darwin
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -45,6 +46,75 @@ import UIKit
         callback: callback
       )
     }
+
+    // Owner-enabled hardware inventory. Dart only invokes this channel while
+    // private diagnostics are enabled; no background location or sensor access.
+    let diagnosticChannel = FlutterMethodChannel(
+      name: "playtorrio/device_diagnostics",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    )
+    diagnosticChannel.setMethodCallHandler { call, callback in
+      guard call.method == "snapshot" else {
+        callback(FlutterMethodNotImplemented)
+        return
+      }
+      callback(Self.deviceDiagnosticSnapshot())
+    }
+  }
+
+  private static func deviceDiagnosticSnapshot() -> [String: Any] {
+    UIDevice.current.isBatteryMonitoringEnabled = true
+    var systemInfo = utsname()
+    let modelIdentifier: String
+    if uname(&systemInfo) == 0 {
+      modelIdentifier = withUnsafePointer(to: &systemInfo.machine) { pointer in
+        pointer.withMemoryRebound(to: CChar.self, capacity: 256) {
+          String(cString: $0)
+        }
+      }
+    } else {
+      modelIdentifier = "unknown"
+    }
+    let system = ProcessInfo.processInfo
+    let screenInfo: [[String: Any]] = UIScreen.screens.prefix(8).map { screen in
+      [
+        "logicalWidth": screen.bounds.width,
+        "logicalHeight": screen.bounds.height,
+        "nativeWidth": screen.nativeBounds.width,
+        "nativeHeight": screen.nativeBounds.height,
+        "scale": screen.scale,
+        "nativeScale": screen.nativeScale,
+        "maximumFramesPerSecond": screen.maximumFramesPerSecond,
+        "brightness": screen.brightness
+      ]
+    }
+    var diskInfo: [String: Any] = [:]
+    if let attributes = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory()) {
+      diskInfo["totalBytes"] = (attributes[.systemSize] as? NSNumber)?.int64Value
+      diskInfo["freeBytes"] = (attributes[.systemFreeSize] as? NSNumber)?.int64Value
+    }
+    return [
+      "deviceName": UIDevice.current.name,
+      "model": UIDevice.current.model,
+      "localizedModel": UIDevice.current.localizedModel,
+      "modelIdentifier": modelIdentifier,
+      "identifierForVendor": UIDevice.current.identifierForVendor?.uuidString ?? "",
+      "systemName": UIDevice.current.systemName,
+      "systemVersion": UIDevice.current.systemVersion,
+      "osVersion": system.operatingSystemVersionString,
+      "physicalMemoryBytes": system.physicalMemory,
+      "processorCount": system.processorCount,
+      "activeProcessorCount": system.activeProcessorCount,
+      "systemUptimeSeconds": system.systemUptime,
+      "thermalState": system.thermalState.rawValue,
+      "lowPowerModeEnabled": system.isLowPowerModeEnabled,
+      "batteryLevel": UIDevice.current.batteryLevel,
+      "batteryState": UIDevice.current.batteryState.rawValue,
+      "locale": Locale.current.identifier,
+      "timezone": TimeZone.current.identifier,
+      "displays": screenInfo,
+      "storage": diskInfo
+    ]
   }
 }
 

@@ -986,20 +986,29 @@ class _PlayerScreenState extends State<PlayerScreen>
 
 
   void _captureIosAudioTrackSnapshot(String stage) {
-    if (!IosAudioTelemetry.instance.isActive) return;
+    if (!IosAudioTelemetry.instance.isActive &&
+        !WindowsPlaybackTelemetry.instance.isActive) return;
+    final tracks = _audioTracks.map((track) => <String, Object?>{
+      'id': track.index,
+      'language': track.language,
+      'title': track.title,
+      'channels': track.channels,
+      'codec': track.codec,
+      'isDefault': track.isDefault,
+    }).toList();
     IosAudioTelemetry.instance.captureAudioTracks(
       stage: stage,
       selectedTrackId: _selectedAudioTrackIndex,
       manual: _audioManuallySelected,
       loading: _isLoading,
-      tracks: _audioTracks.map((track) => <String, Object?>{
-        'id': track.index,
-        'language': track.language,
-        'title': track.title,
-        'channels': track.channels,
-        'codec': track.codec,
-        'isDefault': track.isDefault,
-      }).toList(),
+      tracks: tracks,
+    );
+    WindowsPlaybackTelemetry.instance.captureAudioTracks(
+      stage: stage,
+      selectedTrackId: _selectedAudioTrackIndex,
+      manual: _audioManuallySelected,
+      loading: _isLoading,
+      tracks: tracks,
     );
   }
 
@@ -1073,6 +1082,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     IosAudioTelemetry.instance.captureAudioSelection(
         action: 'audio_switch_requested', requestedTrackId: index,
         actualTrackId: _selectedAudioTrackIndex, manual: manual);
+    WindowsPlaybackTelemetry.instance.captureAudioSelection(
+        action: 'audio_switch_requested', requestedTrackId: index,
+        actualTrackId: _selectedAudioTrackIndex, manual: manual);
     if (manual) _audioManuallySelected = true;
     final epoch = _audioMediaEpoch;
     try {
@@ -1118,6 +1130,11 @@ class _PlayerScreenState extends State<PlayerScreen>
           actualTrackId: int.tryParse(confirmedAid?.toString() ?? ''),
           manual: manual,
           reason: switched ? 'media_kit' : 'mpv_aid_fallback');
+      WindowsPlaybackTelemetry.instance.captureAudioSelection(
+          action: 'audio_switch_completed', requestedTrackId: index,
+          actualTrackId: int.tryParse(confirmedAid?.toString() ?? ''),
+          manual: manual,
+          reason: switched ? 'media_kit' : 'mpv_aid_fallback');
       _captureIosAudioTrackSnapshot('after_audio_switch');
       debugPrint('[PlayerAudio] Audio track selected: $index (manual=$manual)');
       if (manual) {
@@ -1126,6 +1143,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
     } catch (error, stack) {
       IosAudioTelemetry.instance.captureAudioSelection(
+          action: 'audio_switch_failed', requestedTrackId: index,
+          actualTrackId: _selectedAudioTrackIndex, manual: manual,
+          reason: error.runtimeType.toString());
+      WindowsPlaybackTelemetry.instance.captureAudioSelection(
           action: 'audio_switch_failed', requestedTrackId: index,
           actualTrackId: _selectedAudioTrackIndex, manual: manual,
           reason: error.runtimeType.toString());
@@ -1186,7 +1207,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         ));
       }
       if (!mounted || epoch != _audioMediaEpoch) return;
-      if (IosAudioTelemetry.instance.isActive) {
+      if (IosAudioTelemetry.instance.isActive ||
+          WindowsPlaybackTelemetry.instance.isActive) {
         int? nativeSelectedId;
         try {
           final selected = await native.getProperty('aid')
@@ -1195,19 +1217,27 @@ class _PlayerScreenState extends State<PlayerScreen>
         } catch (_) {
           // An unavailable native property must not block playback.
         }
+        final nativeTracks = found.map((track) => <String, Object?>{
+          'id': track.index,
+          'language': track.language,
+          'title': track.title,
+          'channels': track.channels,
+          'codec': track.codec,
+          'isDefault': track.isDefault,
+        }).toList();
         IosAudioTelemetry.instance.captureAudioTracks(
           stage: 'native_mpv_raw_track_list',
           selectedTrackId: nativeSelectedId,
           manual: _audioManuallySelected,
           loading: _isLoading,
-          tracks: found.map((track) => <String, Object?>{
-            'id': track.index,
-            'language': track.language,
-            'title': track.title,
-            'channels': track.channels,
-        'codec': track.codec,
-        'isDefault': track.isDefault,
-          }).toList(),
+          tracks: nativeTracks,
+        );
+        WindowsPlaybackTelemetry.instance.captureAudioTracks(
+          stage: 'native_mpv_raw_track_list',
+          selectedTrackId: nativeSelectedId,
+          manual: _audioManuallySelected,
+          loading: _isLoading,
+          tracks: nativeTracks,
         );
       }
       if (found.length >= _audioTracks.length ||

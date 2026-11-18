@@ -218,6 +218,66 @@ class WindowsPlaybackTelemetry {
     });
   }
 
+  /// Actual MediaKit/MPV audio track metadata is more reliable than labels
+  /// embedded in addon release filenames.
+  void captureAudioTracks({
+    required String stage,
+    required List<Map<String, Object?>> tracks,
+    int? selectedTrackId,
+    bool manual = false,
+    bool loading = false,
+  }) {
+    if (!isActive) return;
+    final allowedStage = const {
+      'media_kit_tracks', 'native_mpv_raw_track_list',
+      'native_mpv_track_list', 'after_audio_switch',
+    }.contains(stage) ? stage : 'other';
+    _trace(<String, Object?>{
+      'action': 'audio_tracks_observed',
+      'stage': allowedStage,
+      'selectedTrackId': selectedTrackId,
+      'manualSelection': manual,
+      'playerLoading': loading,
+      'trackCount': tracks.length,
+      'tracks': tracks.take(64).map((track) {
+        final rawId = track['id'];
+        final id = rawId is int ? rawId
+            : int.tryParse(rawId?.toString() ?? '');
+        final language = _safeText(track['language']?.toString(), limit: 64);
+        final title = _safeText(track['title']?.toString(), limit: 256);
+        return <String, Object?>{
+          'id': id,
+          'language': language,
+          'title': title,
+          'channels': track['channels'],
+          'codec': _safeText(track['codec']?.toString(), limit: 64),
+          'isDefault': track['isDefault'] == true,
+          'selected': selectedTrackId != null && selectedTrackId == id,
+          'englishLabel': AudioLanguagePriority.isEnglish(
+              language: language, title: title),
+        };
+      }).toList(),
+    });
+  }
+
+  void captureAudioSelection({
+    required String action, int? requestedTrackId, int? actualTrackId,
+    bool manual = false, String? reason,
+  }) {
+    if (!isActive) return;
+    if (!const {
+      'audio_switch_requested', 'audio_switch_completed',
+      'audio_switch_failed', 'native_track_probe_failed',
+    }.contains(action)) return;
+    _trace(<String, Object?>{
+      'action': action,
+      'requestedTrackId': requestedTrackId,
+      'actualTrackId': actualTrackId,
+      'manual': manual,
+      'reason': _safeText(reason, limit: 120),
+    });
+  }
+
   /// Native completion and its verdict are traceable to actual media metadata.
   void captureEpisodeCompletion({
     required String action,

@@ -90,6 +90,7 @@ void main() {
     expect(await telemetry.upload(reason: 'playback_sample'), isTrue);
     final encoded = jsonEncode(report);
     expect(report!['schema'], 2);
+    expect(report!['deviceInventory'], isA<Map>());
     expect(encoded, contains('Nocturne'));
     expect(encoded, contains('Lazarus, Come Forth!'));
     expect(encoded, contains('Lazarus S01E01 2025'));

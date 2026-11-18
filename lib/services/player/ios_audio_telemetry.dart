@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/stream/stream_model.dart';
 import '../my_list/github_library_cloud.dart';
 import 'audio_language_priority.dart';
+import 'device_diagnostic_inventory.dart';
 import '../stream/source_content_identity.dart';
 import '../stream/watch_source_preferences.dart';
 import 'player_diagnostic_codes.dart';
@@ -35,8 +36,8 @@ class IosAudioTelemetry {
   static const prefix = 'playtorrio/diagnostics/ios/night-mode';
   static const maxEvents = 24;
   static const maxPlaybackSamples = 24;
-  static const maxSourceTrace = 160;
-  static const maxRankedSources = 300;
+  static const maxSourceTrace = 650;
+  static const maxRankedSources = 500;
   static const playbackSampleSeconds = 5;
   static const _minUploadInterval = Duration(seconds: 30);
 
@@ -502,7 +503,8 @@ class IosAudioTelemetry {
     if (_uploading) return false;
     if (automatic && _lastUpload != null &&
         DateTime.now().difference(_lastUpload!) < _minUploadInterval) return false;
-    if (_events.isEmpty && _performanceSamples.isEmpty && _sourceTrace.isEmpty) {
+    if (reason != 'manual' && _events.isEmpty &&
+        _performanceSamples.isEmpty && _sourceTrace.isEmpty) {
       status.value = 'No audio or playback diagnostics captured yet';
       return false;
     }
@@ -521,12 +523,19 @@ class IosAudioTelemetry {
       'addon_failure', 'source_discovery', 'source_selected',
     }.contains(reason) ? reason : 'manual';
     final sourceTraceAtUpload = List<Map<String, Object?>>.from(_sourceTrace);
+    Map<String, Object?> deviceInventory;
+    try {
+      deviceInventory = await DeviceDiagnosticInventory.instance.capture();
+    } catch (error) {
+      deviceInventory = {'collectionError': error.runtimeType.toString()};
+    }
     final report = <String, Object>{
       'schema': 2,
       'kind': 'ios_playback_source_audio_developer_diagnostic',
       'timestampUtc': now.toIso8601String(),
       'platform': 'ios',
       'deviceClass': deviceClass(),
+      'deviceInventory': deviceInventory,
       'appVersion': '1.1.15',
       'buildRun': buildRun,
       'buildCommit': buildCommit,

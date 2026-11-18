@@ -62,11 +62,14 @@ class DetailsPage extends StatefulWidget {
   /// your addon's meta response includes one). Section just doesn't render
   /// if this is null/empty, so it's safe to leave unset for now.
   final List<Movie>? relatedItems;
+  /// Already resolved by the hero; remains available if remote metadata fails.
+  final MovieDetail? initialDetail;
 
   const DetailsPage({
     super.key,
     required this.movie,
     this.relatedItems,
+    this.initialDetail,
     this.disableEntranceAnimation = false,
   });
 
@@ -77,6 +80,7 @@ class DetailsPage extends StatefulWidget {
 class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStateMixin {
   MovieDetail? _detail;
   bool _isLoading = true;
+  bool _usingCatalogPreview = false;
   SourceAvailabilityResult? _sourceAvailability;
   bool _checkingSourceAvailability = false;
   int _availabilitySerial = 0;
@@ -454,7 +458,9 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         metaProviders.add(addon.baseUrl);
       }
     }
-    final resolvedMetadata = await MetadataService.resolveCatalogMeta(
+    ResolvedAddonMetadata? resolvedMetadata;
+    try {
+      resolvedMetadata = await MetadataService.resolveCatalogMeta(
       baseUrl: effectiveBaseUrl,
       type: effectiveType,
       id: effectiveId,
@@ -462,7 +468,11 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       year: yearNum,
       sourceSupportsMeta: selectedAddonHasMeta,
       compatibleMetaProviders: metaProviders,
-    );
+      );
+    } catch (error) {
+      debugPrint('[Details] Metadata resolution unavailable: ${error.runtimeType}');
+      PlayerDebugTelemetry.record('addon_meta_unresolved', failure: true);
+    }
     final meta = resolvedMetadata?.detail;
     if (resolvedMetadata != null) {
       _resolvedBaseUrl = resolvedMetadata.baseUrl;
@@ -473,7 +483,9 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
 
     if (mounted) {
       setState(() {
-        _detail = meta;
+        _detail = meta ?? widget.initialDetail ??
+            MetadataService.previewForCatalog(widget.movie);
+        _usingCatalogPreview = meta == null;
         _isLoading = false;
 
         if (meta != null && (_isSeries || meta.videos.isNotEmpty) && meta.videos.isNotEmpty) {
@@ -755,6 +767,33 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           SizedBox(height: heroHeight - overlap),
+                          if (_usingCatalogPreview) ...[
+                            Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 18),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
+                              ),
+                              child: Wrap(
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 12,
+                                runSpacing: 6,
+                                children: [
+                                  const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 19),
+                                  const Text('Showing catalog details. Full metadata is temporarily unavailable.',
+                                      style: TextStyle(color: Colors.white70)),
+                                  TextButton.icon(
+                                    onPressed: _fetchDetails,
+                                    icon: const Icon(Icons.refresh_rounded, size: 17),
+                                    label: const Text('Retry details'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           isDesktop ? _buildDesktopLayout(meta, posterUrl) : _buildMobileLayout(meta, posterUrl),
                           const SizedBox(height: _Space.sm),
                           _WatchedProgressBar(

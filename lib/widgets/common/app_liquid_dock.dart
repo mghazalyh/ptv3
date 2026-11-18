@@ -12,6 +12,7 @@ import '../../pages/networks/networks_page.dart';
 import '../../pages/search/search_page.dart';
 import '../../pages/settings/addons_settings_page.dart';
 import '../../pages/settings/settings_page.dart';
+import '../../pages/telemetry/telemetry_insights_page.dart';
 import '../../services/theme/dock_settings.dart';
 import '../../utils/navigation/route_transitions.dart';
 import 'liquid_dock.dart';
@@ -239,6 +240,17 @@ class AppLiquidDock extends StatelessWidget {
                   },
                 ),
               );
+              break;
+
+            case DockItemKey.telemetry:
+              items.add(DockItem(
+                icon: itemKey.icon,
+                label: itemKey.label,
+                onTap: () {
+                  if (currentDestination == DockItemKey.telemetry) return;
+                  _navigateToPage(context, const TelemetryInsightsPage());
+                },
+              ));
               break;
 
             case DockItemKey.settings:

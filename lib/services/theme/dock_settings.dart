@@ -80,6 +80,13 @@ enum DockItemKey {
     isRemovable: true,
     description: 'Access your saved bookmarks, watchlist, and favorites.',
   ),
+  telemetry(
+    key: 'telemetry',
+    label: 'Insights',
+    icon: Icons.query_stats_rounded,
+    isRemovable: false,
+    description: 'Private telemetry mission control and playback analytics.',
+  ),
   settings(
     key: 'settings',
     label: 'Settings',

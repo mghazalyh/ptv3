@@ -1019,7 +1019,7 @@ class _HeroSlide extends StatelessWidget {
     Navigator.push(
       context,
       LiquidRevealRoute(
-        page: DetailsPage(movie: movie),
+        page: DetailsPage(movie: movie, initialDetail: detail),
         tapPosition: offset,
       ),
     );

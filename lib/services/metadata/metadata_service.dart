@@ -38,6 +38,21 @@ class MetadataService {
   static final Map<String, List<Movie>> _catalogCache = {};
   static final Map<String, MovieDetail> _metaCache = {};
 
+  /// A catalog entry remains useful when third-party /meta endpoints are
+  /// missing, offline, or do not yet index a new release. Preserve its
+  /// original stream identity; never fabricate an IMDb or episode ID.
+  static MovieDetail previewForCatalog(Movie movie) => MovieDetail(
+    id: movie.id,
+    type: Movie.canonicalType(movie.type),
+    name: movie.name,
+    poster: movie.poster,
+    year: movie.year,
+    imdbRating: movie.imdbRating,
+    tmdbId: movie.tmdbId?.toString(),
+    originCountries: movie.originCountries,
+    originalLanguage: movie.originalLanguage,
+  );
+
   /// Clear the memory cache (e.g. when addons change)
   static void clearCache() {
     _catalogCache.clear();

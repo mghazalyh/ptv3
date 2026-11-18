@@ -1,12 +1,9 @@
-PLAYTORRIO OWNER-AUTHORIZED WINDOWS-ONLY BUILD REQUEST
-Requested SGT: 2026-11-18 22:57:45
-Repository: mghazalyh/ptv3
+PLAYTORRIO OWNER-AUTHORIZED WINDOWS-ONLY RELEASE REQUEST
+Requested SGT: 2026-11-19T00:08:15+08:00
 Branch: parity-floating-player-both
-Previous failed build: #197 (run 44320355631)
-Previous failure: undefined AudioLanguagePriority import in WindowsPlaybackTelemetry line 256
-Fix: restore missing import and comprehensive Windows deviceInventory telemetry; capture audio rank, English preferences, and expanded ranked source diagnostics
-Verification: Windows workflow now includes device_diagnostic_inventory_test.dart and player_resolution_selector_test.dart as release gates
-Includes: all changes from source revision e6d6e16b082cf04b33278652aaa327a95e779f97, with no iOS packaging requested
-Scope: Windows x64 installer Setup EXE and portable ZIP only
-Workflow: .github/workflows/windows-advanced-discover.yml
-Owner instruction: do not poll or wait for the workflow after trigger
+Reason: Repair catalog metadata fallback when Stremio meta is unresolved; keep usable movie preview and retry
+Features: Private Insights Mission Control dashboard, charts, source/provider/health analytics, report coverage, hardware summaries
+Telemetry: Read-only access to mghazalyh/torriodb using existing GitHub Library credentials
+Tests: metadata_catalog_preview_test.dart, telemetry_insights_repository_test.dart, Windows static analysis
+Platform: Windows x64 only; EXE installer + portable ZIP; do not package or sign iOS
+Owner instruction: trigger GitHub Actions and leave; never poll/wait after release trigger

@@ -1,11 +1,12 @@
-PLAYTORRIO OWNER-AUTHORIZED iOS-ONLY TROLLSTORE BUILD REQUEST
-Requested: 2026-11-19 00:34:22 SGT
+PLAYTORRIO OWNER-AUTHORIZED iOS-ONLY TROLLSTORE RELEASE REQUEST
+Requested SGT: 2026-11-19 03:02:44
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
+Source HEAD: ece65b3e79ea4db23067473991ff0397b49806e8
 Workflow: .github/workflows/ios-speech-release.yml
-Source parent: 5422d21c497b3b64b3488236e1834aaba91567f8
-Scope: iOS 15 signed TrollStore IPA only. Do not trigger native Windows build.
-Includes: corrected Stremio catalog metadata fallback, catalog preview and retry, telemetry mission-control dashboard, private report ingestion, charts, dock icon, tests from Windows Build #199 source.
-Signing: Existing ad hoc iOS 15 TrollStore workflow and established packaging preserved.
-Delivery: iOS GitHub Release and existing Telegram notification when pipeline succeeds.
-Owner instruction: trigger once and leave immediately, no waiting, no status polling, no duplicate run.
+Scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY. Do not trigger Windows, paired Windows, or desktop release.
+Validated source: User confirms the immediately preceding Windows build of commit ece65b3e79ea4db23067473991ff0397b49806e8 completed successfully. Do not recheck the Windows build.
+Features: Full PlayTorrio shared Flutter app, native audio and subtitle enhancements, Stremio metadata fallback, Telemetry Mission Control Insights UI.
+Latest fixes: Comet/TorBox error-status clip automatic next-source fallback, episode-specific media context and source failure telemetry, per-sample attribution, in-flight upload buffer preservation, new regression tests.
+Signing: Preserve existing iOS 15 ad-hoc TrollStore IPA signing, certificate, entitlements, release publishing, and Telegram notifications in existing workflow.
+User command: Trigger iOS GitHub job exactly once and immediately leave. Do not wait, poll, re-trigger, or inspect status after the ref update.

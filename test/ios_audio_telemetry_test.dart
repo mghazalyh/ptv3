@@ -361,4 +361,36 @@ void main() {
     expect(jsonEncode(report), isNot(contains('secret-media-title')));
   });
 
+
+  test('iOS playback updates stale title and episode without losing existing traces',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final telemetry = IosAudioTelemetry.forTesting(
+      client: MockClient((request) async => http.Response('{}', 201)),
+      tokenProvider: () async => 'test-only-token',
+    )..forceTestPlatform = true;
+    addTearDown(telemetry.dispose);
+    await telemetry.initialize();
+    await telemetry.setEnabled(true);
+    telemetry.beginSourceSession(
+      title: 'The Dog Stars', mediaId: 'tt21285562', type: 'movie');
+    final earlier = telemetry.capturedSourceTrace.length;
+    telemetry.ensurePlaybackContext(
+      title: 'The Institute', mediaId: 'tt4444444:2:3',
+      type: 'series', season: 2, episode: 3,
+      episodeTitle: 'Double Cross');
+    expect(telemetry.capturedMediaContext['title'], 'The Institute');
+    expect(telemetry.capturedMediaContext['episode'], 3);
+    expect(telemetry.capturedSourceTrace.length, greaterThan(earlier));
+    telemetry.ensurePlaybackContext(
+      title: 'The Institute', mediaId: 'tt4444444:2:3',
+      type: 'series', season: 2, episode: 3,
+      episodeTitle: 'Double Cross');
+    expect(telemetry.capturedSourceTrace.length, earlier + 1);
+    telemetry.ensurePlaybackContext(
+      title: 'The Institute', mediaId: 'tt4444444:2:4',
+      type: 'series', season: 2, episode: 4);
+    expect(telemetry.capturedMediaContext['episode'], 4);
+  });
+
 }

@@ -153,4 +153,68 @@ void main() {
     expect(policy.next(cached, [cached, next])?.retrySameSource, true);
     expect(policy.next(cached, [cached, next])?.source, same(next));
   });
+
+  test('Comet TorBox error slate without a file size is not playable S2E3', () {
+    final slate = StreamSource(
+      name: '[TB] COMET 1080P',
+      title: 'The.Institute.S02E03.1080p',
+      addonName: 'Comet',
+      url: 'https://resolver.invalid/stream?id=secret',
+      description: '',
+    );
+    expect(slate.sizeBytes, isNull);
+    expect(DebridSourceReadiness.isShortStatusClip(
+        source: slate, duration: const Duration(seconds: 29),
+        isEpisode: true), true);
+    expect(DebridSourceReadiness.isShortStatusClip(
+        source: slate, duration: const Duration(seconds: 120),
+        isEpisode: true), true);
+    expect(DebridSourceReadiness.isShortStatusClip(
+        source: slate, duration: const Duration(minutes: 8),
+        isEpisode: true), true);
+    expect(DebridSourceReadiness.isShortStatusClip(
+        source: slate, duration: const Duration(minutes: 45),
+        isEpisode: true), false);
+    expect(DebridSourceReadiness.isShortStatusClip(
+        source: slate, duration: const Duration(seconds: 120),
+        isEpisode: false), false);
+
+    final pending = StreamSource(
+      name: '[TB download] Comet', addonName: 'Comet',
+      url: 'https://resolver.invalid/pending',
+    );
+    final next = StreamSource(
+      name: '[TB] Comet 720p', addonName: 'Comet',
+      title: 'The.Institute.S02E03.720p',
+      url: 'https://resolver.invalid/next',
+    );
+    final policy = PlaybackSourceRecovery();
+    final recovery = policy.next(
+      slate, [slate, pending, next],
+      skipCurrentRetry: true, followPickerOrder: true,
+      title: 'The Institute', season: 2, episode: 3,
+    );
+    expect(recovery?.retrySameSource, false);
+    expect(recovery?.source, same(next));
+    expect(policy.failedKeys, contains(PlaybackSourceRecovery.key(slate)));
+  });
+
+  test('short real clips are not automatically rejected without debrid evidence', () {
+    final ordinary = StreamSource(
+      name: '1080p Web', addonName: 'Personal catalog',
+      url: 'https://example.invalid/short.mp4',
+    );
+    final smallComet = StreamSource(
+      name: '[TB] Comet', addonName: 'Comet',
+      description: '35 MB',
+      url: 'https://example.invalid/clip.mp4',
+    );
+    expect(DebridSourceReadiness.isShortStatusClip(
+        source: ordinary, duration: const Duration(seconds: 120),
+        isEpisode: true), false);
+    expect(DebridSourceReadiness.isShortStatusClip(
+        source: smallComet, duration: const Duration(seconds: 120),
+        isEpisode: true), false);
+  });
+
 }

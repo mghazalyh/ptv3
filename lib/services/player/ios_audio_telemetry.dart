@@ -75,6 +75,7 @@ class IosAudioTelemetry {
   final Map<String, int> _previousFrameCounters = {};
   final List<Map<String, Object?>> _sourceTrace = [];
   final Map<String, Object?> _mediaContext = {};
+  final Map<String, Object?> _activeSource = {};
   String? _sourceSessionId;
   bool _loaded = false;
   bool _uploading = false;
@@ -86,6 +87,12 @@ class IosAudioTelemetry {
   List<Map<String, Object?>> get capturedSourceTrace => List.unmodifiable(_sourceTrace);
   @visibleForTesting
   List<String> get capturedCodes => List.unmodifiable(_events);
+  @visibleForTesting
+  Map<String, Object?> get capturedMediaContext =>
+      Map.unmodifiable(_mediaContext);
+  @visibleForTesting
+  Map<String, Object?> get capturedActiveSource =>
+      Map.unmodifiable(_activeSource);
 
   @visibleForTesting
   List<Map<String, Object>> get capturedPerformanceSamples =>
@@ -111,6 +118,7 @@ class IosAudioTelemetry {
       _previousFrameCounters.clear();
       _sourceTrace.clear();
       _mediaContext.clear();
+      _activeSource.clear();
       _sourceSessionId = null;
       status.value = 'iOS audio telemetry OFF';
     } else {
@@ -152,6 +160,7 @@ class IosAudioTelemetry {
     if (!isActive) return;
     _sourceSessionId = DateTime.now().toUtc().microsecondsSinceEpoch.toString();
     _sourceTrace.clear();
+    _activeSource.clear();
     _mediaContext
       ..clear()
       ..addAll(<String, Object?>{
@@ -164,6 +173,36 @@ class IosAudioTelemetry {
         'episodeTitle': _safeText(episodeTitle),
       });
     _trace('source_session_started',
+        <String, Object?>{'media': Map<String, Object?>.of(_mediaContext)});
+  }
+
+  /// Player entry and every episode/source switch must refresh the active
+  /// media independently of whether Watch Sources was ever opened.
+  void ensurePlaybackContext({
+    required String title,
+    required String mediaId,
+    required String type,
+    String? episodeTitle,
+    int? year,
+    int? season,
+    int? episode,
+  }) {
+    if (!isActive) return;
+    final next = <String, Object?>{
+      'title': _safeText(title),
+      'mediaId': _safeText(mediaId),
+      'type': _safeText(type),
+      'year': year,
+      'season': season,
+      'episode': episode,
+      'episodeTitle': _safeText(episodeTitle),
+    };
+    if (_mediaContext.length == next.length &&
+        next.keys.every((key) => _mediaContext[key] == next[key])) return;
+    _sourceSessionId = DateTime.now().toUtc().microsecondsSinceEpoch.toString();
+    _mediaContext..clear()..addAll(next);
+    _activeSource.clear();
+    _trace('playback_context_activated',
         <String, Object?>{'media': Map<String, Object?>.of(_mediaContext)});
   }
 
@@ -248,7 +287,15 @@ class IosAudioTelemetry {
           year: year, season: season, episode: episode,
           episodeTitle: episodeTitle);
     }
+    _activeSource
+      ..clear()
+      ..addAll(<String, Object?>{
+        'selectedAtUtc': DateTime.now().toUtc().toIso8601String(),
+        'action': action,
+        ..._sourceDetails(source, season: season, episode: episode),
+      });
     _trace(action, <String, Object?>{
+      'media': Map<String, Object?>.of(_mediaContext),
       'requestedTitle': _safeText(title),
       'mediaId': _safeText(mediaId),
       'episodeTitle': _safeText(episodeTitle),
@@ -368,8 +415,9 @@ class IosAudioTelemetry {
   }
 
   /// Capture actual libmpv performance counters at most every five seconds
-  /// when iOS private diagnostics opt-in is enabled. Never forward raw native
-  /// logs, untrusted property names, URLs, paths or media metadata.
+  /// when iOS private diagnostics opt-in is enabled. Only sanitized
+  /// source/media identity snapshots are included; raw native URLs, paths
+  /// and arbitrary logs are never forwarded.
   void capturePlaybackSample(
     Map<String, Object?> properties, {
       bool buffering = false, int? selectedAudioTrackId,
@@ -382,6 +430,15 @@ class IosAudioTelemetry {
       if (selectedAudioTrackId != null) 'selectedAudioTrackId': selectedAudioTrackId,
     };
     sample.addAll(PlaybackMetricSanitizer.fromProperties(properties));
+    // Owner-opted private source attribution for each historical sample.
+    // Never copy untrusted native URLs, log messages or request headers.
+    if (_sourceSessionId != null) sample['sourceSessionId'] = _sourceSessionId!;
+    if (_mediaContext.isNotEmpty) {
+      sample['mediaContext'] = Map<String, Object?>.of(_mediaContext);
+    }
+    if (_activeSource.isNotEmpty) {
+      sample['activeSource'] = Map<String, Object?>.of(_activeSource);
+    }
     for (final property in const <String>[
       'frame-drop-count', 'decoder-frame-drop-count',
       'vo-delayed-frame-count', 'mistimed-frame-count',
@@ -523,6 +580,8 @@ class IosAudioTelemetry {
       'addon_failure', 'source_discovery', 'source_selected',
     }.contains(reason) ? reason : 'manual';
     final sourceTraceAtUpload = List<Map<String, Object?>>.from(_sourceTrace);
+    final codesAtUpload = List<String>.from(_events);
+    final samplesAtUpload = List<Map<String, Object>>.from(_performanceSamples);
     Map<String, Object?> deviceInventory;
     try {
       deviceInventory = await DeviceDiagnosticInventory.instance.capture();
@@ -541,13 +600,14 @@ class IosAudioTelemetry {
       'buildCommit': buildCommit,
       'reason': safeReason,
       'filterCandidates': const ['acompressor', 'compand'],
-      'nativeErrorCodes': List<String>.from(_events),
+      'nativeErrorCodes': codesAtUpload,
       'audio': safeAudioFields(audio),
       'sourceSessionId': _sourceSessionId ?? '',
       'mediaContext': Map<String, Object?>.from(_mediaContext),
+      'activeSource': Map<String, Object?>.from(_activeSource),
       'sourceTrace': sourceTraceAtUpload,
       'sampleIntervalSeconds': playbackSampleSeconds,
-      'performanceSamples': List<Map<String, Object>>.from(_performanceSamples),
+      'performanceSamples': samplesAtUpload,
     };
     final remote = fileName(now, ++_counter);
     final uri = Uri.https('api.github.com',
@@ -571,8 +631,14 @@ class IosAudioTelemetry {
         status.value = 'Private upload failed (HTTP ${response.statusCode}); check GitHub permissions';
         return false;
       }
-      _events.clear();
-      _performanceSamples.clear();
+      // Events and media switches that arrived during the PUT still belong
+      // to the next private report and must never be silently discarded.
+      for (final code in codesAtUpload) {
+        if (_events.isEmpty || _events.first != code) break;
+        _events.removeAt(0);
+      }
+      _performanceSamples.removeWhere(
+          (entry) => samplesAtUpload.contains(entry));
       // Preserve events recorded while an upload was in progress.
       _sourceTrace.removeWhere((entry) => sourceTraceAtUpload.contains(entry));
       status.value = 'Uploaded to private Torriodb: $remote';

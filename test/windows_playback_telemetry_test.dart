@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -396,4 +397,127 @@ void main() {
         contains('windows_audio_output_rate_mismatch'));
     telemetry.dispose();
   });
+
+  test('active playback replaces stale movie telemetry on direct episode open',
+      () async {
+    Map<String, dynamic>? report;
+    final telemetry = WindowsPlaybackTelemetry.forTesting(
+      client: MockClient((request) async {
+        final packet = jsonDecode(request.body) as Map<String, dynamic>;
+        report = jsonDecode(utf8.decode(
+            base64Decode(packet['content'] as String))) as Map<String, dynamic>;
+        return http.Response('{}', 201);
+      }),
+      tokenProvider: () async => 'test-only-token',
+    )..forceTestPlatform = true;
+    addTearDown(telemetry.dispose);
+    NightModeDiagnostics.debugModeEnabled.value = true;
+
+    // The previous media is a movie, while the native player is now on a
+    // Comet TV episode. Previously Windows kept the old context indefinitely.
+    telemetry.beginSourceSession(title: 'The Dog Stars',
+      mediaId: 'tt21285562', type: 'movie', year: 2026);
+    final comet = StreamSource(
+      name: '[TB] COMET 1080P', addonName: 'Comet',
+      title: 'The.Institute.S02E03.1080p',
+      url: 'https://comet.invalid/stream?token=PRIVATE_STREAM_KEY',
+    );
+    telemetry.ensurePlaybackContext(
+      title: 'The Institute', mediaId: 'tt4444444:2:3',
+      type: 'series', year: 2026, season: 2, episode: 3,
+      episodeTitle: 'Double Cross');
+    telemetry.captureSourceSelection(
+      action: 'source_open_attempt', source: comet,
+      title: 'The Institute', mediaId: 'tt4444444:2:3',
+      type: 'series', year: 2026, season: 2, episode: 3,
+      episodeTitle: 'Double Cross');
+    telemetry.captureSourceSelection(
+      action: 'debrid_status_clip_detected', source: comet,
+      title: 'The Institute', mediaId: 'tt4444444:2:3',
+      type: 'series', year: 2026, season: 2, episode: 3,
+      episodeTitle: 'Double Cross');
+    telemetry.captureEpisodeCompletion(
+      action: 'debrid_status_clip_detected',
+      reason: 'implausibly_short_debrid_episode',
+      source: comet, requestedTitle: 'The Institute',
+      season: 2, episode: 3, episodeTitle: 'Double Cross',
+      position: const Duration(seconds: 26),
+      nativeDuration: const Duration(seconds: 120), isBuffering: false);
+    expect(telemetry.capturedMediaContext['title'], 'The Institute');
+    expect(telemetry.capturedMediaContext['mediaId'], 'tt4444444:2:3');
+    expect(telemetry.capturedMediaContext['season'], 2);
+    expect(telemetry.capturedMediaContext['episode'], 3);
+    expect(telemetry.capturedActiveSource['addon'], 'Comet');
+    expect(telemetry.capturedActiveSource['action'],
+        'debrid_status_clip_detected');
+    telemetry.capturePlaybackSample(
+      {'video-width': '1920', 'frame-drop-count': '0'},
+      buffering: false,
+      position: const Duration(seconds: 26),
+      duration: const Duration(seconds: 120));
+    final sample = telemetry.capturedSamples.last;
+    expect((sample['mediaContext'] as Map)['title'], 'The Institute');
+    expect((sample['mediaContext'] as Map)['episode'], 3);
+    expect((sample['activeSource'] as Map)['addon'], 'Comet');
+    expect(telemetry.capturedSourceTrace.last['nativeDurationMs'], 120000);
+    expect(await telemetry.upload(reason: 'source_failure'), true);
+    expect((report!['mediaContext'] as Map)['title'], 'The Institute');
+    expect((report!['mediaContext'] as Map)['episode'], 3);
+    expect((report!['activeSource'] as Map)['addon'], 'Comet');
+    expect((report!['sourceTrace'] as List).last['nativeDurationMs'], 120000);
+    expect(jsonEncode(report), isNot(contains('PRIVATE_STREAM_KEY')));
+
+    telemetry.ensurePlaybackContext(
+      title: 'The Institute', mediaId: 'tt4444444:2:4',
+      type: 'series', year: 2026, season: 2, episode: 4,
+      episodeTitle: 'Another Episode');
+    expect(telemetry.capturedMediaContext['mediaId'], 'tt4444444:2:4');
+    expect(telemetry.capturedMediaContext['episode'], 4);
+    expect(telemetry.capturedActiveSource, isEmpty);
+  });
+
+
+  test('upload does not drop source diagnostics generated during an HTTP PUT',
+      () async {
+    final requestStarted = Completer<void>();
+    final finishUpload = Completer<void>();
+    final telemetry = WindowsPlaybackTelemetry.forTesting(
+      client: MockClient((request) async {
+        if (!requestStarted.isCompleted) requestStarted.complete();
+        await finishUpload.future;
+        return http.Response('{}', 201);
+      }),
+      tokenProvider: () async => 'test-only-token',
+    )..forceTestPlatform = true;
+    addTearDown(telemetry.dispose);
+    NightModeDiagnostics.debugModeEnabled.value = true;
+    telemetry.captureCode('addon_catalog_ready');
+    final firstUpload = telemetry.upload(reason: 'source_failure');
+    await requestStarted.future.timeout(const Duration(seconds: 20));
+    telemetry.captureCode('source_debrid_placeholder');
+    telemetry.ensurePlaybackContext(
+      title: 'The Institute', mediaId: 'tt123:2:3',
+      type: 'series', season: 2, episode: 3,
+      episodeTitle: 'Double Cross');
+    final comet = StreamSource(
+      name: '[TB] Comet', addonName: 'Comet',
+      title: 'The.Institute.S02E03',
+      url: 'https://resolver.invalid/play?token=never-upload',
+    );
+    telemetry.captureSourceSelection(action: 'debrid_status_clip_detected',
+      source: comet, title: 'The Institute', mediaId: 'tt123:2:3',
+      type: 'series', season: 2, episode: 3,
+      episodeTitle: 'Double Cross');
+    telemetry.capturePlaybackSample(
+      {'frame-drop-count': '0'}, duration: const Duration(seconds: 120));
+    finishUpload.complete();
+    expect(await firstUpload, true);
+    expect(telemetry.capturedCodes, contains('source_debrid_placeholder'));
+    expect(telemetry.capturedSourceTrace,
+        contains(predicate<Map<String, Object?>>(
+          (event) => event['action'] == 'debrid_status_clip_detected')));
+    expect(telemetry.capturedSamples, isNotEmpty);
+    expect(telemetry.capturedMediaContext['title'], 'The Institute');
+  });
+
 }

@@ -21,10 +21,16 @@ abstract final class DebridSourceReadiness {
   static int sortTier(StreamSource source) =>
       isExplicitlyPending(source) ? 1 : 0;
 
-  /// A gigabyte-scale TV episode resolving as a ~29-second video is almost
-  /// certainly a provider-generated status clip, not the requested episode.
-  /// This intentionally excludes short genuine clips, films without an episode
-  /// context, local media and sources lacking explicit size/debrid signals.
+  /// Resolver-generated error slates are valid MP4 video to the native
+  /// decoder: opening and advancing playback do not prove a full TV episode
+  /// exists. Comet and TorBox slates also omit size or run for two minutes,
+  /// so neither a 200 MB label nor the old 90 second limit is dependable.
+  ///
+  /// Requires a TV episode, a real HTTP URL, an explicit debrid badge or
+  /// a known debrid resolver, and a duration implausible for a full episode.
+  /// A small declared file is left alone because it may be a genuine clip.
+  /// Movies, P2P, local files, live streams and externally launched media
+  /// never qualify. This only selects alternatives already identity-checked.
   static bool isShortStatusClip({
     required StreamSource source,
     required Duration duration,
@@ -32,8 +38,7 @@ abstract final class DebridSourceReadiness {
   }) {
     if (!isEpisode ||
         duration < const Duration(seconds: 8) ||
-        duration > const Duration(seconds: 90) ||
-        (source.sizeBytes ?? 0) < 200 * 1024 * 1024) {
+        duration > const Duration(minutes: 10)) {
       return false;
     }
     final url = Uri.tryParse(source.url ?? '');
@@ -44,7 +49,15 @@ abstract final class DebridSourceReadiness {
         (source.externalUrl?.isNotEmpty ?? false)) {
       return false;
     }
-    return _debridBadge.hasMatch(source.name ?? '') ||
-        source.addonName.toLowerCase().contains('torrentio');
+    final name = source.addonName.toLowerCase();
+    final hasDebridBadge = _debridBadge.hasMatch(source.name ?? '');
+    final knownDebridResolver =
+        name.contains('comet') || name.contains('torrentio');
+    if (!hasDebridBadge && !knownDebridResolver) return false;
+    final size = source.sizeBytes;
+    if (size != null && size < 200 * 1024 * 1024) return false;
+    // Absent size is NOT proof of playable content. A Comet/TorBox source
+    // advertising a full episode but decoding as a short clip is rejected.
+    return true;
   }
 }

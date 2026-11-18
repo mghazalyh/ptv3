@@ -287,6 +287,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     WindowsPlaybackTelemetry.instance.captureSourceSelection(
         action: 'player_initial_source',
         source: _currentSource, title: widget.detail?.name ?? widget.title,
+        mediaId: widget.episode?.id.isNotEmpty == true
+            ? widget.episode!.id : widget.detail?.id,
+        type: widget.episode == null ? (widget.detail?.type ?? 'movie') : 'series',
         year: int.tryParse(widget.detail?.year ?? ''),
         season: widget.episode?.season, episode: widget.episode?.episode,
         episodeTitle: widget.episode?.title);
@@ -523,7 +526,42 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  /// Bind every opening attempt to its real media identity, even when the
+  /// player was launched from Continue Watching or a direct episode route
+  /// without ever opening Watch Sources. Cross-episode switches update both
+  /// private diagnostic platforms before native playback can fail.
+  void _recordOpeningMediaIdentity() {
+    final episode = _currentEpisode;
+    final title = widget.detail?.name ?? widget.title;
+    final episodeId = episode?.id.trim() ?? '';
+    final detailId = widget.detail?.id.trim() ?? '';
+    final mediaId = episodeId.isNotEmpty
+        ? episodeId : (detailId.isNotEmpty ? detailId : title);
+    final mediaType = episode == null
+        ? (widget.detail?.type ?? 'movie') : 'series';
+    final year = int.tryParse(widget.detail?.year ?? '');
+    WindowsPlaybackTelemetry.instance.ensurePlaybackContext(
+        title: title, mediaId: mediaId, type: mediaType,
+        year: year, season: episode?.season, episode: episode?.episode,
+        episodeTitle: episode?.title);
+    IosAudioTelemetry.instance.ensurePlaybackContext(
+        title: title, mediaId: mediaId, type: mediaType,
+        year: year, season: episode?.season, episode: episode?.episode,
+        episodeTitle: episode?.title);
+    WindowsPlaybackTelemetry.instance.captureSourceSelection(
+        action: 'source_open_attempt', source: _currentSource,
+        title: title, mediaId: mediaId, type: mediaType,
+        year: year, season: episode?.season, episode: episode?.episode,
+        episodeTitle: episode?.title);
+    IosAudioTelemetry.instance.captureSourceSelection(
+        action: 'source_open_attempt', source: _currentSource,
+        title: title, mediaId: mediaId,
+        year: year, season: episode?.season, episode: episode?.episode,
+        episodeTitle: episode?.title);
+  }
+
   Future<void> _initStream() async {
+    _recordOpeningMediaIdentity();
     final languageProfile = WatchSourcePreferencesService.current.value
         .forEpisode(_currentEpisode != null);
     if (languageProfile.requireEnglishAudio &&
@@ -2942,8 +2980,39 @@ class _PlayerScreenState extends State<PlayerScreen>
     _debridPlaceholderCheck = null;
     _sourceOpeningWatchdog?.cancel();
     _sourceOpeningWatchdog = null;
+    final episode = _currentEpisode;
+    final title = widget.detail?.name ?? widget.title;
+    final episodeId = episode?.id.trim() ?? '';
+    final detailId = widget.detail?.id.trim() ?? '';
+    final mediaId = episodeId.isNotEmpty
+        ? episodeId : (detailId.isNotEmpty ? detailId : title);
+    // Record the exact media, provider and native duration that proved this
+    // stream to be a status slate. Never send the resolved HTTP URL or tokens.
+    WindowsPlaybackTelemetry.instance.captureSourceSelection(
+        action: 'debrid_status_clip_detected',
+        source: _currentSource, title: title,
+        mediaId: mediaId, type: 'series',
+        year: int.tryParse(widget.detail?.year ?? ''),
+        season: episode?.season, episode: episode?.episode,
+        episodeTitle: episode?.title);
+    WindowsPlaybackTelemetry.instance.captureEpisodeCompletion(
+        action: 'debrid_status_clip_detected',
+        reason: 'implausibly_short_debrid_episode',
+        source: _currentSource, requestedTitle: title,
+        episodeTitle: episode?.title,
+        season: episode?.season, episode: episode?.episode,
+        position: _player.state.position,
+        nativeDuration: _player.state.duration,
+        bufferedPosition: _buffered,
+        isBuffering: _player.state.buffering);
+    IosAudioTelemetry.instance.captureSourceSelection(
+        action: 'debrid_status_clip_detected',
+        source: _currentSource, title: title, mediaId: mediaId,
+        year: int.tryParse(widget.detail?.year ?? ''),
+        season: episode?.season, episode: episode?.episode,
+        episodeTitle: episode?.title);
     PlayerDebugTelemetry.record('source_debrid_placeholder', failure: true);
-    debugPrint('[PlayerScreen] Short debrid status clip; trying next episode source');
+    debugPrint('[PlayerScreen] Debrid status video detected; switching to the next safe episode source');
     if (_sourceRecoveryBusy) {
       _sourceFailureDuringRecovery = true;
     } else {
@@ -3681,6 +3750,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     WindowsPlaybackTelemetry.instance.captureSourceSelection(
         action: automaticRecovery ? 'automatic_source_recovery' : 'episode_source_switch',
         source: newSource, title: widget.detail?.name ?? widget.title,
+        mediaId: newEpisode.id.isNotEmpty
+            ? newEpisode.id : (widget.detail?.id ?? widget.title),
+        type: 'series',
         year: int.tryParse(widget.detail?.year ?? ''),
         season: newEpisode.season, episode: newEpisode.episode,
         episodeTitle: newEpisode.title);

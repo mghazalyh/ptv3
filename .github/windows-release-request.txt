@@ -1,9 +1,12 @@
-PLAYTORRIO OWNER-AUTHORIZED WINDOWS-ONLY RELEASE REQUEST
-Requested SGT: 2026-11-19T00:08:15+08:00
+PLAYTORRIO OWNER-AUTHORIZED WINDOWS-ONLY BUILD REQUEST
+Requested SGT: 2026-11-19 02:37:31
+Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Reason: Repair catalog metadata fallback when Stremio meta is unresolved; keep usable movie preview and retry
-Features: Private Insights Mission Control dashboard, charts, source/provider/health analytics, report coverage, hardware summaries
-Telemetry: Read-only access to mghazalyh/torriodb using existing GitHub Library credentials
-Tests: metadata_catalog_preview_test.dart, telemetry_insights_repository_test.dart, Windows static analysis
-Platform: Windows x64 only; EXE installer + portable ZIP; do not package or sign iOS
-Owner instruction: trigger GitHub Actions and leave; never poll/wait after release trigger
+Previous source HEAD: e1d20bb59b9d46e0d22f40a70c30feb03b687ad5
+Workflow: .github/workflows/windows-advanced-discover.yml
+Reason: Comet/TorBox status/error video played as real TV episode without automatic next-source fallback; Windows telemetry retained The Dog Stars while the player switched to The Institute S2:E3.
+Fix: Detect short native-played debrid status videos up to 10 minutes with no required declared file size, guard valid small clips/local/movies/live media, immediately skip bad source and follow next safe picker entry with existing bounded retry policy.
+Telemetry: Bind every player opening and episode transition to active media and source; add source-specific status-clip failure evidence including duration/position; add sanitized activeSource top-level and per-sample identity; retain events captured during private upload instead of discarding them.
+Regression tests: test/debrid_source_readiness_test.dart; test/windows_playback_telemetry_test.dart; test/ios_audio_telemetry_test.dart; analyze all touched services and player screen.
+Platform: Windows x64 installer Setup EXE and portable ZIP only; iOS packaging/signing MUST be skipped.
+Owner directive: Trigger Windows job once and immediately leave. DO NOT poll or await job completion. Do not rerun any other workflow.

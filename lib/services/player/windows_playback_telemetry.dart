@@ -48,6 +48,7 @@ class WindowsPlaybackTelemetry {
   final List<Map<String, Object>> _samples = [];
   final List<Map<String, Object?>> _sourceTrace = [];
   final Map<String, Object?> _mediaContext = {};
+  final Map<String, Object?> _activeSource = {};
   String? _sourceSessionId;
   final Map<String, int> _previousFrameCounts = {};
   final Map<String, DateTime> _lastAudioWarningAt = {};
@@ -77,6 +78,14 @@ class WindowsPlaybackTelemetry {
   @visibleForTesting
   List<Map<String, Object?>> get capturedSourceTrace =>
       List.unmodifiable(_sourceTrace);
+
+  @visibleForTesting
+  Map<String, Object?> get capturedMediaContext =>
+      Map.unmodifiable(_mediaContext);
+
+  @visibleForTesting
+  Map<String, Object?> get capturedActiveSource =>
+      Map.unmodifiable(_activeSource);
 
   static String? _safeText(String? raw, {int limit = 400}) {
     if (raw == null || raw.trim().isEmpty) return null;
@@ -121,6 +130,7 @@ class WindowsPlaybackTelemetry {
   }) {
     if (!isActive) return;
     _sourceSessionId = DateTime.now().toUtc().microsecondsSinceEpoch.toString();
+    _activeSource.clear();
     _mediaContext
       ..clear()
       ..addAll(<String, Object?>{
@@ -134,6 +144,40 @@ class WindowsPlaybackTelemetry {
       });
     _trace(<String, Object?>{
       'action': 'source_session_started',
+      'media': Map<String, Object?>.of(_mediaContext),
+    });
+  }
+
+  /// A player can start from Continue Watching, an episode panel, a deep link,
+  /// or a different title without visiting Watch Sources. Always bind the
+  /// active media before recording player failures or uploading diagnostics.
+  /// Reusing the same identity preserves Watch Sources ranking evidence.
+  void ensurePlaybackContext({
+    required String title,
+    required String mediaId,
+    required String type,
+    String? episodeTitle,
+    int? year,
+    int? season,
+    int? episode,
+  }) {
+    if (!isActive) return;
+    final next = <String, Object?>{
+      'title': _safeText(title),
+      'mediaId': _safeText(mediaId),
+      'type': _safeText(type),
+      'year': year,
+      'season': season,
+      'episode': episode,
+      'episodeTitle': _safeText(episodeTitle),
+    };
+    if (_mediaContext.length == next.length &&
+        next.keys.every((key) => _mediaContext[key] == next[key])) return;
+    _sourceSessionId = DateTime.now().toUtc().microsecondsSinceEpoch.toString();
+    _mediaContext..clear()..addAll(next);
+    _activeSource.clear();
+    _trace(<String, Object?>{
+      'action': 'playback_context_activated',
       'media': Map<String, Object?>.of(_mediaContext),
     });
   }
@@ -208,13 +252,40 @@ class WindowsPlaybackTelemetry {
     required String action,
     required StreamSource source,
     required String title,
+    String? mediaId,
+    String? type,
     String? episodeTitle,
     int? year, int? season, int? episode,
   }) {
     if (!isActive) return;
+    // Never carry a previous title into an unrelated player session.
+    final sameIdentity = _mediaContext['title'] == _safeText(title) &&
+        _mediaContext['season'] == season &&
+        _mediaContext['episode'] == episode;
+    ensurePlaybackContext(
+      title: title,
+      mediaId: mediaId ?? (sameIdentity
+          ? _mediaContext['mediaId']?.toString() ?? title : title),
+      type: type ?? (season == null ? 'movie' : 'series'),
+      year: year ?? (sameIdentity ? _mediaContext['year'] as int? : null),
+      season: season,
+      episode: episode,
+      episodeTitle: episodeTitle ?? (sameIdentity
+          ? _mediaContext['episodeTitle']?.toString() : null),
+    );
+    final now = DateTime.now().toUtc().toIso8601String();
+    _activeSource
+      ..clear()
+      ..addAll(<String, Object?>{
+        'selectedAtUtc': now,
+        'action': action,
+        ..._details(source),
+      });
     _trace(<String, Object?>{
       'action': action,
+      'media': Map<String, Object?>.of(_mediaContext),
       'requestedTitle': _safeText(title),
+      'requestedMediaId': _mediaContext['mediaId'],
       'requestedYear': year,
       'requestedSeason': season,
       'requestedEpisode': episode,
@@ -506,6 +577,15 @@ class WindowsPlaybackTelemetry {
       'buffering': buffering,
     };
     sample.addAll(PlaybackMetricSanitizer.fromProperties(properties));
+    // Per-sample attribution survives media switches while a private upload
+    // is throttled or in progress. Both snapshots are already redacted.
+    if (_sourceSessionId != null) sample['sourceSessionId'] = _sourceSessionId!;
+    if (_mediaContext.isNotEmpty) {
+      sample['mediaContext'] = Map<String, Object?>.of(_mediaContext);
+    }
+    if (_activeSource.isNotEmpty) {
+      sample['activeSource'] = Map<String, Object?>.of(_activeSource);
+    }
     if (position != null && position >= Duration.zero) {
       sample['positionMs'] = position.inMilliseconds;
     }
@@ -673,6 +753,11 @@ class WindowsPlaybackTelemetry {
     } catch (error) {
       deviceInventory = {'collectionError': error.runtimeType.toString()};
     }
+    // Immutable report boundary. A source/episode switch during the HTTP PUT
+    // must NOT lose events that belong to the following upload.
+    final codesAtUpload = List<String>.of(_events);
+    final samplesAtUpload = List<Map<String, Object>>.of(_samples);
+    final tracesAtUpload = List<Map<String, Object?>>.of(_sourceTrace);
     final data = <String, Object>{
       'schema': 2,
       'kind': 'windows_playback_developer_diagnostic',
@@ -685,13 +770,14 @@ class WindowsPlaybackTelemetry {
       'buildRun': const String.fromEnvironment(
           'PLAYTORRIO_RUN', defaultValue: 'unknown'),
       'reason': approvedReason,
-      'codes': List<String>.from(_events),
+      'codes': codesAtUpload,
       'capabilities': Map<String, Object>.from(_facts),
       'sampleIntervalSeconds': 5,
-      'performanceSamples': List<Map<String, Object>>.from(_samples),
+      'performanceSamples': samplesAtUpload,
       'sourceSessionId': _sourceSessionId ?? '',
       'mediaContext': Map<String, Object?>.from(_mediaContext),
-      'sourceTrace': List<Map<String, Object?>>.from(_sourceTrace),
+      'activeSource': Map<String, Object?>.from(_activeSource),
+      'sourceTrace': tracesAtUpload,
     };
 
     try {
@@ -714,9 +800,14 @@ class WindowsPlaybackTelemetry {
         status.value = 'Private diagnostics upload failed (HTTP ${response.statusCode})';
         return false;
       }
-      _events.clear();
-      _samples.clear();
-      _sourceTrace.clear();
+      // Only remove entries present in the payload just acknowledged.
+      // Source switches and frame samples added during upload must survive.
+      for (final code in codesAtUpload) {
+        if (_events.isEmpty || _events.first != code) break;
+        _events.removeAt(0);
+      }
+      _samples.removeWhere((entry) => samplesAtUpload.contains(entry));
+      _sourceTrace.removeWhere((entry) => tracesAtUpload.contains(entry));
       status.value = 'Uploaded private diagnostics: $file';
       return true;
     } catch (_) {

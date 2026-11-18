@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import '../config/windows_settings_recovery.dart';
 import '../my_list/github_library_cloud.dart';
 import 'night_mode_diagnostics.dart';
+import 'audio_language_priority.dart';
+import 'device_diagnostic_inventory.dart';
 import 'player_diagnostic_codes.dart';
 import 'playback_metric_sanitizer.dart';
 import 'private_diagnostic_log_path.dart';
@@ -34,7 +36,7 @@ class WindowsPlaybackTelemetry {
   static const branch = 'main';
   static const maxEvents = 24;
   static const maxSamples = 24;
-  static const maxSourceTrace = 240;
+  static const maxSourceTrace = 800;
   static const automaticUploadInterval = Duration(seconds: 30);
 
   final http.Client _client;
@@ -109,6 +111,8 @@ class WindowsPlaybackTelemetry {
     'fileIdx': source.fileIdx,
     'resolution': source.quality,
     'fileSizeBytes': source.sizeBytes,
+    'inferredAudioRank': AudioLanguagePriority.sourceAudioRank(source),
+    'audioEvidence': 'stremio_release_and_audio_hints',
   };
 
   void beginSourceSession({
@@ -166,15 +170,18 @@ class WindowsPlaybackTelemetry {
         SourceContentIdentity.assess(source, title: title,
             year: year, season: season, episode: episode)
         == SourceIdentityVerdict.rejected).toList();
+    final profile = WatchSourcePreferencesService.current.value
+        .forEpisode(season != null && episode != null);
     _trace(<String, Object?>{
       'action': 'source_ranking_completed',
       'requestedTitle': _safeText(title),
       'candidateCount': sources.length,
       'visibleCount': sorted.length,
       'rejectedCount': mismatched.length,
-      'sorting': WatchSourcePreferencesService.current.value
-          .forEpisode(season != null && episode != null)
-          .sorting.map((r) => r.toJson()).toList(),
+      'preferEnglishAudio': profile.preferEnglishAudio,
+      'requireEnglishAudio': profile.requireEnglishAudio,
+      'cachePolicy': profile.cachePolicy,
+      'sorting': profile.sorting.map((r) => r.toJson()).toList(),
     });
     for (final source in mismatched.take(30)) {
       _trace(<String, Object?>{
@@ -183,7 +190,7 @@ class WindowsPlaybackTelemetry {
         ..._details(source),
       });
     }
-    for (var index = 0; index < sorted.length && index < 50; index++) {
+    for (var index = 0; index < sorted.length && index < 300; index++) {
       final source = sorted[index];
       _trace(<String, Object?>{
         'action': 'source_ranked',
@@ -633,7 +640,8 @@ class WindowsPlaybackTelemetry {
       return false;
     }
     captureStorageState();
-    if (_facts.isEmpty && _events.isEmpty && _samples.isEmpty && _sourceTrace.isEmpty) {
+    if (reason != 'manual' && _facts.isEmpty && _events.isEmpty &&
+        _samples.isEmpty && _sourceTrace.isEmpty) {
       status.value = 'No playback diagnostics captured yet';
       return false;
     }
@@ -659,11 +667,18 @@ class WindowsPlaybackTelemetry {
     }.contains(reason) ? reason : 'manual';
     final file = PrivateDiagnosticLogPath.forTimestamp(
       prefix: prefix, timestamp: now, sequence: ++_counter);
+    Map<String, Object?> deviceInventory;
+    try {
+      deviceInventory = await DeviceDiagnosticInventory.instance.capture();
+    } catch (error) {
+      deviceInventory = {'collectionError': error.runtimeType.toString()};
+    }
     final data = <String, Object>{
       'schema': 2,
       'kind': 'windows_playback_developer_diagnostic',
       'timestampUtc': now.toIso8601String(),
       'platform': 'windows',
+      'deviceInventory': deviceInventory,
       'appVersion': '1.1.15',
       'buildCommit': const String.fromEnvironment(
           'PLAYTORRIO_COMMIT', defaultValue: 'unknown'),

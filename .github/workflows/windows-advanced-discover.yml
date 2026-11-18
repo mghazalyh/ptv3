@@ -127,6 +127,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/windows_playback_telemetry_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/device_diagnostic_inventory_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/playback_frame_health_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/windows_video_pressure_guard_test.dart
@@ -148,6 +150,8 @@ jobs:
           flutter test test/series_automatic_skip_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/player_diagnostics_overlay_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/player_resolution_selector_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/paused_http_recovery_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -187,6 +191,8 @@ jobs:
           flutter test test/series_automatic_skip_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/player_diagnostics_overlay_test.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test test/player_resolution_selector_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           flutter test test/paused_http_recovery_test.dart
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -658,6 +664,11 @@ jobs:
 
       - name: Verify playback diagnostics overlay
         run: flutter test test/player_diagnostics_overlay_test.dart
+
+      - name: Verify device inventory and playback resolution switching
+        run: |
+          flutter test test/device_diagnostic_inventory_test.dart
+          flutter test test/player_resolution_selector_test.dart
 
       - name: Test English-audio priority
         run: flutter test test/audio_language_priority_test.dart

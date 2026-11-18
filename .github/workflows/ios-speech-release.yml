@@ -449,13 +449,59 @@ jobs:
           print('SHA256:', hashlib.sha256(ipa.read_bytes()).hexdigest())
           PY
 
-      - name: Upload signed iOS 15 TrollStore IPA
+      # The GitHub artifact service can time out creating an artifact even after
+      # Flutter, signing, and IPA integrity verification have all succeeded.
+      # Retry the artifact upload IN THIS JOB so a transient service outage
+      # does not force an unnecessary native rebuild or bypass signing checks.
+      - name: Upload signed iOS 15 TrollStore IPA (attempt 1 of 4)
+        id: ios_ipa_upload_1
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: PlayTorrio-iOS15-SpeechSync-v1.1.15-run-${{ github.run_number }}
           path: build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa
           if-no-files-found: error
           retention-days: 3
+      - name: Wait before iOS artifact upload attempt 2
+        if: ${{ steps.ios_ipa_upload_1.outcome == 'failure' }}
+        run: sleep 20
+      - name: Retry signed iOS 15 TrollStore IPA upload (attempt 2 of 4)
+        id: ios_ipa_upload_2
+        if: ${{ steps.ios_ipa_upload_1.outcome == 'failure' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayTorrio-iOS15-SpeechSync-v1.1.15-run-${{ github.run_number }}
+          path: build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa
+          if-no-files-found: error
+          retention-days: 3
+          overwrite: true
+      - name: Wait before iOS artifact upload attempt 3
+        if: ${{ steps.ios_ipa_upload_2.outcome == 'failure' }}
+        run: sleep 45
+      - name: Retry signed iOS 15 TrollStore IPA upload (attempt 3 of 4)
+        id: ios_ipa_upload_3
+        if: ${{ steps.ios_ipa_upload_2.outcome == 'failure' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayTorrio-iOS15-SpeechSync-v1.1.15-run-${{ github.run_number }}
+          path: build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa
+          if-no-files-found: error
+          retention-days: 3
+          overwrite: true
+      - name: Wait before final iOS artifact upload attempt
+        if: ${{ steps.ios_ipa_upload_3.outcome == 'failure' }}
+        run: sleep 90
+      - name: Final signed iOS 15 TrollStore IPA upload (attempt 4 of 4)
+        if: ${{ steps.ios_ipa_upload_3.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayTorrio-iOS15-SpeechSync-v1.1.15-run-${{ github.run_number }}
+          path: build/ios/ipa/PlayTorrio-iOS15-TrollStore.ipa
+          if-no-files-found: error
+          retention-days: 3
+          overwrite: true
 
   speech-primary-allocation-check:
     name: Verify no-runner cancellation of speech-ios-primary

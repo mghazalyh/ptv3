@@ -1,12 +1,14 @@
 PLAYTORRIO OWNER-AUTHORIZED iOS-ONLY TROLLSTORE RELEASE REQUEST
-Requested SGT: 2026-11-19 03:02:44
+Requested SGT: 2026-11-19 04:12:09
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Source HEAD: ece65b3e79ea4db23067473991ff0397b49806e8
+Source HEAD before retry fix: 2bde152c48170a57459d782c6c8395614f3a0e22
 Workflow: .github/workflows/ios-speech-release.yml
 Scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY. Do not trigger Windows, paired Windows, or desktop release.
 Validated source: User confirms the immediately preceding Windows build of commit ece65b3e79ea4db23067473991ff0397b49806e8 completed successfully. Do not recheck the Windows build.
 Features: Full PlayTorrio shared Flutter app, native audio and subtitle enhancements, Stremio metadata fallback, Telemetry Mission Control Insights UI.
 Latest fixes: Comet/TorBox error-status clip automatic next-source fallback, episode-specific media context and source failure telemetry, per-sample attribution, in-flight upload buffer preservation, new regression tests.
 Signing: Preserve existing iOS 15 ad-hoc TrollStore IPA signing, certificate, entitlements, release publishing, and Telegram notifications in existing workflow.
-User command: Trigger iOS GitHub job exactly once and immediately leave. Do not wait, poll, re-trigger, or inspect status after the ref update.
+User command: Fix the failed iOS IPA artifact upload, trigger a new iOS-only release job, and immediately leave without polling.
+Retry fix: Add four total signed IPA artifact upload attempts with incremental backoff and safe overwrite after transient GitHub CreateArtifact timeouts. Keep iOS 15 TrollStore signing and existing downstream publishing unchanged.
+Previous failure: https://github.com/mghazalyh/ptv3/actions/runs/44376352397

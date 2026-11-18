@@ -1,11 +1,10 @@
 PLAYTORRIO OWNER-AUTHORIZED WINDOWS-ONLY BUILD REQUEST
-Requested SGT: 2026-11-18 04:40:50
+Requested SGT: 2026-11-18 20:43:35
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Latest source commit: 9130e256aa5e568a824eaeb90abeb76305316f7a
-Prerequisite: latest iOS speech release run 44165456455 completed successfully and signed iOS IPA was published.
-Build scope: Windows x64 Setup EXE and portable ZIP only.
-Include latest shared fixes: Nocturne S01E01 source-identity filtering and sorting, prevention of premature Episode 2 autoplay at 29 minutes, trustworthy episode completion policy, same-episode playback resume, and expanded Windows playback telemetry.
+Source revision: f7a3faaa69d25bd9c7d39ef1a487cf67daad4ba2
+Scope: Windows x64 Setup EXE and portable ZIP only.
+Reason: Windows Build 195 (bc4eefb868f86212ab345abd4b5d0a83d112bdd3) still ranks the Russian-only 504.3 MB Comet source first for Marshals S02E01. Build the already-committed English-audio-priority fix across Stremio addons, strict English mode, source deduplication, and regression tests.
 Workflow: .github/workflows/windows-advanced-discover.yml
-Commit message contains [windows-only] to skip all iOS jobs.
-After triggering, leave immediately without waiting, polling, or inspecting build status.
+Commit message contains [windows-only] to skip the iOS job and publish Windows-only release assets.
+After trigger: Do not poll or await GitHub Actions. Wait for explicit user status request.

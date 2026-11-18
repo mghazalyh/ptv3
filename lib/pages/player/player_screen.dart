@@ -4244,6 +4244,18 @@ class _PlayerScreenState extends State<PlayerScreen>
                 buffered: _buffered,
                 playbackRate: _playbackRate,
                 sourceKind: _diagnosticsSourceKind(),
+                sourceAdvertisedQuality: _currentSource.quality,
+                sourceProvider: _currentSource.addonName,
+                sourceSizeBytes: _currentSource.sizeBytes,
+                selectedAudioLanguage: _audioTracks.where(
+                  (track) => track.index == _selectedAudioTrackIndex,
+                ).firstOrNull?.language,
+                selectedAudioTitle: _audioTracks.where(
+                  (track) => track.index == _selectedAudioTrackIndex,
+                ).firstOrNull?.title,
+                selectedAudioChannelCount: _audioTracks.where(
+                  (track) => track.index == _selectedAudioTrackIndex,
+                ).firstOrNull?.channels,
               ),
             ),
 

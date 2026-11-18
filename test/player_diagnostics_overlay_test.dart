@@ -51,6 +51,58 @@ void main() {
     expect(PlaybackDiagnosticsProbe.time(const Duration(hours: 2, seconds: 3)), '2:00:03');
   });
 
+  test('decoded resolution determines whether video is truly 4K', () {
+    final uhd = <String, String>{
+      'video-params/w': '3840',
+      'video-params/h': '2160',
+      'video-codec': 'hevc',
+      'video-params/gamma': 'pq',
+      'video-params/bits-per-component': '10',
+      'video-bitrate': '14000000',
+    };
+    final hd = <String, String>{
+      'video-params/w': '1920',
+      'video-params/h': '1080',
+      'video-codec': 'h264',
+      'video-params/gamma': 'bt.1886',
+      'video-bitrate': '4730000',
+    };
+    expect(PlaybackDiagnosticsProbe.qualityTier(uhd), '4K UHD');
+    expect(PlaybackDiagnosticsProbe.fourKStatus(uhd), '4K-class decoded video');
+    expect(PlaybackDiagnosticsProbe.dynamicRange(uhd), 'HDR · PQ');
+    expect(PlaybackDiagnosticsProbe.colorDepth(uhd), '10-bit');
+    expect(PlaybackDiagnosticsProbe.qualityTier(hd), '1080p · Full HD');
+    expect(PlaybackDiagnosticsProbe.fourKStatus(hd), 'Not 4K · decoded video');
+    expect(PlaybackDiagnosticsProbe.dynamicRange(hd), 'SDR');
+    expect(PlaybackDiagnosticsProbe.bitrate(hd, 'video-bitrate'), '4.73 Mbps');
+    expect(PlaybackDiagnosticsProbe.bitrateIndication(hd),
+        'Moderate bitrate · indicative');
+    expect(PlaybackDiagnosticsProbe.fourKStatus({}),
+        'Cannot verify without decoded resolution');
+    expect(PlaybackDiagnosticsProbe.dynamicRange({}),
+        'Unknown · HDR not confirmed');
+  });
+
+  test('native audio details and buffering are reported without guessing', () {
+    final source = <String, String>{
+      'audio-codec-name': 'eac3',
+      'audio-params/channel-count': '6',
+      'current-tracks/audio/lang': 'eng',
+      'audio-params/samplerate': '48000',
+      'avsync': '0.014',
+    };
+    expect(PlaybackDiagnosticsProbe.audioCodec(source),
+        'Dolby Digital Plus (E-AC-3)');
+    expect(PlaybackDiagnosticsProbe.audioChannels(source), '6 channels');
+    expect(PlaybackDiagnosticsProbe.audioLanguage(source), 'English');
+    expect(PlaybackDiagnosticsProbe.avSync(source), '14 ms');
+    expect(PlaybackDiagnosticsProbe.bufferingAhead(
+      const Duration(seconds: 45), const Duration(seconds: 60)), '15.0 s');
+    expect(PlaybackDiagnosticsProbe.audioLanguage({}),
+        'Unknown · track not tagged');
+    expect(PlaybackDiagnosticsProbe.avSync({}), 'Unavailable');
+  });
+
   testWidgets('small transport-row button toggles stats on and off',
       (tester) async {
     tester.view.physicalSize = const Size(1400, 800);
@@ -95,6 +147,32 @@ void main() {
     await tester.tap(toggle);
     await tester.pump();
     expect(find.byType(PlayerDiagnosticsOverlay), findsNothing);
+  });
+
+  testWidgets('quality panel distinguishes advertised 4K from decoded 1080p',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Center(
+      child: PlayerDiagnosticsOverlay(
+        properties: {
+          'video-codec': 'h264',
+          'video-params/w': '1920',
+          'video-params/h': '1080',
+          'video-bitrate': '4730000',
+        },
+        sourceAdvertisedQuality: '4K',
+        sourceProvider: 'Example addon',
+        isPlaying: true,
+        isBuffering: false,
+        position: Duration(minutes: 10),
+        duration: Duration(minutes: 45),
+        buffered: Duration(minutes: 11),
+        playbackRate: 1.0,
+        sourceKind: 'HTTP stream',
+      ),
+    ))));
+    expect(find.text('1080p · Full HD'), findsOneWidget);
+    expect(find.text('Not 4K · decoded video'), findsOneWidget);
+    expect(find.textContaining('addon advertises 4K'), findsOneWidget);
   });
 
   testWidgets('compact diagnostics overlay shows real values',

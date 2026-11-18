@@ -29,6 +29,7 @@ class PlayerTransport extends StatelessWidget {
   final double extraBrightness;
   final bool isBrightnessMenuActive;
   final bool isDiagnosticsActive;
+  final bool isResolutionMenuActive;
   final bool isAutoSyncBusy;
   final bool isEpisodesActive;
   final bool isFullscreen;
@@ -51,6 +52,7 @@ class PlayerTransport extends StatelessWidget {
   final VoidCallback? onCopyNightModeLogPath;
   final VoidCallback? onToggleBrightnessMenu;
   final VoidCallback? onToggleDiagnostics;
+  final VoidCallback? onToggleResolutionMenu;
   final VoidCallback? onAutoSync;
   final VoidCallback onToggleSubtitleMenu;
   final VoidCallback onToggleSubSync;
@@ -78,6 +80,7 @@ class PlayerTransport extends StatelessWidget {
     this.extraBrightness = 0,
     this.isBrightnessMenuActive = false,
     this.isDiagnosticsActive = false,
+    this.isResolutionMenuActive = false,
     this.isAutoSyncBusy = false,
     this.isEpisodesActive = false,
     required this.isFullscreen,
@@ -98,6 +101,7 @@ class PlayerTransport extends StatelessWidget {
     this.onCopyNightModeLogPath,
     this.onToggleBrightnessMenu,
     this.onToggleDiagnostics,
+    this.onToggleResolutionMenu,
     this.onAutoSync,
     required this.onToggleSubtitleMenu,
     required this.onToggleSubSync,
@@ -273,6 +277,22 @@ class PlayerTransport extends StatelessWidget {
                       active: isEpisodesActive,
                       activeColor: PlayerTheme.accent,
                       onPressed: onToggleEpisodes,
+                    ),
+                    SizedBox(width: gap),
+                  ],
+
+                  // Show only qualities discovered for this episode. The
+                  // selection itself is handled by PlayerScreen.
+                  if (onToggleResolutionMenu != null) ...[
+                    PlayerIconButton(
+                      key: const ValueKey('player-resolution-picker'),
+                      size: isCompact ? 30 : 32,
+                      iconSize: isCompact ? 16 : 18,
+                      icon: const Icon(Icons.high_quality_rounded),
+                      tooltip: 'Change stream resolution',
+                      active: isResolutionMenuActive,
+                      activeColor: PlayerTheme.accent,
+                      onPressed: onToggleResolutionMenu!,
                     ),
                     SizedBox(width: gap),
                   ],

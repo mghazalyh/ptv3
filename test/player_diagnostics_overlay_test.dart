@@ -112,6 +112,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
     var visible = false;
+    var resolutionTapped = false;
     await tester.pumpWidget(MaterialApp(home: StatefulBuilder(
       builder: (context, update) => Scaffold(body: Stack(children: [
         Positioned(bottom: 0, left: 0, right: 0, child: PlayerTransport(
@@ -123,6 +124,7 @@ void main() {
           isAudioActive: false, isFullscreen: false,
           isDiagnosticsActive: visible,
           onToggleDiagnostics: () => update(() => visible = !visible),
+          onToggleResolutionMenu: () => resolutionTapped = true,
           onPlayPause: () {}, onSeek: (_) {},
           onSeekBack10: () {}, onSeekForward10: () {},
           onVolumeChanged: (_) {}, onToggleMute: () {},
@@ -147,6 +149,10 @@ void main() {
     await tester.tap(toggle);
     await tester.pump();
     expect(find.byType(PlayerDiagnosticsOverlay), findsNothing);
+    final resolutionButton = find.byTooltip('Change stream resolution');
+    expect(resolutionButton, findsOneWidget);
+    await tester.tap(resolutionButton);
+    expect(resolutionTapped, isTrue);
   });
 
   testWidgets('quality panel distinguishes advertised 4K from decoded 1080p',

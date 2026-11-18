@@ -45,6 +45,7 @@ import '../../services/player/playback_source_recovery.dart';
 import '../../services/player/debrid_source_readiness.dart';
 import '../../services/player/automatic_skip_policy.dart';
 import '../../services/player/playback_diagnostics_probe.dart';
+import '../../services/player/player_resolution_selector.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/stream/stream_service.dart';
 import '../../services/stream/source_content_identity.dart';
@@ -55,6 +56,7 @@ import '../../widgets/player/player_glass.dart';
 import '../../widgets/player/player_top_bar.dart';
 import '../../widgets/player/player_transport.dart';
 import '../../widgets/player/player_speed_menu.dart';
+import '../../widgets/player/player_resolution_menu.dart';
 import '../../services/window/window_service.dart';
 import '../../models/player/skip_segment_model.dart';
 import '../../services/player/skip_segments_service.dart';
@@ -234,6 +236,13 @@ class _PlayerScreenState extends State<PlayerScreen>
   Video? _sourcesEpisode;
   String? _sourcesErrorMessage;
   final Map<String, List<StreamSource>> _cachedSourcesByEpisode = {};
+  final List<StreamSource> _resolutionCandidates = <StreamSource>[];
+  final Set<String> _resolutionCandidateKeys = <String>{};
+  StreamSubscription<StreamSource>? _resolutionSourceSubscription;
+  Timer? _resolutionListRefresh;
+  int _resolutionDiscoveryEpoch = 0;
+  bool _resolutionDiscovering = false;
+  bool _resolutionSwitching = false;
   final PlaybackSourceRecovery _sourceRecovery = PlaybackSourceRecovery();
   final List<StreamSource> _recoveryCandidates = <StreamSource>[];
   bool _sourceRecoveryBusy = false;
@@ -1773,7 +1782,227 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  String _resolutionEpisodeKey(Video episode) =>
+      '${episode.season ?? 1}:${episode.episode ?? 1}';
+
+  List<PlayerResolutionChoice> get _resolutionChoices {
+    if (_currentEpisode == null) return const <PlayerResolutionChoice>[];
+    final profile = WatchSourcePreferencesService.current.value
+        .forEpisode(true);
+    return PlayerResolutionSelector.choices(
+      _resolutionCandidates,
+      title: widget.detail?.name ?? widget.title,
+      year: int.tryParse(widget.detail?.year ?? ''),
+      season: _currentEpisode?.season,
+      episode: _currentEpisode?.episode,
+      profile: profile,
+    );
+  }
+
+  String _resolutionCandidateKey(StreamSource source) {
+    final urlOrHash = source.url ?? source.infoHash ??
+        source.title ?? source.description ?? '';
+    return '${source.addonName.toLowerCase()}|$urlOrHash|'
+        '${source.fileIdx ?? ""}';
+  }
+
+  void _addResolutionCandidate(StreamSource source, Video episode) {
+    if (_resolutionCandidates.length >= 2500 ||
+        !PlayerResolutionSelector.isUsable(source)) return;
+    final title = widget.detail?.name ?? widget.title;
+    if (!SourceContentIdentity.isEligible(
+      source,
+      title: title,
+      year: int.tryParse(widget.detail?.year ?? ''),
+      season: episode.season,
+      episode: episode.episode,
+    )) return;
+    if (!_resolutionCandidateKeys.add(_resolutionCandidateKey(source))) {
+      return;
+    }
+    _resolutionCandidates.add(source);
+  }
+
+  void _cancelResolutionDiscovery() {
+    ++_resolutionDiscoveryEpoch;
+    _resolutionListRefresh?.cancel();
+    _resolutionListRefresh = null;
+    final subscription = _resolutionSourceSubscription;
+    _resolutionSourceSubscription = null;
+    if (subscription != null) unawaited(subscription.cancel());
+    _resolutionDiscovering = false;
+  }
+
+  void _closeResolutionMenu() {
+    _cancelResolutionDiscovery();
+    if (mounted) setState(() => _activeMenu = null);
+  }
+
+  void _toggleResolutionMenu() {
+    if (!mounted || _isLoading || _resolutionSwitching ||
+        _currentEpisode == null) return;
+    if (_activeMenu == 'resolution') {
+      _closeResolutionMenu();
+      return;
+    }
+    _cancelResolutionDiscovery();
+    final episode = _currentEpisode!;
+    _resolutionCandidates.clear();
+    _resolutionCandidateKeys.clear();
+    final initial = <StreamSource>[
+      _currentSource,
+      ...episode.streams,
+      ...?_cachedSourcesByEpisode[_resolutionEpisodeKey(episode)],
+      ..._recoveryCandidates,
+      if (episode.season == widget.episode?.season &&
+          episode.episode == widget.episode?.episode)
+        ...widget.availableSources,
+    ];
+    for (final source in initial) {
+      _addResolutionCandidate(source, episode);
+    }
+    setState(() {
+      _activeMenu = 'resolution';
+      _showControls = true;
+      _showSubSyncBar = false;
+      _showTextSyncOverlay = false;
+      _resolutionDiscovering = true;
+    });
+    _hideTimer?.cancel();
+
+    final id = episode.id.isNotEmpty
+        ? episode.id
+        : '${widget.detail?.id ?? ""}:${episode.season ?? 1}:${episode.episode ?? 1}';
+    if (id.startsWith(':') || id.isEmpty) {
+      setState(() => _resolutionDiscovering = false);
+      return;
+    }
+    final epoch = _resolutionDiscoveryEpoch;
+    var pendingUpdates = 0;
+    void publish() {
+      _resolutionListRefresh?.cancel();
+      _resolutionListRefresh = null;
+      pendingUpdates = 0;
+      if (!mounted || _activeMenu != 'resolution' ||
+          epoch != _resolutionDiscoveryEpoch) return;
+      setState(() {});
+    }
+    try {
+      _resolutionSourceSubscription = StreamService.fetchStreams(
+        type: widget.detail?.type ?? 'series',
+        id: id,
+        title: widget.detail?.name ?? widget.title,
+        year: int.tryParse(widget.detail?.year ?? ''),
+        season: episode.season,
+        episode: episode.episode,
+      ).timeout(
+        const Duration(seconds: 18),
+        onTimeout: (sink) => sink.close(),
+      ).listen(
+        (source) {
+          if (!mounted || _activeMenu != 'resolution' ||
+              epoch != _resolutionDiscoveryEpoch) return;
+          final previous = _resolutionCandidates.length;
+          _addResolutionCandidate(source, episode);
+          if (_resolutionCandidates.length == previous) return;
+          if (++pendingUpdates >= 15) {
+            publish();
+          } else {
+            _resolutionListRefresh ??= Timer(
+              const Duration(milliseconds: 170), publish);
+          }
+        },
+        onError: (Object error) {
+          debugPrint('[PlayerResolution] Source lookup: ${error.runtimeType}');
+          if (!mounted || epoch != _resolutionDiscoveryEpoch ||
+              _activeMenu != 'resolution') return;
+          setState(() => _resolutionDiscovering = false);
+        },
+        onDone: () {
+          if (!mounted || epoch != _resolutionDiscoveryEpoch ||
+              _activeMenu != 'resolution') return;
+          _resolutionListRefresh?.cancel();
+          _resolutionListRefresh = null;
+          _cachedSourcesByEpisode[_resolutionEpisodeKey(episode)] =
+              List<StreamSource>.of(_resolutionCandidates);
+          setState(() => _resolutionDiscovering = false);
+        },
+        cancelOnError: false,
+      );
+    } catch (error) {
+      debugPrint('[PlayerResolution] Cannot search: ${error.runtimeType}');
+      if (mounted && epoch == _resolutionDiscoveryEpoch) {
+        setState(() => _resolutionDiscovering = false);
+      }
+    }
+  }
+
+  Future<void> _selectResolution(PlayerResolutionChoice choice) async {
+    final episode = _currentEpisode;
+    if (!mounted || episode == null || _isLoading ||
+        _resolutionSwitching || _activeMenu != 'resolution') return;
+    final source = choice.source;
+    // No needless rebuffer if the best source is already playing.
+    final sameSource = identical(source, _currentSource) ||
+        (source.url != null && source.url == _currentSource.url &&
+         source.addonName == _currentSource.addonName &&
+         source.fileIdx == _currentSource.fileIdx);
+    if (sameSource) {
+      _closeResolutionMenu();
+      return;
+    }
+    // Preserve alternatives of this exact quality for failure recovery.
+    final sameQualitySources = _resolutionCandidates.where((candidate) =>
+        PlayerResolutionSelector.resolutionOf(candidate) ==
+            choice.resolution).toList();
+    _cachedSourcesByEpisode[_resolutionEpisodeKey(episode)] =
+        List<StreamSource>.of(_resolutionCandidates);
+    _cancelResolutionDiscovery();
+    setState(() {
+      _resolutionSwitching = true;
+      _activeMenu = null;
+    });
+    try {
+      IosAudioTelemetry.instance.captureSourceSelection(
+        action: 'resolution_source_selected',
+        source: source,
+        title: widget.detail?.name ?? widget.title,
+        mediaId: widget.detail?.id,
+        season: episode.season,
+        episode: episode.episode,
+        episodeTitle: episode.title,
+      );
+      WindowsPlaybackTelemetry.instance.captureSourceSelection(
+        action: 'resolution_source_selected',
+        source: source,
+        title: widget.detail?.name ?? widget.title,
+        season: episode.season,
+        episode: episode.episode,
+        episodeTitle: episode.title,
+      );
+      await _switchStream(
+        source,
+        episode,
+        preserveExactPosition: true,
+        preferredRecoveryCandidates: sameQualitySources,
+      );
+    } catch (error) {
+      debugPrint('[PlayerResolution] Switch failed: ${error.runtimeType}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(
+            'Unable to switch quality. Choose another available source.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _resolutionSwitching = false);
+    }
+  }
+
   void _toggleMenu(String menuName) {
+    if (_activeMenu == 'resolution' && menuName != 'resolution') {
+      _cancelResolutionDiscovery();
+    }
     if (menuName == 'audio') {
       unawaited(_refreshNativeAudioTracks(_audioMediaEpoch));
     }
@@ -3219,6 +3448,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _toggleEpisodesPanel() {
+    if (_activeMenu == 'resolution') _cancelResolutionDiscovery();
     setState(() {
       _showEpisodesPanel = !_showEpisodesPanel;
       if (_showEpisodesPanel) {
@@ -3232,6 +3462,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _onEpisodeChosen(Video episode) {
+    if (_activeMenu == 'resolution') _cancelResolutionDiscovery();
     setState(() {
       _showEpisodesPanel = false;
       _showSourcesPanel = true;
@@ -3390,7 +3621,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _switchStream(StreamSource newSource, Video newEpisode,
-      {bool automaticRecovery = false}) async {
+      {bool automaticRecovery = false, bool preserveExactPosition = false,
+       List<StreamSource>? preferredRecoveryCandidates}) async {
+    if (_activeMenu == 'resolution') _cancelResolutionDiscovery();
     _progressSaveTimer?.cancel();
     final previousEpisode = _currentEpisode;
     final sameEpisode = previousEpisode != null &&
@@ -3400,19 +3633,22 @@ class _PlayerScreenState extends State<PlayerScreen>
         (previousEpisode.id == newEpisode.id ||
          previousEpisode.id.isEmpty || newEpisode.id.isEmpty);
     final oldPosition = _player.state.position > Duration.zero
-        ? _player.state.position : _lastNonzeroPlaybackPosition;
-    // A failed stream may end halfway through an episode. When the user
-    // chooses another source for that same episode, resume close to where
-    // playback stopped instead of silently starting over at 00:00.
-    _resumeAfterSourceSwitch = sameEpisode &&
-            oldPosition > const Duration(seconds: 20)
-        ? oldPosition - const Duration(seconds: 5)
-        : null;
+        ? _player.state.position
+        : (_position > Duration.zero
+            ? _position : _lastNonzeroPlaybackPosition);
+    // Switching quality keeps the exact timestamp; source failure recovery
+    // intentionally retains its established five-second rewind.
+    _resumeAfterSourceSwitch = PlayerResolutionSelector.resumePosition(
+      currentPosition: oldPosition,
+      sameEpisode: sameEpisode,
+      deliberateQualityChange: preserveExactPosition,
+    );
     if (!automaticRecovery) {
       _sourceRecoveryEpoch++;
       _sourceRecovery.reset();
       _recoveryCandidates.clear();
-      _recoveryCandidates.addAll(newEpisode.streams);
+      _recoveryCandidates.addAll(
+          preferredRecoveryCandidates ?? newEpisode.streams);
       _savePlaybackProgress();
     }
 
@@ -3722,6 +3958,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     ++_streamGeneration;
     _audioMediaEpoch++;
     ++_diagnosticsRevision;
+    _cancelResolutionDiscovery();
     _diagnosticsTimer?.cancel();
     _playbackPerformanceTimer?.cancel();
     _sourceOpeningWatchdog?.cancel();
@@ -4163,6 +4400,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                           isAutoSyncBusy: false,
                           onAutoSync: () => unawaited(_autoSyncSubtitles()),
                           onToggleDiagnostics: _toggleDiagnostics,
+                          isResolutionMenuActive: _activeMenu == 'resolution',
+                          onToggleResolutionMenu: _currentEpisode == null
+                              ? null : _toggleResolutionMenu,
                           isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
                           hasNextEpisode: _nextEpisode != null,
                           nextEpisodeLabel: _nextEpisode == null
@@ -4386,6 +4626,24 @@ class _PlayerScreenState extends State<PlayerScreen>
                 onChanged: _previewVideoBrightness,
                 onChangeEnd: (value) => unawaited(_commitVideoBrightness(value)),
                 onClose: () => setState(() => _activeMenu = null),
+              ),
+            ),
+
+          // Source-backed instant resolution switching for this episode.
+          if (_activeMenu == 'resolution' && !_isLoading)
+            Positioned(
+              bottom: MediaQuery.sizeOf(context).height < 500
+                  ? 46
+                  : (MediaQuery.sizeOf(context).width < 680 ? 76 : 96),
+              right: MediaQuery.sizeOf(context).width < 680 ? 12 : 28,
+              child: PlayerResolutionMenu(
+                resolutions: _resolutionChoices,
+                currentResolution:
+                    PlayerResolutionSelector.resolutionOf(_currentSource),
+                isDiscovering: _resolutionDiscovering,
+                isSwitching: _resolutionSwitching,
+                onSelected: (choice) => unawaited(_selectResolution(choice)),
+                onClose: _closeResolutionMenu,
               ),
             ),
 

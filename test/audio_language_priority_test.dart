@@ -29,7 +29,45 @@ void main() {
     expect(AudioLanguagePriority.torrentioAudioRank(sample('Japanese Audio | Subs: English')), 3);
     expect(AudioLanguagePriority.torrentioAudioRank(sample('French Audio English subtitles')), 3);
   });
-  test('other addons retain ordinary ranking', () {
-    expect(AudioLanguagePriority.torrentioAudioRank(sample('English', addon: 'OtherAddon')), 2);
+  test('Comet and other Stremio addons classify their audio equally', () {
+    expect(AudioLanguagePriority.sourceAudioRank(
+        sample('Marshals.S02E01.1080p.WEB-DL.HEVC.Rus.mkv',
+            addon: 'Comet | ElfHosted | TB')), 3);
+    expect(AudioLanguagePriority.sourceAudioRank(
+        sample('Marshals.S02E01.1080p.PMTP.WEB-DL.ENG.Atmos.ITA.mkv',
+            addon: 'Comet | ElfHosted | TB')), 0);
+    expect(AudioLanguagePriority.sourceAudioRank(
+        sample('Marshals.S02E01.1080p.WEB-DL.Rus.Eng.mkv',
+            addon: 'MediaFusion')), 0);
+    expect(AudioLanguagePriority.sourceAudioRank(
+        sample('Marshals.S02E01.1080p.WEBRip', addon: 'Comet')), 2);
+  });
+
+  test('English subtitle labels never become audio evidence', () {
+    expect(AudioLanguagePriority.sourceAudioRank(StreamSource(
+      addonName: 'Comet',
+      title: 'Film.1080p.Rus | Subs: English',
+      subtitles: const [{'lang': 'en', 'url': 'https://example.test/sub'}],
+    )), 3);
+    expect(AudioLanguagePriority.sourceAudioRank(sample(
+      'Film.1080p.French Audio English subtitles', addon: 'Comet')), 3);
+  });
+
+  test('structured audio hints are distinct from subtitle languages', () {
+    expect(AudioLanguagePriority.sourceAudioRank(StreamSource(
+      addonName: 'Custom Stremio',
+      title: 'Film.1080p',
+      behaviorHints: const {'audioLanguages': ['eng', 'rus']},
+      subtitles: const [{'lang': 'ru'}],
+    )), 0);
+  });
+
+  test('strict mode only confirms native non-English audio when known', () {
+    expect(AudioLanguagePriority.isConfirmedNonEnglishTrack(
+        language: 'rus', title: 'MVO LostFilm'), isTrue);
+    expect(AudioLanguagePriority.isConfirmedNonEnglishTrack(
+        language: 'und', title: 'Track 1'), isFalse);
+    expect(AudioLanguagePriority.isConfirmedNonEnglishTrack(
+        language: 'eng', title: 'English'), isFalse);
   });
 }

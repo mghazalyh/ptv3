@@ -57,6 +57,7 @@ class WatchSourceProfile {
   final String subtitlePolicy;
   final String subtitleLanguage;
   final bool preferEnglishAudio;
+  final bool requireEnglishAudio;
   final bool allowUnknown;
   final bool deduplicate;
   final List<SourceSortRule> sorting;
@@ -79,6 +80,7 @@ class WatchSourceProfile {
     this.subtitlePolicy = 'prefer',
     this.subtitleLanguage = 'English',
     this.preferEnglishAudio = true,
+    this.requireEnglishAudio = false,
     this.allowUnknown = true,
     this.deduplicate = true,
     this.sorting = const [
@@ -105,7 +107,8 @@ class WatchSourceProfile {
     List<String>? addonPriority, String? subtitleSource, bool? excludeLowQuality,
     double? minSizeGb, double? maxSizeGb, int? minSeeders,
     String? cachePolicy, String? subtitlePolicy, String? subtitleLanguage,
-    bool? preferEnglishAudio, bool? allowUnknown, bool? deduplicate,
+    bool? preferEnglishAudio, bool? requireEnglishAudio,
+    bool? allowUnknown, bool? deduplicate,
     List<SourceSortRule>? sorting,
   }) => WatchSourceProfile(
     resolutions: resolutions ?? this.resolutions,
@@ -125,6 +128,7 @@ class WatchSourceProfile {
     subtitlePolicy: subtitlePolicy ?? this.subtitlePolicy,
     subtitleLanguage: subtitleLanguage ?? this.subtitleLanguage,
     preferEnglishAudio: preferEnglishAudio ?? this.preferEnglishAudio,
+    requireEnglishAudio: requireEnglishAudio ?? this.requireEnglishAudio,
     allowUnknown: allowUnknown ?? this.allowUnknown,
     deduplicate: deduplicate ?? this.deduplicate,
     sorting: sorting ?? this.sorting,
@@ -193,6 +197,8 @@ class WatchSourceProfile {
           ? raw['subtitleLanguage'] as String : 'English',
       preferEnglishAudio: raw['preferEnglishAudio'] is bool
           ? raw['preferEnglishAudio'] as bool : true,
+      requireEnglishAudio: raw['requireEnglishAudio'] is bool
+          ? raw['requireEnglishAudio'] as bool : false,
       allowUnknown: raw['allowUnknown'] is bool
           ? raw['allowUnknown'] as bool : true,
       deduplicate: raw['deduplicate'] is bool
@@ -210,7 +216,9 @@ class WatchSourceProfile {
     'minSizeGb': minSizeGb, 'maxSizeGb': maxSizeGb,
     'minSeeders': minSeeders, 'cachePolicy': cachePolicy,
     'subtitlePolicy': subtitlePolicy, 'subtitleLanguage': subtitleLanguage,
-    'preferEnglishAudio': preferEnglishAudio, 'allowUnknown': allowUnknown,
+    'preferEnglishAudio': preferEnglishAudio,
+    'requireEnglishAudio': requireEnglishAudio,
+    'allowUnknown': allowUnknown,
     'deduplicate': deduplicate,
     'sorting': [for (final rule in sorting) rule.toJson()],
   };
@@ -351,6 +359,36 @@ abstract final class WatchSourceEngine {
 
   /// Cache verification is scoped to the requested torrent file when supplied.
   /// A cached torrent hash alone cannot verify another episode's file index.
+  /// An exact torrent/file match is definitive. For Stremio addons that only
+  /// expose resolved URLs, group identical full video filenames with matching
+  /// reported sizes. Never group generic labels such as "1080p" or "Comet".
+  static String? deduplicationKey(StreamSource source) {
+    final hash = hashOf(source);
+    if (hash != null) {
+      return 'torrent:' + hash + ':' + (source.fileIdx?.toString() ?? 'none');
+    }
+    final metadata = [
+      source.description ?? '',
+      source.title ?? '',
+    ].join('\n');
+    for (final line in metadata.split(RegExp(r'[\r\n]+'))) {
+      final match = RegExp(
+        r'([^\r\n]*?\.(?:mkv|mp4|m4v|avi|webm))\b',
+        caseSensitive: false,
+      ).firstMatch(line);
+      if (match == null) continue;
+      final filename = (match.group(1) ?? '')
+          .replaceFirst(RegExp(r'^\s*📄\s*'), '')
+          .trim().toLowerCase();
+      if (filename.length < 24) continue;
+      final bytes = source.sizeBytes;
+      if (bytes == null || !bytes.isFinite || bytes <= 0) continue;
+      final roundedMegabytes = (bytes / 1048576).round();
+      return 'release:' + filename + ':' + roundedMegabytes.toString();
+    }
+    return null;
+  }
+
   static String? cacheKeyOf(StreamSource source,
       {int? season, int? episode}) {
     final hash = hashOf(source);
@@ -492,6 +530,8 @@ abstract final class WatchSourceEngine {
 
   static bool _allowed(StreamSource source, WatchSourceProfile profile,
       Map<String, bool> verified, {int? season, int? episode}) {
+    if (profile.requireEnglishAudio &&
+        AudioLanguagePriority.sourceAudioRank(source) == 3) return false;
     if (profile.addons.isNotEmpty &&
         !profile.addons.any((name) =>
             source.addonName.toLowerCase().contains(name.toLowerCase()))) return false;
@@ -588,7 +628,7 @@ abstract final class WatchSourceEngine {
           case 'SDR': return 1;
         }
         return null;
-      case 'audio': return (3 - AudioLanguagePriority.torrentioAudioRank(s)).toDouble();
+      case 'audio': return (3 - AudioLanguagePriority.sourceAudioRank(s)).toDouble();
       case 'subtitles': return hasSubtitles(s) == true ? 1 : 0;
       case 'original': return original.toDouble();
     }
@@ -613,27 +653,29 @@ abstract final class WatchSourceEngine {
       // Balanced/All may retain playback choices when metadata filters
       // eliminate everything. Both strict modes must never fail open.
       if (selected.isEmpty && candidates.isNotEmpty &&
+          !profile.requireEnglishAudio &&
           profile.cachePolicy != 'cachedOnly' &&
           profile.cachePolicy != 'readyOnly') {
         selected = List<StreamSource>.of(candidates);
       }
-      if (profile.deduplicate) {
-        final seen = <String>{};
-        selected = selected.where((s) {
-          final hash = hashOf(s);
-          if (hash == null) return true;
-          final key = hash + ':' + (s.fileIdx?.toString() ?? '');
-          return seen.add(key);
-        }).toList();
-      }
       final original = <StreamSource, int>{
         for (var i = 0; i < selected.length; i++) selected[i]: i,
       };
+      // Comparison runs O(n log n) times. Cache parsed language evidence once
+      // per source rather than repeatedly splitting addon descriptions.
+      final audioRanks = <StreamSource, int>{};
+      int audioRank(StreamSource source) => audioRanks.putIfAbsent(
+          source, () => AudioLanguagePriority.sourceAudioRank(source));
       selected.sort((a, b) {
         if (title != null && title.trim().isNotEmpty) {
           final content = SourceContentIdentity.compare(a, b, title: title,
               year: year, season: season, episode: episode);
           if (content != 0) return content;
+        }
+        // Language outranks cache, size, and quality only when enabled.
+        if (profile.preferEnglishAudio || profile.requireEnglishAudio) {
+          final audio = audioRank(a).compareTo(audioRank(b));
+          if (audio != 0) return audio;
         }
         for (final rule in profile.sorting) {
           final ar = _rank(a, rule.criterion, verified, original[a] ?? 0, profile,
@@ -646,11 +688,6 @@ abstract final class WatchSourceEngine {
           final compare = ar.compareTo(br);
           if (compare != 0) return rule.descending ? -compare : compare;
         }
-        if (profile.preferEnglishAudio) {
-          final compare = AudioLanguagePriority.torrentioAudioRank(a)
-              .compareTo(AudioLanguagePriority.torrentioAudioRank(b));
-          if (compare != 0) return compare;
-        }
         // Respect explicit sorting, but choose the more compatible
         // candidate when the user's sorting rules yield a tie.
         final compatibility = SourceCompatibilityRank.score(b,
@@ -659,6 +696,15 @@ abstract final class WatchSourceEngine {
         if (compatibility != 0) return compatibility;
         return (original[a] ?? 0).compareTo(original[b] ?? 0);
       });
+      // Sort before collapsing so the best provider is the visible card.
+      // Original sources remain accessible in the alternative-provider picker.
+      if (profile.deduplicate) {
+        final seen = <String>{};
+        selected = selected.where((source) {
+          final key = deduplicationKey(source);
+          return key == null || seen.add(key);
+        }).toList();
+      }
       return selected;
     } catch (error) {
       debugPrint('[WatchSources] Sort/filter fallback: ' + error.runtimeType.toString());
@@ -666,13 +712,18 @@ abstract final class WatchSourceEngine {
       if (profile.cachePolicy == 'cachedOnly' ||
           profile.cachePolicy == 'readyOnly') {
         return candidates.where((source) {
+          if (profile.requireEnglishAudio &&
+              AudioLanguagePriority.sourceAudioRank(source) == 3) return false;
           final tier = cacheTier(source, verified,
               season: season, episode: episode);
           return tier == 'verified' ||
               (profile.cachePolicy == 'readyOnly' && tier == 'reported');
         }).toList();
       }
-      return List<StreamSource>.of(candidates);
+      return profile.requireEnglishAudio
+          ? candidates.where((source) =>
+              AudioLanguagePriority.sourceAudioRank(source) != 3).toList()
+          : List<StreamSource>.of(candidates);
     }
   }
 }

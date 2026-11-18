@@ -48,6 +48,7 @@ import '../../services/player/playback_diagnostics_probe.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/stream/stream_service.dart';
 import '../../services/stream/source_content_identity.dart';
+import '../../services/stream/watch_source_preferences.dart';
 import '../../services/discord/discord_rpc_service.dart';
 
 import '../../widgets/player/player_glass.dart';
@@ -173,6 +174,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   int _selectedAudioTrackIndex = 0;
   bool _audioManuallySelected = false;
   bool _audioAutoSelectionPending = false;
+  bool _englishRequirementBlocked = false;
   bool _nativeAudioProbeRunning = false;
   int _audioMediaEpoch = 0;
   double _audioDelaySec = 0.0;
@@ -513,6 +515,26 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _initStream() async {
+    final languageProfile = WatchSourcePreferencesService.current.value
+        .forEpisode(_currentEpisode != null);
+    if (languageProfile.requireEnglishAudio &&
+        AudioLanguagePriority.sourceAudioRank(_currentSource) == 3) {
+      IosAudioTelemetry.instance.captureAudioSelection(
+        action: 'english_required_source_rejected',
+        reason: 'explicit_non_english_release',
+      );
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _showSourcesPanel = true;
+          _sourcesEpisode = _currentEpisode;
+          _sourcesErrorMessage =
+              'This release is marked non-English-only. '
+              'Select an English-labelled or unknown-language source.';
+        });
+      }
+      return;
+    }
     IosAudioTelemetry.instance.captureSourceSelection(
         action: 'source_open_attempt',
         source: _currentSource, title: widget.detail?.name ?? _currentTitle,
@@ -577,6 +599,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final audioEpoch = ++_audioMediaEpoch;
     _audioManuallySelected = false;
     _audioAutoSelectionPending = false;
+    _englishRequirementBlocked = false;
     _audioTracks = [];
     _selectedAudioTrackIndex = 0;
     // Never carry stale subtitle tracks or download results into another episode.
@@ -957,6 +980,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     });
     _captureIosAudioTrackSnapshot('media_kit_tracks');
     _preferEnglishAudioTrack();
+    _enforceEnglishAudioRequirement();
     if (!_isLoading) unawaited(_autoEnableEnglishEmbedded(_audioMediaEpoch));
   }
 
@@ -977,6 +1001,46 @@ class _PlayerScreenState extends State<PlayerScreen>
         'isDefault': track.isDefault,
       }).toList(),
     );
+  }
+
+  /// Strict mode is opt-in. Wait for late native audio metadata before
+  /// declining playback; incomplete and unknown-language lists remain valid.
+  void _enforceEnglishAudioRequirement() {
+    if (!mounted || _isLoading || _audioManuallySelected ||
+        _englishRequirementBlocked || _audioTracks.isEmpty) return;
+    final openingAt = _sourceOpeningAt;
+    if (openingAt == null ||
+        DateTime.now().difference(openingAt) < const Duration(seconds: 7)) {
+      return;
+    }
+    final profile = WatchSourcePreferencesService.current.value
+        .forEpisode(_currentEpisode != null);
+    if (!profile.requireEnglishAudio) return;
+    if (!_audioTracks.every((track) =>
+        AudioLanguagePriority.isConfirmedNonEnglishTrack(
+          language: track.language, title: track.title,
+        ))) return;
+    _englishRequirementBlocked = true;
+    IosAudioTelemetry.instance.captureAudioSelection(
+      action: 'english_required_no_native_track',
+      actualTrackId: _selectedAudioTrackIndex,
+      reason: 'all_observed_tracks_confirmed_non_english',
+    );
+    unawaited(_pauseForRequiredEnglish());
+    setState(() {
+      _showSourcesPanel = true;
+      _sourcesEpisode = _currentEpisode;
+      _sourcesErrorMessage = 'Only non-English audio tracks were detected. '
+          'This stream was paused because Require English is enabled.';
+    });
+  }
+
+  Future<void> _pauseForRequiredEnglish() async {
+    try {
+      await _player.pause();
+    } catch (error) {
+      debugPrint('[PlayerAudio] English-required pause failed: $error');
+    }
   }
 
   void _preferEnglishAudioTrack() {
@@ -1080,10 +1144,15 @@ class _PlayerScreenState extends State<PlayerScreen>
       const Duration(milliseconds: 600),
       const Duration(seconds: 2),
       const Duration(seconds: 5),
+      const Duration(seconds: 9),
     ]) {
       Future.delayed(delay, () {
         if (mounted && epoch == _audioMediaEpoch) {
-          unawaited(_refreshNativeAudioTracks(epoch));
+          unawaited(_refreshNativeAudioTracks(epoch).whenComplete(() {
+            if (mounted && epoch == _audioMediaEpoch) {
+              _enforceEnglishAudioRequirement();
+            }
+          }));
         }
       });
     }
@@ -1158,6 +1227,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         debugPrint('[PlayerAudio] MPV exposed ${found.length} audio tracks');
       }
       _preferEnglishAudioTrack();
+      _enforceEnglishAudioRequirement();
     } catch (error) {
       IosAudioTelemetry.instance.captureAudioSelection(
           action: 'native_track_probe_failed',
@@ -3062,6 +3132,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           _audioTracks = [];
           _selectedAudioTrackIndex = manualAudio ?? 0;
           _audioAutoSelectionPending = false;
+          _englishRequirementBlocked = false;
           _audioManuallySelected = manualAudio != null;
           setState(() {
             _isLoading = false;

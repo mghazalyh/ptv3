@@ -328,6 +328,20 @@ class _WatchSourcePreferencesPageState
                         _save(p.copyWith(preferEnglishAudio: v)),
                   ),
                   SwitchListTile.adaptive(
+                    title: const Text('Require English audio'),
+                    subtitle: const Text(
+                      'Hide releases explicitly marked non-English-only. '
+                      'Unknown audio remains available for native track '
+                      'verification. Playback pauses if MPV confirms only '
+                      'non-English tracks.',
+                    ),
+                    value: p.requireEnglishAudio,
+                    onChanged: (v) => _save(p.copyWith(
+                      requireEnglishAudio: v,
+                      preferEnglishAudio: v ? true : p.preferEnglishAudio,
+                    )),
+                  ),
+                  SwitchListTile.adaptive(
                     title: const Text('Include unknown metadata'),
                     subtitle: const Text('Do not hide otherwise playable '
                         'sources missing quality or size labels.'),

@@ -261,6 +261,110 @@ void main() {
     expect(TorBoxCacheVerifier.parseCacheResponse(payload, [stream]), isEmpty);
   });
 
+  test('Marshals S02E01 English-labelled sources outrank Russian-only', () {
+    final russian = StreamSource(
+      name: '[TB⚡] Comet 1080p',
+      addonName: 'Comet | ElfHosted | TB',
+      url: 'https://example.test/russian.mkv',
+      description: '📄 Marshals.S02E01.All.Hat.No.Cattle.1080p.WEB-DL.HEVC.Rus.mkv\n'
+          '💾 504.3 MB 🇷🇺',
+    );
+    final english = StreamSource(
+      name: '[TB⚡] Comet 1080p',
+      addonName: 'Comet | ElfHosted | TB',
+      url: 'https://example.test/english.mkv',
+      description: '📄 Marshals.S02E01.All.Hat.No.Cattle.1080p.PMTP.WEB-DL.ENG.Atmos.ITA.mkv\n'
+          '💾 1.3 GB 🇬🇧',
+    );
+    final bilingual = StreamSource(
+      name: '[TB+] Torrentio 1080p',
+      addonName: 'Torrentio TB',
+      url: 'https://example.test/multilingual.mkv',
+      title: 'Marshals.S02E01.All.Hat.No.Cattle.1080p.WEB-DL.Rus.Eng.mkv\n'
+          '💾 1.7 GB',
+    );
+
+    final ranked = WatchSourceEngine.process(
+      [russian, english, bilingual],
+      const WatchSourceProfile(),
+      title: 'Marshals', season: 2, episode: 1,
+    );
+    expect(ranked, containsAll([english, bilingual, russian]));
+    expect(ranked.indexOf(english), lessThan(ranked.indexOf(russian)));
+    expect(ranked.indexOf(bilingual), lessThan(ranked.indexOf(russian)));
+    expect(ranked.first, same(english));
+  });
+
+  test('smallest file toolbar cannot move known Russian over English', () {
+    final russian = source('Marshals.S02E01.1080p.WEB-DL.Rus.504MB');
+    final english = source('Marshals.S02E01.1080p.WEB-DL.ENG.1.3GB');
+    const smallFiles = WatchSourceProfile(
+      sorting: [
+        SourceSortRule('size', false),
+        SourceSortRule('cache', true),
+        SourceSortRule('resolution', true),
+      ],
+    );
+    expect(WatchSourceEngine.process([russian, english], smallFiles,
+        title: 'Marshals', season: 2, episode: 1).first, same(english));
+    expect(WatchSourceEngine.process([russian, english],
+        smallFiles.copyWith(preferEnglishAudio: false),
+        title: 'Marshals', season: 2, episode: 1).first, same(russian));
+  });
+
+  test('English-required mode hides known Russian but keeps unknown', () {
+    final russian = source('Marshals.S02E01.1080p.WEB-DL.Rus');
+    final unknown = source('Marshals.S02E01.1080p.WEB-DL');
+    final english = source('Marshals.S02E01.1080p.WEB-DL.ENG');
+    const required = WatchSourceProfile(requireEnglishAudio: true);
+    final result = WatchSourceEngine.process(
+      [russian, unknown, english], required,
+      title: 'Marshals', season: 2, episode: 1,
+    );
+    expect(result, containsAll([unknown, english]));
+    expect(result, isNot(contains(russian)));
+    expect(WatchSourceEngine.process([russian], required,
+        title: 'Marshals', season: 2, episode: 1), isEmpty);
+    expect(WatchSourceProfile.fromJson(required.toJson())
+        .requireEnglishAudio, isTrue);
+  });
+
+  test('duplicate Comet releases collapse without hiding alternatives', () {
+    final first = StreamSource(
+      addonName: 'Comet | ElfHosted | TB',
+      name: '[TB⚡] Comet 1080p',
+      url: 'https://example.test/first',
+      description: '📄 Marshals.S02E01.All.Hat.No.Cattle.1080p.WEB-DL.HEVC.Rus.mkv\n'
+          '💾 504.3 MB',
+    );
+    final second = StreamSource(
+      addonName: 'Another Stremio addon',
+      name: '1080p',
+      url: 'https://example.test/second',
+      description: '📄 Marshals.S02E01.All.Hat.No.Cattle.1080p.WEB-DL.HEVC.Rus.mkv\n'
+          '💾 504.3 MB',
+    );
+    final differentAudio = StreamSource(
+      addonName: 'Comet | ElfHosted | TB',
+      name: '1080p',
+      url: 'https://example.test/english',
+      description: '📄 Marshals.S02E01.All.Hat.No.Cattle.1080p.WEB-DL.Rus.Eng.mkv\n'
+          '💾 1.7 GB',
+    );
+    expect(WatchSourceEngine.deduplicationKey(first),
+        WatchSourceEngine.deduplicationKey(second));
+    expect(WatchSourceEngine.deduplicationKey(first),
+        isNot(WatchSourceEngine.deduplicationKey(differentAudio)));
+    final output = WatchSourceEngine.process(
+      [first, second, differentAudio],
+      const WatchSourceProfile(), title: 'Marshals', season: 2, episode: 1,
+    );
+    expect(output.length, 2);
+    expect(output, contains(differentAudio));
+    // Both original links remain available for the source-card picker.
+    expect([first, second, differentAudio].length, 3);
+  });
+
   test('invalid configuration values fall back without throwing', () {
     final parsed = WatchSourceProfile.fromJson({
       'cachePolicy': 'impossible',

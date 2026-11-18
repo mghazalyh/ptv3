@@ -183,9 +183,8 @@ class IosAudioTelemetry {
           ? languages.take(30).map((v) => _safeText(v.toString(), limit: 40))
               .whereType<String>().toList()
           : <String>[],
-      'inferredAudioRank': AudioLanguagePriority.torrentioAudioRank(source),
-      'audioEvidence': source.addonName.toLowerCase().contains('torrentio')
-          ? 'torrentio_release_label' : 'unclassified_non_torrentio',
+      'inferredAudioRank': AudioLanguagePriority.sourceAudioRank(source),
+      'audioEvidence': 'stremio_release_and_audio_hints',
       'cacheTier': WatchSourceEngine.cacheTier(source, verified,
           season: season, episode: episode),
     };
@@ -217,6 +216,7 @@ class IosAudioTelemetry {
             year: year, season: season, episode: episode) ==
         SourceIdentityVerdict.rejected).toList();
     _trace('source_ranking_completed', <String, Object?>{
+      'requireEnglishAudio': profile.requireEnglishAudio,
       'requestedTitle': _safeText(title),
       'candidateCount': sources.length,
       'visibleCount': sorted.length,

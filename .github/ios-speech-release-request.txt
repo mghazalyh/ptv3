@@ -1,10 +1,9 @@
 PlayTorrio OWNER-AUTHORIZED ONE-TIME iOS-ONLY BUILD REQUEST
-Requested SGT: 2026-11-18
+Requested SGT: 2026-11-18 09:21:03
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Source commit: 718d437abca31230b083adcca125373df64b067f
 Workflow: .github/workflows/ios-speech-release.yml
-Scope: iOS 15 signed IPA only, existing release signing and publishing.
-Include: enhanced iOS playback telemetry for show and episode identity, source rankings, provider releases, audio tracks, MPV native selection and English-track decisions.
-No source sorting behavior changes. No Windows, Android, Linux, or other native builds.
-Trigger once and leave immediately. Do not wait for GitHub Actions completion.
+Scope: iOS native signed IPA only. No Windows, Android, or Linux builds.
+Changes: prefer English audio before cache/resolution/file size for every Stremio addon; cross-addon audio hints and release classification; remove duplicate exact releases while retaining alternative-provider picker; preserve language priority in size sorting; delayed MPV audio verification; optional Require English preference and strict non-English release protection; iOS source/audio telemetry and regression tests.
+Source parent: c85561579f10566a72996e3437c132aef3ab32c3
+Do not wait or poll GitHub Actions after triggering this request.

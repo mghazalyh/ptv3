@@ -469,8 +469,13 @@ class _WatchScreenState extends State<WatchScreen>
             title: widget.detail.name, year: int.tryParse(widget.detail.year ?? ''),
             season: widget.selectedEpisode?.season,
             episode: widget.selectedEpisode?.episode);
-        return identity != 0 ? identity :
-            (b.sizeBytes ?? -1).compareTo(a.sizeBytes ?? -1);
+        if (identity != 0) return identity;
+        if (profile.preferEnglishAudio || profile.requireEnglishAudio) {
+          final audio = AudioLanguagePriority.sourceAudioRank(a)
+              .compareTo(AudioLanguagePriority.sourceAudioRank(b));
+          if (audio != 0) return audio;
+        }
+        return (b.sizeBytes ?? -1).compareTo(a.sizeBytes ?? -1);
       });
     } else if (selector == 'smallest') {
       list.sort((a, b) {
@@ -478,9 +483,14 @@ class _WatchScreenState extends State<WatchScreen>
             title: widget.detail.name, year: int.tryParse(widget.detail.year ?? ''),
             season: widget.selectedEpisode?.season,
             episode: widget.selectedEpisode?.episode);
-        return identity != 0 ? identity :
-            (a.sizeBytes ?? double.infinity)
-                .compareTo(b.sizeBytes ?? double.infinity);
+        if (identity != 0) return identity;
+        if (profile.preferEnglishAudio || profile.requireEnglishAudio) {
+          final audio = AudioLanguagePriority.sourceAudioRank(a)
+              .compareTo(AudioLanguagePriority.sourceAudioRank(b));
+          if (audio != 0) return audio;
+        }
+        return (a.sizeBytes ?? double.infinity)
+            .compareTo(b.sizeBytes ?? double.infinity);
       });
     } else if (selector != null) {
       final gb = 1024.0 * 1024 * 1024;
@@ -1745,6 +1755,22 @@ class _WatchScreenState extends State<WatchScreen>
   }
 
   Widget _buildEmptyState() {
+    final profile = WatchSourcePreferencesService.current.value
+        .forEpisode(widget.selectedEpisode != null);
+    if (profile.requireEnglishAudio && _sources.isNotEmpty &&
+        _filteredSources.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          'No eligible English-audio source found. Unknown-language streams '
+          'remain eligible for native track inspection, but known '
+          'non-English-only releases are excluded. Disable Require English '
+          'in Watch Source Preferences to see every language.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: _C.textSecondary),
+        ),
+      );
+    }
     if (!_strictCacheOnly || _sources.isEmpty) {
       return const _EmptySourcesStateWidget();
     }
@@ -1935,13 +1961,13 @@ class _SourceCardState extends State<_SourceCard> {
       badges.add(_badge(s.quality!, badgeColor));
     }
 
-    if (s.addonName.toLowerCase().contains('torrentio')) {
-      final priority = AudioLanguagePriority.torrentioAudioRank(s);
-      if (priority == 0) {
-        badges.add(_badge('EN Audio', const Color(0xFF10B981)));
-      } else if (priority == 1) {
-        badges.add(_badge('Multi Audio', const Color(0xFF00E5FF)));
-      }
+    final audioPriority = AudioLanguagePriority.sourceAudioRank(s);
+    if (audioPriority == 0) {
+      badges.add(_badge('EN Audio (label)', const Color(0xFF10B981)));
+    } else if (audioPriority == 1) {
+      badges.add(_badge('Multi Audio', const Color(0xFF00E5FF)));
+    } else if (audioPriority == 3) {
+      badges.add(_badge('Non-English (label)', const Color(0xFFFFA94D)));
     }
     if (s.isHDR) badges.add(_badge('HDR', const Color(0xFFFFD43B)));
     if (s.codec != null) badges.add(_badge(s.codec!, _C.textTertiary));
@@ -1957,11 +1983,10 @@ class _SourceCardState extends State<_SourceCard> {
     } else if (WatchSourceEngine.isAddonReportedReady(s)) {
       badges.add(_badge('Debrid Ready (addon)', const Color(0xFF60A5FA)));
     }
-    final sourceHash = WatchSourceEngine.hashOf(s);
-    final alternatives = sourceHash == null ? <StreamSource>[]
+    final sourceKey = WatchSourceEngine.deduplicationKey(s);
+    final alternatives = sourceKey == null ? <StreamSource>[]
         : widget.allSources.where((other) => !identical(other, s) &&
-            WatchSourceEngine.hashOf(other) == sourceHash &&
-            other.fileIdx == s.fileIdx).toList();
+            WatchSourceEngine.deduplicationKey(other) == sourceKey).toList();
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,

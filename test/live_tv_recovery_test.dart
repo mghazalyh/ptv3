@@ -80,6 +80,7 @@ void main() {
       bool playing = true,
       bool buffering = false,
       int? duration,
+      bool videoReady = true,
     }) => policy.observe(
       at: t0.add(Duration(seconds: at)),
       position: Duration(seconds: position),
@@ -87,14 +88,57 @@ void main() {
       duration: Duration(seconds: duration ?? buffered),
       playing: playing,
       buffering: buffering,
+      videoReady: videoReady,
     );
 
     test('detects starvation before the last video frame is exhausted', () {
       final p = LiveRecoveryPolicy();
       expect(sample(p, 0, 0, 15), LiveHealthEvent.none);
-      expect(sample(p, 6, 6, 21), LiveHealthEvent.none);
+      expect(sample(p, 6, 6, 21), LiveHealthEvent.started);
       expect(sample(p, 17, 17, 21),
           LiveHealthEvent.feedStarvation);
+    });
+
+    test('initial native open with zero playback and no buffering still stalls', () {
+      final p = LiveRecoveryPolicy();
+      expect(sample(p, 0, 0, 0, playing: false),
+          LiveHealthEvent.none);
+      expect(sample(p, 16, 0, 0, playing: false),
+          LiveHealthEvent.bufferingStall);
+    });
+
+    test('only unbuffered video motion confirms first playback', () {
+      final p = LiveRecoveryPolicy();
+      sample(p, 0, 0, 0, buffering: true);
+      expect(sample(p, 4, 3, 8, buffering: true),
+          LiveHealthEvent.none);
+      expect(p.everPlayed, isFalse);
+      expect(sample(p, 6, 6, 12),
+          LiveHealthEvent.started);
+      expect(p.everPlayed, isTrue);
+    });
+
+    test('rejects audio-only source even if its timeline is advancing', () {
+      final p = LiveRecoveryPolicy();
+      expect(sample(p, 0, 0, 0, videoReady: false),
+          LiveHealthEvent.none);
+      expect(sample(p, 6, 6, 12, videoReady: false),
+          LiveHealthEvent.none);
+      expect(p.everPlayed, isFalse);
+      expect(sample(p, 21, 18, 24, videoReady: false),
+          LiveHealthEvent.videoUnavailable);
+      expect(p.everPlayed, isFalse);
+    });
+
+    test('rejects unverified replacement after a previously healthy source', () {
+      final p = LiveRecoveryPolicy();
+      sample(p, 0, 0, 5);
+      expect(sample(p, 5, 5, 15), LiveHealthEvent.started);
+      p.beginReopen(t0.add(const Duration(seconds: 6)));
+      p.reopened(t0.add(const Duration(seconds: 7)));
+      sample(p, 9, 3, 8, videoReady: false);
+      expect(sample(p, 28, 20, 30, videoReady: false),
+          LiveHealthEvent.videoUnavailable);
     });
 
     test('detects indefinitely stalled buffering', () {

@@ -30,6 +30,9 @@ import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
 import '../../services/player/live_tv/live_stream_detector.dart';
 import '../../services/player/live_tv/live_playback_coordinator.dart';
+import '../../services/player/live_tv/live_signal_health.dart';
+import '../../services/player/live_tv/live_programme_metadata.dart';
+import '../../widgets/player/live_tv_overlay.dart';
 import '../../services/player/ios_audio_telemetry.dart';
 import '../../services/remote/lan_remote_service.dart';
 import '../../services/player/audio_language_priority.dart';
@@ -143,6 +146,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _wasBuffering = false;
   // Only allocated for Stremio live TV. All movie/episode paths stay intact.
   LivePlaybackCoordinator? _liveTv;
+  LiveSignalSnapshot _liveSignal = const LiveSignalSnapshot(
+    level: LiveSignalLevel.connecting, bufferSeconds: null, attempts: 0,
+  );
   String _statusMessage = 'Initializing...';
   bool _showControls = true;
   bool _isHoveringUI = false;
@@ -289,9 +295,15 @@ class _PlayerScreenState extends State<PlayerScreen>
       streamHints: _currentSource.behaviorHints,
       hasEpisode: widget.episode != null,
     )) {
+      final programme = LiveProgrammeMetadata.resolve(
+        metaHints: widget.detail?.behaviorHints,
+        streamHints: _currentSource.behaviorHints,
+      );
       _liveTv = LivePlaybackCoordinator(
         player: _player,
         initialSource: _currentSource,
+        programmeTitle: programme.title,
+        programmeKind: programme.kind,
         channelId: widget.detail?.id ?? '',
         title: widget.detail?.name ?? widget.title,
         availableSources: widget.availableSources,
@@ -305,6 +317,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         onSourceChanged: (source) {
           if (!mounted) return;
           setState(() => _currentSource = source);
+        },
+        onHealthChanged: (snapshot) {
+          if (!mounted) return;
+          // Native open is not equivalent to decoded video readiness.
+          setState(() {
+            _liveSignal = snapshot;
+            _isLoading = snapshot.isConnecting;
+          });
         },
       );
       WidgetsBinding.instance.addObserver(this);
@@ -672,7 +692,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _debridPlaceholderCheck = null;
     _debridPlaceholderRecoveryRequested = false;
     _sourceOpeningAt = DateTime.now();
-    _startPeriodicAutoSync();
+    if (_liveTv == null) _startPeriodicAutoSync();
     _subtitleRateAnchor = null;
     _subtitleSpeed = 1.0;
     _nightModeRecoveryFailed = false;
@@ -749,7 +769,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         _scheduleAudioProbes(audioEpoch);
         _preferEnglishAudioTrack();
         unawaited(_fetchSkipSegments());
-        unawaited(_fetchInitialSubtitles());
+        if (_liveTv == null) unawaited(_fetchInitialSubtitles());
         return;
       }
 
@@ -843,7 +863,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
 
       final cleanUri = Uri.parse(sanitizedUrlStr);
-      _speechMediaUrl = cleanUri.toString();
+      if (_liveTv == null) _speechMediaUrl = cleanUri.toString();
       debugPrint('[PlayerScreen] Opening network stream (source: ${_currentSource.addonName})');
 
       if (!mounted) return;
@@ -915,6 +935,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         debugPrint('[PlayerSpeechSync] Reset native subtitle speed failed: ${error.runtimeType}');
       }
       await PlayerSettings.applyPostOpenProperties(_player);
+      if (_liveTv != null) await _disableLiveSubtitleTracks();
       _applyVolume(_isMuted ? 0.0 : _volume);
 
       debugPrint('[PlayerScreen] Native open returned for ${_currentSource.addonName}');
@@ -924,7 +945,8 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       if (!mounted) return;
       setState(() {
-        _isLoading = false;
+        _isLoading = _liveTv != null;
+        if (_liveTv != null) _statusMessage = 'Connecting to live channel...';
       });
 
       _player.play();
@@ -942,14 +964,16 @@ class _PlayerScreenState extends State<PlayerScreen>
         return;
       }
       _preferEnglishAudioTrack();
-      unawaited(_autoEnableEnglishEmbedded(audioEpoch));
+      if (_liveTv == null) unawaited(_autoEnableEnglishEmbedded(audioEpoch));
       _startHideControlsTimer();
 
       // Defer background services until after playback starts
       Future.microtask(() {
         if (!mounted) return;
-        _fetchSkipSegments();
-        _fetchInitialSubtitles();
+        if (_liveTv == null) {
+          _fetchSkipSegments();
+          _fetchInitialSubtitles();
+        }
 
         final detail = widget.detail;
         if (detail != null && _liveTv == null) {
@@ -1027,6 +1051,9 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _updateMediaTracks(Tracks tracks) {
     if (!mounted) return;
+    if (_liveTv != null && _player.state.track.subtitle.id != 'no') {
+      unawaited(_disableLiveSubtitleTracks());
+    }
     final audioList = tracks.audio;
     final audioTracks = <PlayerAudioTrack>[];
     for (int i = 0; i < audioList.length; i++) {
@@ -1379,6 +1406,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _autoEnableEnglishEmbedded(int epoch) async {
+    if (_liveTv != null) return;
     if (!mounted || _isLoading || epoch != _audioMediaEpoch ||
         _subtitleManuallySelected || _isSubtitleEnabled ||
         _subtitleAutoPending) return;
@@ -1420,6 +1448,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _fetchInitialSubtitles() async {
+    if (_liveTv != null) return;
     final epoch = _audioMediaEpoch;
     // Wait briefly for mpv to enumerate embedded tracks on slow TorBox files.
     await Future<void>.delayed(const Duration(milliseconds: 850));
@@ -2110,6 +2139,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _selectEmbeddedSubtitle(PlayerEmbeddedSubtitle embedded) {
+    if (_liveTv != null) return;
     _subtitleManuallySelected = true;
     _subtitleRateAnchor = null;
     _subtitleSpeed = 1.0;
@@ -2138,6 +2168,20 @@ class _PlayerScreenState extends State<PlayerScreen>
           duration: const Duration(seconds: 2),
         ),
       );
+    }
+  }
+
+  Future<void> _disableLiveSubtitleTracks() async {
+    if (_liveTv == null) return;
+    try {
+      await _player.setSubtitleTrack(SubtitleTrack.no());
+    } catch (error) {
+      debugPrint('[LiveTV] Subtitle disable failed: ${error.runtimeType}');
+    }
+    try {
+      await (_player.platform as dynamic).setProperty('sub-visibility', 'no');
+    } catch (_) {
+      // Some native backends do not expose sub-visibility.
     }
   }
 
@@ -2216,6 +2260,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _startPeriodicAutoSync() {
+    if (_liveTv != null) return;
     _periodicAutoSyncTimer?.cancel();
     _nextAutoSyncDueAt = DateTime.now().add(SubtitleAutoSyncPolicy.interval);
     _periodicAutoSyncTimer = Timer.periodic(
@@ -2250,6 +2295,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   // Spoken-audio timing is platform-specific; cue alignment is shared.
   Future<void> _autoSyncSubtitles({bool automatic = false}) async {
+    if (_liveTv != null) return;
     if (_autoSyncBusy || _isLoading) return;
     final epoch = _audioMediaEpoch;
     _autoSyncSucceeded = false;
@@ -2610,6 +2656,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     bool quiet = false,
     int? expectedEpoch,
   }) async {
+    if (_liveTv != null) return false;
     final epoch = expectedEpoch ?? _audioMediaEpoch;
     if (!automatic && !quiet) _subtitleManuallySelected = true;
     PlayerDebugTelemetry.record('subtitle_download_started');
@@ -4314,7 +4361,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
         // Video Player
         Center(
-          child: _isLoading
+          child: _isLoading && _liveTv == null
               ? Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -4490,6 +4537,24 @@ class _PlayerScreenState extends State<PlayerScreen>
             ),
           ),
 
+        // Visible even when the ordinary media controls auto-hide.
+        if (_liveTv != null)
+          Positioned(
+            top: MediaQuery.paddingOf(context).top +
+                (_showControls ? 83 : 14),
+            right: MediaQuery.sizeOf(context).width < 680 ? 12 : 26,
+            child: LiveTvSignalBadge(snapshot: _liveSignal),
+          ),
+
+        if (_liveTv != null && _isLoading)
+          Positioned.fill(
+            child: LiveTvLoadingOverlay(
+              channelTitle: widget.detail?.name ?? widget.title,
+              message: _statusMessage,
+              snapshot: _liveSignal,
+            ),
+          ),
+
         // Top Header Bar
         Positioned(
           top: 0,
@@ -4572,6 +4637,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       builder: (context, isFs, _) {
                         return PlayerTransport(
                           isPlaying: _isPlaying,
+                          showSubtitleControls: _liveTv == null,
                           position: _position,
                           duration: _duration,
                           buffered: buffered,
@@ -4589,7 +4655,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                           isBrightnessMenuActive: _activeMenu == 'brightness',
                           isDiagnosticsActive: _showDiagnostics,
                           isAutoSyncBusy: false,
-                          onAutoSync: () => unawaited(_autoSyncSubtitles()),
+                          onAutoSync: _liveTv == null
+                              ? () => unawaited(_autoSyncSubtitles()) : null,
                           onToggleDiagnostics: _toggleDiagnostics,
                           isResolutionMenuActive: _activeMenu == 'resolution',
                           onToggleResolutionMenu: _currentEpisode == null
@@ -4691,7 +4758,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             ),
 
           // Floating Subtitle Menu Popover
-          if (_activeMenu == 'subtitle' && !_isLoading)
+          if (_liveTv == null && _activeMenu == 'subtitle' && !_isLoading)
             Positioned(
               bottom: MediaQuery.sizeOf(context).height < 500
                   ? 44

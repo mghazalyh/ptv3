@@ -44,11 +44,23 @@ class LiveSourceManager {
       // Only accept the same installed provider's live stream candidates.
       if (source.addonName.toLowerCase() != addonName.toLowerCase()) continue;
       final key = keyOf(source);
-      if (key != null) _sources[key] = source;
+      if (key != null) {
+        _sources[key] = source;
+        // Signed live links can change on every refresh; bound in-memory
+        // candidate growth without losing the current source on reopen.
+        while (_sources.length > 36) {
+          final oldest = _sources.keys.first;
+          _sources.remove(oldest);
+          _health.remove(oldest);
+        }
+      }
     }
   }
 
   int get sourceCount => _sources.length;
+
+  bool hasViableBackup(StreamSource current, DateTime at) =>
+      backups(current, at).isNotEmpty;
 
   void failed(StreamSource source, DateTime at) {
     final key = keyOf(source);

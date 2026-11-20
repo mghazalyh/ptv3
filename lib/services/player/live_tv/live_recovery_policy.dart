@@ -2,10 +2,12 @@
 /// media_kit, the shared VOD player, or platform services.
 enum LiveHealthEvent {
   none,
+  started,
   recovered,
   bufferingStall,
   feedStarvation,
   timelineDiscontinuity,
+  videoUnavailable,
 }
 
 class LiveRecoveryPolicy {
@@ -30,6 +32,7 @@ class LiveRecoveryPolicy {
   bool _awaitingRecovery = false;
   bool _reopening = false;
   bool _wasPaused = false;
+  bool _everPlayed = false;
   int attempts = 0;
 
   Duration get retryCooldown {
@@ -42,6 +45,7 @@ class LiveRecoveryPolicy {
       attempts >= 3 ? 30 : attempts > 0 ? 20 : 15;
 
   bool get awaitingRecovery => _awaitingRecovery;
+  bool get everPlayed => _everPlayed;
 
   void reset(DateTime at, {
     Duration position = Duration.zero,
@@ -57,6 +61,7 @@ class LiveRecoveryPolicy {
     _awaitingRecovery = false;
     _reopening = false;
     _wasPaused = false;
+    _everPlayed = false;
     _healthySince = null;
     attempts = 0;
     _lastAttemptAt = null;
@@ -110,13 +115,16 @@ class LiveRecoveryPolicy {
     required Duration duration,
     required bool playing,
     required bool buffering,
+    bool videoReady = true,
   }) {
     final end = buffered ?? Duration.zero;
     if (_startedAt == null) {
       reset(at, position: position, buffered: end, duration: duration);
       return LiveHealthEvent.none;
     }
-    if (!playing && !buffering) {
+    if (!playing && !buffering &&
+        (_everPlayed || _lastPosition > Duration.zero) &&
+        !_awaitingRecovery) {
       // An intentional pause must never trigger a live reconnect.
       _wasPaused = true;
       _lastMotionAt = at;
@@ -161,10 +169,20 @@ class LiveRecoveryPolicy {
       return LiveHealthEvent.timelineDiscontinuity;
     }
 
-    if (_awaitingRecovery && moved && !_reopening) {
+    // MPV open() resolves before the CDN provides decodable video.
+    // Accept a source only after actual timeline progress while unbuffered.
+    final progressed = moved && playing && !buffering && videoReady &&
+        at.difference(_startedAt!) >= const Duration(seconds: 2);
+    if (progressed && _awaitingRecovery && !_reopening) {
       _awaitingRecovery = false;
+      _everPlayed = true;
       _healthySince = at;
       return LiveHealthEvent.recovered;
+    }
+    if (progressed && !_everPlayed) {
+      _everPlayed = true;
+      _healthySince = at;
+      return LiveHealthEvent.started;
     }
 
     // A full minute of successful viewing resets exponential backoff.
@@ -180,7 +198,14 @@ class LiveRecoveryPolicy {
     }
 
     final ahead = end - position;
-    if (buffering && motionAge(at) >= stallThreshold) {
+    // An audio-only HLS response or a 200 OK with no video is NOT a healthy
+    // television broadcast. Do not allow audio timeline motion to mask it.
+    if ((!_everPlayed || _awaitingRecovery) && !videoReady &&
+        at.difference(_startedAt!) >= const Duration(seconds: 20)) {
+      return LiveHealthEvent.videoUnavailable;
+    }
+    if ((buffering || !_everPlayed || _awaitingRecovery) &&
+        motionAge(at) >= stallThreshold) {
       return LiveHealthEvent.bufferingStall;
     }
     // Recover while some video remains, instead of waiting for a zero cache.

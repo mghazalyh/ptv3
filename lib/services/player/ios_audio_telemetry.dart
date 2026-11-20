@@ -76,6 +76,7 @@ class IosAudioTelemetry {
   final List<Map<String, Object?>> _sourceTrace = [];
   final Map<String, Object?> _mediaContext = {};
   final Map<String, Object?> _activeSource = {};
+  final Map<String, Object?> _liveTvSummary = {};
   String? _sourceSessionId;
   bool _loaded = false;
   bool _uploading = false;
@@ -93,6 +94,9 @@ class IosAudioTelemetry {
   @visibleForTesting
   Map<String, Object?> get capturedActiveSource =>
       Map.unmodifiable(_activeSource);
+  @visibleForTesting
+  Map<String, Object?> get capturedLiveTvSummary =>
+      Map.unmodifiable(_liveTvSummary);
 
   @visibleForTesting
   List<Map<String, Object>> get capturedPerformanceSamples =>
@@ -161,6 +165,7 @@ class IosAudioTelemetry {
     _sourceSessionId = DateTime.now().toUtc().microsecondsSinceEpoch.toString();
     _sourceTrace.clear();
     _activeSource.clear();
+    _liveTvSummary.clear();
     _mediaContext
       ..clear()
       ..addAll(<String, Object?>{
@@ -202,6 +207,7 @@ class IosAudioTelemetry {
     _sourceSessionId = DateTime.now().toUtc().microsecondsSinceEpoch.toString();
     _mediaContext..clear()..addAll(next);
     _activeSource.clear();
+    _liveTvSummary.clear();
     _trace('playback_context_activated',
         <String, Object?>{'media': Map<String, Object?>.of(_mediaContext)});
   }
@@ -305,6 +311,102 @@ class IosAudioTelemetry {
           title: title, year: year, season: season, episode: episode).name,
       ..._sourceDetails(source, season: season, episode: episode),
     });
+  }
+
+  /// iPad Live TV-only observations. Existing movie/episode telemetry is
+  /// untouched. The current programme is recorded only when supplied by a
+  /// Stremio metadata/EPG field, never guessed from the channel name.
+  ///
+  /// Fixed numeric/bool fields preserve an actionable health history. Never
+  /// capture a URL, authentication header, credential or raw native exception.
+  void captureLiveTvObservation({
+    required String event,
+    required String channelId,
+    required String channelTitle,
+    required String sourceAddon,
+    String? programmeTitle,
+    String? programmeKind,
+    String? sourceName,
+    String? sourceDescription,
+    String? sourceHost,
+    String? sourceFormat,
+    String? sourceQuality,
+    String? signalQuality,
+    String? failureClass,
+    required int recoveryAttempts,
+    required int candidateCount,
+    required bool buffering,
+    required bool playing,
+    required bool verifiedPlayback,
+    required bool reconnecting,
+    int? startupElapsedMs,
+    int? firstFrameElapsedMs,
+    int? videoWidth,
+    int? videoHeight,
+    int? recoveryElapsedMs,
+    int? positionMs,
+    int? bufferedEndMs,
+    int? motionAgeMs,
+    int? feedAgeMs,
+    int? playlistSequence,
+    int? playlistTargetSeconds,
+    int? playlistDiscontinuities,
+  }) {
+    if (!isActive) return;
+    if (!event.startsWith('live_') ||
+        !PlayerDiagnosticCodes.events.contains(event)) return;
+    final snapshot = <String, Object?>{
+      'channelId': _safeText(channelId, limit: 180),
+      'channelTitle': _safeText(channelTitle, limit: 250),
+      'programmeTitle': _safeText(programmeTitle, limit: 250),
+      'programmeKind': _safeText(programmeKind, limit: 80),
+      'programmeMetadataAvailable': programmeTitle != null,
+      'sourceAddon': _safeText(sourceAddon, limit: 100),
+      'sourceName': _safeText(sourceName, limit: 400),
+      'sourceDescription': _safeText(sourceDescription, limit: 700),
+      'sourceHost': _safeText(sourceHost, limit: 180),
+      'sourceFormat': _safeText(sourceFormat, limit: 40),
+      'sourceQuality': _safeText(sourceQuality, limit: 60),
+      'signalQuality': _safeText(signalQuality, limit: 35),
+      'recoveryAttempts': recoveryAttempts.clamp(0, 100000),
+      'candidateCount': candidateCount.clamp(0, 1000),
+      'buffering': buffering,
+      'playing': playing,
+      'verifiedPlayback': verifiedPlayback,
+      'reconnecting': reconnecting,
+      if (startupElapsedMs != null)
+        'startupElapsedMs': startupElapsedMs.clamp(0, 36000000),
+      if (firstFrameElapsedMs != null)
+        'firstFrameElapsedMs': firstFrameElapsedMs.clamp(0, 36000000),
+      if (videoWidth != null)
+        'videoWidth': videoWidth.clamp(0, 16384),
+      if (videoHeight != null)
+        'videoHeight': videoHeight.clamp(0, 16384),
+      if (recoveryElapsedMs != null)
+        'recoveryElapsedMs': recoveryElapsedMs.clamp(0, 36000000),
+      if (positionMs != null)
+        'positionMs': positionMs.clamp(0, 864000000),
+      if (bufferedEndMs != null)
+        'bufferedEndMs': bufferedEndMs.clamp(0, 864000000),
+      if (motionAgeMs != null)
+        'motionAgeMs': motionAgeMs.clamp(0, 36000000),
+      if (feedAgeMs != null)
+        'feedAgeMs': feedAgeMs.clamp(0, 36000000),
+      if (playlistSequence != null)
+        'playlistSequence': playlistSequence.clamp(0, 999999999999),
+      if (playlistTargetSeconds != null)
+        'playlistTargetSeconds': playlistTargetSeconds.clamp(0, 300),
+      if (playlistDiscontinuities != null)
+        'playlistDiscontinuities': playlistDiscontinuities.clamp(0, 100000),
+      if (failureClass != null)
+        'failureClass': _safeText(failureClass, limit: 70),
+    };
+    _liveTvSummary.clear();
+    _liveTvSummary.addAll(snapshot);
+    _liveTvSummary['lastEvent'] = event;
+    _liveTvSummary['lastObservedAtUtc'] =
+        DateTime.now().toUtc().toIso8601String();
+    _trace(event, snapshot);
   }
 
   void captureAudioTracks({
@@ -578,6 +680,7 @@ class IosAudioTelemetry {
       'night_mode_failed', 'preflight_failed', 'native_error', 'manual',
       'playback_sample', 'sync_failure', 'subtitle_failure', 'source_failure',
       'addon_failure', 'source_discovery', 'source_selected',
+      'live_reconnect_failed', 'live_startup_failure', 'live_health',
     }.contains(reason) ? reason : 'manual';
     final sourceTraceAtUpload = List<Map<String, Object?>>.from(_sourceTrace);
     final codesAtUpload = List<String>.from(_events);
@@ -605,6 +708,8 @@ class IosAudioTelemetry {
       'sourceSessionId': _sourceSessionId ?? '',
       'mediaContext': Map<String, Object?>.from(_mediaContext),
       'activeSource': Map<String, Object?>.from(_activeSource),
+      if (_liveTvSummary.isNotEmpty)
+        'liveTvSummary': Map<String, Object?>.from(_liveTvSummary),
       'sourceTrace': sourceTraceAtUpload,
       'sampleIntervalSeconds': playbackSampleSeconds,
       'performanceSamples': samplesAtUpload,

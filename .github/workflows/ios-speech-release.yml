@@ -200,6 +200,13 @@ jobs:
       - name: Analyze speech-timing services and player integration
         run: flutter analyze --no-pub --no-fatal-infos lib/services/player/ios_speech_transcriber.dart lib/services/player/mpv_speech_audio_capture.dart lib/services/player/speech_subtitle_alignment.dart lib/pages/player/player_screen.dart
 
+      - name: Verify isolated Live TV recovery, signal UI and iPad diagnostics
+        run: |
+          flutter analyze --no-pub --no-fatal-infos lib/services/player/live_tv lib/widgets/player/live_tv_overlay.dart lib/widgets/player/player_transport.dart lib/services/player/ios_audio_telemetry.dart lib/pages/player/player_screen.dart
+          flutter test test/live_tv_recovery_test.dart
+          flutter test test/live_tv_quality_of_life_test.dart
+          flutter test test/live_tv_diagnostics_test.dart
+
       - name: Analyze iPhone and iPad LAN remote integration
         run: flutter analyze --no-pub --no-fatal-infos lib/main.dart lib/services/remote/lan_remote_service.dart lib/pages/remote/remote_control_page.dart lib/widgets/movie/movie_card.dart lib/widgets/home/continue_watching_slider.dart lib/widgets/movie/movie_slider_section.dart lib/widgets/common/liquid_dock.dart lib/pages/player/player_screen.dart lib/pages/settings/settings_page.dart
 

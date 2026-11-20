@@ -91,6 +91,7 @@ jobs:
             lib/pages/settings/settings_page.dart \
             lib/services/player/player_settings.dart \
             lib/services/player/live_tv \
+            lib/widgets/player/live_tv_overlay.dart \
             lib/services/player/player_picture_audio.dart \
             lib/services/player/player_audio_presets.dart \
             lib/widgets/player/player_audio_menu.dart \
@@ -196,6 +197,8 @@ jobs:
             flutter test "$suite"
           done
           flutter test test/live_tv_recovery_test.dart
+          flutter test test/live_tv_quality_of_life_test.dart
+          flutter test test/live_tv_diagnostics_test.dart
       - name: Verify iOS Apple Speech fallback actually honors network consent
         run: |
           python3 - <<'PY'

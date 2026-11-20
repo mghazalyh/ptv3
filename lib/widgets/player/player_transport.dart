@@ -23,6 +23,7 @@ class PlayerTransport extends StatelessWidget {
   final bool isMuted;
   final double playbackRate;
   final bool isSubtitlesActive;
+  final bool showSubtitleControls;
   final bool isSubSyncActive;
   final bool isAudioActive;
   final bool isNightModeEnabled;
@@ -74,6 +75,7 @@ class PlayerTransport extends StatelessWidget {
     required this.isMuted,
     required this.playbackRate,
     required this.isSubtitlesActive,
+    this.showSubtitleControls = true,
     required this.isSubSyncActive,
     required this.isAudioActive,
     this.isNightModeEnabled = false,
@@ -417,6 +419,8 @@ class PlayerTransport extends StatelessWidget {
                     SizedBox(width: gap),
                   ],
 
+                  // Live TV has no subtitles or subtitle-sync actions.
+                  if (showSubtitleControls) ...[
                   // Subtitles Menu Trigger
                   PlayerIconButton(
                     size: btnSize,
@@ -440,6 +444,7 @@ class PlayerTransport extends StatelessWidget {
                     activeColor: PlayerTheme.accent,
                     onPressed: onToggleSubSync,
                   ),
+                  ],
 
                   // Fullscreen Button (Desktop only)
                   if (isDesktop) ...[

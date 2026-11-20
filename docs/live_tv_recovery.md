@@ -65,3 +65,77 @@ changes, upstream HLS playlist stalls, expiring stream URLs, exhausted backup
 streams and extended continuous sessions. Also test movie/series seeks and
 resume regression. Source failure can still prevent playback if every provider
 link is unavailable; the player cannot manufacture new broadcast media.
+
+
+## iPad startup failures and preventive safeguards (November 2026)
+
+iOS Build 248 telemetry showed one Cine Romantico stream recovered through a
+Roku backup but FIFA+ Women, Paramount+ Picks and Pluto TV Drama repeatedly
+returned from Media.open without delivering playable video. A successful open
+has never been sufficient to declare an upstream stream healthy.
+
+The revised live-only controller now:
+
+- Confirms both native video dimensions and actual advancing playback before
+  marking a channel started or recovered. A stream that merely connects,
+  buffers indefinitely or delivers audio without video fails video readiness.
+- Selects channel-scoped backups on the FIRST unverified startup failure,
+  instead of retrying the same failed URL before considering alternatives.
+- Maintains bounded provider-scoped candidate lists and quarantines bad links.
+- Refreshes signed links using the same Stremio channel ID and addon, keeping
+  required HTTP CDN headers on each reconnect.
+- Continues bounded backoff when providers are exhausted instead of claiming
+  an unverified reopen is a success.
+- Keeps all recovery state scoped to one logical live channel. VOD seeking,
+  playback completion, subtitles, and episode autoplay use separate code.
+
+## Live TV user interface
+
+A small persistent top-right signal badge reports Strong, Unstable, Critical,
+Reconnecting or Unavailable based on media-buffer and progress telemetry. It
+is NOT a Wi-Fi RSSI meter or a guarantee that the broadcaster is available.
+The connecting/reconnecting overlay shows an indeterminate progress bar and
+a human-readable state instead of a fabricated percentage. Live channels
+disable embedded/external subtitles, auto-downloads and speech alignment,
+and hide subtitle-related transport controls. Movies and series are unchanged.
+
+## iPad Torriodb telemetry (opt-in private diagnostics)
+
+The existing iOS diagnostic writer now emits a `liveTvSummary` object and
+time-series `sourceTrace` observations during live playback, approximately
+every 10 seconds and on relevant state changes.
+
+It identifies the Stremio channel title, channel ID, provider, stream source
+label, approximate advertised quality, source hostname and HLS/HTTP format.
+The actual programme or movie title and programme type are included ONLY
+when supplied explicitly by addon metadata/EPG hints. If no programme guide
+is provided the title remains null instead of making up a film name.
+
+Additional fields include:
+- Initial session start delay, recovery elapsed time and first-video elapsed
+  time, retry attempt count, candidate availability and signal status.
+- Video-track dimensions and verified playback readiness, buffering/playing
+  flags, position and buffered-end milliseconds, feed/motion staleness.
+- HLS media sequence, target duration and discontinuity count where available.
+- Stall/startup/no-video, candidate rejection, reconnect, network-change,
+  playlist and confirmed playback events.
+- Existing MPV performance snapshots include decoder, dropped frames, cache
+  and audio/video sync when supported by the native backend.
+
+Source URLs, signed query parameters, HTTP header values, credentials,
+playlist segments, private user IDs and arbitrary native error strings are
+NOT exported. Live telemetry uses the existing user-controlled opt-in and
+Torriodb private upload mechanism and keeps its event history bounded.
+
+## Focused regressions
+
+```sh
+flutter analyze --no-pub --no-fatal-infos lib/services/player/live_tv lib/widgets/player/live_tv_overlay.dart lib/pages/player/player_screen.dart lib/widgets/player/player_transport.dart lib/services/player/ios_audio_telemetry.dart
+flutter test test/live_tv_recovery_test.dart
+flutter test test/live_tv_quality_of_life_test.dart
+flutter test test/live_tv_diagnostics_test.dart
+```
+
+Field acceptance should test real iPadOS HLS streams, slow startup, audio-only
+responses, CDN headers, expired signed links, zero-buffer stalls and successful
+fallback while verifying that movies/series remain unchanged.

@@ -32,7 +32,12 @@ void main() {
         .readAsStringSync();
     expect(search, contains('MovieSliderSection('));
     expect(slider, contains('MovieCard('));
-    expect(card, contains('DetailsPage(movie: movie)'));
+    // MovieCard now shares one activation helper for touch and LAN D-pad.
+    // The helper delegates custom handlers and otherwise opens DetailsPage.
+    expect(card, contains('onTap: _activateCard'));
+    expect(card, contains('void _activateCard()'));
+    expect(card, contains('widget.onTap!();'));
+    expect(card, contains('DetailsPage(movie: widget.movie)'));
     expect(details, contains('SimilarRecommendationsService.load('));
     expect(details, contains('Recommended Movies'));
     expect(details, contains('Recommended Shows'));

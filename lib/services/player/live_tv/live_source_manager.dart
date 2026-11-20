@@ -97,7 +97,7 @@ class LiveSourceManager {
     try {
       List<StreamSource> refreshed;
       if (_refreshOverride != null) {
-        refreshed = await _refreshOverride!()
+        refreshed = await _refreshOverride()
             .timeout(const Duration(seconds: 14));
       } else {
         final installed = AddonManager.instance.activeStreamAddons;
@@ -106,8 +106,8 @@ class LiveSourceManager {
             addon.manifest.supportsRequest('stream', 'tv', channelId));
         if (matching.isEmpty) return 0;
         final addon = matching.first;
-        final endpoint = Uri.parse(addon.baseUrl +
-            '/stream/tv/' + Uri.encodeComponent(channelId) + '.json');
+        final endpoint = Uri.parse(
+            '${addon.baseUrl}/stream/tv/${Uri.encodeComponent(channelId)}.json');
         final response = await http.get(endpoint, headers: const {
           'Accept': 'application/json',
           'User-Agent': 'PlayTorrio-LiveTV/1.0',
@@ -170,7 +170,9 @@ class LiveSourceManager {
         uri, headers: source.headers ?? const <String, String>{},
       ).timeout(const Duration(seconds: 6));
       if (response.statusCode != 200 ||
-          response.bodyBytes.length > 262144) return null;
+          response.bodyBytes.length > 262144) {
+        return null;
+      }
       return LivePlaylistSnapshot.parse(response.body);
     } catch (_) {
       return null;

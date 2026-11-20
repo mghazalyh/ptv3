@@ -152,8 +152,7 @@ class LivePlaybackCoordinator {
         unawaited(_inspectPlaylist());
       }
     } catch (error) {
-      debugPrint('[LiveTV] Health probe failed: ' +
-          error.runtimeType.toString());
+      debugPrint('[LiveTV] Health probe failed: ${error.runtimeType}');
     }
   }
 
@@ -166,7 +165,7 @@ class LivePlaybackCoordinator {
       final endpoints = <String>[];
       for (final interface in interfaces) {
         for (final address in interface.addresses) {
-          endpoints.add(interface.name + ':' + address.address);
+          endpoints.add('${interface.name}:${address.address}');
         }
       }
       endpoints.sort();
@@ -192,7 +191,9 @@ class LivePlaybackCoordinator {
     try {
       final current = await _sources.inspectPlaylist(original);
       if (_disposed || _opening || original.url != _source.url ||
-          current == null) return;
+          current == null) {
+        return;
+      }
       final at = DateTime.now();
       if (current.ended) {
         _event('live_playlist_ended');
@@ -314,7 +315,7 @@ class LivePlaybackCoordinator {
       ));
     } catch (error) {
       if (_disposed || generation != _generation) return;
-      debugPrint('[LiveTV] Reopen failed: ' + error.runtimeType.toString());
+      debugPrint('[LiveTV] Reopen failed: ${error.runtimeType}');
       _sources.failed(selected, DateTime.now());
       _policy.reopenFailed(DateTime.now());
       _event('live_reconnect_failed', selected);

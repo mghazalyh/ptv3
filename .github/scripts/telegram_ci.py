@@ -45,12 +45,15 @@ def send_request(method, fields, file_path=None, filename=None):
                 time.sleep(delay)
                 continue
             raise RuntimeError("Telegram sendMessage HTTP " + str(error.code)) from None
-        except urllib.error.URLError:
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
+            # urllib.request.urlopen() may raise bare TimeoutError while
+            # reading the HTTPS response, not urllib.error.URLError. Treat
+            # both as transient transport failures and keep retrying.
             if attempt < 2:
-                print("Telegram text request network error; retrying")
+                print("Telegram text request timed out or network failed; retrying")
                 time.sleep(3 * (attempt + 1))
                 continue
-            raise RuntimeError("Telegram sendMessage network error") from None
+            raise RuntimeError("Telegram sendMessage network unavailable after retries") from None
     raise RuntimeError("Telegram message retries exhausted")
 
 def send_text(message):
@@ -175,6 +178,21 @@ def self_test():
         raise AssertionError("Binary upload was not blocked")
     except RuntimeError:
         pass
+    # Regression: the real iOS #46 failure was a bare TimeoutError while
+    # reading the response. The next request must succeed without network.
+    import io
+    from unittest.mock import patch
+    fake_response = io.BytesIO(b'{"ok":true,"result":{"message_id":123}}')
+    with patch.dict(os.environ, {
+            "TELEGRAM_BOT_TOKEN": "offline-self-test",
+            "TELEGRAM_CHAT_ID": "123"
+        }), patch("urllib.request.urlopen", side_effect=[
+            TimeoutError("The read operation timed out"), fake_response
+        ]) as mocked, patch("time.sleep") as backoff:
+        response = send_text("Offline timeout retry regression")
+        assert response["ok"] is True
+        assert mocked.call_count == 2
+        assert backoff.call_count == 1
     print("Telegram link-only self-test passed offline without network calls.")
 
 def main():

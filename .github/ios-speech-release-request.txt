@@ -48,3 +48,17 @@ Root cause: PlayTorrio checks #677 analyzer blocked by unnecessary_non_null_asse
 Fix: Remove redundant assertion and clean live-only analyzer info diagnostics; no VOD behavior changes.
 Build: iOS-only PlayTorrio iOS15 TrollStore IPA through ios-speech-release.yml.
 User instruction: Trigger build and leave; do not poll or wait for job completion.
+
+OWNER-AUTHORIZED iOS-ONLY LIVE TV RELIABILITY, UX AND RICH TELEMETRY BUILD
+Requested SGT: 2026-11-21 07:33:51
+Branch: parity-floating-player-both
+Implementation commit: e4df24cbfa819cdf5a078916017e3836200ab779
+Scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY. Do not trigger Windows packaging or desktop release workflows.
+Incident: iPad Build 248 Live TV diagnostics show Cine Romantico recovered via Roku fallback but Paramount+ Picks and Pluto TV Drama entered indefinite opening/recovery loops with no confirmed video.
+Fixes: Reject unverified native opens and audio-only channels; verify video dimensions and advancing playback; fail over on first startup stall; retain CDN authorization-dependent headers; bound/quarantine failed sources; preserve bounded retries, HLS and network-change monitoring.
+Quality of life: Persistent live health indicator (Strong, Unstable, Critical, Reconnecting, Unavailable), indeterminate channel loading/reconnecting progress UI, disable native and external subtitles and speech sync for live channels only.
+Private telemetry: Full channel ID/title, provider and source labels/host/quality, actual show/movie title when supplied by Stremio metadata/EPG, startup/first-video/recovery timing, native video dimensions, playback/health/buffer/motion and playlist metrics, candidate selection and recovery events with fixed reason classifications. No authenticated URL, token, HTTP header values or raw native errors.
+Tests: test/live_tv_recovery_test.dart, test/live_tv_quality_of_life_test.dart, test/live_tv_diagnostics_test.dart. Run Flutter analyze and focused regression tests in the iOS workflow before compiling/signing.
+VOD isolation: No change to movies and series source recovery, subtitles, seek/resume, autoplay or progress sync.
+Trigger: THIS file push triggers .github/workflows/ios-speech-release.yml, iOS only.
+User instruction: Trigger GitHub iOS workflow and leave immediately. Do not poll or wait for build result.

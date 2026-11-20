@@ -125,6 +125,8 @@ class _MovieSliderSectionState extends State<MovieSliderSection> {
                   ListView.separated(
                     clipBehavior: Clip.none,
                     controller: _scrollController,
+                    // Prebuild nearby cards for focus beyond the visible row.
+                    cacheExtent: 1050,
                     scrollDirection: Axis.horizontal,
                     physics: const BouncingScrollPhysics(),
                     padding: EdgeInsets.symmetric(horizontal: sizing.sidePadding),

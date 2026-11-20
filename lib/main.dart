@@ -42,6 +42,7 @@ import './services/p2p/p2p_settings_service.dart';
 import './services/discord/discord_rpc_service.dart';
 import './services/player/night_mode_diagnostics.dart';
 import './services/player/ios_audio_telemetry.dart';
+import './services/remote/lan_remote_service.dart';
 import './widgets/updater/update_dialog.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -118,6 +119,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    LanRemoteService.instance.onNavigationCommand = _handleRemoteNavigation;
     // Pick up changes made on another device without reloading the Home page.
     _homeSyncTimer = Timer.periodic(const Duration(minutes: 3), (_) {
       if (mounted && _lifecycleState == AppLifecycleState.resumed) {
@@ -153,8 +155,90 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   @override
   void dispose() {
     _homeSyncTimer?.cancel();
+    LanRemoteService.instance.onNavigationCommand = null;
+    // Receiver sockets close when the application is disposed.
+    unawaited(LanRemoteService.instance.stopHosting());
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+
+  /// Route remote commands through Flutter's native focus and activation
+  /// actions, so the same controls work for local taps and the iPhone remote.
+  void _handleRemoteNavigation(LanRemoteCommand command) {
+    if (!mounted || !Platform.isIOS) return;
+    final navigator = navigatorKey.currentState;
+    final context = navigator?.context;
+    if (navigator == null || context == null) return;
+    try {
+      switch (command) {
+        case LanRemoteCommand.back:
+          if (navigator.canPop()) navigator.pop();
+          return;
+        case LanRemoteCommand.home:
+          navigator.popUntil((route) => route.isFirst);
+          return;
+        case LanRemoteCommand.select:
+          final node = FocusManager.instance.primaryFocus;
+          final focusedContext = node?.context;
+          if (focusedContext == null) {
+            FocusScope.of(context).nextFocus();
+            return;
+          }
+          if (focusedContext.widget is EditableText) return;
+          if (Actions.maybeFind<ActivateIntent>(focusedContext) != null) {
+            Actions.invoke(focusedContext, const ActivateIntent());
+          } else if (Actions.maybeFind<ButtonActivateIntent>(
+              focusedContext) != null) {
+            Actions.invoke(focusedContext, const ButtonActivateIntent());
+          }
+          return;
+        case LanRemoteCommand.up:
+        case LanRemoteCommand.down:
+        case LanRemoteCommand.left:
+        case LanRemoteCommand.right:
+          final current = FocusManager.instance.primaryFocus;
+          if (current == null || current is FocusScopeNode ||
+              current == FocusManager.instance.rootScope) {
+            FocusScope.of(context).nextFocus();
+          } else {
+            final direction = switch (command) {
+              LanRemoteCommand.up => TraversalDirection.up,
+              LanRemoteCommand.down => TraversalDirection.down,
+              LanRemoteCommand.left => TraversalDirection.left,
+              _ => TraversalDirection.right,
+            };
+            final moved = current.focusInDirection(direction);
+            if (!moved) {
+              if (direction == TraversalDirection.right ||
+                  direction == TraversalDirection.down) {
+                current.nextFocus();
+              } else {
+                current.previousFocus();
+              }
+            }
+          }
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final focusedContext =
+                FocusManager.instance.primaryFocus?.context;
+            if (focusedContext != null && focusedContext.mounted) {
+              unawaited(Scrollable.ensureVisible(
+                focusedContext,
+                duration: const Duration(milliseconds: 180),
+                alignment: 0.2,
+              ));
+            }
+          });
+          return;
+        case LanRemoteCommand.playPause:
+        case LanRemoteCommand.seekBack:
+        case LanRemoteCommand.seekForward:
+          // Playback commands are consumed by PlayerScreen while it is active.
+          return;
+      }
+    } catch (error) {
+      debugPrint('[LAN Remote] Navigation action failed: $error');
+    }
   }
 
   Future<void> _checkForUpdates() async {

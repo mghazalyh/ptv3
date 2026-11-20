@@ -29,6 +29,7 @@ import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
 import '../../services/player/ios_audio_telemetry.dart';
+import '../../services/remote/lan_remote_service.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/playback_autoselection.dart';
 import '../../services/player/episode_completion_policy.dart';
@@ -277,6 +278,13 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     _currentEpisode = widget.episode;
     _currentTitle = widget.title;
+    LanRemoteService.instance.onPlayerCommand = _handleLanRemotePlayerCommand;
+    LanRemoteService.instance.playerStatus = () => <String, Object?>{
+      'title': _currentTitle,
+      'playing': _player.state.playing,
+      'positionSeconds': _player.state.position.inSeconds,
+      'durationSeconds': _player.state.duration.inSeconds,
+    };
     IosAudioTelemetry.instance.captureSourceSelection(
         action: 'player_initial_source',
         source: _currentSource, title: widget.detail?.name ?? widget.title,
@@ -3363,6 +3371,58 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  /// Handle remote presses directly through the existing playback methods.
+  /// This preserves pause/reconnect recovery and seek bookkeeping.
+  bool _handleLanRemotePlayerCommand(LanRemoteCommand command) {
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true) return false;
+    final picking = _showSourcesPanel || _showEpisodesPanel ||
+        _activeMenu != null;
+    switch (command) {
+      case LanRemoteCommand.seekBack:
+        _seekRelative(const Duration(seconds: -10));
+        return true;
+      case LanRemoteCommand.seekForward:
+        _seekRelative(const Duration(seconds: 10));
+        return true;
+      case LanRemoteCommand.left:
+        if (picking) return false;
+        _seekRelative(const Duration(seconds: -10));
+        return true;
+      case LanRemoteCommand.right:
+        if (picking) return false;
+        _seekRelative(const Duration(seconds: 10));
+        return true;
+      case LanRemoteCommand.playPause:
+        _togglePlayPause();
+        return true;
+      case LanRemoteCommand.select:
+        if (picking) return false;
+        _togglePlayPause();
+        return true;
+      case LanRemoteCommand.up:
+      case LanRemoteCommand.down:
+        if (picking) return false;
+        setState(() => _showControls = true);
+        _startHideControlsTimer();
+        return true;
+      case LanRemoteCommand.back:
+        if (picking) {
+          if (_activeMenu == 'resolution') _cancelResolutionDiscovery();
+          setState(() {
+            _showSourcesPanel = false;
+            _showEpisodesPanel = false;
+            _activeMenu = null;
+          });
+        } else {
+          Navigator.of(context).maybePop();
+        }
+        return true;
+      case LanRemoteCommand.home:
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return true;
+    }
+  }
+
   void _togglePlayPause() {
     if (_httpReconnecting || _isLoading) return;
     _httpResumeWatchdog?.cancel();
@@ -4027,6 +4087,8 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   @override
   void dispose() {
+    LanRemoteService.instance.onPlayerCommand = null;
+    LanRemoteService.instance.playerStatus = null;
     ++_streamGeneration;
     _audioMediaEpoch++;
     ++_diagnosticsRevision;

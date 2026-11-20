@@ -97,12 +97,25 @@ class MovieCard extends StatefulWidget {
 class _MovieCardState extends State<MovieCard> {
   bool _hovered = false;
   bool _pressed = false;
+  bool _remoteFocused = false;
 
   @override
   Widget build(BuildContext context) {
     final movie = widget.movie;
 
-    return MouseRegion(
+    return FocusableActionDetector(
+      onFocusChange: (focused) => setState(() => _remoteFocused = focused),
+      actions: <Type, Action<Intent>>{
+        ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) {
+          _activateCard();
+          return null;
+        }),
+        ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(onInvoke: (_) {
+          _activateCard();
+          return null;
+        }),
+      },
+      child: MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
         setState(() {
@@ -131,24 +144,15 @@ class _MovieCardState extends State<MovieCard> {
             _pressed = false;
           });
         },
-        onTap: widget.onTap ??
-            () {
-              Navigator.push(
-                context,
-                LiquidRevealRoute(
-                  page: DetailsPage(movie: movie),
-                  tapPosition: null, // Let it center if tapPosition not easily available
-                ),
-              );
-            },
+        onTap: _activateCard,
         child: AnimatedScale(
           duration: const Duration(milliseconds: 170),
           curve: Curves.easeOutCubic,
-          scale: _pressed ? 0.97 : (_hovered ? HomePageSettings.cardHoverZoom.value : 1.0),
+          scale: _pressed ? 0.97 : ((_hovered || _remoteFocused) ? HomePageSettings.cardHoverZoom.value : 1.0),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 170),
             curve: Curves.easeOutCubic,
-            transform: Matrix4.translationValues(0, _hovered ? -6 : 0, 0),
+            transform: Matrix4.translationValues(0, (_hovered || _remoteFocused) ? -6 : 0, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -156,7 +160,7 @@ class _MovieCardState extends State<MovieCard> {
                 Expanded(
                   child: _PosterFrame(
                     posterUrl: movie.poster,
-                    hovered: _hovered,
+                    hovered: _hovered || _remoteFocused,
                     contentType: movie.type,
                     imdbRating: movie.imdbRating,
                     similarityPercent: movie.similarityPercent,
@@ -257,6 +261,21 @@ class _MovieCardState extends State<MovieCard> {
             ),
           ),
         ),
+      ),
+      ),
+    );
+  }
+
+  void _activateCard() {
+    if (widget.onTap != null) {
+      widget.onTap!();
+      return;
+    }
+    Navigator.push(
+      context,
+      LiquidRevealRoute(
+        page: DetailsPage(movie: widget.movie),
+        tapPosition: null,
       ),
     );
   }

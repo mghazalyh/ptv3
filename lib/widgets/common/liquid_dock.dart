@@ -378,8 +378,24 @@ class _DockItemWidgetState extends State<_DockItemWidget> {
     return RepaintBoundary(
       child: ValueListenableBuilder<bool>(
         valueListenable: GlassSettings.enabled,
-        builder: (context, enabled, _) =>
-            enabled ? _buildFullLiquid() : _buildOptimized(),
+        builder: (context, enabled, _) => enabled
+            ? _buildFullLiquid()
+            : FocusableActionDetector(
+                onFocusChange: _setHover,
+                actions: <Type, Action<Intent>>{
+                  ActivateIntent: CallbackAction<ActivateIntent>(
+                      onInvoke: (_) {
+                    widget.item.onTap();
+                    return null;
+                  }),
+                  ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+                      onInvoke: (_) {
+                    widget.item.onTap();
+                    return null;
+                  }),
+                },
+                child: _buildOptimized(),
+              ),
       ),
     );
   }

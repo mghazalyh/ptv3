@@ -12,7 +12,7 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>When you tap Auto Sync, PlayTorrio analyzes up to 55 seconds of a movie's audio to align subtitles. It uses offline speech recognition when supported. If unavailable, the app asks before sending a short audio excerpt to Apple's speech-recognition servers. No microphone recording is used.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>PlayTorrio streams video and audio from local network services and torrent streaming engines.</string>
+	<string>PlayTorrio uses the local Wi-Fi network for streaming and optional iPhone-to-iPad remote control and pairing.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

@@ -31,6 +31,7 @@ import 'settings_transfer_page.dart';
 import '../../services/p2p/p2p_settings_service.dart';
 import '../../widgets/p2p/p2p_warning_dialog.dart';
 import '../../services/discord/discord_rpc_service.dart';
+import '../remote/remote_control_page.dart';
 
 import '../../widgets/common/animated_ambient_background.dart';
 
@@ -193,6 +194,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 12),
+
+              if (Platform.isIOS) ...[
+                _SettingsCategoryTile(
+                  icon: Icons.settings_remote_rounded,
+                  iconColor: const Color(0xFF9C88FF),
+                  title: 'iPhone / iPad Remote Control',
+                  subtitle: 'Use your iPhone to navigate and control PlayTorrio on your iPad over Wi-Fi',
+                  onTap: () => _navigateTo(const RemoteControlPage()),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // 1. Appearance & Interface
               ValueListenableBuilder<bool>(

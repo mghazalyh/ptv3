@@ -1,14 +1,18 @@
 PLAYTORRIO OWNER-AUTHORIZED iOS-ONLY TROLLSTORE RELEASE REQUEST
-Requested SGT: 2026-11-19 04:12:09
+Requested SGT: 2026-11-20 20:05:05
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
-Source HEAD before retry fix: 2bde152c48170a57459d782c6c8395614f3a0e22
+Source HEAD before LAN remote feature: 8a3193854c7dd698db776c389dd4972102c4e578
 Workflow: .github/workflows/ios-speech-release.yml
-Scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY. Do not trigger Windows, paired Windows, or desktop release.
-Validated source: User confirms the immediately preceding Windows build of commit ece65b3e79ea4db23067473991ff0397b49806e8 completed successfully. Do not recheck the Windows build.
-Features: Full PlayTorrio shared Flutter app, native audio and subtitle enhancements, Stremio metadata fallback, Telemetry Mission Control Insights UI.
-Latest fixes: Comet/TorBox error-status clip automatic next-source fallback, episode-specific media context and source failure telemetry, per-sample attribution, in-flight upload buffer preservation, new regression tests.
-Signing: Preserve existing iOS 15 ad-hoc TrollStore IPA signing, certificate, entitlements, release publishing, and Telegram notifications in existing workflow.
-User command: Fix the failed iOS IPA artifact upload, trigger a new iOS-only release job, and immediately leave without polling.
-Retry fix: Add four total signed IPA artifact upload attempts with incremental backoff and safe overwrite after transient GitHub CreateArtifact timeouts. Keep iOS 15 TrollStore signing and existing downstream publishing unchanged.
-Previous failure: https://github.com/mghazalyh/ptv3/actions/runs/44376352397
+Scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY. Do not trigger Windows, paired Windows, or desktop releases.
+Feature: iPhone controls PlayTorrio on an iPad over the same local Wi-Fi network. The iPad runs the receiver while the app is open; the iPhone connects as the remote.
+Pairing: Explicit receiver enablement, fresh 6-digit PIN, transient session token, restricted LAN IPv4 addresses, incorrect PIN rate limiting, disconnect by stopping receiver.
+Discovery: UDP broadcast discovery with manual iPad IP fallback if Wi-Fi blocks broadcast discovery.
+Remote buttons: Up, Down, Left, Right, Select, Back, Home, Play/Pause, Seek -10s and +10s.
+App integration: Focusable horizontal media rows, Continue Watching cards, optimized dock buttons, scroll-to-focused-item, active PlayerScreen playback command delegation and minimal playback status.
+Privacy: No streaming URL, provider credentials, torrent links, user library tokens, or GitHub access tokens are transmitted in remote protocol discovery or commands.
+Changes: lib/services/remote/lan_remote_service.dart, lib/pages/remote/remote_control_page.dart, lib/main.dart, lib/pages/settings/settings_page.dart, lib/pages/player/player_screen.dart, focusable home media widgets, ios/Runner/Info.plist.
+Validation: Analyze touched Flutter files and run test/lan_remote_protocol_test.dart before native compilation.
+Signing: Preserve existing iOS 15 TrollStore ad-hoc IPA signing, certificate, entitlements, artifacts, release publishing, and Telegram notifications.
+Release trigger: This file change is the only iOS workflow trigger. Trigger once then do not poll the job.
+User command: Build the new iPhone-to-iPad PlayTorrio remote feature, push an iOS-only GitHub build, and immediately leave.

@@ -197,6 +197,8 @@ class _ContinueWatchingSliderState extends State<ContinueWatchingSlider> {
                       ListView.separated(
                         clipBehavior: Clip.none,
                         controller: _scrollController,
+                        // Prefetch nearby cards for remote directional focus.
+                        cacheExtent: 900,
                         scrollDirection: Axis.horizontal,
                         padding: const EdgeInsets.symmetric(horizontal: 18),
                         physics: const BouncingScrollPhysics(),
@@ -302,7 +304,19 @@ class _ContinueWatchingCardState extends State<_ContinueWatchingCard> {
     final progress = item.progressPercent;
     final imageUrl = item.backdropUrl ?? item.posterUrl;
 
-    return MouseRegion(
+    return FocusableActionDetector(
+      onFocusChange: (focused) => setState(() => _isHovered = focused),
+      actions: <Type, Action<Intent>>{
+        ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) {
+          widget.onTap();
+          return null;
+        }),
+        ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(onInvoke: (_) {
+          widget.onTap();
+          return null;
+        }),
+      },
+      child: MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
@@ -606,6 +620,7 @@ class _ContinueWatchingCardState extends State<_ContinueWatchingCard> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

@@ -193,9 +193,9 @@ jobs:
             test/ios_audio_telemetry_test.dart \
             test/ios_source_audio_diagnostics_test.dart
           do
-            flutter test test/live_tv_recovery_test.dart
-          flutter test "$suite"
+            flutter test "$suite"
           done
+          flutter test test/live_tv_recovery_test.dart
       - name: Verify iOS Apple Speech fallback actually honors network consent
         run: |
           python3 - <<'PY'

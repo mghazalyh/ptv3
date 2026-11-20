@@ -1,5 +1,5 @@
 PLAYTORRIO OWNER-AUTHORIZED iOS-ONLY TROLLSTORE RELEASE REQUEST
-Requested SGT: 2026-11-20 20:05:05
+Requested SGT: 2026-11-20 21:40:35
 Repository: mghazalyh/ptv3
 Branch: parity-floating-player-both
 Source HEAD before LAN remote feature: 8a3193854c7dd698db776c389dd4972102c4e578
@@ -16,3 +16,7 @@ Validation: Analyze touched Flutter files and run test/lan_remote_protocol_test.
 Signing: Preserve existing iOS 15 TrollStore ad-hoc IPA signing, certificate, entitlements, artifacts, release publishing, and Telegram notifications.
 Release trigger: This file change is the only iOS workflow trigger. Trigger once then do not poll the job.
 User command: Build the new iPhone-to-iPad PlayTorrio remote feature, push an iOS-only GitHub build, and immediately leave.
+
+CI correction: iOS Build #44 failed at flutter analyze --no-pub --no-fatal-infos after introducing analysis of lib/main.dart. Analyzer identified one fatal warning: unused import './services/stream/torrent_stream_service.dart' at main.dart:34:8. Removed the unused import; all remote feature code and iOS signing workflow remain unchanged.
+Failed iOS run: https://github.com/mghazalyh/ptv3/actions/runs/44732845661
+User command: Check failed iOS build, fix the error, retrigger iOS only, then leave without checking the new run.

@@ -11,6 +11,7 @@ on:
       - '**/*.md'
       - 'docs/**'
       - '.github/release-request.txt'
+      - '.github/ios-speech-release-request.txt'
       - '.github/ios-release-archive-request.txt'
       - '.github/release-recovery-request.json'
       - '.github/workflows/playtorrio-recover-release.yml'
@@ -89,6 +90,7 @@ jobs:
             lib/pages/player/player_screen.dart \
             lib/pages/settings/settings_page.dart \
             lib/services/player/player_settings.dart \
+            lib/services/player/live_tv \
             lib/services/player/player_picture_audio.dart \
             lib/services/player/player_audio_presets.dart \
             lib/widgets/player/player_audio_menu.dart \
@@ -191,7 +193,8 @@ jobs:
             test/ios_audio_telemetry_test.dart \
             test/ios_source_audio_diagnostics_test.dart
           do
-            flutter test "$suite"
+            flutter test test/live_tv_recovery_test.dart
+          flutter test "$suite"
           done
       - name: Verify iOS Apple Speech fallback actually honors network consent
         run: |

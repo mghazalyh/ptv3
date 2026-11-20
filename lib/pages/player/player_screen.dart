@@ -28,6 +28,8 @@ import '../../services/theme/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
+import '../../services/player/live_tv/live_stream_detector.dart';
+import '../../services/player/live_tv/live_playback_coordinator.dart';
 import '../../services/player/ios_audio_telemetry.dart';
 import '../../services/remote/lan_remote_service.dart';
 import '../../services/player/audio_language_priority.dart';
@@ -109,7 +111,7 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final Player _player = Player(configuration: PlayerSettings.getMediaKitPlayerConfiguration());
   late final mk.VideoController _videoController = mk.VideoController(
     _player,
@@ -139,6 +141,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   Duration _duration = Duration.zero;
   Duration? _buffered;
   bool _wasBuffering = false;
+  // Only allocated for Stremio live TV. All movie/episode paths stay intact.
+  LivePlaybackCoordinator? _liveTv;
   String _statusMessage = 'Initializing...';
   bool _showControls = true;
   bool _isHoveringUI = false;
@@ -278,6 +282,33 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     _currentEpisode = widget.episode;
     _currentTitle = widget.title;
+    if (LiveStreamDetector.isLiveChannel(
+      mediaType: widget.detail?.type,
+      mediaId: widget.detail?.id,
+      metaHints: widget.detail?.behaviorHints,
+      streamHints: _currentSource.behaviorHints,
+      hasEpisode: widget.episode != null,
+    )) {
+      _liveTv = LivePlaybackCoordinator(
+        player: _player,
+        initialSource: _currentSource,
+        channelId: widget.detail?.id ?? '',
+        title: widget.detail?.name ?? widget.title,
+        availableSources: widget.availableSources,
+        onStatus: (message, reconnecting) {
+          if (!mounted) return;
+          setState(() {
+            _statusMessage = message;
+            _isLoading = reconnecting;
+          });
+        },
+        onSourceChanged: (source) {
+          if (!mounted) return;
+          setState(() => _currentSource = source);
+        },
+      );
+      WidgetsBinding.instance.addObserver(this);
+    }
     LanRemoteService.instance.onPlayerCommand = _handleLanRemotePlayerCommand;
     LanRemoteService.instance.playerStatus = () => <String, Object?>{
       'title': _currentTitle,
@@ -344,7 +375,8 @@ class _PlayerScreenState extends State<PlayerScreen>
           }
           setState(() => _isPlaying = playing);
           _updateDiscordRpc(isPaused: !playing);
-          if (justPaused && !_httpReconnecting && !_player.state.buffering) {
+          if (justPaused && _liveTv == null && !_httpReconnecting &&
+              !_player.state.buffering) {
             _saveAndSyncLastPosition();
           }
         }
@@ -452,6 +484,10 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _handleNativeCompletion(bool completed) {
     if (!completed || !mounted) return;
+    if (_liveTv != null) {
+      _liveTv!.onNativeCompleted();
+      return;
+    }
     final nativePosition = _player.state.position;
     final position = nativePosition > Duration.zero
         ? nativePosition : _lastNonzeroPlaybackPosition;
@@ -817,7 +853,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       setState(() => _statusMessage = 'Buffering $epLabel...');
 
       final lowerClean = sanitizedUrlStr.toLowerCase();
-      final bool isLive = _currentSource.behaviorHints?['isLive'] == true ||
+      final bool isLive = _liveTv != null ||
+          _currentSource.behaviorHints?['isLive'] == true ||
           _currentSource.addonName.toLowerCase() == 'iptv' ||
           _currentSource.name?.toLowerCase() == 'iptv' ||
           lowerClean.contains('/live/') ||
@@ -891,6 +928,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       });
 
       _player.play();
+      _liveTv?.start();
       _startSourceOpeningWatchdog(_streamGeneration);
       _scheduleDebridPlaceholderCheck(_player.state.duration);
       _sourceNativeOpening = false;
@@ -914,7 +952,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         _fetchInitialSubtitles();
 
         final detail = widget.detail;
-        if (detail != null) {
+        if (detail != null && _liveTv == null) {
           final targetId = detail.id.startsWith('tt') ? detail.id : (detail.tmdbId ?? detail.id);
           if (targetId.isNotEmpty) {
             final s = _currentEpisode?.season;
@@ -938,9 +976,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       });
 
       _progressSaveTimer?.cancel();
-      _progressSaveTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-        _savePlaybackProgress();
-      });
+      if (_liveTv == null) {
+        _progressSaveTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+          _savePlaybackProgress();
+        });
+      }
     } catch (e) {
       _sourceNativeOpening = false;
       // Authenticated Torbox resolver URLs and exception strings can contain
@@ -948,6 +988,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       debugPrint('[PlayerScreen] Media opening failed: ${e.runtimeType}');
 
       if (!mounted) return;
+      if (_liveTv != null) {
+        _liveTv!.onNativeError();
+        return;
+      }
       if (_sourceRecoveryBusy) {
         _sourceFailureDuringRecovery = true;
         return;
@@ -3299,6 +3343,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       return;
     }
 
+    if (_liveTv != null) {
+      if (!_sourceNativeOpening) _liveTv!.onNativeError();
+      return;
+    }
     if (_sourceRecoveryBusy) {
       _sourceFailureDuringRecovery = true;
       return;
@@ -4086,7 +4134,16 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _liveTv?.onAppLifecycle(state == AppLifecycleState.resumed);
+  }
+
+  @override
   void dispose() {
+    if (_liveTv != null) {
+      WidgetsBinding.instance.removeObserver(this);
+      _liveTv!.dispose();
+    }
     LanRemoteService.instance.onPlayerCommand = null;
     LanRemoteService.instance.playerStatus = null;
     ++_streamGeneration;
@@ -4117,7 +4174,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _progressSaveTimer?.cancel();
     _volumeHudTimer?.cancel();
     _audioHudTimer?.cancel();
-    _saveAndSyncLastPosition();
+    if (_liveTv == null) _saveAndSyncLastPosition();
     WakelockPlus.disable();
     _hideTimer?.cancel();
     SystemChrome.setPreferredOrientations([

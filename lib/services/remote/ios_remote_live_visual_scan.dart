@@ -20,7 +20,7 @@ typedef LiveVisualProbe = Future<LiveNativeSourceResult> Function({
   required StreamSource source,
   required bool Function() isCancelled,
   LiveVisualFrameObserver? onFrame,
-  int maxFrames,
+  required int maxFrames,
 });
 typedef LiveVisualPublish = Future<void> Function(
     String runId, String key, Map<String, Object?> payload);

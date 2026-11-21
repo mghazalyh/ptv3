@@ -550,6 +550,55 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     };
   }
 
+  /// Internal matrix use bypasses the public matrix-conflict guard, but
+  /// executes the exact same application-level channel opening logic.
+  Future<Map<String, Object?>> _openLiveChannel(
+      Map<String, dynamic> args) async {
+    final navigator = navigatorKey.currentState;
+    final channelId = args['channelId']?.toString().trim() ?? '';
+    final title = args['title']?.toString().trim() ?? channelId;
+    if (channelId.length < 4 || channelId.length > 180 ||
+        title.isEmpty || title.length > 160 ||
+        !(channelId.startsWith('nltv:') ||
+          channelId.startsWith('iptv:'))) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'invalid_channel_id'};
+    }
+    final candidates = await StreamService.fetchStreams(
+      type: 'tv', id: channelId, title: title,
+    ).timeout(const Duration(seconds: 20),
+        onTimeout: (sink) => sink.close()).toList();
+    if (candidates.isEmpty) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'no_channel_streams'};
+    }
+    final requested = args['sourceIndex'];
+    final index = requested is int ? requested : 0;
+    if (index < 0 || index >= candidates.length) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'invalid_source_index',
+        'sourceCount': candidates.length};
+    }
+    if (navigator == null || !mounted) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'navigator_unavailable'};
+    }
+    navigator.popUntil((route) => route.isFirst);
+    navigator.push(MaterialPageRoute(builder: (_) => PlayerScreen(
+      source: candidates[index],
+      availableSources: candidates,
+      title: title,
+      detail: MovieDetail(
+        id: channelId, type: 'tv', name: title,
+        behaviorHints: const <String, dynamic>{'isLive': true},
+      ),
+    )));
+    return <String, Object?>{
+      'accepted': true, 'channelTitle': title,
+      'sourceCount': candidates.length, 'selectedIndex': index,
+      'sourceHost': Uri.tryParse(candidates[index].url ?? '')?.host};
+  }
+
   bool _remoteDeviceIdle() {
     if (!Platform.isIOS || !mounted ||
         _lifecycleState != AppLifecycleState.resumed ||
@@ -941,7 +990,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
         case 'start_live_matrix':
           return await _liveMatrix.start(args,
             open: (id, title, sourceIndex) =>
-                _dispatchGithubDiagnostic('open_channel', <String, dynamic>{
+                _openLiveChannel(<String, dynamic>{
                   'channelId': id,
                   'title': title,
                   'sourceIndex': sourceIndex,
@@ -1035,48 +1084,12 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
             channelId: channelId,
           );
         case 'open_channel':
-          final channelId = args['channelId']?.toString().trim() ?? '';
-          final title = args['title']?.toString().trim() ?? channelId;
-          if (channelId.length < 4 || channelId.length > 180 ||
-              title.isEmpty || title.length > 160 ||
-              !(channelId.startsWith('nltv:') ||
-                channelId.startsWith('iptv:'))) {
+          if (_liveMatrix.status()['phase'] == 'running') {
             return <String, Object?>{
-              'accepted': false, 'reason': 'invalid_channel_id'};
+              'accepted': false, 'reason': 'matrix_in_progress',
+            };
           }
-          final candidates = await StreamService.fetchStreams(
-            type: 'tv', id: channelId, title: title,
-          ).timeout(const Duration(seconds: 20),
-              onTimeout: (sink) => sink.close()).toList();
-          if (candidates.isEmpty) {
-            return <String, Object?>{
-              'accepted': false, 'reason': 'no_channel_streams'};
-          }
-          final requested = args['sourceIndex'];
-          final index = requested is int ? requested : 0;
-          if (index < 0 || index >= candidates.length) {
-            return <String, Object?>{
-              'accepted': false, 'reason': 'invalid_source_index',
-              'sourceCount': candidates.length};
-          }
-          if (navigator == null || !mounted) {
-            return <String, Object?>{
-              'accepted': false, 'reason': 'navigator_unavailable'};
-          }
-          navigator.popUntil((route) => route.isFirst);
-          navigator.push(MaterialPageRoute(builder: (_) => PlayerScreen(
-            source: candidates[index],
-            availableSources: candidates,
-            title: title,
-            detail: MovieDetail(
-              id: channelId, type: 'tv', name: title,
-              behaviorHints: const <String, dynamic>{'isLive': true},
-            ),
-          )));
-          return <String, Object?>{
-            'accepted': true, 'channelTitle': title,
-            'sourceCount': candidates.length, 'selectedIndex': index,
-            'sourceHost': Uri.tryParse(candidates[index].url ?? '')?.host};
+          return _openLiveChannel(args);
         case 'batch':
           final entries = args['commands'];
           if (entries is! List || entries.isEmpty || entries.length > 20) {

@@ -201,6 +201,7 @@ class LiveTvMatrixRunner {
             }
             result['accepted'] = accepted;
             result['requestedSourceHost'] = opened['sourceHost'];
+            result['openedSourceIndex'] = opened['selectedIndex'];
             final initialHost = opened['sourceHost'];
             if (initialHost is String && initialHost.isNotEmpty) {
               _observedHosts.add(initialHost);
@@ -235,12 +236,15 @@ class LiveTvMatrixRunner {
                     last['playing'] == true && last['buffering'] == false;
                 result['candidateVideo'] = prelim;
                 result['activeSourceHost'] = last['activeSourceHost'];
+                result['activeSourceIndex'] = last['activeSourceIndex'];
                 final activeHost = last['activeSourceHost'];
                 if (activeHost is String && activeHost.isNotEmpty) {
                   _observedHosts.add(activeHost);
                 }
+                final activeSourceIndex = last['activeSourceIndex'];
                 result['sourceSwitchedBeforeSample'] =
-                    activeHost != initialHost;
+                    activeSourceIndex is int
+                        ? activeSourceIndex != sourceIndex : null;
                 result['httpRelayActive'] = last['httpRelayActive'];
                 result['httpRelayAttempted'] = last['httpRelayAttempted'];
                 result['nativeFormat'] = last['nativeFormat'];
@@ -254,6 +258,9 @@ class LiveTvMatrixRunner {
                 result['buffering'] = last['buffering'];
                 result['experimentId'] = last['experimentId'];
                 if (prelim) {
+                  var requestedSourceStayedActive =
+                      opened['selectedIndex'] == sourceIndex &&
+                      activeSourceIndex == sourceIndex;
                   var elapsed = 0;
                   var previousPosition = pos;
                   Object? finalPosition = pos;
@@ -272,6 +279,9 @@ class LiveTvMatrixRunner {
                         : <String, Object?>{};
                     finalPosition = ending['positionMs'];
                     finalHost = ending['activeSourceHost'];
+                    if (ending['activeSourceIndex'] != sourceIndex) {
+                      requestedSourceStayedActive = false;
+                    }
                     if (finalHost is String && finalHost.isNotEmpty) {
                       _observedHosts.add(finalHost);
                     }
@@ -303,9 +313,8 @@ class LiveTvMatrixRunner {
                   result['sustainedObservedSeconds'] = elapsed;
                   result['finalPositionMs'] = finalPosition;
                   result['finalSourceHost'] = finalHost;
-                  result['requestedSourceVerified'] = verified &&
-                      finalHost == opened['sourceHost'] &&
-                      last['activeSourceHost'] == opened['sourceHost'];
+                  result['requestedSourceVerified'] =
+                      verified && requestedSourceStayedActive;
                   if (verified) _verifiedSources++;
                 } else {
                   result['sustainedPlayback'] = false;

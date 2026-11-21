@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:playtorrio/models/stream/stream_model.dart';
+import 'package:playtorrio/services/player/live_tv/live_playback_coordinator.dart';
 import 'package:playtorrio/services/player/live_tv/live_tv_matrix_runner.dart';
 
 void main() {
@@ -38,7 +40,8 @@ void main() {
       open: (id, title, sourceIndex) async {
         elapsedMs = 0;
         currentId = id;
-        return {'accepted': true, 'sourceCount': 1, 'sourceHost': 'example.test'};
+        return {'accepted': true, 'sourceCount': 1,
+          'selectedIndex': sourceIndex, 'sourceHost': 'example.test'};
       },
       inspect: () async {
         return {'live': {
@@ -46,6 +49,7 @@ void main() {
           'playing': true, 'buffering': false, 'videoDimensionsReady': true,
           'videoWidth': 1280, 'videoHeight': 720, 'trackCount': 3,
           'positionMs': elapsedMs, 'activeSourceHost': 'example.test',
+          'activeSourceIndex': 0,
           'nativeFormat': 'hls',
         }};
       },
@@ -91,6 +95,7 @@ void main() {
         pos = 0;
         return {
           'accepted': true, 'sourceCount': 3,
+          'selectedIndex': sourceIndex,
           'sourceHost': 'source' + sourceIndex.toString() + '.test',
         };
       },
@@ -104,6 +109,7 @@ void main() {
           'trackCount': index == 1 ? 3 : 0,
           'positionMs': index == 1 ? pos : 0,
           'activeSourceHost': 'source' + index.toString() + '.test',
+          'activeSourceIndex': index,
         }};
       },
       publish: (runId, key, payload) async {
@@ -152,6 +158,103 @@ void main() {
     expect(runner.status()['phase'], 'completed');
     expect(runner.status()['channelsDone'], 50);
     expect(runner.status()['verifiedSources'], 0);
+  });
+
+  test('Source indexes distinguish streams sharing a CDN hostname', () {
+    final original = <StreamSource>[
+      StreamSource(addonName: 'One', url: 'https://cdn.test/one.m3u8'),
+      StreamSource(addonName: 'One', url: 'https://cdn.test/two.m3u8'),
+      StreamSource(addonName: 'Two', url: 'https://cdn.test/one.m3u8'),
+    ];
+    expect(LivePlaybackCoordinator.originalSourceIndex(
+        original, original[1]), 1);
+    expect(LivePlaybackCoordinator.originalSourceIndex(
+        original, original[2]), 2);
+    expect(LivePlaybackCoordinator.originalSourceIndex(original,
+        StreamSource(addonName: 'One', url: 'https://cdn.test/new.m3u8')),
+        isNull);
+    expect(LivePlaybackCoordinator.originalSourceIndex(
+        <StreamSource>[original[0], original[0]], original[0]), isNull);
+  });
+
+  test('Same-host backup playing must not verify the requested source',
+      () async {
+    final results = <String, Map<String, Object?>>{};
+    var elapsedMs = 0;
+    var channel = '';
+    var sourceIndex = 0;
+    final runner = LiveTvMatrixRunner(wait: (duration) async {
+      elapsedMs += duration.inMilliseconds;
+    });
+    await runner.start(plan(),
+      open: (id, title, requestedIndex) async {
+        channel = id;
+        sourceIndex = requestedIndex;
+        elapsedMs = 0;
+        return {
+          'accepted': true, 'sourceCount': 2,
+          'selectedIndex': requestedIndex, 'sourceHost': 'shared.cdn.test',
+        };
+      },
+      inspect: () async => {'live': {
+        'channelId': channel, 'playing': true, 'buffering': false,
+        'videoDimensionsReady': true, 'videoWidth': 1280,
+        'videoHeight': 720, 'trackCount': 3,
+        'positionMs': elapsedMs, 'activeSourceHost': 'shared.cdn.test',
+        'activeSourceIndex': sourceIndex == 0 ? 1 : sourceIndex,
+      }},
+      publish: (runId, key, payload) async {
+        if (key != 'status') results[key] = payload;
+      },
+    );
+    await runner.whenComplete;
+    expect(results['candidate_0_0']?['sustainedPlayback'], true);
+    expect(results['candidate_0_0']?['sourceSwitchedBeforeSample'], true);
+    expect(results['candidate_0_0']?['requestedSourceVerified'], false);
+    expect(results['candidate_0_1']?['requestedSourceVerified'], true);
+  });
+
+  test('Failover during sustained playback revokes source attribution',
+      () async {
+    final results = <String, Map<String, Object?>>{};
+    var elapsedMs = 0;
+    var channel = '';
+    var sourceIndex = 0;
+    var observations = 0;
+    final runner = LiveTvMatrixRunner(wait: (duration) async {
+      elapsedMs += duration.inMilliseconds;
+    });
+    await runner.start(plan(),
+      open: (id, title, requestedIndex) async {
+        channel = id;
+        sourceIndex = requestedIndex;
+        elapsedMs = 0;
+        observations = 0;
+        return {
+          'accepted': true, 'sourceCount': 2,
+          'selectedIndex': requestedIndex, 'sourceHost': 'shared.cdn.test',
+        };
+      },
+      inspect: () async {
+        observations++;
+        return {'live': {
+          'channelId': channel, 'playing': true, 'buffering': false,
+          'videoDimensionsReady': true, 'videoWidth': 1280,
+          'videoHeight': 720, 'trackCount': 3,
+          'positionMs': elapsedMs, 'activeSourceHost': 'shared.cdn.test',
+          'activeSourceIndex': sourceIndex == 0 && observations > 3
+              ? 1 : sourceIndex,
+        }};
+      },
+      publish: (runId, key, payload) async {
+        if (key != 'status') results[key] = payload;
+      },
+    );
+    await runner.whenComplete;
+    expect(results['candidate_0_0']?['sustainedPlayback'], true);
+    expect(results['candidate_0_0']?['sourceSwitchedBeforeSample'], false);
+    expect(results['candidate_0_0']?['requestedSourceVerified'], false);
+    expect(results['candidate_0_1']?['requestedSourceVerified'], true);
   });
 
   test('Default full matrix repeats each distinct channel three times',

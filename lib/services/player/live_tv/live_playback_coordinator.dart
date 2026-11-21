@@ -38,6 +38,7 @@ class LivePlaybackCoordinator {
     LiveSourceManager? sourceManager,
   })  : _player = player,
         _source = initialSource,
+        _originalSources = List<StreamSource>.unmodifiable(availableSources),
         _policy = policy ?? LiveRecoveryPolicy(),
         _sources = sourceManager ?? LiveSourceManager(
           channelId: channelId,
@@ -56,6 +57,7 @@ class LivePlaybackCoordinator {
   final LiveHealthCallback? onHealthChanged;
   final LiveRecoveryPolicy _policy;
   final LiveSourceManager _sources;
+  final List<StreamSource> _originalSources;
 
   StreamSource _source;
   Timer? _monitor;
@@ -358,6 +360,28 @@ class LivePlaybackCoordinator {
     _event(code);
   }
 
+  /// Map a playing source back to its exact position in the original Stremio
+  /// stream response. Hostnames are not unique identities: two independent
+  /// candidates can share the same CDN host. Ambiguous or refreshed sources
+  /// must never be attributed to a requested source index.
+  @visibleForTesting
+  static int? originalSourceIndex(
+      Iterable<StreamSource> originalSources, StreamSource selected) {
+    final url = selected.url;
+    if (url == null || url.trim().isEmpty) return null;
+    int? found;
+    var index = 0;
+    for (final candidate in originalSources) {
+      if (candidate.url == url &&
+          candidate.addonName == selected.addonName) {
+        if (found != null) return null;
+        found = index;
+      }
+      index++;
+    }
+    return found;
+  }
+
   Future<Map<String, Object?>> diagnosticState({bool inspect = false}) async {
     if (inspect && !_disposed) await _sources.inspectFirstSegment(_source);
     final probe = _sources.latestProbeFor(_source);
@@ -374,6 +398,7 @@ class LivePlaybackCoordinator {
       'httpRelayActive': _usingHlsRelay,
       'httpRelayAttempted': _hlsRelayAttemptedUrls.contains(_source.url),
       'activeSourceHost': Uri.tryParse(_source.url ?? '')?.host,
+      'activeSourceIndex': originalSourceIndex(_originalSources, _source),
       'experimentId': _experimentId,
       'experimentRevision': _experimentRevision,
       'playing': _player.state.playing,

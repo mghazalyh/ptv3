@@ -73,6 +73,10 @@ jobs:
           touch .env
           flutter pub get
 
+      - name: Gate release on deterministic SubtitleCat contract
+        run: |
+          set -euo pipefail
+          flutter test --no-pub test/subtitlecat_test.dart
       # Run the small, high-signal source integrity and analyzer checks FIRST.
       # This prevents one malformed Dart declaration from cascading into
       # dozens of misleading failures across the 400+ test full suite.

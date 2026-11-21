@@ -1,4 +1,5 @@
 import '../../models/addon/addon.dart';
+import 'ios_remote_command_contract.dart';
 
 /// Read-only responses for the opt-in iOS Torriodb diagnostics transport.
 /// Never expose addon configuration URLs, credentials, headers or streams.
@@ -13,6 +14,7 @@ abstract final class IosRemoteDiagnosticInventory {
     'receiptDelivery': 'persisted_retry_until_uploaded',
     'interruptedExecution': 'uncertain_without_replay',
     'transport': 'torriodb_device_scoped',
+    'remoteOperations': IosRemoteCommandContract.manifest(),
     'pollSeconds': 12,
     'readOnly': const [
       'diagnostic_capabilities', 'diagnostic_snapshot',
@@ -23,12 +25,21 @@ abstract final class IosRemoteDiagnosticInventory {
       'device_inventory', 'diagnostic_process_metrics',
       'diagnostic_http_probe',
       'diagnostic_media_sources', 'diagnostic_plan_status',
+      'command_contracts', 'media_discover', 'media_search_addons',
+      'media_resolve', 'live_channels', 'live_health_rank',
+      'live_scan_status', 'player_verify', 'app_inspect',
+      'app_screenshot', 'settings_inspect',
     ],
     'boundedTests': const [
-      'probe_native_channel', 'start_live_matrix_catalog',
+      'probe_native_channel', 'live_scan', 'live_scan_cancel',
+      'start_live_matrix_catalog',
       'start_live_matrix', 'cancel_live_matrix',
     ],
-    'playbackChanging': const ['open_channel', 'remote', 'player'],
+    'playbackChanging': const [
+      'open_channel', 'remote', 'player', 'media_play_resolved',
+      'live_channel_switch', 'player_recover',
+    ],
+    'appChanging': const ['app_navigate', 'settings_update'],
     'indicator': 'dismissible_and_remotely_toggleable',
     'uiOnly': const ['test_indicator'],
     'declarativePlans': const [

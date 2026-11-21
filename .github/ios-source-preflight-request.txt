@@ -1,6 +1,6 @@
-requested_source_head=637ca39ba7a4f37b5e478fec69ab2e59978a3a96
+requested_source_head=f76403ef0620e989733edd0427c9053b13641f9c
 type=ios-source-tests-only
 no_ipa_build=true
 no_platform_package=true
-scope=repair_67_remote_control_structural_guards_and_full_flutter_suite
-requested_utc=2026-11-21T20:52:48.843Z
+scope=build_68_visual_probe_callback_type_regression_and_full_flutter_suite
+requested_utc=2026-11-21T21:58:26.675Z

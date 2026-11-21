@@ -1060,6 +1060,12 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
                   'repeats': args['repeats'],
               });
         case 'start_live_matrix':
+          if (IosRemoteLiveVisualScan.instance.isRunning ||
+              IosRemoteLiveScan.instance.isRunning) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'another_native_scan_running',
+            };
+          }
           return await _liveMatrix.start(args,
             open: (id, title, sourceIndex) =>
                 _openLiveChannel(<String, dynamic>{
@@ -1128,6 +1134,12 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
           }
           return await handler(name, args);
         case 'probe_native_channel':
+          if (IosRemoteLiveVisualScan.instance.isRunning ||
+              IosRemoteLiveScan.instance.isRunning) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'another_native_scan_running',
+            };
+          }
           return await _probeNativeChannel(args);
         case 'probe_addon':
           // Resolve only an installed Stremio TV addon. Never permit a

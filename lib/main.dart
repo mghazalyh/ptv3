@@ -9,6 +9,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
 import './pages/home/home_page.dart';
+import './pages/discover/discover_page.dart';
 import './services/addon/addon_manager.dart';
 import './services/my_list/github_library_cloud.dart';
 import './services/config/torriodb_portable_sync.dart';
@@ -46,6 +47,13 @@ import './services/remote/lan_remote_service.dart';
 import './services/remote/lan_cast_request.dart';
 import './services/remote/unattended_test_activity.dart';
 import './services/remote/ios_remote_diagnostic_inventory.dart';
+import './services/remote/ios_remote_command_contract.dart';
+import './services/remote/ios_remote_media_discovery.dart';
+import './services/remote/ios_remote_live_health_history.dart';
+import './services/remote/ios_remote_live_scan.dart';
+import './services/remote/ios_remote_app_observability.dart';
+import './services/remote/ios_remote_safe_settings.dart';
+import './services/remote/ios_remote_playback_verification.dart';
 import './services/remote/ios_diagnostic_journal.dart';
 import './services/remote/ios_network_diagnostic_probe.dart';
 import './services/remote/ios_media_diagnostic_request.dart';
@@ -147,6 +155,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     onCandidateFinished: (candidate) {
       unawaited(IosDiagnosticJournal.instance.record(
           'live.matrix.candidate', candidate));
+      unawaited(IosRemoteLiveHealthHistory.instance.recordCandidate(candidate));
     },
     onStatusChanged: (status) {
       UnattendedTestActivity.instance.updateMatrix(status);
@@ -229,11 +238,29 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   /// addons. No command-supplied URL or arbitrary host is ever fetched.
   Future<Map<String, Object?>> _discoverLiveChannels(
       Map<String, dynamic> args) async {
+    const allowed = <String>{'query', 'addonHost', 'pages', 'limit'};
+    if (args.keys.any((key) => !allowed.contains(key)) ||
+        args['query'] != null && args['query'] is! String ||
+        args['addonHost'] != null && args['addonHost'] is! String ||
+        args['pages'] != null && args['pages'] is! int ||
+        args['limit'] != null && args['limit'] is! int) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'invalid_channel_search',
+      };
+    }
     final wantedHost = args['addonHost']?.toString().toLowerCase() ?? '';
+    final query = args['query']?.toString().trim().toLowerCase() ?? '';
+    if (query.length > 100 || wantedHost.length > 120 ||
+        wantedHost.isNotEmpty &&
+          !RegExp(r'^[a-z0-9.-]+$').hasMatch(wantedHost)) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'invalid_channel_query',
+      };
+    }
     final pages = (args['pages'] is int ? args['pages'] as int : 3)
         .clamp(1, 6).toInt();
     final limit = (args['limit'] is int ? args['limit'] as int : 100)
-        .clamp(50, 150).toInt();
+        .clamp(1, 150).toInt();
     final found = <String, String>{};
     final usedHosts = <String>{};
     var catalogCount = 0;
@@ -266,6 +293,9 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
                   !addon.manifest.supportsRequest('stream', 'tv', id)) {
                 continue;
               }
+              if (query.isNotEmpty &&
+                  !title.toLowerCase().contains(query) &&
+                  !id.toLowerCase().contains(query)) continue;
               found.putIfAbsent(id, () => title);
               if (found.length >= limit) break;
             }
@@ -279,7 +309,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     }
     // The known-good Roku backup should be present as a regression control.
     const control = 'nltv:us:CineRomantico.us';
-    if (!found.containsKey(control) && found.isNotEmpty &&
+    if (query.isEmpty && !found.containsKey(control) && found.isNotEmpty &&
         AddonManager.instance.activeStreamAddons.any((addon) =>
             addon.manifest.supportsRequest('stream', 'tv', control))) {
       if (found.length >= limit) found.remove(found.keys.last);
@@ -288,6 +318,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     return <String, Object?>{
       'accepted': found.isNotEmpty,
       'count': found.length,
+      'query': query,
       'catalogsChecked': catalogCount,
       'installedAddonHosts': usedHosts.toList(),
       'channels': found.entries.map((entry) => <String, String>{
@@ -1179,23 +1210,29 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
       builder: (context, palette, _) {
         return MaterialApp(
           navigatorKey: navigatorKey,
+          navigatorObservers: <NavigatorObserver>[
+            IosRemoteAppObservability.instance.routes,
+          ],
           title: 'PlayTorrio',
           debugShowCheckedModeBanner: false,
           theme: AppThemeService.createThemeData(palette),
           scrollBehavior: const MaterialScrollBehavior().copyWith(
             overscroll: false,
           ),
-          builder: (context, child) => Stack(
-            fit: StackFit.expand,
-            children: [
-              child ?? const SizedBox.shrink(),
-              if (Platform.isIOS)
-                Positioned(top: 0, left: 0, right: 0,
-                  child: UnattendedTestIndicator(
-                    activity: UnattendedTestActivity.instance.snapshot,
-                    onDismiss: () => UnattendedTestActivity.instance
-                        .setIndicatorEnabled(false))),
-            ],
+          builder: (context, child) => RepaintBoundary(
+            key: IosRemoteAppObservability.instance.captureKey,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                child ?? const SizedBox.shrink(),
+                if (Platform.isIOS)
+                  Positioned(top: 0, left: 0, right: 0,
+                    child: UnattendedTestIndicator(
+                      activity: UnattendedTestActivity.instance.snapshot,
+                      onDismiss: () => UnattendedTestActivity.instance
+                          .setIndicatorEnabled(false))),
+              ],
+            ),
           ),
           home: const HomePage(),
         );

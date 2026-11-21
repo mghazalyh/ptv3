@@ -256,3 +256,16 @@ Guards: maintain early Dart controller structural check, remote visual Dart anal
 Validation: source-only preflight triggered separately for corrected source; iOS release workflow has its own hard fail-fast compile and test gates. Signed build completion not assumed.
 Scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY, existing repo and Flutter architecture, no Windows/Android/desktop builds, no physical iPad or native matrix commands.
 Instruction: Trigger iOS-only GitHub release build once and LEAVE immediately. Do not poll the newly triggered job.
+
+OWNER-AUTHORIZED IOS-ONLY BUILD #69 SUBTITLECAT UPSTREAM HTTP 500 TEST GATE REPAIR
+Requested SGT: 2026-11-22 06:45:03
+Repository: mghazalyh/ptv3
+Branch: parity-floating-player-both
+Source HEAD before trigger: e4f7a0cb8a472fd6bad6b5acbf085db1b9ef0324
+Failed iOS run #69: https://github.com/mghazalyh/ptv3/actions/runs/44954339523
+Root cause: the full deterministic Flutter release suite called live subtitlecat.com; provider HTTP 500 caused exactly 1 failure among 817 passing tests, unrelated to native compilation.
+Repair: test/subtitlecat_test.dart now runs deterministic pure SubtitleCat query-contract tests in all releases; real external provider fetching and translation remain explicit opt-in PLAYTORRIO_RUN_LIVE_SUBTITLECAT=true. No production SubtitleCat service changes.
+Follow-up repair: restored HttpOverrides via documented HttpOverrides.current getter (global is setter only). The corrected targeted SubtitleCat test and source integrity gate passed in source-only preflight run 44957994851 before this signed build trigger; entire source-only preflight was still running at trigger.
+Prevention: release and source preflight now execute the deterministic SubtitleCat test early and retain the mandatory complete offline Flutter test suite. Preserve GitHub release 403 fallback behavior.
+Scope: iOS 15 ARM64 signed TrollStore-compatible IPA ONLY. Do not build Windows or desktop. Physical iPad Build 262 and cancelled native matrix remain untouched.
+Owner instruction: once iOS-only GitHub build is triggered, LEAVE without polling or waiting for the new run.

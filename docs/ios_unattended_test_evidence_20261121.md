@@ -163,3 +163,21 @@ These gaps motivated full raw native logs, per-request HTTP/DNS/redirect
 diagnostics, frame captures, process metrics, exact source attribution
 and resumable evidence uploads. New instrumentation is staged in
 source only; physical build 262 and the running matrix were left intact.
+
+
+## Additional passive sample (same still-running build 262)
+
+A later read-only snapshot showed 35/150 rounds, 84 source attempts,
+22 legacy sustained playback sessions, 43 source hosts and six upload
+errors. There were 81 candidate report files at this snapshot.
+
+The 15 latest candidate reports showed 14 without decoded video and
+one with video decoding but without sustained playback. Within those
+15 reports, recorded native error counts included 25 manifest, 20
+segment, five TLS and two HTTP authentication failures; 13/15
+reported an HTTP relay attempt. These are selected candidates only,
+not a representative population estimate or a final matrix score.
+
+The pattern supports the next IPA's raw network redirect and decoder
+telemetry, native frame snapshots and first-class capture/export
+commands. No device command or playback manipulation was performed.

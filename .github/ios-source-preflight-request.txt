@@ -1,6 +1,5 @@
-preflight_requested_at_utc=2026-11-21T15:33:02.873Z
-source_sha=9b28f21db1cc928fd0dfe7bdab516563c384aedb
+requested_source_head=abdc17d50c7489addae0109367f21758cc5b097f
 type=ios-source-tests-only
 no_ipa_build=true
 no_platform_package=true
-scope=remote_diagnostic_capabilities_and_visible_native_test_indicator
+scope=full_fidelity_native_agent_remote_plans_network_journal_and_media_identity

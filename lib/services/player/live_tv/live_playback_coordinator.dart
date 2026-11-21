@@ -331,6 +331,10 @@ class LivePlaybackCoordinator {
       'probeSegmentKind': probe?.segmentKind,
       'probeBodyBytes': probe?.bodyBytes,
       'probeElapsedMs': probe?.elapsedMs,
+      'probeRequestHost': probe?.requestHost,
+      'probeRequestUrlChars': probe?.requestUrlChars,
+      'probeRequestPathChars': probe?.requestPathChars,
+      'probeRequestQueryChars': probe?.requestQueryChars,
     };
   }
 

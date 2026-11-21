@@ -57,6 +57,15 @@ void main() {
     expect(result['torrentCount'], 1);
     expect(result['invalidSourceCount'], 1);
     expect(result['sourcesWithRequestHeaders'], 1);
+    final sourceDiagnostics = result['sourceDiagnostics'] as List;
+    expect(sourceDiagnostics, hasLength(1));
+    final sample = sourceDiagnostics.first as Map;
+    expect(sample['index'], 0);
+    expect(sample['host'], 'media.example');
+    expect(sample['isHls'], true);
+    expect(sample['hasRequestHeaders'], true);
+    expect(sample['queryChars'], greaterThan(0));
+    expect(sample['urlChars'], greaterThan(sample['pathChars'] as int));
     expect(requests, hasLength(2));
     expect(requests.first.url.path, '/config/sample/manifest.json');
     expect(requests.last.url.path,

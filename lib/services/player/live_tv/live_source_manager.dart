@@ -26,6 +26,10 @@ class LiveSourceProbe {
     this.isMaster,
     this.segmentCount,
     this.segmentKind,
+    this.requestHost,
+    this.requestUrlChars,
+    this.requestPathChars,
+    this.requestQueryChars,
   });
 
   final String phase;
@@ -39,6 +43,12 @@ class LiveSourceProbe {
   final int? segmentCount;
   /// Safe media signature category (no payload bytes or URL are stored).
   final String? segmentKind;
+  /// Safe request metadata for diagnosing HTTP 414 without exposing URLs,
+  /// signed query values, cookies, or authentication tokens.
+  final String? requestHost;
+  final int? requestUrlChars;
+  final int? requestPathChars;
+  final int? requestQueryChars;
 }
 
 class _LiveSourceHealth {
@@ -71,9 +81,33 @@ class LiveSourceManager {
   LiveSourceProbe? latestProbeFor(StreamSource source) =>
       source.url == _lastProbeSource ? _lastProbe : null;
 
-  void _captureProbe(StreamSource source, LiveSourceProbe probe) {
-    _lastProbeSource = source.url; // In memory only; not serialized.
-    _lastProbe = probe;
+  void _captureProbe(StreamSource source, LiveSourceProbe probe, {
+    Uri? requestUri,
+  }) {
+    // A master playlist can succeed while its child request returns 414.
+    // Report only the destination host and URL component lengths, never
+    // the actual signed request URI or any credential-bearing query value.
+    final target = requestUri ?? Uri.tryParse(source.url ?? '');
+    final safeTarget = target != null &&
+            (target.scheme == 'https' || target.scheme == 'http')
+        ? target : null;
+    _lastProbeSource = source.url; // In memory only; never serialized.
+    _lastProbe = LiveSourceProbe(
+      phase: probe.phase,
+      outcome: probe.outcome,
+      elapsedMs: probe.elapsedMs,
+      headerCount: probe.headerCount,
+      httpStatus: probe.httpStatus,
+      bodyBytes: probe.bodyBytes,
+      mimeKind: probe.mimeKind,
+      isMaster: probe.isMaster,
+      segmentCount: probe.segmentCount,
+      segmentKind: probe.segmentKind,
+      requestHost: safeTarget?.host,
+      requestUrlChars: safeTarget?.toString().length,
+      requestPathChars: safeTarget?.path.length,
+      requestQueryChars: safeTarget?.query.length,
+    );
   }
 
   void _rememberFirstSegment(
@@ -381,7 +415,7 @@ class LiveSourceManager {
                 return clean.isNotEmpty && !clean.startsWith('#');
               }).length,
               elapsedMs: timer.elapsedMilliseconds,
-              headerCount: headers.length));
+              headerCount: headers.length), requestUri: child);
             if (childSnapshot != null && !childSnapshot.isMaster) {
               _rememberFirstSegment(source, child, nested.body);
               return childSnapshot;

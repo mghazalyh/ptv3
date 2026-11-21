@@ -113,7 +113,11 @@ class GithubStremioAddonProbe {
               var invalid = 0;
               var hls = 0;
               var contextHeaders = 0;
-              for (final entry in entries) {
+              // Bounded, privacy-safe per-index metadata helps distinguish
+              // oversized signed requests from missing playback headers.
+              final sources = <Map<String, Object?>>[];
+              for (var index = 0; index < entries.length; index++) {
+                final entry = entries[index];
                 if (entry is! Map) {
                   invalid++;
                   continue;
@@ -130,14 +134,26 @@ class GithubStremioAddonProbe {
                     continue;
                   }
                   urls++;
-                  if (mediaUri.path.toLowerCase().endsWith('.m3u8')) hls++;
+                  final isHls = mediaUri.path.toLowerCase().endsWith('.m3u8');
+                  if (isHls) hls++;
                   final hints = entry['behaviorHints'];
-                  if (entry['headers'] is Map && (entry['headers'] as Map).isNotEmpty ||
-                      hints is Map &&
-                          hints['proxyHeaders'] is Map &&
-                          (hints['proxyHeaders'] as Map)['request'] is Map &&
-                          ((hints['proxyHeaders'] as Map)['request'] as Map).isNotEmpty) {
-                    contextHeaders++;
+                  final proxy = hints is Map ? hints['proxyHeaders'] : null;
+                  final request = proxy is Map ? proxy['request'] : null;
+                  final directHeaders = entry['headers'];
+                  final hasContext = directHeaders is Map &&
+                      directHeaders.isNotEmpty ||
+                      request is Map && request.isNotEmpty;
+                  if (hasContext) contextHeaders++;
+                  if (sources.length < 8) {
+                    sources.add(<String, Object?>{
+                      'index': index,
+                      'host': mediaUri.host,
+                      'isHls': isHls,
+                      'urlChars': url.length,
+                      'pathChars': mediaUri.path.length,
+                      'queryChars': mediaUri.query.length,
+                      'hasRequestHeaders': hasContext,
+                    });
                   }
                 } else if (hash is String && hash.isNotEmpty) {
                   torrents++;
@@ -153,6 +169,7 @@ class GithubStremioAddonProbe {
                 'torrentCount': torrents,
                 'invalidSourceCount': invalid,
                 'sourcesWithRequestHeaders': contextHeaders,
+                'sourceDiagnostics': sources,
               });
             }
           } catch (_) {

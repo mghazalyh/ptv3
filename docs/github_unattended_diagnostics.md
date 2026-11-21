@@ -53,7 +53,7 @@ The timestamp above is illustrative only; each command must use its actual curre
 
 * `state`: report whether the player/Flutter navigator is available.
 * `open_channel`: discover a Stremio `nltv:` or `iptv:` channel and open its selected live source; accepts `channelId`, `title`, and `sourceIndex`.
-* `probe_addon`: from the iPad itself, issue read-only GETs for an already-installed Stremio TV addon's `/manifest.json` and `/stream/tv/{channelId}.json`. Accepts `channelId` and optionally `addonHost` and `addonName` to select a configured addon. The result includes HTTP status, manifest/type/id-prefix support, direct-HLS and torrent candidate counts, and whether source request headers are declared. Signed URLs, media payloads, actual headers and tokens are never included in receipts. No arbitrary host probing is allowed.
+* `probe_addon`: from the iPad itself, issue read-only GETs for an already-installed Stremio TV addon's `/manifest.json` and `/stream/tv/{channelId}.json`. Accepts `channelId` and optionally `addonHost` and `addonName` to select a configured addon. The result includes HTTP status, manifest/type/id-prefix support, direct-HLS and torrent candidate counts, whether source request headers are declared, and up to eight per-index host/URL-length/header-presence summaries. Raw paths, signed query parameters and header values are never returned. Signed URLs, media payloads, actual headers and tokens are never included in receipts. No arbitrary host probing is allowed.
 * `remote`: use the existing player/navigation handlers with `args.command` equal to `home`, `back`, `up`, `down`, `left`, `right`, `select`, `playPause`, `seekBack`, or `seekForward`.
 * `player`: `args.command` may be `state`, `play`, `pause`, `toggle_play`, `seek_ms`, `set_volume`, `retry_live`, `probe_live`, `restart_media`, `show_diagnostics`, `native_get`, `native_set`, `native_command`, or `audio_tracks`.
 * `capture_telemetry`: upload current opt-in iOS playback diagnostics into the existing private Torriodb diagnostics tree.
@@ -95,7 +95,7 @@ The remote client can test a configured Live TV addon independently of MPV. Exam
 {"action":"probe_addon","args":{"channelId":"nltv:us:NFLChannel.us","addonName":"Live TV"}}
 ```
 
-If a specific Cloudflare hostname is known, include `addonHost` to require an exact installed-addon host match. A missing match returns the installed candidate hostnames without making network requests. Results distinguish a broken manifest from a working Stremio stream response and from an upstream media URL that fails once handed to MPV. A successful `probe_addon` is not proof of segment or video playback.
+If a specific Cloudflare hostname is known, include `addonHost` to require an exact installed-addon host match. A missing match returns the installed candidate hostnames without making network requests. Results distinguish a broken manifest from a working Stremio stream response and from an upstream media URL that fails once handed to MPV. New Live TV player `probe_live` receipts also contain `probeRequestHost`, `probeRequestUrlChars`, `probeRequestPathChars`, and `probeRequestQueryChars`. For HLS HTTP 414, these describe the actual nested variant that failed rather than only the master URL, without storing a path, query value, token, or full URL. A successful `probe_addon` is not proof of segment or video playback.
 
 ## Reading the results
 

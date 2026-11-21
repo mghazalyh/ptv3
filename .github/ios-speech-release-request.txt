@@ -116,3 +116,11 @@ Trigger existing iOS speech release and leave without waiting/polling.
 IOS-ONLY RETRIGGER — STREMIO ADDON URL ENCODING TEST FIX
 SGT: 2026-11-21 17:17:59
 Previous iOS Run #56 failed at test/github_stremio_addon_probe_test.dart:62. Uri.parse correctly keeps encoded colons (nltv%3Aus%3ANFLChannel.us.json) in the request path; test incorrectly expected raw colons. Assert the percent-encoded path; preserve production code. Trigger existing iOS-only release workflow and exit immediately without waiting or polling.
+
+IOS ONLY BUILD — UNATTENDED IPAD BUILD 257 VALIDATION FOLLOWUP
+Requested SGT: 2026-11-21 18:00:12
+Actual installed iPad Build 257 at ed907cbf93401c7e7dfd8220cf47baabf9d3a3f2 verified.
+Installed addon host: ptv3-livetv-addon.pages.dev (Cloudflare Pages), not previous workers.dev hostname. Manifest + stream/tv resource 200 and valid for NFL (3 sources), SYFY (2), Paramount+ Picks (1).
+Native playback tested: NFL main playlist 403, NFL backup HEAD 404, SYFY primary network_error, SYFY backup playlist timeout, Paramount child playlist 414. Public reference HLS progressed 34 seconds with MPV HLS format and 10 tracks, no buffering. Previous remote player lifecycle and reference-media attribution fixes verified.
+Implement safe per-source host/header-present/URI-character-length summaries and nested HLS variant 414 target characteristics; never log signed URLs, secret query contents or HTTP header values.
+Update tests/documentation and build iOS-only. Stop immediately after push; do not poll GitHub Actions.

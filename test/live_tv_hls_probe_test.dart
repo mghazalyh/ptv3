@@ -136,6 +136,13 @@ void main() {
     final probe = manager.latestProbeFor(source)!;
     expect(probe.phase, 'variant');
     expect(probe.httpStatus, 414);
+    // Inspect the actual failing child URI structure, not the master URL,
+    // without exposing any signed query contents.
+    expect(probe.requestHost, 'cdn.example');
+    expect(probe.requestPathChars, '/nested/media.m3u8'.length);
+    expect(probe.requestQueryChars, 0);
+    expect(probe.requestUrlChars,
+        'https://cdn.example/nested/media.m3u8'.length);
   });
 
   test('HEAD 405 allows valid GET-only HLS channel', () async {

@@ -1,5 +1,6 @@
-requested_source_head=841017dd93ea5c76769d86e0effda969e344c51c
+requested_source_head=470bb7cdef469ab7d2ea86e19ee407c007c1221d
 type=ios-source-tests-only
 no_ipa_build=true
 no_platform_package=true
-scope=diagnostic_agent_analyzer_fixes_and_full_ios_source_regressions
+scope=mandatory_full_suite_five_failure_fixes_and_provider_fixture_regressions
+requested_sgt=2026-11-22 01:44:44

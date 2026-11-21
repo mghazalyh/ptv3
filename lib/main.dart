@@ -857,6 +857,11 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
         case 'settings_inspect':
           return IosRemoteSafeSettings.inspect();
         case 'settings_update':
+          if (_liveMatrix.status()['phase'] == 'running') {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'matrix_in_progress',
+            };
+          }
           return IosRemoteSafeSettings.update(args);
         case 'addon_inventory':
           return IosRemoteDiagnosticInventory.addons(
@@ -1018,6 +1023,11 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
               reason: 'manual');
           return <String, Object?>{'uploaded': uploaded};
         case 'remote':
+          if (_liveMatrix.status()['phase'] == 'running') {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'matrix_in_progress',
+            };
+          }
           final key = args['command']?.toString() ?? '';
           final cmd = LanRemoteProtocol.parseCommand(key);
           if (cmd == null) {
@@ -1031,6 +1041,15 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
             'accepted': true, 'handledByPlayer': handled};
         case 'player':
           final name = args['command']?.toString() ?? '';
+          if (_liveMatrix.status()['phase'] == 'running' &&
+              !const <String>{
+                'state', 'probe_live', 'native_snapshot',
+                'audio_tracks', 'subtitle_tracks', 'sources',
+              }.contains(name)) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'matrix_in_progress',
+            };
+          }
           if (name.isEmpty) {
             return <String, Object?>{
               'accepted': false, 'reason': 'missing_player_action'};

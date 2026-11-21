@@ -228,26 +228,56 @@ class LiveTvMatrixRunner {
                 result['buffering'] = last['buffering'];
                 result['experimentId'] = last['experimentId'];
                 if (prelim) {
-                  await _wait(Duration(seconds: sustainSeconds));
-                  if (!_cancelled) {
+                  var elapsed = 0;
+                  var previousPosition = pos as int;
+                  var finalPosition = pos;
+                  var finalHost = last['activeSourceHost'];
+                  var stable = true;
+                  var sustainedSamples = 0;
+                  while (elapsed < sustainSeconds && !_cancelled) {
+                    final seconds = min(60, sustainSeconds - elapsed);
+                    await _wait(Duration(seconds: seconds));
+                    elapsed += seconds;
+                    if (_cancelled) break;
                     final finalAnswer = await inspect();
                     final finalLive = finalAnswer['live'];
                     final ending = finalLive is Map
                         ? Map<String, Object?>.from(finalLive)
                         : <String, Object?>{};
-                    final finalPos = ending['positionMs'];
-                    final verified = ending['channelId'] == channel.id &&
-                        ending['videoDimensionsReady'] == true &&
-                        ending['trackCount'] is int &&
-                        (ending['trackCount'] as int) > 0 &&
-                        ending['playing'] == true &&
-                        ending['buffering'] == false &&
-                        finalPos is int && finalPos > pos + 1000;
-                    result['sustainedPlayback'] = verified;
-                    result['finalPositionMs'] = finalPos;
-                    result['finalSourceHost'] = ending['activeSourceHost'];
-                    if (verified) _verifiedSources++;
+                    finalPosition = ending['positionMs'];
+                    finalHost = ending['activeSourceHost'];
+                    final currentTracks = ending['trackCount'];
+                    final currentWidth = ending['videoWidth'];
+                    final currentHeight = ending['videoHeight'];
+                    if (ending['channelId'] != channel.id ||
+                        ending['videoDimensionsReady'] != true ||
+                        currentTracks is! int || currentTracks <= 0 ||
+                        currentWidth is! int || currentWidth <= 0 ||
+                        currentHeight is! int || currentHeight <= 0 ||
+                        ending['playing'] != true ||
+                        ending['buffering'] != false ||
+                        finalPosition is! int ||
+                        finalPosition <= previousPosition + 1000) {
+                      stable = false;
+                      break;
+                    }
+                    previousPosition = finalPosition;
+                    sustainedSamples++;
                   }
+                  final longEnough = finalPosition is int &&
+                      finalPosition - (pos as int) >
+                          sustainSeconds * 350;
+                  final verified = !_cancelled && stable &&
+                      elapsed == sustainSeconds && longEnough;
+                  result['sustainedPlayback'] = verified;
+                  result['sustainedSamples'] = sustainedSamples;
+                  result['sustainedObservedSeconds'] = elapsed;
+                  result['finalPositionMs'] = finalPosition;
+                  result['finalSourceHost'] = finalHost;
+                  result['requestedSourceVerified'] = verified &&
+                      finalHost == opened['sourceHost'] &&
+                      last['activeSourceHost'] == opened['sourceHost'];
+                  if (verified) _verifiedSources++;
                 } else {
                   result['sustainedPlayback'] = false;
                 }

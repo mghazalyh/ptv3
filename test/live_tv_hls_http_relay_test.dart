@@ -185,4 +185,58 @@ void main() {
     expect(response.statusCode, HttpStatus.forbidden);
     expect(await utf8.decoder.bind(response).join(), 'Forbidden');
   });
+  test('Extensionless HLS variants and audio renditions keep playlist type',
+      () async {
+    final origin = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    origin.listen((request) async {
+      final path = request.uri.path;
+      if (path == '/master.m3u8') {
+        request.response.write('#EXTM3U\n'
+            '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",URI="audio?sig=x"\n'
+            '#EXT-X-STREAM-INF:BANDWIDTH=10000,AUDIO="aud"\n'
+            'variant?sig=y\n');
+      } else if (path == '/variant' || path == '/audio') {
+        request.response.headers.contentType = ContentType.text;
+        request.response.write('#EXTM3U\n#EXT-X-TARGETDURATION:6\n'
+            '#EXTINF:6,\nsegment?sig=z\n');
+      } else if (path == '/segment') {
+        final bytes = List<int>.filled(376, 0);
+        bytes[0] = 0x47;
+        bytes[188] = 0x47;
+        request.response.add(bytes);
+      } else {
+        request.response.statusCode = HttpStatus.notFound;
+      }
+      await request.response.close();
+    });
+    addTearDown(() async => origin.close(force: true));
+    final relay = LiveHlsHttpRelay();
+    addTearDown(() => relay.close());
+    final client = HttpClient();
+    addTearDown(() => client.close(force: true));
+    final masterUrl = await relay.expose(Uri(
+        scheme: 'http', host: '127.0.0.1', port: origin.port,
+        path: '/master.m3u8'), const {});
+    final master = await fetchText(client, masterUrl);
+    final audioUri = Uri.parse(RegExp(r'URI="([^"]+)"')
+        .firstMatch(master)!.group(1)!);
+    final variantUri = Uri.parse(master.split('\n')
+        .firstWhere((line) => line.startsWith('http://')));
+    expect(audioUri.path.endsWith('.m3u8'), isTrue);
+    expect(variantUri.path.endsWith('.m3u8'), isTrue);
+    final nested = await fetchText(client, variantUri);
+    final audio = await fetchText(client, audioUri);
+    expect(audio, contains('#EXTINF'));
+    final mediaUri = Uri.parse(nested.split('\n')
+        .firstWhere((line) => line.startsWith('http://')));
+    expect(mediaUri.path.endsWith('.ts'), isTrue);
+    final request = await client.getUrl(mediaUri);
+    final response = await request.close();
+    expect(response.statusCode, HttpStatus.ok);
+    final bytes = await response.fold<List<int>>(
+        <int>[], (data, chunk) => data..addAll(chunk));
+    expect(bytes[0], 0x47);
+    expect(bytes[188], 0x47);
+  });
+
 }

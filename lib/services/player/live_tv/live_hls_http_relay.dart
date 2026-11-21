@@ -60,7 +60,8 @@ class LiveHlsHttpRelay {
       (uri.scheme == 'http' || uri.scheme == 'https') &&
       uri.host.isNotEmpty && uri.userInfo.isEmpty;
 
-  Uri _register(Uri target, Map<String, String> headers) {
+  Uri _register(Uri target, Map<String, String> headers,
+      {String? extensionHint}) {
     if (!_isHttp(target)) {
       throw const FormatException('Unsupported HLS child URI');
     }
@@ -81,7 +82,8 @@ class LiveHlsHttpRelay {
       'm3u8', 'm3u', 'ts', 'm4s', 'mp4', 'aac', 'mp3', 'm4a',
       'vtt', 'webvtt', 'ac3', 'eac3', 'bin', 'key',
     };
-    final extension = permitted.contains(suffix) ? suffix : 'ts';
+    final extension = permitted.contains(suffix) ? suffix :
+        permitted.contains(extensionHint) ? extensionHint! : 'ts';
     // FFmpeg HLS demuxers inspect segment extensions even for media fetched
     // from HTTP. Keep a safe local suffix while hiding the upstream URL.
     return Uri(
@@ -137,6 +139,7 @@ class LiveHlsHttpRelay {
       }
       final isPlaylist = upstream.statusCode == HttpStatus.ok &&
           (_isPlaylistUri(fetched.uri) ||
+              request.uri.path.toLowerCase().endsWith('.m3u8') ||
               (type?.toLowerCase().contains('mpegurl') ?? false));
       if (isPlaylist) {
         final bytes = await _readPlaylist(upstream);
@@ -189,24 +192,39 @@ class LiveHlsHttpRelay {
       String playlist, Uri base, Map<String, String> headers) {
     final tagUri = RegExp(r'URI="([^"]+)"');
     final lines = playlist.split('\n');
+    var nextUriIsPlaylist = false;
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
       if (line.trim().isEmpty) continue;
       if (line.startsWith('#')) {
+        if (line.startsWith('#EXT-X-STREAM-INF:')) {
+          nextUriIsPlaylist = true;
+        }
+        final tagHint = line.startsWith('#EXT-X-MEDIA:') ||
+                line.startsWith('#EXT-X-I-FRAME-STREAM-INF:')
+            ? 'm3u8'
+            : line.startsWith('#EXT-X-KEY:') ||
+                    line.startsWith('#EXT-X-SESSION-KEY:')
+                ? 'bin'
+                : line.startsWith('#EXT-X-MAP:')
+                    ? 'mp4' : null;
         lines[i] = line.replaceAllMapped(tagUri, (match) {
           final raw = match.group(1);
           if (raw == null) return match.group(0)!;
           final resolved = base.resolve(raw);
           return _isHttp(resolved)
-              ? 'URI="${_register(resolved, headers)}"'
+              ? 'URI="${_register(resolved, headers,
+                    extensionHint: tagHint)}"'
               : match.group(0)!;
         });
       } else {
         final raw = line.trim();
         final resolved = base.resolve(raw);
         if (_isHttp(resolved)) {
-          lines[i] = _register(resolved, headers).toString();
+          lines[i] = _register(resolved, headers,
+              extensionHint: nextUriIsPlaylist ? 'm3u8' : 'ts').toString();
         }
+        nextUriIsPlaylist = false;
       }
     }
     return lines.join('\n');

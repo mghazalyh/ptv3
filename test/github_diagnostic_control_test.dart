@@ -292,4 +292,127 @@ void main() {
     expect(puts, 2);
   });
 
+
+  test('Failed receipt delivery is retried without replaying the action',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    var actions = 0;
+    var receiptWrites = 0;
+    late GithubDiagnosticControl controller;
+    controller = GithubDiagnosticControl.forTesting(
+      tokenProvider: () async => 'TEST_PRIVATE_TOKEN',
+      client: MockClient((request) async {
+        if (request.method == 'GET' &&
+            request.url.path.contains('/commands/')) {
+          return http.Response(jsonEncode({
+            'sha': 'cmd-sha',
+            'content': base64Encode(utf8.encode(jsonEncode({
+              'id': 'retry_receipt_001',
+              'deviceId': controller.deviceId,
+              'action': 'state',
+              'createdAtUtc': DateTime.now().toUtc().toIso8601String(),
+              'args': <String, dynamic>{},
+            }))),
+          }), 200);
+        }
+        if (request.method == 'GET') return http.Response('{}', 404);
+        if (request.method == 'PUT' &&
+            request.url.path.contains('/receipts/')) {
+          receiptWrites++;
+          if (receiptWrites == 1) {
+            return http.Response('rejected receipt', 400);
+          }
+          return http.Response('{}', 201);
+        }
+        if (request.method == 'PUT') return http.Response('{}', 201);
+        return http.Response('{}', 404);
+      }),
+    )..forceTestPlatform = true;
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    controller.enabled.value = true;
+    controller.onCommand = (action, args) async {
+      actions++;
+      return <String, Object?>{'accepted': true, 'detail': 'completed'};
+    };
+    await controller.pollNow();
+    final prefs = await SharedPreferences.getInstance();
+    expect(actions, 1);
+    expect(receiptWrites, 1);
+    final pending = prefs.getString(
+        GithubDiagnosticControl.preferencePendingReceipt);
+    expect(pending, isNotNull);
+    expect((jsonDecode(pending!) as Map)['state'], 'completed');
+
+    await controller.pollNow();
+    expect(actions, 1);
+    expect(receiptWrites, 2);
+    expect(prefs.getString(
+        GithubDiagnosticControl.preferencePendingReceipt), isNull);
+  });
+
+  test('Interrupted execution is reported uncertain rather than replayed',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    var actions = 0;
+    final delivered = <Map<String, dynamic>>[];
+    late GithubDiagnosticControl controller;
+    controller = GithubDiagnosticControl.forTesting(
+      tokenProvider: () async => 'TEST_PRIVATE_TOKEN',
+      client: MockClient((request) async {
+        if (request.method == 'GET' &&
+            request.url.path.contains('/commands/')) {
+          return http.Response(jsonEncode({
+            'sha': 'cmd-sha',
+            'content': base64Encode(utf8.encode(jsonEncode({
+              'id': 'interrupted_remote_001',
+              'deviceId': controller.deviceId,
+              'action': 'state',
+              'createdAtUtc': DateTime.now().toUtc().toIso8601String(),
+              'args': <String, dynamic>{},
+            }))),
+          }), 200);
+        }
+        if (request.method == 'GET') return http.Response('{}', 404);
+        if (request.method == 'PUT') {
+          if (request.url.path.contains('/receipts/')) {
+            final wrapper = jsonDecode(request.body) as Map;
+            delivered.add(jsonDecode(utf8.decode(
+                base64Decode(wrapper['content'] as String)))
+                as Map<String, dynamic>);
+          }
+          return http.Response('{}', 201);
+        }
+        return http.Response('{}', 404);
+      }),
+    )..forceTestPlatform = true;
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        GithubDiagnosticControl.preferencePendingReceipt,
+        jsonEncode(<String, Object?>{
+          'schema': 2,
+          'deviceId': controller.deviceId,
+          'commandId': 'interrupted_remote_001',
+          'action': 'state',
+          'state': 'executing',
+          'startedAtUtc': DateTime.now().toUtc().toIso8601String(),
+        }));
+    controller.enabled.value = true;
+    controller.onCommand = (action, args) async {
+      actions++;
+      return <String, Object?>{'accepted': true};
+    };
+    await controller.pollNow();
+    await controller.pollNow();
+    expect(actions, 0);
+    expect(delivered, hasLength(1));
+    expect(delivered.single['state'], 'uncertain');
+    expect((delivered.single['result'] as Map)['reason'],
+        'execution_interrupted_outcome_unknown');
+    expect(prefs.getString(
+        GithubDiagnosticControl.preferencePendingReceipt), isNull);
+  });
+
 }

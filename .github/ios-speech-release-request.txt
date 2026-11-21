@@ -168,3 +168,15 @@ Features: Torriodb-backed bounded Live TV policies and rollback; relay/header/re
 Isolation: No VOD, torrent, movie or series behavior modifications outside existing shared-player regression coverage.
 Limitations: New runtime controls cannot run on the already installed Build 260; real iPad validation of this implementation can only begin after the single future manual installation. Configuration is not arbitrary Dart/native hot reload.
 Owner requirement: This should be the only requested future manual IPA installation. Trigger existing .github/workflows/ios-speech-release.yml once, then STOP immediately; do not inspect the new job.
+
+OWNER-AUTHORIZED IOS-ONLY NEXT-GENERATION DIAGNOSTIC AGENT IPA BUILD
+Requested UTC: 2026-11-21T16:30:28.389Z
+Repository: mghazalyh/ptv3
+Branch: parity-floating-player-both
+Source commit before trigger: d472901a6881e7013147fab40fb026bec6a120f0
+Workflow: .github/workflows/ios-speech-release.yml
+Scope: iOS 15 arm64 ad-hoc signed TrollStore IPA only. Do not trigger Android, Windows, desktop or source-only packaging.
+Features: dismissible Live TV test indicator; remote diagnostic plans with progress/cancel; raw mpv logs; network, media, subtitle and Live TV diagnostics; native process metrics; frame captures; durable rolling evidence and resumable Torriodb uploads; movie/series/TV source testing.
+Existing unattended matrix: Build 262 remains installed; matrix262_full50_20261121133315 must not be interrupted or remotely navigated by the build request.
+Current source-only preflight may still be running. iOS release workflow performs its own test/analyzer gates before building and signing.
+Owner request: Trigger GitHub iOS IPA workflow immediately, then leave without waiting for or polling the build result.

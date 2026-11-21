@@ -16,6 +16,17 @@ class VadapavScraper extends StreamScraper {
 
   static const _addonBase = 'https://stremio.vadapav.mov';
 
+  @visibleForTesting
+  static Future<http.Response> Function(Uri)? httpGetOverride;
+
+  @visibleForTesting
+  static Future<int?> Function({
+    String? imdbId,
+    required String title,
+    required String type,
+    int? year,
+  })? tmdbResolverOverride;
+
   static const _defaultHeaders = {
     'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -45,7 +56,7 @@ class VadapavScraper extends StreamScraper {
         }
 
         // 2. Resolve TMDb ID for TMDb query fallback
-        final tmdbId = await TmdbHelper.resolveTmdbId(
+        final tmdbId = await (tmdbResolverOverride ?? TmdbHelper.resolveTmdbId)(
           imdbId: imdbId,
           title: title,
           type: mediaType,
@@ -76,8 +87,10 @@ class VadapavScraper extends StreamScraper {
 
           try {
             debugPrint('[Vadapav] Fetching streams from $endpoint');
-            final res = await http
-                .get(Uri.parse(endpoint), headers: _defaultHeaders)
+            final uri = Uri.parse(endpoint);
+            final res = await (httpGetOverride != null
+                ? httpGetOverride!(uri)
+                : http.get(uri, headers: _defaultHeaders))
                 .timeout(const Duration(seconds: 12));
 
             if (res.statusCode == 200) {
@@ -86,6 +99,7 @@ class VadapavScraper extends StreamScraper {
                 final streams = data['streams'] as List;
                 debugPrint('[Vadapav] Received ${streams.length} streams for $id');
 
+                var acceptedCount = 0;
                 for (final item in streams) {
                   if (item is! Map) continue;
                   final map = Map<String, dynamic>.from(item);
@@ -97,6 +111,7 @@ class VadapavScraper extends StreamScraper {
 
                   if (seenUrls.contains(url)) continue;
                   seenUrls.add(url);
+                  acceptedCount++;
 
                   // Extract release title or name
                   final rawTitle = map['title']?.toString() ?? '';
@@ -119,7 +134,9 @@ class VadapavScraper extends StreamScraper {
                   }
                 }
 
-                if (streams.isNotEmpty) {
+                // A nonempty provider response is not a usable result:
+                // continue to the TMDB fallback if every URL was invalid.
+                if (acceptedCount > 0) {
                   break;
                 }
               }

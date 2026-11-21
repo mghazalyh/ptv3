@@ -320,6 +320,12 @@ class MovyScraper extends StreamScraper {
     return out;
   }
 
+  /// Offline fixed-vector verification; never fetches a provider or a seed.
+  @visibleForTesting
+  static String? decryptFixtureForTest(
+      String cipherB64, String seed, int tmdbId) =>
+      _decrypt(cipherB64, seed, tmdbId);
+
   static String? _decrypt(String cipherB64, String seed, int tmdbId) {
     try {
       var normalized = cipherB64.replaceAll('-', '+').replaceAll('_', '/');

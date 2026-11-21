@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 
 import '../../../models/stream/stream_model.dart';
 import '../player_settings.dart';
+import 'live_hls_http_relay.dart';
 import 'live_playback_telemetry.dart';
 import 'live_recovery_policy.dart';
 import 'live_signal_health.dart';
@@ -87,9 +88,28 @@ class LivePlaybackCoordinator {
   DateTime? _lastNativeErrorEventAt;
   final Map<String, DateTime> _nativeFailureLastAt = {};
   final Map<String, int> _nativeFailureCounts = {};
+  final Set<String> _nativeTlsFailedUrls = <String>{};
+  final Set<String> _hlsRelayAttemptedUrls = <String>{};
+  LiveHlsHttpRelay? _hlsRelay;
+  bool _usingHlsRelay = false;
 
   bool get isActive => _started && !_disposed;
   int get recoveryAttempts => _policy.attempts;
+
+  /// Use native libmpv first. On iOS, Dart HTTPS may handle a CDN which the
+  /// bundled native TLS stack cannot. Only live HLS with a valid playlist
+  /// qualifies for a single on-device transport fallback.
+  @visibleForTesting
+  static bool shouldUseHlsRelay({
+    required bool isIos,
+    required bool isHls,
+    required bool hasUsablePlaylist,
+    required bool nativeTlsFailure,
+    required bool everPlayed,
+    required bool alreadyAttempted,
+    required int recoveryAttempts,
+  }) => isIos && isHls && hasUsablePlaylist && !alreadyAttempted &&
+      (nativeTlsFailure || (!everPlayed && recoveryAttempts >= 2));
 
   /// Extra native verification: a moving audio clock alone cannot prove
   /// usable Live TV. A decoded video stream must expose MPV video dimensions.
@@ -296,6 +316,9 @@ class LivePlaybackCoordinator {
     if (_disposed || !_started) return;
     final code = classifyNativeFailure(message);
     if (code == null) return;
+    if (code == 'live_native_tls_failure' && _source.url != null) {
+      _nativeTlsFailedUrls.add(_source.url!);
+    }
     _nativeFailureCounts[code] = (_nativeFailureCounts[code] ?? 0) + 1;
     final now = DateTime.now();
     if (_nativeFailureLastAt[code] != null &&
@@ -317,6 +340,8 @@ class LivePlaybackCoordinator {
       'recoveryAttempts': _policy.attempts,
       'nativeErrors': _nativeErrorCount,
       'nativeFailureCounts': Map<String, int>.from(_nativeFailureCounts),
+      'httpRelayActive': _usingHlsRelay,
+      'httpRelayAttempted': _hlsRelayAttemptedUrls.contains(_source.url),
       'videoDimensionsReady': _nativeVideoReady,
       'videoWidth': _nativeVideoWidth,
       'videoHeight': _nativeVideoHeight,
@@ -551,7 +576,12 @@ class LivePlaybackCoordinator {
       // iPad telemetry showed repeated unverified "opened" states. On the
       // very first startup stall, try a real backup immediately instead of
       // consuming another full stall timeout on the same dead CDN.
-      if (overrideSource == null && LivePlaybackAcceptance.shouldAttemptBackup(
+      final pendingNativeTlsRecovery =
+          _nativeTlsFailedUrls.contains(_source.url) &&
+          !_hlsRelayAttemptedUrls.contains(_source.url) &&
+          LiveStreamDetector.isHlsUrl(_source.url);
+      if (overrideSource == null && !pendingNativeTlsRecovery &&
+          LivePlaybackAcceptance.shouldAttemptBackup(
         attempts: _policy.attempts,
         hasConfirmedPlayback: _policy.everPlayed,
       )) {
@@ -611,6 +641,32 @@ class LivePlaybackCoordinator {
       // In particular preserve CDN Referer, Origin and User-Agent that may
       // otherwise be lost during failover on iPadOS.
       final headers = LiveSourceManager.requestHeaders(selected);
+      var mediaUrl = selected.url!;
+      var relayed = false;
+      final probe = _sources.latestProbeFor(selected);
+      if (shouldUseHlsRelay(
+        isIos: Platform.isIOS,
+        isHls: LiveStreamDetector.isHlsUrl(selected.url),
+        hasUsablePlaylist: probe?.outcome == 'ok',
+        nativeTlsFailure: _nativeTlsFailedUrls.contains(selected.url),
+        everPlayed: _policy.everPlayed,
+        alreadyAttempted: _hlsRelayAttemptedUrls.contains(selected.url),
+        recoveryAttempts: _policy.attempts,
+      )) {
+        try {
+          final relay = _hlsRelay ??= LiveHlsHttpRelay();
+          mediaUrl = (await relay.expose(
+              Uri.parse(selected.url!), headers)).toString();
+          relayed = true;
+          _hlsRelayAttemptedUrls.add(selected.url!);
+          _event('live_http_relay_selected', selected);
+        } catch (error) {
+          debugPrint('[LiveTV] HTTP relay unavailable: ${error.runtimeType}');
+          _event('live_http_relay_failed', selected);
+          // Preserve direct playback if a local transport cannot start.
+          mediaUrl = selected.url!;
+        }
+      }
       // Each native media open resets video readiness. Old decoder metadata
       // must never make a new, dead source look healthy.
       _nativeVideoReady = false;
@@ -620,7 +676,7 @@ class LivePlaybackCoordinator {
       _nativeFormat = null;
       _lastPlaylistProbeIssue = null;
       await _player.open(
-        Media(selected.url!, httpHeaders: headers),
+        Media(mediaUrl, httpHeaders: relayed ? const <String, String>{} : headers),
         play: true,
       ).timeout(const Duration(seconds: 22));
       if (_disposed || generation != _generation) return;
@@ -635,6 +691,7 @@ class LivePlaybackCoordinator {
         _previousPlaylistAt = null;
         onSourceChanged(selected);
       }
+      _usingHlsRelay = relayed;
       _policy.reopened(DateTime.now(),
         position: _player.state.position,
         buffered: _player.state.buffer,
@@ -657,6 +714,7 @@ class LivePlaybackCoordinator {
     } catch (error) {
       if (_disposed || generation != _generation) return;
       debugPrint('[LiveTV] Reopen failed: ${error.runtimeType}');
+      _usingHlsRelay = false;
       _sources.failed(selected, DateTime.now());
       _policy.reopenFailed(DateTime.now());
       _event('live_reconnect_failed', selected);
@@ -709,5 +767,8 @@ class LivePlaybackCoordinator {
     ++_generation;
     _monitor?.cancel();
     _monitor = null;
+    final relay = _hlsRelay;
+    _hlsRelay = null;
+    if (relay != null) unawaited(relay.close());
   }
 }

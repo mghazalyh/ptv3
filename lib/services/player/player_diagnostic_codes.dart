@@ -39,6 +39,8 @@ abstract final class PlayerDiagnosticCodes {
     'live_session_resumed',
     'live_source_exhausted',
     'live_hls_safe_options',
+    'live_http_relay_selected',
+    'live_http_relay_failed',
     'live_playlist_probe_failed',
     'live_playlist_probe_recovered',
     'live_native_error_signaled',

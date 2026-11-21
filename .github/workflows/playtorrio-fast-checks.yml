@@ -220,6 +220,12 @@ jobs:
           print("Speech routing and explicit online consent guard verified")
           PY
 
+      - name: Verify Live TV iOS TLS fallback without native builds
+        run: |
+          flutter analyze --no-pub --no-fatal-infos lib/services/player/live_tv/live_hls_http_relay.dart lib/services/player/live_tv/live_playback_coordinator.dart lib/services/player/player_diagnostic_codes.dart
+          flutter test test/live_tv_hls_http_relay_test.dart
+          flutter test test/live_tv_hls_probe_test.dart
+
       - name: Validate bounded iOS runner fallback without requesting a native build
         run: |
           python3 -m py_compile .github/scripts/ios_runner_fallback_guard.py .github/scripts/validate_native_release_workflow.py

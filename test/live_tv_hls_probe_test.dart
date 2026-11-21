@@ -287,6 +287,34 @@ void main() {
     expect(manager.latestProbeFor(source)?.outcome, 'network_error');
   });
 
+  test('iOS HLS relay is a one-shot fallback, never the normal path', () {
+    bool decide({
+      bool isIos = true,
+      bool isHls = true,
+      bool playlist = true,
+      bool tlsFailure = false,
+      bool everPlayed = false,
+      bool alreadyAttempted = false,
+      int attempts = 1,
+    }) => LivePlaybackCoordinator.shouldUseHlsRelay(
+      isIos: isIos,
+      isHls: isHls,
+      hasUsablePlaylist: playlist,
+      nativeTlsFailure: tlsFailure,
+      everPlayed: everPlayed,
+      alreadyAttempted: alreadyAttempted,
+      recoveryAttempts: attempts,
+    );
+    expect(decide(), isFalse);
+    expect(decide(tlsFailure: true), isTrue);
+    expect(decide(tlsFailure: true, playlist: false), isFalse);
+    expect(decide(tlsFailure: true, isIos: false), isFalse);
+    expect(decide(tlsFailure: true, isHls: false), isFalse);
+    expect(decide(tlsFailure: true, alreadyAttempted: true), isFalse);
+    expect(decide(attempts: 2), isTrue);
+    expect(decide(attempts: 2, everPlayed: true), isFalse);
+  });
+
   test('Native HLS log diagnosis uses only fixed categories', () {
     expect(LivePlaybackCoordinator.classifyNativeFailure(
         'HTTP error 403 Forbidden'), 'live_native_http_auth');

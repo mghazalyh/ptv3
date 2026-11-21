@@ -170,6 +170,20 @@ class BestSimilarScraper {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
+  // Deterministic provider contracts in CI; normal runtime always uses HTTP.
+  @visibleForTesting
+  static Future<BSAutocompleteHit?> Function({
+    required String title,
+    int? year,
+    required bool isTv,
+  })? findBestOverride;
+
+  @visibleForTesting
+  static Future<BSDetails?> Function({
+    required int id,
+    required String slug,
+  })? fetchDetailsOverride;
+
   // Tiny LRU-ish caches.
   static final Map<String, List<BSAutocompleteHit>> _autocompleteCache = {};
   static final Map<int, BSDetails> _detailsCache = {};
@@ -308,6 +322,9 @@ class BestSimilarScraper {
     int? year,
     bool isTv = false,
   }) async {
+    if (findBestOverride != null) {
+      return findBestOverride!(title: title, year: year, isTv: isTv);
+    }
     // Generate query terms to search
     final terms = <String>[];
     final cleanRaw = title.trim();
@@ -436,6 +453,9 @@ class BestSimilarScraper {
     required int id,
     required String slug,
   }) async {
+    if (fetchDetailsOverride != null) {
+      return fetchDetailsOverride!(id: id, slug: slug);
+    }
     final cached = _detailsCache[id];
     if (cached != null) return cached;
     final uri = Uri.parse('$baseUrl/movies/$slug');

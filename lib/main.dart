@@ -42,6 +42,10 @@ import './services/discord/discord_rpc_service.dart';
 import './services/player/night_mode_diagnostics.dart';
 import './services/player/ios_audio_telemetry.dart';
 import './services/remote/lan_remote_service.dart';
+import './services/remote/github_diagnostic_control.dart';
+import './services/stream/stream_service.dart';
+import './models/movie/movie_detail.dart';
+import './pages/player/player_screen.dart';
 import './widgets/updater/update_dialog.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -61,6 +65,7 @@ void main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await EnvService.initialize();
   await GitHubLibraryCloud.instance.initialize();
+  if (Platform.isIOS) await GithubDiagnosticControl.instance.initialize();
   await DockSettings.initialize();
   await WatchSourcePreferencesService.initialize();
   await TorriodbPortableSync.instance.refresh(force: true);
@@ -119,6 +124,10 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     LanRemoteService.instance.onNavigationCommand = _handleRemoteNavigation;
+    if (Platform.isIOS) {
+      GithubDiagnosticControl.instance.onCommand = _dispatchGithubDiagnostic;
+      GithubDiagnosticControl.instance.start();
+    }
     // Pick up changes made on another device without reloading the Home page.
     _homeSyncTimer = Timer.periodic(const Duration(minutes: 3), (_) {
       if (mounted && _lifecycleState == AppLifecycleState.resumed) {
@@ -141,6 +150,9 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     if (state == AppLifecycleState.resumed) {
       // The old ten-minute throttle delayed cross-device updates on resume.
       unawaited(TorriodbPortableSync.instance.refresh(force: true));
+      if (Platform.isIOS) {
+        unawaited(GithubDiagnosticControl.instance.pollNow());
+      }
       if (Platform.isWindows && _hasCheckedInitialUpdate) {
         final last = _lastUpdateCheckAt;
         if (last == null ||
@@ -155,12 +167,128 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   void dispose() {
     _homeSyncTimer?.cancel();
     LanRemoteService.instance.onNavigationCommand = null;
+    if (Platform.isIOS) GithubDiagnosticControl.instance.onCommand = null;
     // Receiver sockets close when the application is disposed.
     unawaited(LanRemoteService.instance.stopHosting());
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
+
+  /// Execute cloud commands with the same in-app controls as the paired LAN
+  /// remote, plus channel discovery and native playback diagnostic actions.
+  /// The owner enables unattended access once; no per-command prompt appears.
+  Future<Map<String, Object?>> _dispatchGithubDiagnostic(
+      String action, Map<String, dynamic> args) async {
+    try {
+      final navigator = navigatorKey.currentState;
+      switch (action) {
+        case 'state':
+          return <String, Object?>{
+            'player': LanRemoteService.instance.playerStatus?.call() ??
+                <String, Object?>{},
+            'routeReady': navigator != null,
+          };
+        case 'capture_telemetry':
+          final uploaded = await IosAudioTelemetry.instance.upload(
+              reason: 'manual');
+          return <String, Object?>{'uploaded': uploaded};
+        case 'remote':
+          final key = args['command']?.toString() ?? '';
+          final cmd = LanRemoteProtocol.parseCommand(key);
+          if (cmd == null) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'unknown_remote_action'};
+          }
+          final handled = LanRemoteService.instance.onPlayerCommand
+              ?.call(cmd) ?? false;
+          if (!handled) _handleRemoteNavigation(cmd);
+          return <String, Object?>{
+            'accepted': true, 'handledByPlayer': handled};
+        case 'player':
+          final name = args['command']?.toString() ?? '';
+          if (name.isEmpty) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'missing_player_action'};
+          }
+          final handler = GithubDiagnosticControl.instance.onPlayerCommand;
+          if (handler == null) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'no_active_player'};
+          }
+          return await handler(name, args);
+        case 'open_channel':
+          final channelId = args['channelId']?.toString().trim() ?? '';
+          final title = args['title']?.toString().trim() ?? channelId;
+          if (channelId.length < 4 || channelId.length > 180 ||
+              title.isEmpty || title.length > 160 ||
+              !(channelId.startsWith('nltv:') ||
+                channelId.startsWith('iptv:'))) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_channel_id'};
+          }
+          final candidates = await StreamService.fetchStreams(
+            type: 'tv', id: channelId, title: title,
+          ).timeout(const Duration(seconds: 20),
+              onTimeout: (sink) => sink.close()).toList();
+          if (candidates.isEmpty) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'no_channel_streams'};
+          }
+          final requested = args['sourceIndex'];
+          final index = requested is int ? requested : 0;
+          if (index < 0 || index >= candidates.length) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_source_index',
+              'sourceCount': candidates.length};
+          }
+          if (navigator == null || !mounted) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'navigator_unavailable'};
+          }
+          navigator.popUntil((route) => route.isFirst);
+          navigator.push(MaterialPageRoute(builder: (_) => PlayerScreen(
+            source: candidates[index],
+            availableSources: candidates,
+            title: title,
+            detail: MovieDetail(
+              id: channelId, type: 'tv', name: title,
+              behaviorHints: const <String, dynamic>{'isLive': true},
+            ),
+          )));
+          return <String, Object?>{
+            'accepted': true, 'channelTitle': title,
+            'sourceCount': candidates.length, 'selectedIndex': index};
+        case 'batch':
+          final entries = args['commands'];
+          if (entries is! List || entries.isEmpty || entries.length > 20) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_batch'};
+          }
+          final results = <Map<String, Object?>>[];
+          for (final value in entries) {
+            if (value is! Map) continue;
+            final nested = Map<String, dynamic>.from(value);
+            final child = nested['action']?.toString() ?? '';
+            if (child == 'batch' || child.isEmpty) continue;
+            final rawArgs = nested['args'];
+            results.add(await _dispatchGithubDiagnostic(child,
+                rawArgs is Map
+                    ? Map<String, dynamic>.from(rawArgs)
+                    : <String, dynamic>{}));
+          }
+          return <String, Object?>{
+            'accepted': true, 'results': results};
+        default:
+          return <String, Object?>{
+            'accepted': false, 'reason': 'unknown_app_action'};
+      }
+    } catch (error) {
+      debugPrint('[GithubDiagnosticControl] Dispatch: ${error.runtimeType}');
+      return <String, Object?>{
+        'accepted': false, 'errorClass': error.runtimeType.toString()};
+    }
+  }
 
   /// Route remote commands through Flutter's native focus and activation
   /// actions, so the same controls work for local taps and the iPhone remote.

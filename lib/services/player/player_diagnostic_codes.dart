@@ -43,6 +43,13 @@ abstract final class PlayerDiagnosticCodes {
     'live_playlist_probe_recovered',
     'live_native_error_signaled',
     'live_native_end_signaled',
+    'live_native_http_auth',
+    'live_native_http_missing',
+    'live_native_tls_failure',
+    'live_native_timeout',
+    'live_native_segment_failure',
+    'live_native_demux_failure',
+    'live_native_manifest_failure',
     'playback_first_frame_slow',
     // Privacy-safe addon outcomes: no user identifiers, URLs or titles.
     'addon_catalog_ready',

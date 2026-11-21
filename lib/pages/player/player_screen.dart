@@ -35,6 +35,7 @@ import '../../services/player/live_tv/live_programme_metadata.dart';
 import '../../widgets/player/live_tv_overlay.dart';
 import '../../services/player/ios_audio_telemetry.dart';
 import '../../services/remote/lan_remote_service.dart';
+import '../../services/remote/github_diagnostic_control.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/playback_autoselection.dart';
 import '../../services/player/episode_completion_policy.dart';
@@ -274,6 +275,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   int _httpReconnectAttempts = 0;
   Timer? _httpResumeWatchdog;
   Duration? _httpResumePosition;
+  DateTime? _lastNativeErrorConsoleAt;
   int _streamGeneration = 0;
   int? _firstFrameMs;
   int _firstFrameMetricGeneration = -1;
@@ -330,6 +332,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       WidgetsBinding.instance.addObserver(this);
     }
     LanRemoteService.instance.onPlayerCommand = _handleLanRemotePlayerCommand;
+    if (Platform.isIOS) {
+      GithubDiagnosticControl.instance.onPlayerCommand =
+          _handleGithubPlayerDiagnostic;
+    }
     LanRemoteService.instance.playerStatus = () => <String, Object?>{
       'title': _currentTitle,
       'playing': _player.state.playing,
@@ -472,6 +478,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       }),
       // Native MPV/libavfilter details arrive independently of player errors.
       _player.stream.log.listen((log) {
+        if (_liveTv != null) _liveTv!.onNativeLog(log.text);
         if (Platform.isIOS) IosAudioTelemetry.instance.captureNativeLog(log.text);
         if (Platform.isWindows) {
           WindowsPlaybackTelemetry.instance.captureNativeAudioLog(
@@ -3341,7 +3348,13 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (!mounted) return;
     final errorMsg = err.toString();
     // MPV errors often include signed resolver URLs; never log them.
-    debugPrint('[PlayerScreen] Native playback error received');
+    final now = DateTime.now();
+    if (_liveTv == null || _lastNativeErrorConsoleAt == null ||
+        now.difference(_lastNativeErrorConsoleAt!) >
+            const Duration(seconds: 8)) {
+      _lastNativeErrorConsoleAt = now;
+      debugPrint('[PlayerScreen] Native playback error received');
+    }
     if (PlayerPictureAudio.isNightModeFilterError(errorMsg)) {
       if (Platform.isIOS) {
         IosAudioTelemetry.instance.captureNativeLog(errorMsg);
@@ -3471,6 +3484,134 @@ class _PlayerScreenState extends State<PlayerScreen>
       _volumeHudTimer = Timer(const Duration(milliseconds: 1300), () {
         if (mounted) setState(() => _showVolumeHud = false);
       });
+    }
+  }
+
+  /// Device-scoped, unattended in-app diagnostics. Only this active screen
+  /// can touch the media_kit player. Commands are acknowledged in Torriodb.
+  Future<Map<String, Object?>> _handleGithubPlayerDiagnostic(
+      String command, Map<String, dynamic> args) async {
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true) {
+      return <String, Object?>{'accepted': false, 'reason': 'inactive_player'};
+    }
+    try {
+      switch (command) {
+        case 'state':
+          return <String, Object?>{
+            'accepted': true, 'title': _currentTitle,
+            'playing': _player.state.playing,
+            'positionMs': _player.state.position.inMilliseconds,
+            'bufferedMs': _player.state.buffer.inMilliseconds,
+            'buffering': _player.state.buffering,
+            'nativeOpening': _sourceNativeOpening,
+            'isLive': _liveTv != null,
+            'sourceAddon': _currentSource.addonName,
+            'quality': _currentSource.quality ?? 'unknown',
+            'sourceCount': widget.availableSources.length,
+            if (_liveTv != null)
+              'live': await _liveTv!.diagnosticState(),
+          };
+        case 'play':
+          await _player.play();
+          return <String, Object?>{'accepted': true};
+        case 'pause':
+          await _player.pause();
+          return <String, Object?>{'accepted': true};
+        case 'toggle_play':
+          _togglePlayPause();
+          return <String, Object?>{'accepted': true};
+        case 'seek_ms':
+          final requested = args['positionMs'];
+          if (requested is! num || requested < 0 || _liveTv != null) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_vod_seek'};
+          }
+          await _player.seek(Duration(milliseconds: requested.toInt()));
+          return <String, Object?>{'accepted': true};
+        case 'set_volume':
+          final requested = args['volume'];
+          if (requested is! num || requested < 0 || requested > 100) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_volume'};
+          }
+          await _player.setVolume(requested.toDouble());
+          return <String, Object?>{
+            'accepted': true, 'volume': requested.toDouble()};
+        case 'retry_live':
+          if (_liveTv == null) return <String, Object?>{
+            'accepted': false, 'reason': 'not_live'};
+          final rawIndex = args['sourceIndex'];
+          final ok = await _liveTv!.diagnosticRetry(
+              sourceIndex: rawIndex is int ? rawIndex : null);
+          return <String, Object?>{'accepted': ok};
+        case 'probe_live':
+          if (_liveTv == null) return <String, Object?>{
+            'accepted': false, 'reason': 'not_live'};
+          return <String, Object?>{
+            'accepted': true,
+            'live': await _liveTv!.diagnosticState(inspect: true)};
+        case 'restart_media':
+          await _initStream();
+          return <String, Object?>{'accepted': true};
+        case 'show_diagnostics':
+          if (_isLoading) return <String, Object?>{
+            'accepted': false, 'reason': 'still_loading'};
+          if (!_showDiagnostics) _toggleDiagnostics();
+          return <String, Object?>{'accepted': true};
+        case 'native_get':
+          final key = args['property']?.toString() ?? '';
+          if (key.isEmpty || key.length > 100) return <String, Object?>{
+            'accepted': false, 'reason': 'invalid_property'};
+          final dynamic native = _player.platform;
+          final value = await native.getProperty(key);
+          // Native values can be signed media URLs; never echo those to Git.
+          final printable = value?.toString() ?? '';
+          final safe = printable.contains('://') || printable.contains('?')
+              ? '<redacted>' : printable;
+          return <String, Object?>{
+            'accepted': true, 'value': safe.length > 160
+                ? safe.substring(0, 160) : safe};
+        case 'native_set':
+          final key = args['property']?.toString() ?? '';
+          final raw = args['value'];
+          if (key.isEmpty || key.length > 100 ||
+              raw == null || raw.toString().length > 500) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_native_setting'};
+          }
+          final dynamic native = _player.platform;
+          await native.setProperty(key, raw.toString());
+          return <String, Object?>{
+            'accepted': true, 'propertyChanged': key};
+        case 'native_command':
+          final raw = args['arguments'];
+          if (raw is! List || raw.isEmpty || raw.length > 12 ||
+              raw.any((x) => x is! String ||
+                  (x as String).length > 320)) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_native_command'};
+          }
+          final dynamic native = _player.platform;
+          await native.command(List<String>.from(raw));
+          return <String, Object?>{'accepted': true};
+        case 'audio_tracks':
+          return <String, Object?>{
+            'accepted': true, 'count': _player.state.tracks.audio.length,
+            'selected': _player.state.track.audio.id,
+            'tracks': _player.state.tracks.audio.map((track) =>
+                <String, Object?>{
+                  'id': track.id,
+                  'language': track.language,
+                }).take(24).toList(),
+          };
+        default:
+          return <String, Object?>{
+            'accepted': false, 'reason': 'unknown_player_command'};
+      }
+    } catch (error) {
+      debugPrint('[GithubDiagnosticControl] Player: ${error.runtimeType}');
+      return <String, Object?>{
+        'accepted': false, 'errorClass': error.runtimeType.toString()};
     }
   }
 
@@ -4201,6 +4342,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     LanRemoteService.instance.onPlayerCommand = null;
     LanRemoteService.instance.playerStatus = null;
+    if (Platform.isIOS) {
+      GithubDiagnosticControl.instance.onPlayerCommand = null;
+    }
     ++_streamGeneration;
     _audioMediaEpoch++;
     ++_diagnosticsRevision;

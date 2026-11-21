@@ -84,6 +84,9 @@ class LivePlaybackCoordinator {
   String? _nativeFormat;
   int _nativeProbeErrors = 0;
   int _nativeErrorCount = 0;
+  DateTime? _lastNativeErrorEventAt;
+  final Map<String, DateTime> _nativeFailureLastAt = {};
+  final Map<String, int> _nativeFailureCounts = {};
 
   bool get isActive => _started && !_disposed;
   int get recoveryAttempts => _policy.attempts;
@@ -243,10 +246,105 @@ class LivePlaybackCoordinator {
 
   void onNativeError() {
     if (_disposed) return;
-    _nativeErrorCount++;
+    if (_nativeErrorCount < 100000) _nativeErrorCount++;
+    final now = DateTime.now();
+    // Native FFmpeg can issue thousands of duplicate callbacks per second.
+    // Count every occurrence but record/recover only once per cooldown.
+    if (_lastNativeErrorEventAt != null &&
+        now.difference(_lastNativeErrorEventAt!) <
+            const Duration(seconds: 8)) return;
+    _lastNativeErrorEventAt = now;
     _event('live_native_error_signaled');
     start();
-    unawaited(_recover('native_error'));
+    if (!_opening) unawaited(_recover('native_error'));
+  }
+
+  @visibleForTesting
+  static String? classifyNativeFailure(String message) {
+    final lower = message.toLowerCase();
+    if (lower.contains('403') || lower.contains('401') ||
+        lower.contains('forbidden') || lower.contains('unauthorized')) {
+      return 'live_native_http_auth';
+    }
+    if (lower.contains('404') || lower.contains('410') ||
+        lower.contains('not found')) {
+      return 'live_native_http_missing';
+    }
+    if (lower.contains('certificate') || lower.contains('tls') ||
+        lower.contains('ssl handshake')) {
+      return 'live_native_tls_failure';
+    }
+    if (lower.contains('timed out') || lower.contains('timeout')) {
+      return 'live_native_timeout';
+    }
+    if (lower.contains('segment') &&
+        (lower.contains('fail') || lower.contains('error'))) {
+      return 'live_native_segment_failure';
+    }
+    if (lower.contains('invalid data') || lower.contains('demux') ||
+        lower.contains('cannot decode') || lower.contains('decoder error')) {
+      return 'live_native_demux_failure';
+    }
+    if (lower.contains('m3u8') || lower.contains('playlist')) {
+      if (lower.contains('fail') || lower.contains('error') ||
+          lower.contains('invalid')) return 'live_native_manifest_failure';
+    }
+    return null;
+  }
+
+  void onNativeLog(String message) {
+    if (_disposed || !_started) return;
+    final code = classifyNativeFailure(message);
+    if (code == null) return;
+    _nativeFailureCounts[code] = (_nativeFailureCounts[code] ?? 0) + 1;
+    final now = DateTime.now();
+    if (_nativeFailureLastAt[code] != null &&
+        now.difference(_nativeFailureLastAt[code]!) <
+            const Duration(seconds: 8)) return;
+    _nativeFailureLastAt[code] = now;
+    _event(code);
+  }
+
+  Future<Map<String, Object?>> diagnosticState({bool inspect = false}) async {
+    if (inspect && !_disposed) await _sources.inspectFirstSegment(_source);
+    final probe = _sources.latestProbeFor(_source);
+    return <String, Object?>{
+      'active': isActive,
+      'channel': title,
+      'sourceAddon': _source.addonName,
+      'sourceQuality': _source.quality ?? 'unknown',
+      'sourceCount': _sources.sourceCount,
+      'recoveryAttempts': _policy.attempts,
+      'nativeErrors': _nativeErrorCount,
+      'nativeFailureCounts': Map<String, int>.from(_nativeFailureCounts),
+      'videoDimensionsReady': _nativeVideoReady,
+      'videoWidth': _nativeVideoWidth,
+      'videoHeight': _nativeVideoHeight,
+      'trackCount': _nativeTrackCount,
+      'nativeFormat': _nativeFormat,
+      'positionMs': _player.state.position.inMilliseconds,
+      'bufferedMs': _player.state.buffer.inMilliseconds,
+      'buffering': _player.state.buffering,
+      'probePhase': probe?.phase,
+      'probeOutcome': probe?.outcome,
+      'probeHttpStatus': probe?.httpStatus,
+    };
+  }
+
+  Future<bool> diagnosticRetry({int? sourceIndex}) async {
+    if (_disposed || _opening || !_foreground) return false;
+    StreamSource? chosen;
+    if (sourceIndex != null) {
+      final choices = <StreamSource>[
+        _source,
+        ..._sources.backups(_source, DateTime.now()),
+      ];
+      if (sourceIndex < 0 || sourceIndex >= choices.length) return false;
+      chosen = choices[sourceIndex];
+    }
+    await _recover('remote_diagnostic', force: true,
+        overrideSource: chosen);
+    return true;
   }
 
   void onNativeCompleted() {
@@ -423,10 +521,13 @@ class LivePlaybackCoordinator {
     }
   }
 
-  Future<void> _recover(String reason) async {
+  Future<void> _recover(String reason, {
+    bool force = false,
+    StreamSource? overrideSource,
+  }) async {
     if (_disposed || !_foreground || _opening) return;
     final now = DateTime.now();
-    if (!_policy.canAttempt(now)) return;
+    if (!force && !_policy.canAttempt(now)) return;
     _opening = true;
     _lastRecoveryStartedAt = now;
     final generation = ++_generation;
@@ -437,13 +538,13 @@ class LivePlaybackCoordinator {
         ? 'Network changed. Reconnecting live TV...'
         : 'Reconnecting live TV...', true);
 
-    StreamSource selected = _source;
+    StreamSource selected = overrideSource ?? _source;
     try {
       _sources.failed(_source, now);
       // iPad telemetry showed repeated unverified "opened" states. On the
       // very first startup stall, try a real backup immediately instead of
       // consuming another full stall timeout on the same dead CDN.
-      if (LivePlaybackAcceptance.shouldAttemptBackup(
+      if (overrideSource == null && LivePlaybackAcceptance.shouldAttemptBackup(
         attempts: _policy.attempts,
         hasConfirmedPlayback: _policy.everPlayed,
       )) {

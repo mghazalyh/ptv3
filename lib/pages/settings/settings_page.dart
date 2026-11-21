@@ -32,6 +32,7 @@ import '../../services/p2p/p2p_settings_service.dart';
 import '../../widgets/p2p/p2p_warning_dialog.dart';
 import '../../services/discord/discord_rpc_service.dart';
 import '../remote/remote_control_page.dart';
+import '../../services/remote/github_diagnostic_control.dart';
 
 import '../../widgets/common/animated_ambient_background.dart';
 
@@ -202,6 +203,28 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: 'iPhone / iPad Remote Control',
                   subtitle: 'Use your iPhone to navigate and control PlayTorrio on your iPad over Wi-Fi',
                   onTap: () => _navigateTo(const RemoteControlPage()),
+                ),
+                const SizedBox(height: 12),
+                ValueListenableBuilder<bool>(
+                  valueListenable: GithubDiagnosticControl.instance.enabled,
+                  builder: (context, active, _) {
+                    final controller = GithubDiagnosticControl.instance;
+                    return _SettingsSwitchTile(
+                      icon: Icons.cloud_sync_rounded,
+                      iconColor: const Color(0xFF00BFA5),
+                      title: 'Unattended GitHub Diagnostics',
+                      subtitle: 'Allow remote control of PlayTorrio from private '
+                          'Torriodb commands without per-command prompts. '
+                          'Works while PlayTorrio is open. '
+                          'Device: ${controller.deviceId ?? 'initializing'}',
+                      badgeText: active ? 'REMOTE ON' : 'OFF',
+                      badgeColor: active ? const Color(0xFF00BFA5) : null,
+                      value: active,
+                      onChanged: (value) {
+                        controller.setEnabled(value);
+                      },
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
               ],

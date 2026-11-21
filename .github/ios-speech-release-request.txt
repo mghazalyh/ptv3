@@ -72,3 +72,14 @@ Fix 2: Restore iOS HLS startup without FFmpeg generic streamed reconnect flags w
 Fix 3: HEAD and HLS manifest validation use the same resolved headers as MPV playback. HTTP, manifest, timeout, MIME, native track, format, error callback and fallback diagnostics are opt-in, bounded and sanitized.
 Regression protection: Live TV source identity, movie/episode classification, native playback policy, headers, HTTP diagnostics and telemetry tests. Workflow verifies and analyzes changes before building IPA.
 User instruction: Trigger the iOS-only GitHub job and leave. Do not wait for completion or poll.
+
+OWNER-AUTHORIZED UNATTENDED IOS LIVE TV DIAGNOSIS AND REMOTE CONTROL BUILD
+Requested SGT: 2026-11-21 09:52:31
+Branch: parity-floating-player-both
+Scope: iOS-only PlayTorrio IPA; no Windows workflow.
+Changes: reject HTTP 403/401 and broken HLS variant playlists during Live TV source failover; inspect master, referenced media playlist and on-demand first segment; deduplicate native MPV error callbacks and classify native HTTP/TLS/demux/manifest/segment errors.
+Private Torriodb control: Device-specific command inbox /playtorrio/control/ios/commands/<deviceId>.json, 12-second client poll while foreground, no per-command prompts after Settings enable; receipts and device heartbeat stored separately. In-app navigation, Stremio TV channel open, native MPV diagnostics/commands, playback/source control, batch actions and telemetry upload.
+Tests: test/github_diagnostic_control_test.dart and test/live_tv_hls_probe_test.dart plus prior Live TV and Stremio suites.
+Privacy: GitHub token remains on-device. Remote receipts and diagnostics omit raw signed media URLs, playlist bodies and header values.
+Trigger: THIS FILE PUSH TRIGGERS ios-speech-release.yml.
+Instruction: Trigger the GitHub iOS build and leave without waiting/polling.

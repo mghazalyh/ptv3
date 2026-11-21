@@ -293,6 +293,7 @@ void main() {
       bool isHls = true,
       bool playlist = true,
       bool tlsFailure = false,
+      bool directFailedForSource = false,
       bool everPlayed = false,
       bool alreadyAttempted = false,
       int attempts = 1,
@@ -301,6 +302,7 @@ void main() {
       isHls: isHls,
       hasUsablePlaylist: playlist,
       nativeTlsFailure: tlsFailure,
+      directFailedForSource: directFailedForSource,
       everPlayed: everPlayed,
       alreadyAttempted: alreadyAttempted,
       recoveryAttempts: attempts,
@@ -311,8 +313,16 @@ void main() {
     expect(decide(tlsFailure: true, isIos: false), isFalse);
     expect(decide(tlsFailure: true, isHls: false), isFalse);
     expect(decide(tlsFailure: true, alreadyAttempted: true), isFalse);
-    expect(decide(attempts: 2), isTrue);
-    expect(decide(attempts: 2, everPlayed: true), isFalse);
+    // Unbeaten's first two failing CDNs must not force the healthy Amagi
+    // alternative through the relay before trying it directly.
+    expect(decide(attempts: 2), isFalse);
+    expect(decide(attempts: 6), isFalse);
+    // The SAME source can use the relay after its own direct failure.
+    expect(decide(attempts: 2, directFailedForSource: true), isTrue);
+    expect(decide(attempts: 2, directFailedForSource: true,
+        everPlayed: true), isFalse);
+    expect(decide(attempts: 2, directFailedForSource: true,
+        alreadyAttempted: true), isFalse);
   });
 
   test('Native HLS log diagnosis uses only fixed categories', () {

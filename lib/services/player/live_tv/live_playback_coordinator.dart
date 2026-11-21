@@ -92,6 +92,10 @@ class LivePlaybackCoordinator {
   final Map<String, DateTime> _nativeFailureLastAt = {};
   final Map<String, int> _nativeFailureCounts = {};
   final Set<String> _nativeTlsFailedUrls = <String>{};
+  // A channel's failures must not force the relay on a different source.
+  // The iPad showed that some untouched backups decode directly but stall
+  // when prematurely routed through the localhost HLS relay.
+  final Set<String> _directFailedUrls = <String>{};
   final Set<String> _hlsRelayAttemptedUrls = <String>{};
   LiveHlsHttpRelay? _hlsRelay;
   bool _usingHlsRelay = false;
@@ -112,11 +116,13 @@ class LivePlaybackCoordinator {
     required bool isHls,
     required bool hasUsablePlaylist,
     required bool nativeTlsFailure,
+    required bool directFailedForSource,
     required bool everPlayed,
     required bool alreadyAttempted,
     required int recoveryAttempts,
   }) => isIos && isHls && hasUsablePlaylist && !alreadyAttempted &&
-      (nativeTlsFailure || (!everPlayed && recoveryAttempts >= 2));
+      (nativeTlsFailure || (directFailedForSource && !everPlayed &&
+          recoveryAttempts >= 2));
 
   /// Extra native verification: a moving audio clock alone cannot prove
   /// usable Live TV. A decoded video stream must expose MPV video dimensions.
@@ -479,6 +485,7 @@ class LivePlaybackCoordinator {
           _unverifiedConsecutive = 0;
           _reportedExhaustion = false;
           _sources.recovered(_source);
+          _directFailedUrls.remove(_source.url);
           _event('live_first_frame_confirmed');
           onStatus('Live TV', false);
           break;
@@ -487,6 +494,7 @@ class LivePlaybackCoordinator {
           _unverifiedConsecutive = 0;
           _reportedExhaustion = false;
           _sources.recovered(_source);
+          _directFailedUrls.remove(_source.url);
           _event('live_recovered');
           onStatus('Live TV', false);
           break;
@@ -634,6 +642,15 @@ class LivePlaybackCoordinator {
 
     StreamSource selected = overrideSource ?? _source;
     try {
+      // Only an actual failed direct attempt for THIS URL permits automatic
+      // HLS relay escalation based on retry count. Unrelated failed CDNs
+      // must not prematurely relay a newly selected, potentially healthy
+      // backup. Native TLS failures remain a separate immediate reason.
+      if (!force && !_usingHlsRelay && !_nativeVideoReady &&
+          LiveStreamDetector.isHlsUrl(_source.url) &&
+          _source.url != null) {
+        _directFailedUrls.add(_source.url!);
+      }
       _sources.failed(_source, now);
       // iPad telemetry showed repeated unverified "opened" states. On the
       // very first startup stall, try a real backup immediately instead of
@@ -723,6 +740,7 @@ class LivePlaybackCoordinator {
         isHls: LiveStreamDetector.isHlsUrl(selected.url),
         hasUsablePlaylist: probe?.outcome == 'ok',
         nativeTlsFailure: _nativeTlsFailedUrls.contains(selected.url),
+        directFailedForSource: _directFailedUrls.contains(selected.url),
         everPlayed: _policy.everPlayed,
         alreadyAttempted: _hlsRelayAttemptedUrls.contains(selected.url),
         recoveryAttempts: _policy.attempts -

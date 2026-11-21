@@ -3698,6 +3698,68 @@ class _PlayerScreenState extends State<PlayerScreen>
           final dynamic native = _player.platform;
           await native.command(List<String>.from(raw));
           return <String, Object?>{'accepted': true};
+        case 'select_audio_track':
+          final requested = args['trackId'];
+          if (requested is! int || requested < 0 || requested > 1000) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_audio_track',
+            };
+          }
+          final found = _player.state.tracks.audio
+              .any((track) => track.id == requested.toString());
+          if (!found) return <String, Object?>{
+            'accepted': false, 'reason': 'audio_track_not_found',
+          };
+          await _selectAudioTrack(requested, manual: true);
+          return <String, Object?>{
+            'accepted': true,
+            'requestedTrackId': requested,
+            'selectedTrackId': _player.state.track.audio.id,
+            'selectionVerified': _player.state.track.audio.id ==
+                requested.toString(),
+          };
+        case 'subtitle_tracks':
+          return <String, Object?>{
+            'accepted': true,
+            'selected': _player.state.track.subtitle.id,
+            'tracks': _embeddedSubtitles.take(30).map((track) =>
+                <String, Object?>{
+                  'index': track.index,
+                  'title': track.title,
+                  'language': track.language,
+                }).toList(),
+            'canDisable': true,
+          };
+        case 'select_subtitle_track':
+          final requested = args['trackIndex'];
+          if (requested is! int || requested < -1 || requested > 1000) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_subtitle_track',
+            };
+          }
+          if (requested == -1) {
+            _disableSubtitles();
+            return <String, Object?>{
+              'accepted': true, 'selected': 'no',
+              'selectionVerified': false,
+              'reason': 'selection_requested',
+            };
+          }
+          if (_liveTv != null) return <String, Object?>{
+            'accepted': false, 'reason': 'live_subtitle_selection_unavailable',
+          };
+          final matches = _embeddedSubtitles.where(
+              (track) => track.index == requested).toList();
+          if (matches.isEmpty) return <String, Object?>{
+            'accepted': false, 'reason': 'subtitle_track_not_found',
+          };
+          _selectEmbeddedSubtitle(matches.first);
+          return <String, Object?>{
+            'accepted': true,
+            'requestedTrackIndex': requested,
+            'selectionVerified': false,
+            'reason': 'selection_requested',
+          };
         case 'audio_tracks':
           return <String, Object?>{
             'accepted': true, 'count': _player.state.tracks.audio.length,

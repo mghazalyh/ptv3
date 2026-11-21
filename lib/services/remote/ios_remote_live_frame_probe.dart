@@ -200,6 +200,11 @@ abstract final class IosRemoteLiveFrameProbe {
         }
 
         if (firstFrameRendered && movementMs >= 5000 &&
+            frameLimit > capturedFrames &&
+            clock.elapsed < const Duration(seconds: 13)) {
+          continue;
+        }
+        if (firstFrameRendered && movementMs >= 5000 &&
             videoWidth > 0 && videoHeight > 0 &&
             trackCount > 0 && !stalled) {
           return LiveNativeSourceResult(

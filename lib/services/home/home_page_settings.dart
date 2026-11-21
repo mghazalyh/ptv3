@@ -689,12 +689,15 @@ abstract final class HomePageSettings {
       }
 
       final yearInt = item.year != null ? int.tryParse(item.year!) : null;
-      final section = await _buildBestSimilarSection(
+      final section = await _buildWithFallback(
         sourceTitle: item.title,
         year: yearInt,
         type: item.type,
         sectionTitle: 'Because you\'re watching "${item.title}"',
         catalogId: 'bestsimilar_watching',
+        imdbId: item.id.startsWith('tt') ? item.id : null,
+        tmdbId: item.id.startsWith('tmdb_')
+            ? int.tryParse(item.id.substring(5)) : null,
       );
 
       if (section != null) {

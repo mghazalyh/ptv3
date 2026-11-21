@@ -4,7 +4,7 @@ import 'package:playtorrio/models/my_list/my_list_item.dart';
 void main() {
   group('MyListItem', () {
     group('uniqueKey', () {
-      test('uses traktId when available', () {
+      test('prefers globally consistent IMDb identity over traktId', () {
         final item = MyListItem(
           traktId: 123,
           imdbId: 'tt456',
@@ -13,10 +13,10 @@ void main() {
           type: 'movie',
           addedAt: DateTime(2026),
         );
-        expect(item.uniqueKey, 'trakt:123');
+        expect(item.uniqueKey, 'imdb:tt456');
       });
 
-      test('falls back to imdbId when no traktId', () {
+      test('uses imdbId when Trakt ID is unavailable', () {
         final item = MyListItem(
           imdbId: 'tt456',
           tmdbId: 789,
@@ -34,7 +34,7 @@ void main() {
           type: 'movie',
           addedAt: DateTime(2026),
         );
-        expect(item.uniqueKey, 'tmdb:789');
+        expect(item.uniqueKey, 'tmdb:movie:789');
       });
 
       test('falls back to title+year when no IDs', () {
@@ -44,7 +44,7 @@ void main() {
           type: 'movie',
           addedAt: DateTime(2026),
         );
-        expect(item.uniqueKey, 'title:test movie:2024');
+        expect(item.uniqueKey, 'title:movie:test movie:2024');
       });
 
       test('title is lowercased and trimmed in fallback key', () {
@@ -54,7 +54,7 @@ void main() {
           type: 'movie',
           addedAt: DateTime(2026),
         );
-        expect(item.uniqueKey, 'title:the matrix:1999');
+        expect(item.uniqueKey, 'title:movie:the matrix:1999');
       });
 
       test('year defaults to 0 when null in fallback key', () {
@@ -63,8 +63,40 @@ void main() {
           type: 'movie',
           addedAt: DateTime(2026),
         );
-        expect(item.uniqueKey, 'title:unknown:0');
+        expect(item.uniqueKey, 'title:movie:unknown:0');
       });
+    });
+
+    test('TMDB ID and title fallback remain separated by media type', () {
+      final movie = MyListItem(
+        tmdbId: 550,
+        title: 'Shared Name',
+        type: 'movie',
+        addedAt: DateTime(2026),
+      );
+      final series = MyListItem(
+        tmdbId: 550,
+        title: 'Shared Name',
+        type: 'series',
+        addedAt: DateTime(2026),
+      );
+      expect(movie.uniqueKey, 'tmdb:movie:550');
+      expect(series.uniqueKey, 'tmdb:series:550');
+      expect(movie.uniqueKey, isNot(series.uniqueKey));
+      expect(movie.matches(series), isFalse);
+
+      final titleOnlyMovie = MyListItem(
+        title: 'Shared Name',
+        type: 'movie',
+        addedAt: DateTime(2026),
+      );
+      final titleOnlySeries = MyListItem(
+        title: 'Shared Name',
+        type: 'series',
+        addedAt: DateTime(2026),
+      );
+      expect(titleOnlyMovie.uniqueKey, isNot(titleOnlySeries.uniqueKey));
+      expect(titleOnlyMovie.matches(titleOnlySeries), isFalse);
     });
 
     group('equality', () {

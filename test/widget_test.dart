@@ -1,27 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:playtorrio/services/my_list/my_list_service.dart';
-import 'package:playtorrio/services/theme/glass_settings.dart';
 
 void main() {
-  testWidgets('App renders smoke test', (WidgetTester tester) async {
-    // Initialize services that the app needs
-    SharedPreferences.setMockInitialValues({});
-    await GlassSettings.initialize();
-    await MyListService.initialize();
-
+  testWidgets('Basic PlayTorrio layout renders without cloud side effects',
+      (WidgetTester tester) async {
+    // A widget smoke test must not initialize MyListService: that service
+    // launches cloud synchronization and can stall an otherwise local test.
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: Center(
-            child: Text('PlayTorrio'),
-          ),
+          body: Center(child: Text('PlayTorrio')),
         ),
       ),
     );
-
     expect(find.text('PlayTorrio'), findsOneWidget);
+    expect(find.byType(Scaffold), findsOneWidget);
   });
 }

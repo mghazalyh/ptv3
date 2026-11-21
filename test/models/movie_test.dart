@@ -19,7 +19,16 @@ void main() {
       expect(movie.id, 'tt123');
       expect(movie.poster, isNull);
       expect(movie.year, isNull);
-      expect(movie.type, 'movie');
+      // A missing Stremio type is ambiguous; never silently turn TV into VOD.
+      expect(movie.type, 'unknown');
+    });
+    test('uses explicit catalog fallback when stream meta omits type', () {
+      final item = Movie.fromJson(
+        {'id': 'tt123', 'name': 'Episode-bearing title'},
+        'https://example.com',
+        fallbackType: 'series',
+      );
+      expect(item.type, 'series');
     });
     test('uses releaseInfo over year', () {
       final json = {'id': 'tt1', 'name': 'Test', 'releaseInfo': '2020-2024', 'year': '2019'};

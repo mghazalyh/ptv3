@@ -30,7 +30,13 @@ void main() {
         createdAt: now,
       );
 
+      // Speed and ETA are volatile measurements, not persisted across restarts.
+      expect(task.speedLabel, equals('5.00 MB/s'));
+      expect(task.etaLabel, equals('1m 40s'));
+
       final json = task.toJson();
+      expect(json.containsKey('speedBytesPerSec'), isFalse);
+      expect(json.containsKey('etaSeconds'), isFalse);
       final reconstructed = DownloadTask.fromJson(json);
 
       expect(reconstructed.id, equals('task_123'));
@@ -42,8 +48,10 @@ void main() {
       expect(reconstructed.receivedBytes, equals(500 * 1024 * 1024));
       expect(reconstructed.totalBytes, equals(1000 * 1024 * 1024));
       expect(reconstructed.progressPercent, closeTo(0.5, 0.001));
-      expect(reconstructed.speedLabel, equals('5.00 MB/s'));
-      expect(reconstructed.etaLabel, equals('1m 40s'));
+      expect(reconstructed.speedBytesPerSec, 0.0);
+      expect(reconstructed.speedLabel, equals('0 KB/s'));
+      expect(reconstructed.etaSeconds, isNull);
+      expect(reconstructed.etaLabel, equals('--'));
       expect(reconstructed.isDownloading, isTrue);
       expect(reconstructed.isCompleted, isFalse);
     });

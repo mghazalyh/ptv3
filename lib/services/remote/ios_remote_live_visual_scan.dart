@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import '../../models/movie/movie.dart';
 import '../../models/stream/stream_model.dart';
 import '../player/live_tv/live_native_channel_verifier.dart';
+import 'ios_remote_live_frame_probe.dart';
 import '../player/live_tv/live_stream_detector.dart';
 import '../stream/stream_service.dart';
 import 'ios_remote_visual_frame_encoder.dart';
@@ -18,7 +19,7 @@ typedef LiveVisualProbe = Future<LiveNativeSourceResult> Function({
   required String channelId,
   required StreamSource source,
   required bool Function() isCancelled,
-  LiveNativeFrameObserver? onFrame,
+  LiveVisualFrameObserver? onFrame,
   int maxFrames,
 });
 typedef LiveVisualPublish = Future<void> Function(
@@ -181,7 +182,7 @@ class IosRemoteLiveVisualScan {
       deviceIdle: deviceIdle,
       publish: publish,
       resolve: resolveSources ?? _resolve,
-      probe: probe ?? LiveNativeChannelVerifier.probe,
+      probe: probe ?? IosRemoteLiveFrameProbe.probe,
       encode: encodeFrame ?? IosRemoteVisualFrameEncoder.encode,
       framesPerChannel: frames,
       maxSources: maxSources,

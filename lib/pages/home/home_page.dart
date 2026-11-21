@@ -25,6 +25,7 @@ import '../../widgets/common/animated_ambient_background.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/home/continue_watching_slider.dart';
 import '../../widgets/movie/movie_slider_section.dart';
+import '../../widgets/remote/play_on_ipad_sheet.dart';
 import '../search/search_page.dart';
 import '../history/watched_history_page.dart';
 import '../settings/settings_page.dart';
@@ -1257,12 +1258,32 @@ class _HeroSlide extends StatelessWidget {
                   ],
 
                   // Action buttons
+                  if (PlayOnIpadSheet.canOffer(context))
+                    const Padding(
+                      padding: EdgeInsets.only(top: 10),
+                      child: Row(mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.touch_app_rounded, size: 14,
+                            color: Color(0xFFA99AFF)),
+                          SizedBox(width: 5),
+                          Text('Hold Watch Now to play on iPad',
+                            style: TextStyle(
+                              color: Colors.white, fontSize: 12,
+                              fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
                   SizedBox(height: heroStyle == HeroStyle.minimalist ? 12 : (isCompact ? 18 : 24)),
                   Row(
                     children: [
                       Builder(
                         builder: (context) {
-                          return ElevatedButton.icon(
+                          return GestureDetector(
+                            onLongPress: PlayOnIpadSheet.canOffer(context)
+                                ? () => PlayOnIpadSheet.show(context,
+                                    movie: movie)
+                                : null,
+                            child: ElevatedButton.icon(
                             onPressed: () => _openDetails(context),
                             icon: const Icon(Icons.play_arrow_rounded, size: 22),
                             label: const Text(
@@ -1284,6 +1305,7 @@ class _HeroSlide extends StatelessWidget {
                               ),
                               elevation: 4,
                               shadowColor: Colors.black.withValues(alpha: 0.35),
+                            ),
                             ),
                           );
                         },

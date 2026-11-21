@@ -30,6 +30,7 @@ void main() {
       () async {
     final scan = IosRemoteLiveVisualScan();
     final outputs = <String, Map<String, Object?>>{};
+    var encodedCount = 0;
     final start = await scan.start({
       'runId': 'basketball_visual_01',
       'contentHint': 'basketball',
@@ -65,7 +66,7 @@ void main() {
       encodeFrame: (Uint8List frame) async {
         return Uint8List.fromList(<int>[
           ...png,
-          if (scan.status()['publishedFrames'] == 0) 1 else 2,
+          ++encodedCount,
         ]);
       },
       publish: (runId, key, payload) async {

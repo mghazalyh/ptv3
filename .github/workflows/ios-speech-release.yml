@@ -622,15 +622,24 @@ jobs:
     if: ${{ always() && !cancelled() && (needs.speech-ios-primary.result == 'success' || needs.speech-ios-rescue-intel.result == 'success' || needs.speech-ios-rescue-arm.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      delivery_url: ${{ steps.publish_delivery.outputs.delivery_url }}
+      release_published: ${{ steps.publish_delivery.outputs.release_published }}
     env:
-      GH_TOKEN: ${{ github.token }}
+      # An optional fine-grained PAT with releases/write can recover when
+      # github.token is denied by the Releases API. Otherwise use the token.
+      GH_TOKEN: ${{ secrets.IOS_RELEASE_TOKEN || github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: PlayTorrio-iOS15-SpeechSync-v1.1.15-run-${{ github.run_number }}
           path: packages/ios15
-      - name: Verify signed IPA and publish permanent version-specific release
+      - name: Verify signed IPA, publish release or retain Actions artifact
+        id: publish_delivery
         run: |
           set -euo pipefail
           BUILD_NUMBER=$((200 + GITHUB_RUN_NUMBER))
@@ -665,30 +674,58 @@ jobs:
               printf '\nExperimental iPad catalog trial: iOS can upload completed private watch-history events through existing authorized Trakt OAuth. Xperience/BingeCat can read those only if already linked to that account. No hosted provider account or personal manifest is created automatically.\n'
             fi
           } > release-notes.md
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          # The IPA has passed ZIP, signature, target OS and build-number checks.
+          # A 403 from github-actions[bot] is a remote integration permission
+          # refusal, not evidence that native compilation or signing failed.
+          # Retry safe idempotent publication and never invent a release URL.
+          publish_release_once() {
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              for file in release/*; do
+                name=$(basename "$file")
+                if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+                  --json assets --jq '.assets[].name' | grep -Fxq "$name"; then
+                  gh release upload "$TAG" "$file" --repo "$GITHUB_REPOSITORY" --clobber || return 1
+                fi
+              done
+              gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" \
+                --notes-file release-notes.md || return 1
+            else
+              gh release create "$TAG" release/* \
+                --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+                --title "PlayTorrio iOS 15 Full Player v1.1.15 (Build $BUILD_NUMBER)" \
+                --notes-file release-notes.md "$RELEASE_VISIBILITY" || return 1
+            fi
             for file in release/*; do
               name=$(basename "$file")
-              if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
-                --json assets --jq '.assets[].name' | grep -Fxq "$name"; then
-                gh release upload "$TAG" "$file" --repo "$GITHUB_REPOSITORY"
-              fi
+              expected=$(stat -c%s "$file")
+              actual=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+                --json assets --jq ".assets[] | select(.name == \"$name\") | .size") || return 1
+              test -n "$actual" && test "$expected" = "$actual" || return 1
             done
-            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" \
-              --notes-file release-notes.md
-          else
-            gh release create "$TAG" release/* \
-              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "PlayTorrio iOS 15 Full Player v1.1.15 (Build $BUILD_NUMBER)" \
-              --notes-file release-notes.md "$RELEASE_VISIBILITY"
-          fi
-          for file in release/*; do
-            name=$(basename "$file")
-            expected=$(stat -c%s "$file")
-            actual=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
-              --json assets --jq ".assets[] | select(.name == \"$name\") | .size")
-            test -n "$actual" && test "$expected" = "$actual"
+          }
+          published=false
+          for attempt in 1 2 3; do
+            if publish_release_once; then
+              published=true
+              break
+            fi
+            echo "::warning::GitHub release publishing attempt $attempt denied or interrupted; signed artifact remains uploaded."
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 5))
+            fi
           done
-          echo "Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$published" = true ]; then
+            LINK="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$ASSET"
+            echo "release_published=true" >> "$GITHUB_OUTPUT"
+            echo "delivery_url=$LINK" >> "$GITHUB_OUTPUT"
+            echo "Published and size-verified release: $LINK" >> "$GITHUB_STEP_SUMMARY"
+          else
+            LINK="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "release_published=false" >> "$GITHUB_OUTPUT"
+            echo "delivery_url=$LINK" >> "$GITHUB_OUTPUT"
+            echo "::warning::GitHub Releases API denied publishing. Verified signed IPA is retained as the run artifact PlayTorrio-iOS15-SpeechSync-v1.1.15-run-$GITHUB_RUN_NUMBER."
+            echo "Signed IPA validated; release publishing unavailable. Download the workflow artifact from: $LINK" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   telegram-ios-speech:
     name: Send signed current-feature iOS 15 TrollStore IPA to Telegram
@@ -702,6 +739,8 @@ jobs:
       BUILD_SHA: ${{ github.sha }}
       BUILD_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
       BUILD_VERSION: "1.1.15"
+      IOS_DELIVERY_URL: ${{ needs.publish-ios-speech.outputs.delivery_url }}
+      IOS_RELEASE_PUBLISHED: ${{ needs.publish-ios-speech.outputs.release_published }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -718,7 +757,11 @@ jobs:
           TAG="ios-speech-v1.1.15-run$GITHUB_RUN_NUMBER"
           ASSET="PlayTorrio-v1.1.15-build$BUILD_NUMBER-iOS15-TrollStore.ipa"
           test -s packages/ios15/PlayTorrio-iOS15-TrollStore.ipa
-          LINK="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$ASSET"
-          MESSAGE="PlayTorrio iOS 15 Build #$BUILD_NUMBER: signed TrollStore IPA published and verified. Download: $LINK . Includes iPhone-to-iPad LAN Remote Control."
+          LINK="$IOS_DELIVERY_URL"
+          if [ "$IOS_RELEASE_PUBLISHED" = "true" ]; then
+            MESSAGE="PlayTorrio iOS 15 Build #$BUILD_NUMBER: signed TrollStore IPA published and verified. Download: $LINK"
+          else
+            MESSAGE="PlayTorrio iOS 15 Build #$BUILD_NUMBER: signed IPA verified, but GitHub Releases publication was denied. Download the IPA from the GitHub Actions artifact: $LINK"
+          fi
           python3 .github/scripts/telegram_ci.py --self-test
           python3 .github/scripts/telegram_ci.py send-text --text "$MESSAGE"

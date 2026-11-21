@@ -70,12 +70,10 @@ void main() {
       addonName: 'Live TV',
       initial: candidate,
     );
-    expect(await manager.seemsPlayable(candidate), isTrue);
-    final head = manager.latestProbeFor(candidate)!;
-    expect(head.phase, 'head');
-    expect(head.outcome, 'provisional');
-    expect(head.httpStatus, 405);
-    expect(await manager.inspectPlaylist(candidate), isNull);
+    // A HEAD 405 is not proof that a stream works. A valid GET is required.
+    // This fixture deliberately serves HTTP 200 with an HTML error page;
+    // the failed build previously expected an unsafe false positive.
+    expect(await manager.seemsPlayable(candidate), isFalse);
     final probe = manager.latestProbeFor(candidate)!;
     expect(probe.phase, 'playlist');
     expect(probe.outcome, 'invalid_manifest');

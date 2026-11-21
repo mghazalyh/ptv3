@@ -43,6 +43,7 @@ import './services/player/night_mode_diagnostics.dart';
 import './services/player/ios_audio_telemetry.dart';
 import './services/remote/lan_remote_service.dart';
 import './services/remote/github_diagnostic_control.dart';
+import './services/remote/github_stremio_addon_probe.dart';
 import './services/stream/stream_service.dart';
 import './models/movie/movie_detail.dart';
 import './pages/player/player_screen.dart';
@@ -217,6 +218,46 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
               'accepted': false, 'reason': 'no_active_player'};
           }
           return await handler(name, args);
+        case 'probe_addon':
+          // Resolve only an installed Stremio TV addon. Never permit a
+          // remote command to supply an arbitrary URL or hostname to fetch.
+          final channelId = args['channelId']?.toString().trim() ?? '';
+          final wantedHost = args['addonHost']?.toString().trim()
+              .toLowerCase() ?? '';
+          final wantedName = args['addonName']?.toString().trim()
+              .toLowerCase() ?? '';
+          if (channelId.length < 4 || channelId.length > 180 ||
+              !(channelId.startsWith('nltv:') ||
+                channelId.startsWith('iptv:'))) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_channel_id'};
+          }
+          final addons = AddonManager.instance.activeStreamAddons
+              .where((addon) =>
+                  addon.manifest.supportsRequest('stream', 'tv', channelId))
+              .toList();
+          final matches = addons.where((addon) {
+            final host = Uri.tryParse(addon.baseUrl)?.host.toLowerCase() ?? '';
+            return (wantedHost.isEmpty || host == wantedHost) &&
+                (wantedName.isEmpty ||
+                    addon.manifest.name.toLowerCase() == wantedName);
+          }).toList();
+          if (matches.isEmpty) {
+            return <String, Object?>{
+              'accepted': false,
+              'reason': 'matching_installed_tv_addon_not_found',
+              'availableAddonHosts': addons.map((addon) =>
+                  Uri.tryParse(addon.baseUrl)?.host ?? '')
+                  .where((host) => host.isNotEmpty)
+                  .take(12).toList(),
+            };
+          }
+          final addon = matches.first;
+          return await GithubStremioAddonProbe.check(
+            baseUrl: addon.baseUrl,
+            addonName: addon.manifest.name,
+            channelId: channelId,
+          );
         case 'open_channel':
           final channelId = args['channelId']?.toString().trim() ?? '';
           final title = args['title']?.toString().trim() ?? channelId;

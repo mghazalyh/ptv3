@@ -1,6 +1,7 @@
-requested_source_head=f76403ef0620e989733edd0427c9053b13641f9c
+requested_source_head=7f01ecb04ce029aa06ee403832397d8398942b51
 type=ios-source-tests-only
 no_ipa_build=true
 no_platform_package=true
-scope=build_68_visual_probe_callback_type_regression_and_full_flutter_suite
-requested_utc=2026-11-21T21:58:26.675Z
+scope=build69_subtitlecat_provider_http500_deterministic_tests_and_full_flutter_suite
+expected=817plus_deterministic_tests_pass_external_subtitlecat_skipped
+requested_utc=2026-11-21T22:28:10.698Z

@@ -1,6 +1,6 @@
-requested_source_head=470bb7cdef469ab7d2ea86e19ee407c007c1221d
+requested_source_head=ac4bb4c14ba979b7dbcbfc3fe86abc67c9a1fcaa
 type=ios-source-tests-only
 no_ipa_build=true
 no_platform_package=true
-scope=mandatory_full_suite_five_failure_fixes_and_provider_fixture_regressions
-requested_sgt=2026-11-22 01:44:44
+scope=durable_command_receipts_and_interrupted_execution_regressions_full_flutter_suite
+requested_utc=2026-11-21T19:17:23.963Z

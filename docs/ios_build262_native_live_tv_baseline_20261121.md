@@ -172,3 +172,20 @@ The source-level bug: `LivePlaybackCoordinator.shouldUseHlsRelay` previously use
 **Source-only repair:** commit `c4ed4184808032da22e70dae946757fab19bd4f0` introduced a per-source direct-failure set, checked by the relay escalation predicate. Native TLS failures for the same URL remain eligible to trigger the relay immediately. The controller records a failed direct HLS source only during involuntary recoveries without confirmed video and removes the record after confirmed native video. New regression cases ensure high recovery counts cannot relay an unseen backup without URL-specific evidence.
 
 This fix does **not** modify the installed build 262 and **no iOS release was triggered**. Its correctness must be established by GitHub lightweight CI, then (for this installed version) only supported runtime policies remain available. Do not claim this code-only change repaired the iPad.
+
+## Follow-up: six completed source attempts and RacerNetwork 403
+
+The first two complete unique TV channel rounds have produced **six uploaded source candidates**, with **five sustained native playback outcomes**. These are source-attempt results, **not** a statistically representative channel/provider success rate.
+
+Unbeaten (`nltv:us:Unbeaten.us`):
+* `candidate_1_0`: requested CloudFront, successful after switching to Amagi; 1920×1080 video, 11 tracks, 300s sustained, original requested source **not verified**.
+* `candidate_1_1`: requested `lukentvlive.vgcdn.net`, switched to CloudFront with HLS relay active; no native video tracks or timeline progression, native manifest failure, **sustainedPlayback=false**.
+* `candidate_1_2`: requested and played `unbeaten-tcl.amagi.tv` directly, without HTTP relay, no recorded native errors, 1920×1080 video, 11 tracks, 300s sustained, final position 330129ms, **requestedSourceVerified=true**.
+
+RacerNetwork (`nltv:us:RacerNetwork.us`), third channel:
+* Source 0 published as `candidate_2_0`, requested EMEA Amagi host, local HTTP relay active, no native tracks or timeline progress, buffering true, **sustainedPlayback=false**.
+* Two Samsung Amagi backup URLs were explicitly rejected with HTTP **403** during native recovery (NZ and AU).
+* EMEA Amagi HLS playlist and segment probing returned HTTP 200/206, but decoded playback never established; a native missing-resource error occurred with the relay. This separates upstream access rejection (403) from native HLS decode/transport failure.
+* Matrix `uploadFailures` increased to 3 while `sourcesDone=8`. At last check there was no `candidate_2_1.json` even though the aggregate counter implied an additional attempt. **Do not invent or backfill a successful result for a missing file.** Independent timestamped iOS telemetry traces contain some related observations.
+
+All source-only fixes remain uninstalled; installed device is still iOS build 262. Baseline remains running without modifying the player's source selection or applying a global policy. The saved monitoring plan now tests `relayMode=never` (not `prefer`) during the second repetition only if viable, then restores defaults for the third repetition; all transitions must be evidenced by receipts.

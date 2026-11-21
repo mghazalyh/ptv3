@@ -3,7 +3,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:playtorrio/models/anime/anime_media.dart';
 import 'package:playtorrio/services/anime/anime_scraper_service.dart';
 
+const _liveProviderTests = bool.fromEnvironment(
+  'PLAYTORRIO_LIVE_PROVIDER_TESTS',
+  defaultValue: false,
+);
+
 void main() {
+  test('anime title normalization is offline and deterministic', () {
+    expect(AnimeScraperService.cleanAnimeTitle(
+        'Solo Leveling - Episode 12 - English Dub'), 'Solo Leveling');
+    expect(AnimeScraperService.cleanAnimeTitle(
+        'Demon Slayer • Ep 5 [Sub]'), 'Demon Slayer');
+    expect(AnimeScraperService.cleanAnimeTitle(
+        'Jujutsu Kaisen (TV)'), 'Jujutsu Kaisen');
+  });
+
   test('AnimeScraperService scrapes streams for Solo Leveling S2 Ep 1', () async {
     final scraper = AnimeScraperService.instance;
     const anime = AnimeMedia(
@@ -26,7 +40,8 @@ void main() {
     }
 
     expect(sources.isNotEmpty, isTrue);
-  }, timeout: const Timeout(Duration(seconds: 40)));
+  }, timeout: const Timeout(Duration(seconds: 40)),
+      skip: !_liveProviderTests);
 
   test('AnimeScraperService scrapes streams for Demon Slayer Ep 1', () async {
     final scraper = AnimeScraperService.instance;
@@ -50,7 +65,8 @@ void main() {
     }
 
     expect(sources.isNotEmpty, isTrue);
-  }, timeout: const Timeout(Duration(seconds: 40)));
+  }, timeout: const Timeout(Duration(seconds: 40)),
+      skip: !_liveProviderTests);
 
   test('AnimeScraperService scrapes streams for Jujutsu Kaisen Ep 1', () async {
     final scraper = AnimeScraperService.instance;
@@ -74,5 +90,6 @@ void main() {
     }
 
     expect(sources.isNotEmpty, isTrue);
-  }, timeout: const Timeout(Duration(seconds: 40)));
+  }, timeout: const Timeout(Duration(seconds: 40)),
+      skip: !_liveProviderTests);
 }

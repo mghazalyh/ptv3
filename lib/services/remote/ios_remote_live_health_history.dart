@@ -55,7 +55,8 @@ class IosRemoteLiveHealthHistory {
     current['lastPassed'] = success;
     current['lastRunId'] = candidate['runId'] is String
         ? (candidate['runId'] as String).substring(
-            0, (candidate['runId'] as String).length.clamp(0, 50))
+            0, (candidate['runId'] as String).length > 50
+                ? 50 : (candidate['runId'] as String).length)
         : null;
     if (success) {
       current['lastVerifiedUtc'] = now;

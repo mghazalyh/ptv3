@@ -655,7 +655,8 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     const allowed = <String>{'strategy'};
     final strategy = args['strategy'] ?? 'auto';
     if (args.keys.any((key) => !allowed.contains(key)) ||
-        !const {'auto', 'restart', 'resume', 'retry_live'}.contains(strategy)) {
+        !const {'auto', 'restart', 'resume', 'retry_live',
+          'switch_source'}.contains(strategy)) {
       return <String, Object?>{
         'accepted': false, 'reason': 'invalid_recovery_strategy',
       };
@@ -675,6 +676,19 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     if (live) {
       method = 'retry_live';
       attempted = await handler('retry_live', <String, dynamic>{});
+    } else if (strategy == 'switch_source') {
+      method = 'select_source';
+      final total = before['sourceCount'];
+      final current = before['sourceIndex'];
+      if (total is! int || total < 2 ||
+          current is! int || current < 0) {
+        return <String, Object?>{
+          'accepted': false, 'reason': 'no_alternate_source',
+        };
+      }
+      attempted = await handler('select_source', <String, dynamic>{
+        'sourceIndex': (current + 1) % total,
+      });
     } else if (strategy == 'restart') {
       method = 'restart_media';
       attempted = await handler('restart_media', <String, dynamic>{});
@@ -695,8 +709,29 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
       'method': method,
       'attempt': attempted,
     };
-    final verification = await _verifyRemotePlayback(
+    var verification = await _verifyRemotePlayback(
         <String, dynamic>{'sampleMs': 4000});
+    // A resume request that did not advance is not a recovery. Escalate
+    // once in automatic mode, preserving the previous VOD position.
+    if (!live && strategy == 'auto' &&
+        verification['verified'] != true &&
+        _liveMatrix.status()['phase'] != 'running') {
+      method = 'resume_then_restart_media';
+      final restart = await handler(
+          'restart_media', <String, dynamic>{});
+      if (restart['accepted'] == true) {
+        final position = before['positionMs'];
+        if (position is num && position > 1000) {
+          await Future<void>.delayed(
+              const Duration(milliseconds: 900));
+          await handler('seek_ms', <String, dynamic>{
+            'positionMs': position.toInt(),
+          });
+        }
+        verification = await _verifyRemotePlayback(
+            <String, dynamic>{'sampleMs': 4000});
+      }
+    }
     return <String, Object?>{
       'accepted': true,
       'method': method,

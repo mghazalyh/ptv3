@@ -182,6 +182,111 @@ void main() {
     expect(LiveSourceManager.segmentSignature(const <int>[]), 'empty');
   });
 
+  test('HLS CDN redirects preserve final base for variants and segments',
+      () async {
+    final requested = <String>[];
+    final headersUsed = <Map<String, String>>[];
+    LiveSourceManager.probeClientOverride = MockClient((request) async {
+      requested.add(request.url.toString());
+      headersUsed.add(Map<String, String>.from(request.headers));
+      if (request.url.host == 'entry.example') {
+        return http.Response('', 302, headers: const {
+          'location': 'https://cdn.example/live/master.m3u8?session=1',
+        });
+      }
+      if (request.url.path == '/live/master.m3u8') {
+        return http.Response(
+          '#EXTM3U\\n#EXT-X-STREAM-INF:BANDWIDTH=400000\\n'
+          'variants/720.m3u8\\n', 200);
+      }
+      if (request.url.path == '/live/variants/720.m3u8') {
+        return http.Response('', 307, headers: const {
+          'location': 'https://other-cdn.example/hls/media.m3u8',
+        });
+      }
+      if (request.url.path == '/hls/media.m3u8') {
+        return http.Response(
+          '#EXTM3U\\n#EXT-X-MEDIA-SEQUENCE:88\\n'
+          '#EXTINF:6,\\nsegment.ts\\n', 200);
+      }
+      if (request.url.path == '/hls/segment.ts') {
+        final bytes = List<int>.filled(376, 0)
+          ..[0] = 0x47
+          ..[188] = 0x47;
+        return http.Response.bytes(bytes, 206);
+      }
+      return http.Response('unexpected URL', 404);
+    });
+    addTearDown(() => LiveSourceManager.probeClientOverride = null);
+    final source = StreamSource(
+      addonName: 'Live TV', url: 'https://entry.example/play.m3u8',
+      headers: const {'Referer': 'https://player.example/'},
+    );
+    final manager = LiveSourceManager(
+      channelId: 'nltv:us:Channel.us', addonName: 'Live TV',
+      initial: source);
+    final probe = await manager.inspectFirstSegment(source);
+    expect(probe?.outcome, 'ok');
+    expect(probe?.segmentKind, 'mpegts');
+    expect(requested, <String>[
+      'https://entry.example/play.m3u8',
+      'https://cdn.example/live/master.m3u8?session=1',
+      'https://cdn.example/live/variants/720.m3u8',
+      'https://other-cdn.example/hls/media.m3u8',
+      'https://other-cdn.example/hls/segment.ts',
+    ]);
+    expect(headersUsed.every((headers) => headers.entries.any((entry) =>
+        entry.key.toLowerCase() == 'referer' &&
+        entry.value == 'https://player.example/')), isTrue);
+  });
+
+  test('HLS variant redirect HTTP 414 identifies final destination', () async {
+    const finalUrl = 'https://cdn.example/signed/media.m3u8?signature=abc';
+    LiveSourceManager.probeClientOverride = MockClient((request) async {
+      if (request.url.path == '/master.m3u8') {
+        return http.Response(
+          '#EXTM3U\\n#EXT-X-STREAM-INF:BANDWIDTH=1000\\n'
+          'child.m3u8\\n', 200);
+      }
+      if (request.url.path == '/child.m3u8') {
+        return http.Response('', 302,
+            headers: const {'location': finalUrl});
+      }
+      return http.Response('Request URI Too Long', 414);
+    });
+    addTearDown(() => LiveSourceManager.probeClientOverride = null);
+    final source = StreamSource(
+        addonName: 'Live TV', url: 'https://entry.example/master.m3u8');
+    final manager = LiveSourceManager(
+        channelId: 'nltv:us:Channel.us', addonName: 'Live TV',
+        initial: source);
+    expect(await manager.inspectPlaylist(source), isNull);
+    final probe = manager.latestProbeFor(source)!;
+    expect(probe.phase, 'variant');
+    expect(probe.httpStatus, 414);
+    expect(probe.requestHost, 'cdn.example');
+    expect(probe.requestPathChars, '/signed/media.m3u8'.length);
+    expect(probe.requestUrlChars, finalUrl.length);
+  });
+
+  test('HLS redirect loops terminate without accepting source', () async {
+    var calls = 0;
+    LiveSourceManager.probeClientOverride = MockClient((request) async {
+      calls++;
+      return http.Response('', 302,
+          headers: const {'location': '/same.m3u8'});
+    });
+    addTearDown(() => LiveSourceManager.probeClientOverride = null);
+    final source = StreamSource(
+        addonName: 'Live TV', url: 'https://cdn.example/same.m3u8');
+    final manager = LiveSourceManager(
+        channelId: 'nltv:us:Channel.us', addonName: 'Live TV',
+        initial: source);
+    expect(await manager.inspectPlaylist(source), isNull);
+    expect(calls, 1);
+    expect(manager.latestProbeFor(source)?.outcome, 'network_error');
+  });
+
   test('Native HLS log diagnosis uses only fixed categories', () {
     expect(LivePlaybackCoordinator.classifyNativeFailure(
         'HTTP error 403 Forbidden'), 'live_native_http_auth');

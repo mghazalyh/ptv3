@@ -162,6 +162,49 @@ class LiveSourceManager {
     return 'other';
   }
 
+  /// HLS child paths must be resolved against the final redirected playlist.
+  /// http.get() does not expose that URI to callers in all http versions.
+  Future<({http.Response response, Uri uri})> _fetchHls(
+      Uri initialUri, Map<String, String> headers, Duration timeout) async {
+    final client = probeClientOverride ?? http.Client();
+    final ownsClient = probeClientOverride == null;
+    var current = initialUri;
+    final visited = <Uri>{};
+    try {
+      for (var redirectCount = 0; redirectCount < 6; redirectCount++) {
+        if (!visited.add(current)) {
+          throw const FormatException('HLS redirect loop');
+        }
+        final request = http.Request('GET', current)
+          ..followRedirects = false
+          ..headers.addAll(headers);
+        final streamed = await client.send(request).timeout(timeout);
+        final status = streamed.statusCode;
+        if (status == 301 || status == 302 || status == 303 ||
+            status == 307 || status == 308) {
+          final location = streamed.headers['location'];
+          await streamed.stream.drain<void>().timeout(timeout);
+          if (location == null || location.trim().isEmpty) {
+            throw const FormatException('HLS redirect without location');
+          }
+          final destination = current.resolve(location.trim());
+          if (!LiveStreamDetector.isHttpMedia(destination.toString())) {
+            throw const FormatException('Unsupported HLS redirect');
+          }
+          current = destination;
+          continue;
+        }
+        return (
+          response: await http.Response.fromStream(streamed).timeout(timeout),
+          uri: current,
+        );
+      }
+      throw const FormatException('Too many HLS redirects');
+    } finally {
+      if (ownsClient) client.close();
+    }
+  }
+
   /// Identical headers for initial probing and MPV reconnection.
   static Map<String, String> requestHeaders(StreamSource source) {
     final headers = PlayerSettings.resolveStreamHeaders(
@@ -361,8 +404,10 @@ class LiveSourceManager {
     final timer = Stopwatch()..start();
     final headers = requestHeaders(source);
     try {
-      final response = await (probeClientOverride?.get(uri, headers: headers) ??
-          http.get(uri, headers: headers)).timeout(const Duration(seconds: 6));
+      final fetched = await _fetchHls(
+          uri, headers, const Duration(seconds: 6));
+      final response = fetched.response;
+      final playlistUri = fetched.uri;
       final bytes = response.bodyBytes.length;
       final mime = _mimeKind(response.headers['content-type']);
       if (response.statusCode != 200 || bytes > 262144) {
@@ -371,7 +416,7 @@ class LiveSourceManager {
           outcome: response.statusCode != 200 ? 'http_status' : 'oversized',
           httpStatus: response.statusCode, bodyBytes: bytes,
           mimeKind: mime, elapsedMs: timer.elapsedMilliseconds,
-          headerCount: headers.length));
+          headerCount: headers.length), requestUri: playlistUri);
         return null;
       }
       final snapshot = LivePlaylistSnapshot.parse(response.body);
@@ -380,7 +425,7 @@ class LiveSourceManager {
           phase: 'playlist', outcome: 'invalid_manifest',
           httpStatus: response.statusCode, bodyBytes: bytes,
           mimeKind: mime, elapsedMs: timer.elapsedMilliseconds,
-          headerCount: headers.length));
+          headerCount: headers.length), requestUri: playlistUri);
         return null;
       }
       if (snapshot.isMaster) {
@@ -391,13 +436,13 @@ class LiveSourceManager {
             .where((line) => line.isNotEmpty && !line.startsWith('#'))
             .take(3);
         for (final variant in variants) {
-          final child = uri.resolve(variant);
+          final child = playlistUri.resolve(variant);
           if (child.scheme != 'https' && child.scheme != 'http') continue;
           try {
-            final nested = await (probeClientOverride?.get(
-                child, headers: headers) ??
-                http.get(child, headers: headers))
-                .timeout(const Duration(seconds: 5));
+            final nestedFetch = await _fetchHls(
+                child, headers, const Duration(seconds: 5));
+            final nested = nestedFetch.response;
+            final effectiveChild = nestedFetch.uri;
             final childSnapshot = nested.statusCode == 200 &&
                     nested.bodyBytes.length <= 262144
                 ? LivePlaylistSnapshot.parse(nested.body) : null;
@@ -415,9 +460,9 @@ class LiveSourceManager {
                 return clean.isNotEmpty && !clean.startsWith('#');
               }).length,
               elapsedMs: timer.elapsedMilliseconds,
-              headerCount: headers.length), requestUri: child);
+              headerCount: headers.length), requestUri: effectiveChild);
             if (childSnapshot != null && !childSnapshot.isMaster) {
-              _rememberFirstSegment(source, child, nested.body);
+              _rememberFirstSegment(source, effectiveChild, nested.body);
               return childSnapshot;
             }
           } on TimeoutException {
@@ -435,7 +480,7 @@ class LiveSourceManager {
         }
         return null;
       }
-      _rememberFirstSegment(source, uri, response.body);
+      _rememberFirstSegment(source, playlistUri, response.body);
       _captureProbe(source, LiveSourceProbe(
         phase: 'playlist', outcome: 'ok',
         httpStatus: response.statusCode, bodyBytes: bytes,
@@ -445,7 +490,7 @@ class LiveSourceManager {
           return clean.isNotEmpty && !clean.startsWith('#');
         }).length,
         elapsedMs: timer.elapsedMilliseconds,
-        headerCount: headers.length));
+        headerCount: headers.length), requestUri: playlistUri);
       return snapshot;
     } on TimeoutException {
       _captureProbe(source, LiveSourceProbe(

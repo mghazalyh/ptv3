@@ -83,6 +83,36 @@ void main() {
     ]);
   });
 
+  test('Verified backup ranks before stalled video in the unstable tier', () {
+    Movie channel(String name) => Movie(
+      id: 'nltv:us:${name}.us', name: name, type: 'tv',
+      addonBaseUrl: 'https://example.test',
+    );
+    final stalled = channel('Stalled');
+    final slowBackup = channel('SlowBackup');
+    final fastBackup = channel('FastBackup');
+    final reachable = channel('Reachable');
+    final sorted = LiveChannelHealthScanner.sortedByHealth(
+      [stalled, slowBackup, reachable, fastBackup],
+      {
+        stalled.id: const LiveChannelHealthResult(
+          LiveChannelHealth.unstable, 1, 'native_rendered_but_stalled',
+          nativeChecked: true),
+        slowBackup.id: const LiveChannelHealthResult(
+          LiveChannelHealth.unstable, 2, 'native_backup_verified',
+          nativeChecked: true, playableSourceIndex: 1, startupMs: 4200),
+        fastBackup.id: const LiveChannelHealthResult(
+          LiveChannelHealth.unstable, 2, 'native_backup_verified',
+          nativeChecked: true, playableSourceIndex: 1, startupMs: 2100),
+        reachable.id: const LiveChannelHealthResult(
+          LiveChannelHealth.likelyReachable, 1,
+          'segment_reachable_not_decoded'),
+      },
+    );
+    expect(sorted.map((movie) => movie.name).toList(),
+      ['FastBackup', 'SlowBackup', 'Stalled', 'Reachable']);
+  });
+
   test('Equal native grades are ordered by startup then original order', () {
     final a = Movie(id: 'nltv:us:A.us', name: 'A', type: 'tv',
       addonBaseUrl: 'https://example.test');

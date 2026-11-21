@@ -94,7 +94,14 @@ abstract final class LiveChannelHealthScanner {
       final byHealth = healthPriority(ar?.health)
           .compareTo(healthPriority(br?.health));
       if (byHealth != 0) return byHealth;
-      if (ar?.nativeVerified == true && br?.nativeVerified == true) {
+      // Both a working backup and a rendered-but-stalled source use the
+      // unstable grade. Only the former has verified moving native video.
+      // Rank the proven backup ahead of the stalled channel, regardless of
+      // its original catalog position.
+      final aVerified = ar?.nativeVerified == true;
+      final bVerified = br?.nativeVerified == true;
+      if (aVerified != bVerified) return aVerified ? -1 : 1;
+      if (aVerified && bVerified) {
         final byStartup = (ar?.startupMs ?? 999999)
             .compareTo(br?.startupMs ?? 999999);
         if (byStartup != 0) return byStartup;

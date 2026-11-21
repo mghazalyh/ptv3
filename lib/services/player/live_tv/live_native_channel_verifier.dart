@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
@@ -10,7 +11,7 @@ import '../player_settings.dart';
 import 'live_source_manager.dart';
 import 'live_stream_detector.dart';
 
-/// A bounded, single-source real decoder test. HTTP 200/206 is NEVER a pass.
+/// A callback for explicit owner-requested, native decoded frame sampling.\n/// Bytes remain transient; the caller controls image sanitization and export.\ntypedef LiveNativeFrameObserver = Future<bool> Function(\n    Uint8List frame, int positionMs);\n\n/// A bounded, single-source real decoder test. HTTP 200/206 is NEVER a pass.
 /// The video output must be initialized for media_kit to decode actual frames.
 @immutable
 class LiveNativeSourceResult {
@@ -22,6 +23,7 @@ class LiveNativeSourceResult {
     this.videoHeight,
     this.trackCount,
     this.startupMs,
+    this.capturedFrameCount = 0,
     this.cancelled = false,
   });
 
@@ -32,6 +34,7 @@ class LiveNativeSourceResult {
   final int? videoHeight;
   final int? trackCount;
   final int? startupMs;
+  /// Successfully delivered callback frames, not a content classification.\n  final int capturedFrameCount;
   final bool cancelled;
 
   bool get sustainedStart =>
@@ -60,6 +63,8 @@ abstract final class LiveNativeChannelVerifier {
     required String channelId,
     required StreamSource source,
     required bool Function() isCancelled,
+    LiveNativeFrameObserver? onFrame,
+    int maxFrames = 0,
   }) async {
     final override = probeOverride;
     if (override != null) return override(channelId, source, isCancelled);
@@ -84,6 +89,9 @@ abstract final class LiveNativeChannelVerifier {
     int? firstPositionMs;
     int? startupMs;
     var stalled = true;
+    var framesObserved = 0;
+    var nextFramePositionMs = 1000;
+    final frameLimit = onFrame == null ? 0 : maxFrames.clamp(0, 2).toInt();
     final clock = Stopwatch()..start();
 
     try {
@@ -199,7 +207,7 @@ abstract final class LiveNativeChannelVerifier {
             videoWidth > 0 && videoHeight > 0 && trackCount > 0) {
           startupMs = clock.elapsedMilliseconds;
         }
-        if (firstFrameRendered && movementMs >= 5000 &&
+        // Visual evidence is opt-in. Capture only after the decoder reports\n        // real video dimensions, native tracks and a moving timeline.\n        if (frameLimit > framesObserved && firstFrameRendered &&\n            videoWidth > 0 && videoHeight > 0 && trackCount > 0 &&\n            !stalled && movementMs >= nextFramePositionMs &&\n            !isCancelled()) {\n          try {\n            final bytes = await player.screenshot()\n                .timeout(const Duration(seconds: 3));\n            if (bytes != null && bytes.isNotEmpty &&\n                bytes.length <= 8 * 1024 * 1024) {\n              final stored = await onFrame!(bytes, currentPosition)\n                  .timeout(const Duration(seconds: 5));\n              if (stored) {\n                framesObserved++;\n                nextFramePositionMs += 3000;\n              } else {\n                nextFramePositionMs += 1000;\n              }\n            }\n          } catch (error) {\n            debugPrint('[LiveNativeScan] Visual frame: ' +\n                error.runtimeType.toString());\n            nextFramePositionMs += 1000;\n          }\n        }\n        if (firstFrameRendered && movementMs >= 5000 &&
             videoWidth > 0 && videoHeight > 0 &&
             trackCount > 0 && !stalled) {
           return LiveNativeSourceResult(
@@ -210,6 +218,7 @@ abstract final class LiveNativeChannelVerifier {
             videoHeight: videoHeight,
             trackCount: trackCount,
             startupMs: startupMs,
+            capturedFrameCount: framesObserved,
           );
         }
       }
@@ -236,6 +245,7 @@ abstract final class LiveNativeChannelVerifier {
       videoHeight: videoHeight,
       trackCount: trackCount,
       startupMs: startupMs,
+      capturedFrameCount: framesObserved,
     );
   }
 }

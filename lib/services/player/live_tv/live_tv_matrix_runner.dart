@@ -48,6 +48,8 @@ class LiveTvMatrixRunner {
   int _channelsDone = 0;
   int _sourcesDone = 0;
   int _verifiedSources = 0;
+  int _requestedSourcesVerified = 0;
+  int _failoverPlaybackSessions = 0;
   int _uploadFailures = 0;
   int _totalChannels = 0;
   int _uniqueChannels = 0;
@@ -67,7 +69,12 @@ class LiveTvMatrixRunner {
     'distinctSourceHosts': _observedHosts.length,
     'hostDiversityTargetMet': _observedHosts.length >= 10,
     'sourcesDone': _sourcesDone,
+    // Legacy field counted sustained playback even after automatic failover.
+    // Preserve it for old dashboards but publish unambiguous attribution.
     'verifiedSources': _verifiedSources,
+    'sustainedPlaybackSessions': _verifiedSources,
+    'requestedSourcesVerified': _requestedSourcesVerified,
+    'failoverPlaybackSessions': _failoverPlaybackSessions,
     'uploadFailures': _uploadFailures,
     'lastChannel': _lastChannel,
     'lastFailure': _lastFailure,
@@ -137,6 +144,8 @@ class LiveTvMatrixRunner {
       _channelsDone = 0;
       _sourcesDone = 0;
       _verifiedSources = 0;
+      _requestedSourcesVerified = 0;
+      _failoverPlaybackSessions = 0;
       _uploadFailures = 0;
       _uniqueChannels = channels.length;
       _repeatCount = repeats;
@@ -315,7 +324,16 @@ class LiveTvMatrixRunner {
                   result['finalSourceHost'] = finalHost;
                   result['requestedSourceVerified'] =
                       verified && requestedSourceStayedActive;
-                  if (verified) _verifiedSources++;
+                  result['sustainedAfterFailover'] =
+                      verified && !requestedSourceStayedActive;
+                  if (verified) {
+                    _verifiedSources++;
+                    if (requestedSourceStayedActive) {
+                      _requestedSourcesVerified++;
+                    } else {
+                      _failoverPlaybackSessions++;
+                    }
+                  }
                 } else {
                   result['sustainedPlayback'] = false;
                 }

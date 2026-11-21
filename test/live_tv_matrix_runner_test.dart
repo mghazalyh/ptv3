@@ -63,6 +63,9 @@ void main() {
     expect(runner.status()['channelsDone'], 50);
     expect(runner.status()['sourcesDone'], 50);
     expect(runner.status()['verifiedSources'], 50);
+    expect(runner.status()['sustainedPlaybackSessions'], 50);
+    expect(runner.status()['requestedSourcesVerified'], 50);
+    expect(runner.status()['failoverPlaybackSessions'], 0);
     expect(published['candidate_0_0']?['sustainedPlayback'], true);
   });
 
@@ -208,6 +211,10 @@ void main() {
       },
     );
     await runner.whenComplete;
+    expect(runner.status()['sustainedPlaybackSessions'], 100);
+    expect(runner.status()['requestedSourcesVerified'], 50);
+    expect(runner.status()['failoverPlaybackSessions'], 50);
+    expect(results['candidate_0_0']?['sustainedAfterFailover'], true);
     expect(results['candidate_0_0']?['sustainedPlayback'], true);
     expect(results['candidate_0_0']?['sourceSwitchedBeforeSample'], true);
     expect(results['candidate_0_0']?['requestedSourceVerified'], false);
@@ -251,6 +258,10 @@ void main() {
       },
     );
     await runner.whenComplete;
+    expect(runner.status()['sustainedPlaybackSessions'], 100);
+    expect(runner.status()['requestedSourcesVerified'], 50);
+    expect(runner.status()['failoverPlaybackSessions'], 50);
+    expect(results['candidate_0_0']?['sustainedAfterFailover'], true);
     expect(results['candidate_0_0']?['sustainedPlayback'], true);
     expect(results['candidate_0_0']?['sourceSwitchedBeforeSample'], false);
     expect(results['candidate_0_0']?['requestedSourceVerified'], false);

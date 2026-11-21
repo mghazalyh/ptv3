@@ -42,6 +42,11 @@ jobs:
           flutter --version
           flutter pub get
 
+      - name: Verify remote controller Dart source integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/check_ios_remote_source_integrity.py
       - name: Analyze iOS entrypoint, Live TV, remote handoff and Stremio clients
         shell: bash
         run: |

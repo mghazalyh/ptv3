@@ -47,6 +47,7 @@ import './services/remote/github_diagnostic_control.dart';
 import './services/remote/github_stremio_addon_probe.dart';
 import './services/player/live_tv/live_tv_experiment_policy.dart';
 import './services/player/live_tv/live_tv_matrix_runner.dart';
+import './services/player/live_tv/live_verified_source_preference.dart';
 import './services/stream/stream_service.dart';
 import './services/metadata/metadata_service.dart';
 import './models/movie/movie.dart';
@@ -500,8 +501,10 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
         final sources = await StreamService.fetchStreams(
           type: 'tv', id: request.mediaId, title: request.title,
         ).take(36).toList().timeout(const Duration(seconds: 22));
-        final playable = sources.where(
-            StreamService.isEligibleLiveStreamSource).toList();
+        final playable = LiveVerifiedSourcePreference.prioritize(
+          request.mediaId,
+          sources.where(StreamService.isEligibleLiveStreamSource),
+        );
         if (playable.isEmpty) {
           return <String, Object?>{
             'accepted': false, 'reason': 'no_direct_live_sources',
@@ -549,17 +552,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
       );
       final isEpisode = request.type == 'series' || request.type == 'anime';
       final episodes = detail.videos;
-      final requestedEpisodeId = request.episodeId;
-      final episode = isEpisode
-          ? (requestedEpisodeId != null
-              ? episodes.where((ep) =>
-                    ep.id == requestedEpisodeId &&
-                    (request.season == null ||
-                        ep.season == request.season) &&
-                    (request.episode == null ||
-                        ep.episode == request.episode)).firstOrNull
-              : episodes.isEmpty ? null : episodes.first)
-          : null;
+      final episode = isEpisode ? request.resolveEpisode(episodes) : null;
       if (isEpisode && episode == null) {
         return <String, Object?>{
           'accepted': false, 'reason': 'episode_not_in_verified_metadata',

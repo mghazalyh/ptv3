@@ -228,6 +228,31 @@ void main() {
     expect(result.label, 'Unstable');
   });
 
+  test('Native probe exception invalidates a previously verified URL',
+      () async {
+    final stale = StreamSource(
+      url: 'https://example.test/stale.m3u8', addonName: 'TV');
+    final other = StreamSource(
+      url: 'https://example.test/other.m3u8', addonName: 'TV');
+    LiveVerifiedSourcePreference.remember(
+      channelId: channel.id, verifiedSource: stale);
+    expect(LiveVerifiedSourcePreference.prioritize(
+        channel.id, [other, stale]).first.url, stale.url);
+    LiveNativeChannelVerifier.probeOverride = (_, __, ___) async {
+      throw const FormatException('native decoder unavailable');
+    };
+    final result = await LiveChannelHealthScanner.verifyNative(
+      channel,
+      LiveChannelHealthResult(
+        LiveChannelHealth.likelyReachable, 1,
+        'segment_reachable_not_decoded', sources: [stale]),
+      isCancelled: () => false);
+    expect(result.health, LiveChannelHealth.poor);
+    expect(result.nativeAttempts, 1);
+    expect(LiveVerifiedSourcePreference.prioritize(
+        channel.id, [other, stale]).first.url, other.url);
+  });
+
   test('Cancelled native scan preserves provisional result', () async {
     final candidate = StreamSource(
       url: 'https://example.test/one.m3u8', addonName: 'TV');

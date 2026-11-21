@@ -248,6 +248,9 @@ abstract final class LiveChannelHealthScanner {
         LiveVerifiedSourcePreference.invalidate(channel.id, source);
         if (native.renderedVideo) sawRenderedButUnstable = true;
       } catch (error) {
+        // A native decoder exception is a failed attempt too. A formerly
+        // verified URL must not remain preferred after this failure.
+        LiveVerifiedSourcePreference.invalidate(channel.id, source);
         debugPrint('[LiveHealthScan] MPV candidate: ' +
             error.runtimeType.toString());
       }

@@ -53,7 +53,7 @@ void main() {
         required String channelId,
         required StreamSource source,
         required bool Function() isCancelled,
-        onFrame,
+        Future<bool> Function(Uint8List, int)? onFrame,
         required int maxFrames,
       }) async {
         expect(channelId, 'nltv:us:OpaqueChannel.us');
@@ -113,7 +113,7 @@ void main() {
         required String channelId,
         required StreamSource source,
         required bool Function() isCancelled,
-        onFrame,
+        Future<bool> Function(Uint8List, int)? onFrame,
         required int maxFrames,
       }) async {
         final observe = onFrame;

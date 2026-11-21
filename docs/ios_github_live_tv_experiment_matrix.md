@@ -122,11 +122,12 @@ invalid IDs and channels not supported by the same installed stream addon.
   "seed":1207,
   "sampleSeconds":15,
   "sustainSeconds":300,
-  "maxSources":36
+  "maxSources":36,
+  "repeats":3
 }}
 ```
 
-At least 50 distinct **real installed-addon** channel IDs are required.
+At least 50 distinct **real installed-addon** channel IDs are required. By default each channel is opened for **three separate attempts**; within each attempt, every advertised source is checked (up to the cap). The 50 unique channel IDs therefore produce at least 150 channel rounds. Source provider diversity is reported as observed distinct source hostnames. Hostname diversity is not absolute provider diversity.
 The runner randomizes the audit order deterministically, with Cine Romántico
 as a working-source regression control when found. It opens every selected
 source up to the configured max, samples decoded media state three times,

@@ -6,6 +6,7 @@ void main() {
   Map<String, dynamic> plan({int count = 50}) => {
     'runId': 'matrix_trial_2026',
     'seed': 19,
+    'repeats': 1,
     'channels': List.generate(count, (index) => {
       'id': 'nltv:us:Channel' + index.toString(),
       'title': 'Channel ' + index.toString(),
@@ -151,6 +152,29 @@ void main() {
     expect(runner.status()['phase'], 'completed');
     expect(runner.status()['channelsDone'], 50);
     expect(runner.status()['verifiedSources'], 0);
+  });
+
+  test('Default full matrix repeats each distinct channel three times',
+      () async {
+    final runner = LiveTvMatrixRunner(wait: (_) async {});
+    final repeatedPlan = plan()..remove('repeats');
+    final started = await runner.start(repeatedPlan,
+      open: (id, title, sourceIndex) async =>
+          {'accepted': false, 'sourceCount': 1,
+           'sourceHost': 'provider.test'},
+      inspect: () async => {},
+      publish: (a, b, c) async {},
+    );
+    expect(started['accepted'], true);
+    await runner.whenComplete;
+    expect(runner.status()['phase'], 'completed');
+    expect(runner.status()['uniqueChannels'], 50);
+    expect(runner.status()['repeatCount'], 3);
+    expect(runner.status()['totalChannels'], 150);
+    expect(runner.status()['channelsDone'], 150);
+    expect(runner.status()['sourcesDone'], 150);
+    expect(runner.status()['distinctSourceHosts'], 1);
+    expect(runner.status()['hostDiversityTargetMet'], false);
   });
 
 }

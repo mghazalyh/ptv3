@@ -294,6 +294,8 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
                   'sustainSeconds': args['sustainSeconds'],
                 if (args.containsKey('maxSources'))
                   'maxSources': args['maxSources'],
+                if (args.containsKey('repeats'))
+                  'repeats': args['repeats'],
               });
         case 'start_live_matrix':
           return await _liveMatrix.start(args,

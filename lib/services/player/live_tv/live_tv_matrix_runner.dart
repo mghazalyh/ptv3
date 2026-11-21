@@ -50,6 +50,9 @@ class LiveTvMatrixRunner {
   int _verifiedSources = 0;
   int _uploadFailures = 0;
   int _totalChannels = 0;
+  int _uniqueChannels = 0;
+  int _repeatCount = 1;
+  final Set<String> _observedHosts = <String>{};
   String? _lastChannel;
   String? _lastFailure;
 
@@ -59,6 +62,10 @@ class LiveTvMatrixRunner {
     'phase': _phase,
     'channelsDone': _channelsDone,
     'totalChannels': _totalChannels,
+    'uniqueChannels': _uniqueChannels,
+    'repeatCount': _repeatCount,
+    'distinctSourceHosts': _observedHosts.length,
+    'hostDiversityTargetMet': _observedHosts.length >= 10,
     'sourcesDone': _sourcesDone,
     'verifiedSources': _verifiedSources,
     'uploadFailures': _uploadFailures,
@@ -87,7 +94,7 @@ class LiveTvMatrixRunner {
     try {
       if (args.keys.any((key) => !const <String>{
             'runId', 'channels', 'seed', 'sampleSeconds',
-            'sustainSeconds', 'maxSources',
+            'sustainSeconds', 'maxSources', 'repeats',
           }.contains(key))) throw const FormatException('Unknown option');
       final rawRun = args['runId'];
       if (rawRun is! String ||
@@ -113,6 +120,7 @@ class LiveTvMatrixRunner {
       final sampleSeconds = bounded('sampleSeconds', 15, 10, 90);
       final sustainSeconds = bounded('sustainSeconds', 300, 300, 900);
       final maxSources = bounded('maxSources', 36, 1, 36);
+      final repeats = bounded('repeats', 3, 1, 3);
       final random = Random(seed);
       // Stable shuffling, with known-good control always first if provided.
       final control = channels.where((item) =>
@@ -120,6 +128,9 @@ class LiveTvMatrixRunner {
       final other = channels.where((item) =>
           item.id != 'nltv:us:CineRomantico.us').toList()..shuffle(random);
       final ordered = <LiveMatrixChannel>[...control, ...other];
+      final expanded = <LiveMatrixChannel>[
+        for (var repeat = 0; repeat < repeats; repeat++) ...ordered,
+      ];
       _runId = rawRun;
       _phase = 'running';
       _cancelled = false;
@@ -127,10 +138,13 @@ class LiveTvMatrixRunner {
       _sourcesDone = 0;
       _verifiedSources = 0;
       _uploadFailures = 0;
-      _totalChannels = channels.length;
+      _uniqueChannels = channels.length;
+      _repeatCount = repeats;
+      _totalChannels = expanded.length;
+      _observedHosts.clear();
       _lastChannel = null;
       _lastFailure = null;
-      _job = _run(ordered, sampleSeconds, sustainSeconds, maxSources,
+      _job = _run(expanded, sampleSeconds, sustainSeconds, maxSources,
           open, inspect, publish);
       return status();
     } catch (error) {
@@ -175,7 +189,8 @@ class LiveTvMatrixRunner {
             'runId': _runId,
             'channelId': channel.id,
             'title': channel.title,
-            'channelIndex': index,
+            'channelIndex': index % _uniqueChannels,
+            'repeatIndex': index ~/ _uniqueChannels,
             'requestedSourceIndex': sourceIndex,
           };
           try {
@@ -186,6 +201,10 @@ class LiveTvMatrixRunner {
             }
             result['accepted'] = accepted;
             result['requestedSourceHost'] = opened['sourceHost'];
+            final initialHost = opened['sourceHost'];
+            if (initialHost is String && initialHost.isNotEmpty) {
+              _observedHosts.add(initialHost);
+            }
             result['availableSources'] = sourceCount;
             if (accepted) {
               final samples = <Map<String, Object?>>[];
@@ -216,10 +235,17 @@ class LiveTvMatrixRunner {
                     last['playing'] == true && last['buffering'] == false;
                 result['candidateVideo'] = prelim;
                 result['activeSourceHost'] = last['activeSourceHost'];
+                final activeHost = last['activeSourceHost'];
+                if (activeHost is String && activeHost.isNotEmpty) {
+                  _observedHosts.add(activeHost);
+                }
+                result['sourceSwitchedBeforeSample'] =
+                    activeHost != initialHost;
                 result['httpRelayActive'] = last['httpRelayActive'];
                 result['httpRelayAttempted'] = last['httpRelayAttempted'];
                 result['nativeFormat'] = last['nativeFormat'];
-                result['nativeFailureCounts'] = last['nativeFailureCounts'];
+                result['sessionNativeFailureCounts'] =
+                    last['nativeFailureCounts'];
                 result['videoWidth'] = width;
                 result['videoHeight'] = height;
                 result['trackCount'] = tracks;
@@ -229,7 +255,7 @@ class LiveTvMatrixRunner {
                 result['experimentId'] = last['experimentId'];
                 if (prelim) {
                   var elapsed = 0;
-                  var previousPosition = pos as int;
+                  var previousPosition = pos;
                   Object? finalPosition = pos;
                   var finalHost = last['activeSourceHost'];
                   var stable = true;
@@ -246,6 +272,9 @@ class LiveTvMatrixRunner {
                         : <String, Object?>{};
                     finalPosition = ending['positionMs'];
                     finalHost = ending['activeSourceHost'];
+                    if (finalHost is String && finalHost.isNotEmpty) {
+                      _observedHosts.add(finalHost);
+                    }
                     final currentTracks = ending['trackCount'];
                     final currentWidth = ending['videoWidth'];
                     final currentHeight = ending['videoHeight'];
@@ -265,7 +294,7 @@ class LiveTvMatrixRunner {
                     sustainedSamples++;
                   }
                   final longEnough = finalPosition is int &&
-                      finalPosition - (pos as int) >
+                      finalPosition - pos >
                           sustainSeconds * 350;
                   final verified = !_cancelled && stable &&
                       elapsed == sustainSeconds && longEnough;

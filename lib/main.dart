@@ -45,6 +45,7 @@ import './services/remote/lan_remote_service.dart';
 import './services/remote/lan_cast_request.dart';
 import './services/remote/unattended_test_activity.dart';
 import './services/remote/ios_remote_diagnostic_inventory.dart';
+import './services/remote/ios_adhoc_diagnostic_plan.dart';
 import './widgets/remote/unattended_test_indicator.dart';
 import './services/remote/github_diagnostic_control.dart';
 import './services/remote/github_stremio_addon_probe.dart';
@@ -280,6 +281,26 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
         case 'addon_inventory':
           return IosRemoteDiagnosticInventory.addons(
             AddonManager.instance.addons);
+        case 'diagnostic_plan':
+          return await IosAdhocDiagnosticPlan.run(
+            args,
+            matrixRunning: () =>
+                _liveMatrix.status()['phase'] == 'running',
+            dispatch: (action, parameters) =>
+                _dispatchGithubDiagnostic(action, parameters),
+          );
+        case 'test_indicator':
+          if (args.length != 1 || args['visible'] is! bool) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_indicator_setting',
+            };
+          }
+          UnattendedTestActivity.instance
+              .setIndicatorEnabled(args['visible'] as bool);
+          return <String, Object?>{
+            'accepted': true,
+            'onDevice': UnattendedTestActivity.instance.snapshot.value.toJson(),
+          };
         case 'test_status':
           return <String, Object?>{
             'accepted': true,
@@ -874,7 +895,9 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
               if (Platform.isIOS)
                 Positioned(top: 0, left: 0, right: 0,
                   child: UnattendedTestIndicator(
-                    activity: UnattendedTestActivity.instance.snapshot)),
+                    activity: UnattendedTestActivity.instance.snapshot,
+                    onDismiss: () => UnattendedTestActivity.instance
+                        .setIndicatorEnabled(false))),
             ],
           ),
           home: const HomePage(),

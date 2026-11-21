@@ -40,6 +40,43 @@ void main() {
     expect(find.text('LIVE TV TEST RUNNING'), findsNothing);
   });
 
+  testWidgets('Close hides indicator without stopping the active test',
+      (tester) async {
+    final notifier = ValueNotifier<UnattendedTestSnapshot>(
+      const UnattendedTestSnapshot(
+        phase: 'running', runId: 'matrix_hide',
+        channelsDone: 4, totalChannels: 50,
+      ),
+    );
+    addTearDown(notifier.dispose);
+    var playerTaps = 0;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: Stack(
+      children: [
+        Positioned.fill(child: ElevatedButton(
+          onPressed: () => playerTaps++,
+          child: const Text('Player surface'),
+        )),
+        Positioned(top: 0, left: 0, right: 0,
+          child: UnattendedTestIndicator(
+            activity: notifier,
+            onDismiss: () => notifier.value =
+                notifier.value.withIndicatorEnabled(false),
+          ),
+        ),
+      ],
+    ))));
+    expect(find.text('LIVE TV TEST RUNNING'), findsOneWidget);
+    await tester.tap(find.byTooltip('Hide test indicator'));
+    await tester.pump();
+    expect(find.text('LIVE TV TEST RUNNING'), findsNothing);
+    expect(notifier.value.isRunning, isTrue);
+    await tester.tap(find.text('Player surface'));
+    expect(playerTaps, 1);
+    notifier.value = notifier.value.withIndicatorEnabled(true);
+    await tester.pump();
+    expect(find.text('LIVE TV TEST RUNNING'), findsOneWidget);
+  });
+
   testWidgets('Native decoder test has its own truthful label',
       (tester) async {
     final notifier = ValueNotifier<UnattendedTestSnapshot>(

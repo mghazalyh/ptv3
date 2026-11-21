@@ -2,11 +2,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../services/remote/unattended_test_activity.dart';
 
-/// Noninteractive, globally persistent on-device testing indicator.
+/// Dismissible on-device test progress; only its close button takes taps.
 class UnattendedTestIndicator extends StatelessWidget {
-  const UnattendedTestIndicator({super.key, required this.activity});
+  const UnattendedTestIndicator({
+    super.key,
+    required this.activity,
+    this.onDismiss,
+  });
 
   final ValueListenable<UnattendedTestSnapshot> activity;
+  final VoidCallback? onDismiss;
 
   @override
   Widget build(BuildContext context) =>
@@ -21,7 +26,7 @@ class UnattendedTestIndicator extends StatelessWidget {
               ? 'STOPPING LIVE TV TEST'
               : 'LIVE TV TEST RUNNING';
       return IgnorePointer(
-        ignoring: true,
+        ignoring: onDismiss == null,
         child: SafeArea(
           bottom: false,
           child: Align(
@@ -71,6 +76,22 @@ class UnattendedTestIndicator extends StatelessWidget {
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,
                                 decoration: TextDecoration.none),
+                          ),
+                        ],
+                        if (onDismiss != null) ...[
+                          const SizedBox(width: 4),
+                          Material(
+                            type: MaterialType.transparency,
+                            child: IconButton(
+                            tooltip: 'Hide test indicator',
+                            onPressed: onDismiss,
+                            icon: const Icon(Icons.close, size: 15,
+                                color: Colors.white),
+                            constraints: const BoxConstraints(
+                                minWidth: 28, minHeight: 28),
+                            padding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.compact,
+                            ),
                           ),
                         ],
                       ]),

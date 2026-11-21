@@ -20,6 +20,8 @@ void main() {
     expect(info['readOnly'], contains('test_status'));
     expect(info['boundedTests'], contains('probe_native_channel'));
     expect(info['playbackChanging'], contains('open_channel'));
+    expect(info['uiOnly'], contains('test_indicator'));
+    expect(info['declarativePlans'], contains('diagnostic_plan'));
   });
 
   test('Addon inventory never exposes authentication or private paths', () {

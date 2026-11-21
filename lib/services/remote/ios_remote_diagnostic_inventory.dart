@@ -22,7 +22,14 @@ abstract final class IosRemoteDiagnosticInventory {
       'start_live_matrix', 'cancel_live_matrix',
     ],
     'playbackChanging': const ['open_channel', 'remote', 'player'],
-    'indicator': 'automatic_from_device_matrix_and_native_probe',
+    'indicator': 'dismissible_and_remotely_toggleable',
+    'uiOnly': const ['test_indicator'],
+    'declarativePlans': const ['diagnostic_plan'],
+    'planLimits': const {
+      'maxSteps': 20,
+      'maxExecutions': 30,
+      'requiresOptInForPlaybackCommands': true,
+    },
   };
 
   static Map<String, Object?> addons(Iterable<InstalledAddon> addons) {

@@ -28,6 +28,37 @@ void main() {
     expect(activity.snapshot.value.isVisible, false);
   });
 
+  test('Indicator can be hidden and shown while matrix continues', () {
+    final activity = UnattendedTestActivity.instance;
+    activity.updateMatrix({
+      'phase': 'running', 'runId': 'matrix_toggle_1',
+      'channelsDone': 2, 'totalChannels': 50,
+    });
+    expect(activity.snapshot.value.isVisible, isTrue);
+    activity.setIndicatorEnabled(false);
+    expect(activity.snapshot.value.isVisible, isFalse);
+    expect(activity.snapshot.value.channelsDone, 2);
+    activity.updateMatrix({
+      'phase': 'running', 'runId': 'matrix_toggle_1',
+      'channelsDone': 3, 'totalChannels': 50,
+    });
+    expect(activity.snapshot.value.isVisible, isFalse);
+    expect(activity.snapshot.value.channelsDone, 3);
+    activity.setIndicatorEnabled(true);
+    expect(activity.snapshot.value.isVisible, isTrue);
+    activity.updateMatrix({
+      'phase': 'completed', 'runId': 'matrix_toggle_1',
+      'channelsDone': 50, 'totalChannels': 50,
+    });
+    expect(activity.snapshot.value.isVisible, isFalse);
+    activity.updateMatrix({
+      'phase': 'running', 'runId': 'matrix_toggle_2',
+      'channelsDone': 0, 'totalChannels': 50,
+    });
+    expect(activity.snapshot.value.isVisible, isTrue);
+    activity.updateMatrix({'phase': 'idle'});
+  });
+
   test('Malformed counts cannot produce false progress or crash', () {
     final parsed = UnattendedTestSnapshot.fromMatrix({
       'phase': 'running', 'channelsDone': -12,

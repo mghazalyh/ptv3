@@ -15,10 +15,10 @@ not active on build 262. No workflow here requests an IPA build.
 
 ## Visual test indicator
 
-The iOS `MaterialApp.builder` renders a compact, pointer-transparent badge
+The iOS `MaterialApp.builder` renders a compact badge with a close button
 above the navigator. It follows the **actual local matrix runner** and thus
-survives playback route transitions. It never changes playback or captures
-touches. It appears only for a running native matrix or one idle-only native
+survives playback route transitions. It never changes playback; only its
+close button captures taps. The rest of the player remains interactive. It appears only for a running native matrix or one idle-only native
 source test.
 
 For a matrix it shows:
@@ -93,3 +93,50 @@ The command protocol remains opt-in, device-scoped, bounded and
 receipt-based. Source-only test runners must validate the exact next-release
 commit before IPA packaging. Physical iPad verification is still required
 after the owner installs that release.
+
+## Owner-requested control redesign, staged only
+
+The global iPad test indicator now has a close button. Dismissing it hides
+the display without cancelling or pausing the test. A later progress callback
+cannot unexpectedly reopen the dismissed indicator for the same run.
+A fresh native matrix/probe run shows the indicator again by default.
+The new `test_indicator` action accepts exactly `{"visible":true}` or
+`{"visible":false}` and can toggle it while the matrix is running;
+`test_status` shows the actual `indicatorEnabled` state.
+
+The `diagnostic_plan` action accepts a JSON sequence of preinstalled
+commands. This is a reusable capability installed *once*: future test recipes,
+assertions, repetitions and order changes arrive through Torriodb, not an
+IPA installation each time. It supports a dry run, up to 20 individual
+steps, 30 executions, up to three repetitions per step, nested response-field
+assertions, and a choice to stop after failure or collect later results.
+New unsupported actions are rejected before execution. A busy native
+matrix permits observational commands and UI toggling but rejects playback
+controls. Playback-changing plans require
+`"allowPlaybackChanges":true` and the matrix must remain idle.
+`player` is read-only within a plan only for `state` and `probe_live`.
+No nested plan or batch action is accepted.
+
+Example observational plan:
+
+```json
+{
+  "action": "diagnostic_plan",
+  "args": {
+    "dryRun": false,
+    "stopOnFailure": false,
+    "steps": [
+      {"action": "live_matrix_status", "expect": {"phase": "running"}},
+      {"action": "diagnostic_snapshot"},
+      {"action": "test_indicator", "args": {"visible": false}}
+    ]
+  }
+}
+```
+
+Actual Torriodb envelopes still require the existing `id`, `deviceId`
+and fresh `createdAtUtc`. Plans can be changed remotely at any time without
+changing app code, as long as the individual commands already exist.
+Completely new native methods still require a later installation.
+The additional addon-inventory privacy filter from commit `cf2e945d`
+was reverted in `7ba96bad`.

@@ -16,6 +16,7 @@ class UnattendedTestSnapshot {
     this.failoverPlaybackSessions = 0,
     this.uploadFailures = 0,
     this.cancelRequested = false,
+    this.indicatorEnabled = true,
   });
 
   final String phase;
@@ -28,9 +29,25 @@ class UnattendedTestSnapshot {
   final int failoverPlaybackSessions;
   final int uploadFailures;
   final bool cancelRequested;
+  final bool indicatorEnabled;
 
   bool get isRunning => phase == 'running';
-  bool get isVisible => isRunning;
+  bool get isVisible => isRunning && indicatorEnabled;
+  UnattendedTestSnapshot withIndicatorEnabled(bool enabled) =>
+      UnattendedTestSnapshot(
+        phase: phase,
+        runId: runId,
+        channelsDone: channelsDone,
+        totalChannels: totalChannels,
+        sourcesDone: sourcesDone,
+        sustainedPlaybackSessions: sustainedPlaybackSessions,
+        requestedSourcesVerified: requestedSourcesVerified,
+        failoverPlaybackSessions: failoverPlaybackSessions,
+        uploadFailures: uploadFailures,
+        cancelRequested: cancelRequested,
+        indicatorEnabled: enabled,
+      );
+
   double? get progress => totalChannels > 0
       ? (channelsDone / totalChannels).clamp(0.0, 1.0).toDouble()
       : null;
@@ -61,6 +78,7 @@ class UnattendedTestSnapshot {
     'phase': phase,
     'runId': runId,
     'visible': isVisible,
+    'indicatorEnabled': indicatorEnabled,
     'channelsDone': channelsDone,
     'totalChannels': totalChannels,
     'sourcesDone': sourcesDone,
@@ -84,11 +102,22 @@ class UnattendedTestActivity {
 
   void updateMatrix(Map<String, Object?> status) {
     try {
-      snapshot.value = UnattendedTestSnapshot.fromMatrix(status);
+      final next = UnattendedTestSnapshot.fromMatrix(status);
+      final previous = snapshot.value;
+      final sameRun = next.isRunning && previous.isRunning &&
+          next.runId != null && next.runId == previous.runId;
+      snapshot.value = sameRun
+          ? next.withIndicatorEnabled(previous.indicatorEnabled)
+          : next;
     } catch (error) {
       debugPrint('[UnattendedTestActivity] Status update failed: '
           '${error.runtimeType}');
     }
+  }
+
+  /// UI preference only. This never cancels, pauses or changes playback.
+  void setIndicatorEnabled(bool enabled) {
+    snapshot.value = snapshot.value.withIndicatorEnabled(enabled);
   }
 
   void beginNativeProbe(String channelId) {

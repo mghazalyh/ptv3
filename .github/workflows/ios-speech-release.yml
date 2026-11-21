@@ -225,6 +225,8 @@ jobs:
           flutter test test/live_verified_source_learning_gate_test.dart
           flutter test test/live_unattended_native_probe_request_test.dart
           flutter test test/unattended_test_activity_test.dart
+          flutter analyze --no-pub --no-fatal-infos lib/services/remote/ios_adhoc_diagnostic_plan.dart
+          flutter test test/ios_adhoc_diagnostic_plan_test.dart
           flutter test test/unattended_test_indicator_widget_test.dart
           flutter test test/ios_remote_diagnostic_inventory_test.dart
           flutter test test/lan_cast_request_test.dart

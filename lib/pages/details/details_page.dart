@@ -22,6 +22,7 @@ import '../player/watch_screen.dart';
 import '../../services/stream/source_availability_service.dart';
 import '../../services/player/player_debug_telemetry.dart';
 import '../../services/continue_watching/watched_history_service.dart';
+import '../../widgets/remote/play_on_ipad_sheet.dart';
 // ---------------------------------------------------------------------------
 // Design tokens
 // ---------------------------------------------------------------------------
@@ -190,6 +191,25 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     _relatedScrollController.dispose();
 
     super.dispose();
+  }
+
+  Future<void> _showOnIpad(Video? episode) async {
+    final detail = _detail;
+    if (detail == null) return;
+    try {
+      await PlayOnIpadSheet.show(context,
+        movie: Movie(
+          id: detail.id,
+          name: detail.name,
+          type: _resolvedType ?? detail.type,
+          poster: detail.poster,
+          addonBaseUrl: _resolvedBaseUrl ?? widget.movie.addonBaseUrl,
+        ),
+        episode: episode,
+      );
+    } catch (error) {
+      debugPrint('[Details] iPad handoff sheet: ${error.runtimeType}');
+    }
   }
 
   Future<void> _handlePlayAction(Video? ep) async {
@@ -1267,7 +1287,13 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   }
 
   Widget _buildPlayButton({required bool fullWidth}) {
-    return _HoverButton(
+    return GestureDetector(
+      onLongPress: PlayOnIpadSheet.supported ? () => _showOnIpad(
+        _currentSeasonEpisodes.isNotEmpty
+            ? _currentSeasonEpisodes.first
+            : (_detail?.videos.isNotEmpty == true
+                ? _detail!.videos.first : null)) : null,
+      child: _HoverButton(
       onTap: () => _handlePlayAction(
         _currentSeasonEpisodes.isNotEmpty
             ? _currentSeasonEpisodes.first
@@ -1293,6 +1319,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -1648,6 +1675,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                       episode: ep,
                       fallbackImageUrl: _detail?.background ?? _detail?.poster ?? widget.movie.poster,
                       onTap: () => _handlePlayAction(ep),
+                      onLongPress: () => _showOnIpad(ep),
                     ),
                   );
                 },
@@ -2125,9 +2153,10 @@ class _EpisodeCard extends StatefulWidget {
   final Video episode;
   final String? fallbackImageUrl;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   const _EpisodeCard({required this.mediaId, required this.episode,
-    this.fallbackImageUrl, this.onTap});
+    this.fallbackImageUrl, this.onTap, this.onLongPress});
 
   @override
   State<_EpisodeCard> createState() => _EpisodeCardState();
@@ -2147,6 +2176,8 @@ class _EpisodeCardState extends State<_EpisodeCard> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap ?? () {},
+        onLongPress: PlayOnIpadSheet.supported
+            ? widget.onLongPress : null,
         child: AnimatedScale(
           scale: _hovered ? 1.03 : 1.0,
           duration: const Duration(milliseconds: 200),
@@ -2188,6 +2219,13 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                             ),
                           ),
                         ),
+                        if (PlayOnIpadSheet.supported)
+                          const Positioned(bottom: 6, right: 7,
+                            child: Text('Hold · iPad', style: TextStyle(
+                              fontSize: 11, fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              shadows: [Shadow(blurRadius: 6,
+                                  color: Colors.black)]))),
                         Center(
                           child: AnimatedOpacity(
                             opacity: _hovered ? 1.0 : 0.0,

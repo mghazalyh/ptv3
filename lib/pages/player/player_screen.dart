@@ -4722,15 +4722,6 @@ class _PlayerScreenState extends State<PlayerScreen>
             ),
           ),
 
-        // Visible even when the ordinary media controls auto-hide.
-        if (_liveTv != null)
-          Positioned(
-            top: MediaQuery.paddingOf(context).top +
-                (_showControls ? 83 : 14),
-            right: MediaQuery.sizeOf(context).width < 680 ? 12 : 26,
-            child: LiveTvSignalBadge(snapshot: _liveSignal),
-          ),
-
         if (_liveTv != null && _isLoading)
           Positioned.fill(
             child: LiveTvLoadingOverlay(

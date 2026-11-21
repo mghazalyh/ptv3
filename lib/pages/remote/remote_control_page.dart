@@ -35,6 +35,15 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   @override
   void initState() {
     super.initState();
+    _session = _lan.activeSession.value;
+    _selected = _session?.peer;
+    if (_session != null) {
+      _pollTimer = Timer.periodic(
+          const Duration(seconds: 4), (_) => unawaited(_poll()));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_poll());
+      });
+    }
     _lan.hosting.addListener(_refresh);
     _lan.pairedDevices.addListener(_refresh);
     _loadAddress();
@@ -141,6 +150,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       final session = await _lan.pair(peer, _pin.text.trim());
       if (!mounted) return;
       _pollTimer?.cancel();
+      _lan.activeSession.value = session;
       setState(() {
         _session = session;
         _selected = session.peer;
@@ -181,6 +191,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   }
 
   void _disconnect() {
+    _lan.activeSession.value = null;
     _pollTimer?.cancel();
     _pollTimer = null;
     setState(() {

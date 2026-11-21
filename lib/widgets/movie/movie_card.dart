@@ -10,6 +10,7 @@ import '../../services/home/home_page_settings.dart';
 import '../../services/metadata/title_origin_language_service.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../common/poster_skeleton.dart';
+import '../remote/play_on_ipad_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Card sizing — responsive breakpoints that mimic Stremio poster sizes.
@@ -145,6 +146,9 @@ class _MovieCardState extends State<MovieCard> {
           });
         },
         onTap: _activateCard,
+        onLongPress: PlayOnIpadSheet.supported
+            ? () => PlayOnIpadSheet.show(context, movie: widget.movie)
+            : null,
         child: AnimatedScale(
           duration: const Duration(milliseconds: 170),
           curve: Curves.easeOutCubic,
@@ -158,14 +162,41 @@ class _MovieCardState extends State<MovieCard> {
               children: [
                 // ── Poster ──────────────────────────────────────────────
                 Expanded(
-                  child: _PosterFrame(
-                    posterUrl: movie.poster,
-                    hovered: _hovered || _remoteFocused,
-                    contentType: movie.type,
-                    imdbRating: movie.imdbRating,
-                    similarityPercent: movie.similarityPercent,
-                    recommendationSource: movie.recommendationSource,
-                  ),
+                  child: Stack(fit: StackFit.expand, children: [
+                    _PosterFrame(
+                      posterUrl: movie.poster,
+                      hovered: _hovered || _remoteFocused,
+                      contentType: movie.type,
+                      imdbRating: movie.imdbRating,
+                      similarityPercent: movie.similarityPercent,
+                      recommendationSource: movie.recommendationSource,
+                    ),
+                    if (PlayOnIpadSheet.supported)
+                      Positioned(
+                        left: 7, right: 7, bottom: 8,
+                        child: IgnorePointer(child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.80),
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: const Row(mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.touch_app_rounded,
+                                  size: 13, color: Color(0xFFA99AFF)),
+                              SizedBox(width: 4),
+                              Flexible(child: Text('Hold · Play on iPad',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700))),
+                            ],
+                          ),
+                        )),
+                      ),
+                  ]),
                 ),
 
                 // ── Title ───────────────────────────────────────────────

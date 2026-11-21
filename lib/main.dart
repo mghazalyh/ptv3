@@ -475,8 +475,8 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   /// preferences, so the sender cannot redirect playback to an arbitrary URL.
   Future<Map<String, Object?>> _handleLanCastRequest(
       LanCastRequest request) async {
-    if (!Platform.isIOS || !mounted || !_lifecycleState.toString()
-        .contains('resumed')) {
+    if (!Platform.isIOS || !mounted ||
+        _lifecycleState != AppLifecycleState.resumed) {
       return <String, Object?>{
         'accepted': false, 'reason': 'ipad_not_foreground',
       };

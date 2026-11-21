@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
@@ -7,6 +8,8 @@ import '../../services/metadata/metadata_service.dart';
 import '../../services/metadata/tmdb_discover_service.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/movie/movie_card.dart';
+import '../../services/player/live_tv/live_channel_health_scanner.dart';
+import '../../services/player/live_tv/live_stream_detector.dart';
 
 class CatalogPage extends StatefulWidget {
   final MovieSection section;
@@ -27,6 +30,17 @@ class _CatalogPageState extends State<CatalogPage> {
   int _remoteOffset = 0;
   int _relatedPage = 1;
   int _requestSerial = 0;
+  final Map<String, LiveChannelHealthResult> _health = {};
+  bool _scanRunning = false;
+  int _scanEpoch = 0;
+  int _scannedCount = 0;
+  int _scanTotal = 0;
+  bool get _isLiveCatalog =>
+      Movie.canonicalType(widget.section.contentType) == 'tv' ||
+      Movie.canonicalType(widget.section.contentType) == 'channel' ||
+      widget.section.movies.any((movie) =>
+        LiveStreamDetector.isLiveChannel(
+          mediaType: movie.type, mediaId: movie.id));
 
   // The Home row is the authoritative first page. A synthetic list, missing
   // addon URL or catalog without 'skip' never becomes a generic Cinemeta
@@ -77,15 +91,92 @@ class _CatalogPageState extends State<CatalogPage> {
     // Avoid a duplicate initial fetch: See All first displays exactly
     // what the tapped section showed. Page two uses the same addon/catalog.
     if (_items.isEmpty && _canPage) _loadItems(refresh: true);
+    if (_isLiveCatalog) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_startLiveScan());
+      });
+    }
   }
 
   @override
   void dispose() {
+    _scanEpoch++;
     _requestSerial++;
     _scrollController.dispose();
     _genreScrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _startLiveScan() async {
+    if (!_isLiveCatalog || _scanRunning || !mounted) return;
+    final epoch = ++_scanEpoch;
+    setState(() {
+      _scanRunning = true;
+      _scannedCount = 0;
+      _scanTotal = _items.length;
+      _health.clear();
+    });
+    final pending = <Movie>[];
+    final ids = <String>{};
+    void enqueue(Iterable<Movie> items) {
+      for (final movie in items) {
+        if (!LiveStreamDetector.isLiveChannel(
+            mediaType: movie.type, mediaId: movie.id)) continue;
+        if (ids.add(movie.id)) pending.add(movie);
+      }
+      if (mounted && epoch == _scanEpoch) {
+        setState(() => _scanTotal = pending.length);
+      }
+    }
+    enqueue(_items);
+    var cursor = 0;
+    var pagingFinished = false;
+    bool cancelled() => !mounted || epoch != _scanEpoch;
+    Future<void> worker() async {
+      while (!cancelled()) {
+        if (cursor >= pending.length) {
+          if (pagingFinished) return;
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+          continue;
+        }
+        final movie = pending[cursor++];
+        final result = await LiveChannelHealthScanner.inspect(movie);
+        if (cancelled()) return;
+        setState(() {
+          _health[movie.id] = result;
+          _scannedCount++;
+        });
+      }
+    }
+    final workers = List.generate(4, (_) => worker());
+    try {
+      // Load subsequent Stremio catalog pages so the scan does not stop
+      // at the Home row or an artificial 100-channel limit.
+      var pages = 0;
+      while (!cancelled() && _canPage && _hasMore &&
+          !_isSearching && _selectedGenre == null &&
+          _items.length < 2000 && pages < 30) {
+        if (_isLoading) {
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          continue;
+        }
+        final priorCount = _items.length;
+        await _loadItems();
+        if (cancelled()) break;
+        if (_items.length <= priorCount) break;
+        enqueue(_items.skip(priorCount));
+        pages++;
+      }
+    } catch (error) {
+      debugPrint('[LiveHealthScan] Catalog paging: ${error.runtimeType}');
+    } finally {
+      pagingFinished = true;
+      await Future.wait(workers);
+      if (mounted && epoch == _scanEpoch) {
+        setState(() => _scanRunning = false);
+      }
+    }
   }
 
   void _updateGenreScrollButtons() {
@@ -311,7 +402,8 @@ class _CatalogPageState extends State<CatalogPage> {
     // Calculate safe top padding for grid based on if genres are available
     final hasGenres = _canPage &&
         widget.section.catalog.genres.isNotEmpty && !_isSearching;
-    final gridTopPadding = topPadding + kToolbarHeight + (hasGenres ? 60 : 20) + 20;
+    final gridTopPadding = topPadding + kToolbarHeight +
+        (hasGenres ? 60 : 20) + 20 + (_isLiveCatalog ? 46 : 0);
 
     return Scaffold(
       backgroundColor: const Color(0xFF080A0F),
@@ -364,10 +456,41 @@ class _CatalogPageState extends State<CatalogPage> {
                           ),
                   );
                 }
-                return MovieCard(
-                  movie: visibleItems[index],
-                  showSeriesRunYears: _canRelatedPage,
-                );
+                return Stack(fit: StackFit.expand, children: [
+                  MovieCard(
+                    movie: visibleItems[index],
+                    showSeriesRunYears: _canRelatedPage,
+                  ),
+                  if (_isLiveCatalog)
+                    Positioned(top: 6, left: 5, right: 5,
+                      child: IgnorePointer(child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _health[visibleItems[index].id]?.health ==
+                              LiveChannelHealth.likelyReachable
+                              ? const Color(0xDE0B6040)
+                              : _health[visibleItems[index].id]?.health ==
+                                  LiveChannelHealth.poor
+                                  ? const Color(0xDE9A2831)
+                                  : const Color(0xE02D3044),
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        child: Text(
+                          (_health[visibleItems[index].id] ??
+                              const LiveChannelHealthResult(
+                                LiveChannelHealth.checking, 0, 'pending'))
+                              .label + ' · HTTP check',
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white),
+                        ),
+                      )),
+                    ),
+                ]);
               },
             ),
 
@@ -464,6 +587,32 @@ class _CatalogPageState extends State<CatalogPage> {
                         ),
                       ),
                       
+                      if (_isLiveCatalog)
+                        SizedBox(height: 42,
+                          child: Row(children: [
+                            const SizedBox(width: 16),
+                            const Icon(Icons.monitor_heart_outlined,
+                                color: Color(0xFFAEA0FF), size: 18),
+                            const SizedBox(width: 9),
+                            Expanded(child: Text(
+                              'Channel scan: $_scannedCount / $_scanTotal '
+                              '${_scanRunning ? "checking" : "checked"} · '
+                              'HTTP only, not confirmed video',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.white70,
+                                  fontSize: 12),
+                            )),
+                            IconButton(
+                              tooltip: 'Rescan Live TV channels',
+                              onPressed: _scanRunning
+                                  ? null : () => unawaited(_startLiveScan()),
+                              icon: const Icon(Icons.refresh_rounded,
+                                  color: Colors.white70, size: 19),
+                            ),
+                            const SizedBox(width: 8),
+                          ]),
+                        ),
                       // Genres Row
                       if (hasGenres)
                         MouseRegion(

@@ -94,7 +94,13 @@ void main() {
           '#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n'
           '#EXTINF:6,\nsegment001.ts\n', 200);
       }
-      return http.Response(List<int>.filled(64, 42).toString(), 206);
+      // A real MPEG-TS segment begins with a sync byte every 188 bytes.
+      // The previous mock returned a stringified Dart list starting with '['
+      // and was correctly rejected as JSON-like, non-media content.
+      final transportStream = List<int>.filled(376, 0)
+        ..[0] = 0x47
+        ..[188] = 0x47;
+      return http.Response.bytes(transportStream, 206);
     });
     addTearDown(() => LiveSourceManager.probeClientOverride = null);
     final source = StreamSource(addonName: 'Live TV',
@@ -105,6 +111,7 @@ void main() {
     expect(probe?.phase, 'segment');
     expect(probe?.httpStatus, 206);
     expect(probe?.outcome, 'ok');
+    expect(probe?.segmentKind, 'mpegts');
     expect(requests, hasLength(3));
     expect(requests.last.headers['range'], 'bytes=0-4095');
   });

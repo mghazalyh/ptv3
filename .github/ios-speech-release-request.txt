@@ -107,3 +107,8 @@ The prior iOS Speech run 54 failed obsolete assertion in test/live_tv_stream_iso
 HEAD 405 was assumed playable despite GET HTTP 200 containing HTML error. Correct fixture, keep production rejection.
 Next iPad adds owner-controlled read-only 'probe_addon' to inspect installed addon manifest and tv stream JSON directly from the device, with privacy-safe receipts; includes tests and docs.
 Trigger iOS-only release workflow and leave immediately. No job polling, no waiting, no Android build.
+
+IOS-ONLY RETRIGGER: HLS SEGMENT FIXTURE
+Requested SGT: 2026-11-21 17:06:42
+Prior Build 255 / Run #55 failure: test/live_tv_hls_probe_test.dart expected an ok segment from List<int>.toString() bytes, which is a text list rather than MPEG-TS. Replace with transport stream binary bytes (188-byte sync pattern), assert segmentKind=mpegts. Preserve production HLS validation; do not weaken it.
+Trigger existing iOS speech release and leave without waiting/polling.

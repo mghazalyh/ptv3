@@ -109,6 +109,65 @@ void main() {
     expect(requests.last.headers['range'], 'bytes=0-4095');
   });
 
+  test('HEAD 414 and HLS variant 414 must not become playable backups',
+      () async {
+    LiveSourceManager.probeClientOverride = MockClient((request) async {
+      if (request.method == 'HEAD') return http.Response('', 414);
+      if (request.url.path.endsWith('/master.m3u8')) {
+        return http.Response(
+          '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=400000\n'
+          'nested/media.m3u8\n', 200);
+      }
+      return http.Response('Request URI Too Long', 414);
+    });
+    addTearDown(() => LiveSourceManager.probeClientOverride = null);
+    final source = StreamSource(addonName: 'Live TV',
+        url: 'https://cdn.example/master.m3u8');
+    final manager = LiveSourceManager(channelId: 'nltv:us:Channel.us',
+        addonName: 'Live TV', initial: source);
+    expect(await manager.seemsPlayable(source), false);
+    final probe = manager.latestProbeFor(source)!;
+    expect(probe.phase, 'variant');
+    expect(probe.httpStatus, 414);
+  });
+
+  test('HEAD 405 allows valid GET-only HLS channel', () async {
+    LiveSourceManager.probeClientOverride = MockClient((request) async {
+      if (request.method == 'HEAD') return http.Response('', 405);
+      if (request.url.path.endsWith('/master.m3u8')) {
+        return http.Response(
+          '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=400000\n'
+          'nested/media.m3u8\n', 200);
+      }
+      return http.Response(
+          '#EXTM3U\n#EXT-X-TARGETDURATION:6\n'
+          '#EXT-X-MEDIA-SEQUENCE:100\n#EXTINF:6,\npart.ts\n', 200);
+    });
+    addTearDown(() => LiveSourceManager.probeClientOverride = null);
+    final source = StreamSource(addonName: 'Live TV',
+        url: 'https://cdn.example/master.m3u8');
+    final manager = LiveSourceManager(channelId: 'nltv:us:Channel.us',
+        addonName: 'Live TV', initial: source);
+    expect(await manager.seemsPlayable(source), true);
+    expect(manager.latestProbeFor(source)?.outcome, 'ok');
+    expect(manager.latestProbeFor(source)?.phase, 'variant');
+  });
+
+  test('HLS media signatures distinguish real bytes from deceptive HTML', () {
+    final transportStream = List<int>.filled(376, 0)
+      ..[0] = 0x47
+      ..[188] = 0x47;
+    expect(LiveSourceManager.segmentSignature(transportStream), 'mpegts');
+    expect(LiveSourceManager.segmentSignature(
+      <int>[0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0, 0, 0, 0],
+    ), 'fmp4');
+    expect(LiveSourceManager.segmentSignature(
+        '<html>Access denied</html>'.codeUnits), 'html');
+    expect(LiveSourceManager.segmentSignature(
+        '{"code":403}'.codeUnits), 'json');
+    expect(LiveSourceManager.segmentSignature(const <int>[]), 'empty');
+  });
+
   test('Native HLS log diagnosis uses only fixed categories', () {
     expect(LivePlaybackCoordinator.classifyNativeFailure(
         'HTTP error 403 Forbidden'), 'live_native_http_auth');

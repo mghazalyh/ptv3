@@ -328,6 +328,9 @@ class LivePlaybackCoordinator {
       'probePhase': probe?.phase,
       'probeOutcome': probe?.outcome,
       'probeHttpStatus': probe?.httpStatus,
+      'probeSegmentKind': probe?.segmentKind,
+      'probeBodyBytes': probe?.bodyBytes,
+      'probeElapsedMs': probe?.elapsedMs,
     };
   }
 
@@ -561,6 +564,15 @@ class LivePlaybackCoordinator {
           _event('live_failover_candidate_rejected', candidate);
           _event('live_source_rejected', candidate);
         }
+      }
+      if (_disposed || generation != _generation) return;
+      if (selected.url == _source.url &&
+          !(await _sources.seemsPlayable(selected))) {
+        // Do not repeatedly open a channel URL already proven to return
+        // 401/403/404/410, HTML, or an invalid HLS playlist. This was
+        // needlessly burning recovery attempts on the same dead provider.
+        _event('live_source_rejected', selected);
+        throw const FormatException('Live source failed verified HTTP probe');
       }
       if (_disposed || generation != _generation) return;
       if (!LiveStreamDetector.isHttpMedia(selected.url)) {

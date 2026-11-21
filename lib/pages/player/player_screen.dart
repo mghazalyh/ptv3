@@ -336,12 +336,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       GithubDiagnosticControl.instance.onPlayerCommand =
           _handleGithubPlayerDiagnostic;
     }
-    LanRemoteService.instance.playerStatus = () => <String, Object?>{
-      'title': _currentTitle,
-      'playing': _player.state.playing,
-      'positionSeconds': _player.state.position.inSeconds,
-      'durationSeconds': _player.state.duration.inSeconds,
-    };
+    LanRemoteService.instance.playerStatus = _lanRemotePlayerStatus;
     IosAudioTelemetry.instance.captureSourceSelection(
         action: 'player_initial_source',
         source: _currentSource, title: widget.detail?.name ?? widget.title,
@@ -3487,6 +3482,15 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  /// A named callback allows an outgoing PlayerScreen to release its own
+  /// registration without clearing a newly pushed PlayerScreen's callback.
+  Map<String, Object?> _lanRemotePlayerStatus() => <String, Object?>{
+    'title': _currentTitle,
+    'playing': _player.state.playing,
+    'positionSeconds': _player.state.position.inSeconds,
+    'durationSeconds': _player.state.duration.inSeconds,
+  };
+
   /// Device-scoped, unattended in-app diagnostics. Only this active screen
   /// can touch the media_kit player. Commands are acknowledged in Torriodb.
   Future<Map<String, Object?>> _handleGithubPlayerDiagnostic(
@@ -3590,6 +3594,17 @@ class _PlayerScreenState extends State<PlayerScreen>
                   x.length > 320)) {
             return <String, Object?>{
               'accepted': false, 'reason': 'invalid_native_command'};
+          }
+          if (raw.first == 'loadfile' && _liveTv != null) {
+            // A direct native loadfile bypasses the Live TV StreamSource. Stop
+            // its watchdog so it cannot attribute a reference test stream's
+            // successful playback to the previous channel or reopen over it.
+            _liveTv!.dispose();
+            IosAudioTelemetry.instance.ensurePlaybackContext(
+              title: 'Remote diagnostic reference media',
+              mediaId: 'diagnostic:native-reference',
+              type: 'movie',
+            );
           }
           final dynamic native = _player.platform;
           await native.command(List<String>.from(raw));
@@ -4340,9 +4355,18 @@ class _PlayerScreenState extends State<PlayerScreen>
       WidgetsBinding.instance.removeObserver(this);
       _liveTv!.dispose();
     }
-    LanRemoteService.instance.onPlayerCommand = null;
-    LanRemoteService.instance.playerStatus = null;
-    if (Platform.isIOS) {
+    // A new PlayerScreen can register global handlers before this route
+    // finishes disposing. Only clear callbacks still owned by this screen.
+    if (LanRemoteService.instance.onPlayerCommand ==
+        _handleLanRemotePlayerCommand) {
+      LanRemoteService.instance.onPlayerCommand = null;
+    }
+    if (LanRemoteService.instance.playerStatus == _lanRemotePlayerStatus) {
+      LanRemoteService.instance.playerStatus = null;
+    }
+    if (Platform.isIOS &&
+        GithubDiagnosticControl.instance.onPlayerCommand ==
+            _handleGithubPlayerDiagnostic) {
       GithubDiagnosticControl.instance.onPlayerCommand = null;
     }
     ++_streamGeneration;

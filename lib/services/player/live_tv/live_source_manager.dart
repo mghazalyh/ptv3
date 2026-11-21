@@ -25,6 +25,7 @@ class LiveSourceProbe {
     this.mimeKind,
     this.isMaster,
     this.segmentCount,
+    this.segmentKind,
   });
 
   final String phase;
@@ -36,6 +37,8 @@ class LiveSourceProbe {
   final String? mimeKind;
   final bool? isMaster;
   final int? segmentCount;
+  /// Safe media signature category (no payload bytes or URL are stored).
+  final String? segmentKind;
 }
 
 class _LiveSourceHealth {
@@ -86,6 +89,33 @@ class LiveSourceManager {
         break;
       }
     }
+  }
+
+  @visibleForTesting
+  static String segmentSignature(List<int> bytes) {
+    if (bytes.isEmpty) return 'empty';
+    if (bytes.length >= 8) {
+      final marker = String.fromCharCodes(bytes.sublist(4, 8));
+      if (marker == 'ftyp' || marker == 'styp' ||
+          marker == 'moof' || marker == 'moov') {
+        return 'fmp4';
+      }
+    }
+    if (bytes.length >= 188 && bytes.first == 0x47 &&
+        (bytes.length < 376 || bytes[188] == 0x47)) return 'mpegts';
+    if (bytes.length >= 3 &&
+        bytes[0] == 0x49 && bytes[1] == 0x44 && bytes[2] == 0x33) {
+      return 'id3';
+    }
+    if (bytes.length >= 2 &&
+        bytes[0] == 0xff && (bytes[1] & 0xf0) == 0xf0) return 'aac';
+    final prefix = String.fromCharCodes(bytes.take(80))
+        .trimLeft().toLowerCase();
+    if (prefix.startsWith('<!doctype html') ||
+        prefix.startsWith('<html')) return 'html';
+    if (prefix.startsWith('{') || prefix.startsWith('[')) return 'json';
+    if (prefix.startsWith('#extm3u')) return 'playlist';
+    return 'unknown';
   }
 
   static String _mimeKind(String? raw) {
@@ -254,13 +284,16 @@ class LiveSourceManager {
           http.head(uri, headers: headers)).timeout(const Duration(seconds: 4));
       final mime = _mimeKind(response.headers['content-type']);
       final code = response.statusCode;
-      final blocked = code == 401 || code == 403 ||
-          code == 404 || code == 410 || code >= 500 ||
+      // HEAD 405/501 only means the method is unsupported; a GET-only
+      // channel can still play. Other 4xx (including 414) and 5xx must
+      // never be treated as a verified, playable source.
+      final methodUnsupported = code == 405 || code == 501;
+      final blocked = (code >= 400 && !methodUnsupported) ||
           (code == 200 && mime == 'html');
       // A 200 HEAD still says nothing about a master playlist's children.
       // Validate the HLS media playlist when possible before failover.
       if (LiveStreamDetector.isHlsUrl(source.url) &&
-          (blocked || code == 200)) {
+          (blocked || code == 200 || methodUnsupported)) {
         final manifest = await inspectPlaylist(source);
         return manifest != null;
       }
@@ -279,7 +312,11 @@ class LiveSourceManager {
         phase: 'head', outcome: 'network_error',
         elapsedMs: timer.elapsedMilliseconds, headerCount: headers.length));
     }
-    // HEAD unsupported: never reject a working GET-only stream.
+    // Never declare an HLS link playable on an unverified HEAD failure.
+    // A working GET-only provider is still accepted if its manifest parses.
+    if (LiveStreamDetector.isHlsUrl(source.url)) {
+      return await inspectPlaylist(source) != null;
+    }
     return true;
   }
 
@@ -408,20 +445,25 @@ class LiveSourceManager {
           .timeout(const Duration(seconds: 7));
       List<int> initial = const <int>[];
       try {
-        initial = await response.stream.first
-            .timeout(const Duration(seconds: 5));
+        initial = (await response.stream.first
+            .timeout(const Duration(seconds: 5))).take(4096).toList();
       } on StateError {
         // Empty segment response.
       }
-      final ok = (response.statusCode == 200 ||
-          response.statusCode == 206) && initial.isNotEmpty;
+      final signature = segmentSignature(initial);
+      final statusOk = response.statusCode == 200 ||
+          response.statusCode == 206;
+      final payloadOk = initial.isNotEmpty &&
+          signature != 'html' && signature != 'json' &&
+          signature != 'playlist';
       final probe = LiveSourceProbe(
-        phase: 'segment', outcome: ok ? 'ok' :
-            response.statusCode == 200 || response.statusCode == 206
-            ? 'empty_segment' : 'http_status',
+        phase: 'segment', outcome: !statusOk ? 'http_status' :
+            initial.isEmpty ? 'empty_segment' :
+            payloadOk ? 'ok' : 'invalid_segment',
         httpStatus: response.statusCode,
         bodyBytes: initial.length,
         mimeKind: _mimeKind(response.headers['content-type']),
+        segmentKind: signature,
         elapsedMs: started.elapsedMilliseconds,
         headerCount: headers.length);
       _captureProbe(source, probe);

@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../my_list/github_library_cloud.dart';
+import '../player/ios_audio_telemetry.dart';
 
 typedef DiagnosticCommandHandler = Future<Map<String, Object?>> Function(
     String action, Map<String, dynamic> args);
@@ -222,6 +223,8 @@ class GithubDiagnosticControl {
             'schema': 1,
             'deviceId': _deviceId,
             'platform': 'ios',
+            'buildCommit': IosAudioTelemetry.buildCommit,
+            'buildRun': IosAudioTelemetry.buildRun,
             'state': 'ready',
             'enabled': enabled.value,
             'observedAtUtc': now.toIso8601String(),

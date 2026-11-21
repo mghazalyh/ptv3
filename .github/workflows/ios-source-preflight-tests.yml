@@ -42,6 +42,11 @@ jobs:
           flutter --version
           flutter pub get
 
+      - name: Test deterministic SubtitleCat contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter test --no-pub test/subtitlecat_test.dart
       - name: Verify remote controller Dart source integrity
         shell: bash
         run: |

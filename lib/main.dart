@@ -53,6 +53,7 @@ import './services/remote/ios_remote_live_health_history.dart';
 import './services/remote/ios_remote_live_scan.dart';
 import './services/remote/ios_remote_app_observability.dart';
 import './services/remote/ios_remote_safe_settings.dart';
+import './services/remote/ios_remote_crash_evidence.dart';
 import './services/remote/ios_remote_playback_verification.dart';
 import './services/remote/ios_diagnostic_journal.dart';
 import './services/remote/ios_network_diagnostic_probe.dart';
@@ -98,6 +99,8 @@ void main() async {
   if (Platform.isIOS) {
     await GithubDiagnosticControl.instance.initialize();
     await LiveTvExperimentStore.instance.initialize();
+    await IosRemoteCrashEvidence.instance.initialize();
+    IosRemoteCrashEvidence.instance.installHandlers();
   }
   await DockSettings.initialize();
   await WatchSourcePreferencesService.initialize();
@@ -201,6 +204,13 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _lifecycleState = state;
+    if (Platform.isIOS &&
+        (state == AppLifecycleState.resumed ||
+         state == AppLifecycleState.paused ||
+         state == AppLifecycleState.detached)) {
+      unawaited(IosRemoteCrashEvidence.instance.markForeground(
+          state == AppLifecycleState.resumed));
+    }
     if (state == AppLifecycleState.resumed) {
       // The old ten-minute throttle delayed cross-device updates on resume.
       unawaited(TorriodbPortableSync.instance.refresh(force: true));
@@ -852,6 +862,8 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
           );
         case 'app_screenshot':
           return IosRemoteAppObservability.instance.capture();
+        case 'crash_evidence':
+          return IosRemoteCrashEvidence.instance.status();
         case 'app_navigate':
           if (_liveMatrix.status()['phase'] == 'running') {
             return <String, Object?>{

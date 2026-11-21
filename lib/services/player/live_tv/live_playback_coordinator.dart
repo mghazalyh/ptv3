@@ -14,6 +14,7 @@ import 'live_source_manager.dart';
 import 'live_stream_detector.dart';
 import 'live_tv_experiment_policy.dart';
 import 'live_verified_source_preference.dart';
+import 'live_verified_source_learning_gate.dart';
 
 typedef LiveStatusCallback = void Function(String message, bool reconnecting);
 typedef LiveSourceCallback = void Function(StreamSource source);
@@ -97,6 +98,8 @@ class LivePlaybackCoordinator {
   // The iPad showed that some untouched backups decode directly but stall
   // when prematurely routed through the localhost HLS relay.
   final Set<String> _directFailedUrls = <String>{};
+  final LiveVerifiedSourceLearningGate _sourceLearning =
+      LiveVerifiedSourceLearningGate();
   final Set<String> _hlsRelayAttemptedUrls = <String>{};
   LiveHlsHttpRelay? _hlsRelay;
   bool _usingHlsRelay = false;
@@ -295,7 +298,10 @@ class LivePlaybackCoordinator {
   void onAppLifecycle(bool resumed) {
     if (_disposed) return;
     _foreground = resumed;
-    if (!resumed) return;
+    if (!resumed) {
+      _sourceLearning.reset();
+      return;
+    }
     _event('live_session_resumed');
     if (_started && _player.state.buffering) {
       // Do not force a restart after a user-initiated pause.
@@ -517,6 +523,25 @@ class LivePlaybackCoordinator {
         case LiveHealthEvent.none:
           break;
       }
+      // Learn from normal viewing as well as from the See All scanner.
+      // The recovery policy first establishes real native video and motion;
+      // a further 5+ seconds across multiple samples prevents one-frame
+      // or HTTP-only false positives. Only this exact addon + URL is stored.
+      if (_sourceLearning.observe(
+        source: _source,
+        policyAccepted: _policy.everPlayed && !_policy.awaitingRecovery,
+        videoReady: _nativeVideoReady,
+        videoWidth: _nativeVideoWidth,
+        videoHeight: _nativeVideoHeight,
+        trackCount: _nativeTrackCount,
+        playing: _player.state.playing,
+        buffering: _player.state.buffering,
+        position: _player.state.position,
+      )) {
+        LiveVerifiedSourcePreference.remember(
+          channelId: channelId, verifiedSource: _source,
+        );
+      }
       _notifyHealth();
       if (_lastTelemetryAt == null ||
           at.difference(_lastTelemetryAt!) >= const Duration(seconds: 10)) {
@@ -640,6 +665,9 @@ class LivePlaybackCoordinator {
     }
     _syncExperiment();
     _opening = true;
+    // A reopen, including one of the same URL, must earn a fresh native
+    // verification window rather than inheriting the old stream's clock.
+    _sourceLearning.reset();
     _lastRecoveryStartedAt = now;
     final generation = ++_generation;
     _policy.beginReopen(now);

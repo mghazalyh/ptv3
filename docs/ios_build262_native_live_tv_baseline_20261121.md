@@ -156,3 +156,19 @@ Read-only inspection of the existing iOS telemetry reports at `playtorrio/diagno
 - Both fixes are **uninstalled source changes**; build 262 remains in service. Do not claim that changing repository code repairs the active IPA.
 
 For build 262, continue the matrix, avoid unnecessary command writes, read per-candidate JSON for actual playback verdicts, and reconcile the independent event traces when a matrix status write fails. No iOS release or new manual installation was requested.
+
+## Follow-up: Unbeaten HLS relay escalation bug (14:01 UTC)
+
+The real iPad's event-level telemetry for `nltv:us:Unbeaten.us` demonstrated a reproducible recovery-selection problem. Native event sequence from private telemetry `2026-11-21T13-57-53-479928Z-47.json`:
+
+1. Initial request on `lukentvlive.vgcdn.net` failed with a native manifest issue and zero decoded video.
+2. The controller switched to CloudFront; the HLS playlist probe returned `ok`, but native tracks stayed at zero and playback stalled.
+3. At channel recovery attempt 2, the supervisor switched to `unbeaten-tcl.amagi.tv` and immediately selected the **local HLS relay**, despite this being the first attempt on that source. This relayed attempt stalled, again with zero native tracks.
+4. At attempt 3, it switched back to the failing CloudFront source with relay and continued failing.
+5. When the matrix directly opened `unbeaten-tcl.amagi.tv` on its own source attempt, MPV decoded 1920 × 1080, 11 native tracks within approximately 12 seconds, and the iPad reported growing playback timeline past two minutes without buffering.
+
+The source-level bug: `LivePlaybackCoordinator.shouldUseHlsRelay` previously used total **channel** `recoveryAttempts >= 2` to enable the relay. That count accrued on different failed URLs. As a result, even a newly selected backup with no native direct failure was prematurely relayed. The successful direct Amagi session provides strong evidence that this unconditional escalation can make recovery worse.
+
+**Source-only repair:** commit `c4ed4184808032da22e70dae946757fab19bd4f0` introduced a per-source direct-failure set, checked by the relay escalation predicate. Native TLS failures for the same URL remain eligible to trigger the relay immediately. The controller records a failed direct HLS source only during involuntary recoveries without confirmed video and removes the record after confirmed native video. New regression cases ensure high recovery counts cannot relay an unseen backup without URL-specific evidence.
+
+This fix does **not** modify the installed build 262 and **no iOS release was triggered**. Its correctness must be established by GitHub lightweight CI, then (for this installed version) only supported runtime policies remain available. Do not claim this code-only change repaired the iPad.

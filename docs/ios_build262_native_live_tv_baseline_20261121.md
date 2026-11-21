@@ -78,6 +78,24 @@ The foreground-only runner may take hours. Device suspension, network problems, 
 
 Build 262 still uses hostname-based requested-source attribution for the matrix. A backup on the same CDN hostname could be mistaken for the requested stream. The follow-up source commit `26335478` improves this but is **not installed**. For current matrix results, use `sourceSwitchedBeforeSample` and original vs. final host where distinguishable. Never assume a requested source succeeded if same-host switching cannot be ruled out.
 
+## First device-published five-minute matrix result
+
+After initialization of the private matrix destination, the iPad **successfully updated** the private `status.json` and first candidate result `candidate_0_0.json` with authentic data. The candidate file no longer contains the explicit `pending` placeholder marker.
+
+Observed candidate:
+
+* Channel: `nltv:us:CineRomantico.us` (Cine Romántico).
+* `requestedSourceIndex=0`; requested, active and final source host `jmp2.uk`.
+* `sourceSwitchedBeforeSample=false`.
+* `candidateVideo=true`, `sustainedPlayback=true`, `requestedSourceVerified=true`.
+* Native format HLS; video dimensions **1280×720**; **11 tracks**; `buffering=false`.
+* `sustainedSamples=5`, `sustainedObservedSeconds=300`.
+* Timeline progressed from a sampled `positionEndMs=6333` to `finalPositionMs=317033`.
+* `httpRelayActive=false`, with no recorded native failure categories.
+* At this checkpoint, the matrix status reported `sourcesDone=1`, `verifiedSources=1`, `channelsDone=0`, `uploadFailures=1`, `phase=running`.
+
+**Interpretation:** One source has now passed the requested full five-minute native decoding standard, and its private result upload succeeded. The original first-upload failure remains counted, and neither the initial failure's root cause nor general ability to create new candidate paths has yet been conclusively proven. Do not extrapolate one success to the remaining matrix.
+
 ## Required next validation
 
 1. Read private Torriodb matrix `status.json` and per-candidate evidence, distinguishing manually seeded placeholders from native device uploads.

@@ -45,6 +45,9 @@ class GithubDiagnosticControl {
   static const preferenceEnabled = 'github_diagnostic_control_enabled_v1';
   static const _preferenceDeviceId = 'github_diagnostic_control_id_v1';
   static const _preferenceLastCommand = 'github_diagnostic_control_seen_v1';
+  @visibleForTesting
+  static const preferencePendingReceipt =
+      'github_diagnostic_control_pending_receipt_v1';
   static const pollInterval = Duration(seconds: 12);
   static const statusInterval = Duration(minutes: 3);
 
@@ -312,6 +315,79 @@ class GithubDiagnosticControl {
         '$root/artifacts/$_deviceId/$runId/$key.json', payload);
   }
 
+  /// A result is stored locally before network delivery, so a dropped upload
+  /// cannot silently discard completed actions or cause them to execute twice.
+  Future<void> _persistPending(
+      SharedPreferences prefs, Map<String, Object?> pending) async {
+    final encoded = jsonEncode(pending);
+    if (utf8.encode(encoded).length > 262144) {
+      throw const FormatException('Diagnostic receipt exceeds storage bound');
+    }
+    if (!await prefs.setString(preferencePendingReceipt, encoded)) {
+      throw StateError('Could not persist diagnostic receipt');
+    }
+  }
+
+  /// Resend undelivered receipts before accepting new commands. A persisted
+  /// "executing" intent after process restart does not prove that a side effect
+  /// happened. Publish "uncertain" instead of replaying that operation.
+  Future<void> _flushPendingReceipt(
+      String token, SharedPreferences prefs) async {
+    final encoded = prefs.getString(preferencePendingReceipt);
+    if (encoded == null) return;
+
+    final decoded = jsonDecode(encoded);
+    if (decoded is! Map) {
+      throw const FormatException('Invalid stored diagnostic receipt');
+    }
+    final pending = Map<String, dynamic>.from(decoded);
+    final id = pending['commandId'];
+    final action = pending['action'];
+    final state = pending['state'];
+    if (pending['deviceId'] != _deviceId ||
+        id is! String ||
+        !RegExp(r'^[A-Za-z0-9_-]{8,100}$').hasMatch(id) ||
+        action is! String ||
+        !RegExp(r'^[a-z_]{2,45}$').hasMatch(action) ||
+        (state != 'executing' && state != 'completed' &&
+            state != 'failed' && state != 'uncertain')) {
+      throw const FormatException('Invalid persisted command state');
+    }
+
+    // Repair the deduplication marker when a termination happened between
+    // saving the intent and saving the last-command preference.
+    if (_lastCommand != id) {
+      if (!await prefs.setString(_preferenceLastCommand, id)) {
+        throw StateError('Could not persist diagnostic command identifier');
+      }
+      _lastCommand = id;
+    }
+
+    Map<String, Object?> receipt = Map<String, Object?>.from(pending);
+    if (state == 'executing') {
+      receipt = <String, Object?>{
+        'schema': 2,
+        'deviceId': _deviceId,
+        'commandId': id,
+        'action': action,
+        'state': 'uncertain',
+        'startedAtUtc': pending['startedAtUtc'],
+        'completedAtUtc': DateTime.now().toUtc().toIso8601String(),
+        'result': <String, Object?>{
+          'accepted': false,
+          'reason': 'execution_interrupted_outcome_unknown',
+        },
+      };
+      await _persistPending(prefs, receipt);
+    }
+
+    await _writeFile(token, receiptPath!, receipt);
+    if (!await prefs.remove(preferencePendingReceipt)) {
+      throw StateError('Could not clear delivered diagnostic receipt');
+    }
+    status.value = 'Last diagnostic command: $action (${receipt['state']})';
+  }
+
   Future<void> pollNow() async {
     await initialize();
     if ((!Platform.isIOS && !forceTestPlatform) ||
@@ -323,6 +399,9 @@ class GithubDiagnosticControl {
         status.value = 'GitHub Library credentials unavailable';
         return;
       }
+      final prefs = await SharedPreferences.getInstance();
+      // Retry an older result even after its original command has expired.
+      await _flushPendingReceipt(token, prefs);
       final now = DateTime.now().toUtc();
       if (_lastStatusAt == null ||
           now.difference(_lastStatusAt!) >= statusInterval) {
@@ -347,10 +426,20 @@ class GithubDiagnosticControl {
       if (!validCommand(command, deviceId: _deviceId!, now: now)) return;
       final id = command['id'] as String;
       if (_lastCommand == id) return;
-      _lastCommand = id;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_preferenceLastCommand, id);
       final action = command['action'] as String;
+      final startedAtUtc = DateTime.now().toUtc().toIso8601String();
+      await _persistPending(prefs, <String, Object?>{
+        'schema': 2,
+        'deviceId': _deviceId,
+        'commandId': id,
+        'action': action,
+        'state': 'executing',
+        'startedAtUtc': startedAtUtc,
+      });
+      if (!await prefs.setString(_preferenceLastCommand, id)) {
+        throw StateError('Could not persist diagnostic command identifier');
+      }
+      _lastCommand = id;
       Map<String, Object?> result;
       String outcome = 'completed';
       try {
@@ -365,18 +454,19 @@ class GithubDiagnosticControl {
         result = <String, Object?>{'errorClass': error.runtimeType.toString()};
         debugPrint('[GithubDiagnosticControl] Action failed: ${error.runtimeType}');
       }
-      // Only fixed app-state results should be returned by the handler.
-      await _writeFile(token, receiptPath!, <String, Object?>{
-        'schema': 1,
+      // Never repeat a completed action just because GitHub upload failed.
+      await _persistPending(prefs, <String, Object?>{
+        'schema': 2,
         'deviceId': _deviceId,
         'commandId': id,
         'action': action,
         'state': outcome,
+        'startedAtUtc': startedAtUtc,
         'completedAtUtc': DateTime.now().toUtc().toIso8601String(),
         'result': result,
       });
+      await _flushPendingReceipt(token, prefs);
       _lastStatusAt = DateTime.now().toUtc();
-      status.value = 'Last diagnostic command: $action ($outcome)';
     } catch (error) {
       status.value = 'Diagnostic polling failed: ${error.runtimeType}';
       debugPrint('[GithubDiagnosticControl] Poll failed: ${error.runtimeType}');

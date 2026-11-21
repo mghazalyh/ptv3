@@ -73,6 +73,29 @@ jobs:
           touch .env
           flutter pub get
 
+      # Run the small, high-signal source integrity and analyzer checks FIRST.
+      # This prevents one malformed Dart declaration from cascading into
+      # dozens of misleading failures across the 400+ test full suite.
+      - name: Validate remote source structure before full-suite tests
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/check_ios_remote_source_integrity.py
+
+      - name: Compile-check remote controls and visual evidence before full suite
+        run: |
+          set -euo pipefail
+          flutter analyze --no-pub --no-fatal-infos \
+            lib/services/remote/github_diagnostic_control.dart \
+            lib/services/remote/ios_remote_live_frame_probe.dart \
+            lib/services/remote/ios_remote_live_visual_scan.dart \
+            lib/services/remote/ios_remote_visual_frame_encoder.dart \
+            lib/services/remote/ios_remote_command_contract.dart \
+            lib/main.dart \
+            test/ios_remote_live_visual_scan_test.dart
+          flutter test --no-pub \
+            test/github_diagnostic_control_test.dart \
+            test/ios_remote_live_visual_scan_test.dart \
+            test/ios_remote_command_contract_test.dart
       # The complete offline suite must pass before downloading native
       # frameworks, compiling iOS, signing, publishing, or notifying users.
       # Live third-party provider smoke tests are deliberately separate and

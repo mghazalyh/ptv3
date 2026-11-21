@@ -62,6 +62,8 @@ class LiveTvMatrixRunner {
   int _requestedSourcesVerified = 0;
   int _failoverPlaybackSessions = 0;
   int _uploadFailures = 0;
+  int _candidateReportsUploaded = 0;
+  int _candidateReportUploadFailures = 0;
   int _totalChannels = 0;
   int _uniqueChannels = 0;
   int _repeatCount = 1;
@@ -87,6 +89,8 @@ class LiveTvMatrixRunner {
     'requestedSourcesVerified': _requestedSourcesVerified,
     'failoverPlaybackSessions': _failoverPlaybackSessions,
     'uploadFailures': _uploadFailures,
+    'candidateReportsUploaded': _candidateReportsUploaded,
+    'candidateReportUploadFailures': _candidateReportUploadFailures,
     'cancelRequested': _cancelled,
     'lastChannel': _lastChannel,
     'lastFailure': _lastFailure,
@@ -160,6 +164,8 @@ class LiveTvMatrixRunner {
       _requestedSourcesVerified = 0;
       _failoverPlaybackSessions = 0;
       _uploadFailures = 0;
+      _candidateReportsUploaded = 0;
+      _candidateReportUploadFailures = 0;
       _uniqueChannels = channels.length;
       _repeatCount = repeats;
       _totalChannels = expanded.length;
@@ -180,10 +186,16 @@ class LiveTvMatrixRunner {
 
   Future<void> _publishSafe(LiveMatrixPublish publish,
       String key, Map<String, Object?> result) async {
+    final candidate = key.startsWith('candidate_');
     try {
       await publish(_runId!, key, result);
+      if (candidate) {
+        _candidateReportsUploaded++;
+        _notifyStatus();
+      }
     } catch (error) {
       _uploadFailures++;
+      if (candidate) _candidateReportUploadFailures++;
       _notifyStatus();
       debugPrint('[LiveMatrix] Result upload: ' +
           error.runtimeType.toString());

@@ -104,7 +104,8 @@ abstract final class IosRemoteDiagnosticInventory {
       for (final key in const [
         'runId', 'phase', 'channelsDone', 'totalChannels',
         'sourcesDone', 'verifiedSources', 'requestedSourcesVerified',
-        'failoverPlaybackSessions', 'uploadFailures'
+        'failoverPlaybackSessions', 'uploadFailures',
+        'candidateReportsUploaded', 'candidateReportUploadFailures'
       ])
         key: matrix[key],
     },

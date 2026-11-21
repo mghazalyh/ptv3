@@ -74,12 +74,16 @@ void main() {
       playerActive: true, playerPlaying: true,
       matrix: {
         'channelsDone': 2, 'totalChannels': 50,
+        'candidateReportsUploaded': 19,
+        'candidateReportUploadFailures': 2,
         'privateUrl': 'https://secret.example/stream',
       },
     );
     expect(result['playerPlaying'], true);
     expect(result.toString(), isNot(contains('secret.example')));
     expect((result['matrix'] as Map)['channelsDone'], 2);
+    expect((result['matrix'] as Map)['candidateReportsUploaded'], 19);
+    expect((result['matrix'] as Map)['candidateReportUploadFailures'], 2);
   });
 
   test('Limits exported addon records', () {

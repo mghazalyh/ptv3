@@ -69,6 +69,35 @@ void main() {
     expect(published['candidate_0_0']?['sustainedPlayback'], true);
   });
 
+  test('Separates uploaded candidate reports from attempted sources',
+      () async {
+    final runner = LiveTvMatrixRunner(wait: (_) async {});
+    var initialStatusFailed = false;
+    await runner.start(plan(),
+      open: (id, title, index) async => {
+        'accepted': false, 'sourceCount': 1,
+      },
+      inspect: () async => {},
+      publish: (runId, key, payload) async {
+        if (key == 'candidate_0_0') {
+          throw const FormatException('candidate upload unavailable');
+        }
+        if (key == 'status' && !initialStatusFailed) {
+          initialStatusFailed = true;
+          throw const FormatException('status upload unavailable');
+        }
+      },
+    );
+    await runner.whenComplete;
+    final status = runner.status();
+    expect(status['phase'], 'completed');
+    expect(status['sourcesDone'], 50);
+    expect(status['candidateReportsUploaded'], 49);
+    expect(status['candidateReportUploadFailures'], 1);
+    expect(status['uploadFailures'], 2);
+    expect(status['verifiedSources'], 0);
+  });
+
   test('Progress callback exposes real source and channel updates', () async {
     final progress = <Map<String, Object?>>[];
     final runner = LiveTvMatrixRunner(

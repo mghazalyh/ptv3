@@ -142,3 +142,19 @@ Fix: Convert 10 double-escaped HLS line delimiters to actual newline escape sequ
 Prior CI: Live TV analyzer and preexisting focused tests passed; only two newly added redirect tests failed. Local Flutter unavailable; CI to validate updated test fixtures.
 Scope: iOS-only TrollStore IPA. No Android or desktop build.
 Instruction: Push once to trigger the iOS workflow; end immediately without polling or waiting.
+
+OWNER-AUTHORIZED IOS-ONLY COMPREHENSIVE LIVE TV REPAIR RELEASE
+Requested SGT: 2026-11-21 20:06:51
+Repository: mghazalyh/ptv3
+Branch: parity-floating-player-both
+Source HEAD: c2a8af74c2215810d6503225c0a9225c96e77090
+Installed and fully tested baseline: iPad Build 260, b78acc1565d12eb04101f4f646637331086bcdc2
+Cloudflare Stremio addon: ptv3-livetv-addon.pages.dev, verified manifest and multiple TV stream resources.
+Real iPad test coverage: NFL Channel (all three), SYFY (both), Paramount+ Picks, Cine Romantico (all three), Pluto TV Drama, Bloomberg TV alternatives and Free Speech TV.
+Verified success: Cine Romantico Roku backup provided native HLS tracks, 1280x720 video and more than six minutes of advancing unbuffered playback. The other inspected channel sources had native TLS, segment, timeout or upstream HTTP failures, not verified playback.
+Consolidated implementation: Live TV-only one-shot Dart HTTP localhost HLS relay when native iOS MPV TLS/transport fails; direct media remains first choice. Preserve signed URL redirect resolution, HLS variant and segment path extensions, header context, encryption keys, Range bytes and upstream HTTP error statuses. Preserve all VOD, torrents, Stremio media-type isolation and movie/series behavior.
+Diagnostics: add relay active/attempted state and classified events for unattended on-device acceptance tests. No Cloudflare deployment code was modified.
+Regression tests: new localhost relay playlist, redirect, key, segment, HTTP 403 and redirect-loop tests; existing HLS and recovery tests. Correct flutter_test network binding interception before release.
+Complete prebuild GitHub checks: https://github.com/mghazalyh/ptv3/actions/runs/44901846875 ; Linux analyzer and full critical regression tests passed; Windows shared compatibility passed. Do not waste an installation on unvalidated fixtures.
+Build scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY, via .github/workflows/ios-speech-release.yml. Do not trigger Android or Windows packaging.
+User instruction: Trigger this final consolidated iOS build once and immediately end work. Do not poll, await, monitor, or inspect the newly triggered GitHub Actions run.

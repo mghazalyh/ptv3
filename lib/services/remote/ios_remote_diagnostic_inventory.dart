@@ -9,6 +9,9 @@ abstract final class IosRemoteDiagnosticInventory {
   static Map<String, Object?> capabilities() => <String, Object?>{
     'accepted': true,
     'schema': commandSchema,
+    'receiptSchema': 2,
+    'receiptDelivery': 'persisted_retry_until_uploaded',
+    'interruptedExecution': 'uncertain_without_replay',
     'transport': 'torriodb_device_scoped',
     'pollSeconds': 12,
     'readOnly': const [

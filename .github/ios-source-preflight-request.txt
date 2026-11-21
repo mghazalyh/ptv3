@@ -1,6 +1,6 @@
-preflight_requested_at_utc=2026-11-21T15:20:34.130Z
-source_sha=5ed7f7c66a21ffc7c3117ad3c9b13a4de29ef477
+preflight_requested_at_utc=2026-11-21T15:33:02.873Z
+source_sha=9b28f21db1cc928fd0dfe7bdab516563c384aedb
 type=ios-source-tests-only
 no_ipa_build=true
 no_platform_package=true
-scope=latest_native_probe_and_matrix_attribution
+scope=remote_diagnostic_capabilities_and_visible_native_test_indicator

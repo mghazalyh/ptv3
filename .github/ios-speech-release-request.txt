@@ -193,3 +193,16 @@ Fix commits: ba924fc76f2c919e265187e9db87db45c3b8d832 and 841017dd93ea5c76769d86
 Source-only preflight: run 44928930159 passed iOS analyzer and targeted critical regressions; unrelated broad full-suite test stage failed.
 Scope: iOS 15 arm64 signed TrollStore IPA only; preserve existing workflow and signing. Do not trigger Windows, Android or desktop packages. Do not change or interrupt physical iPad native matrix.
 Owner command: Fix the GitHub build, trigger the iOS-only GitHub job and immediately leave without polling or waiting for the new run.
+
+
+OWNER-AUTHORIZED IOS-ONLY CLEAN FULL-SUITE RELEASE
+Requested SGT: 2026-11-22 01:59:44
+Source branch: parity-floating-player-both
+Verified source HEAD: 471cc8a6980b24e50393ffbaf57c16031365ffa2
+Verified source-only preflight: https://github.com/mghazalyh/ptv3/actions/runs/44931714906 (completed success)
+Regression coverage: all Flutter tests passed, focused iOS/Stremio/Live TV/remote diagnostics passed, Flutter analysis passed.
+Fixes: deterministic Vadapav Stremio source and episode tests; fallback after unusable provider source lists; offline Movy ciphertext validation; opt-in external anime/provider availability tests; Continue Watching recommendation fixture regressions and provider fallback; mandatory complete Flutter suite before iOS native build, signing and publish.
+Release workflow: .github/workflows/ios-speech-release.yml
+Scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY; no Windows, Android or desktop packaging.
+Preserve unattended physical iPad matrix and private Torriodb controller; do not issue device playback commands.
+Owner command: Trigger this one iOS build and leave immediately. Do not poll, wait for or inspect the newly triggered job.

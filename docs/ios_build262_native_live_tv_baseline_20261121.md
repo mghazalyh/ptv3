@@ -140,3 +140,19 @@ This correction is **not installed on iOS build 262**. It does not justify a new
 An existing saved PlayTorrio matrix monitor was updated to preserve the baseline first 50 channel rounds, then (only with appropriate fresh device evidence and no conflicting owner policy) apply a bounded relay-prefer/default-addon-header trial for second-repeat rounds, finally roll back to defaults for the third repeat. All transitions must check actual command receipts, preserve native-source attribution, and record intervention timing; hourly scheduling cannot guarantee an exact round boundary. If the sample fails, the experiment must be canceled. The previous failed NFL browser-header+preferred-relay trial should not be repeated.
 
 **No new iOS build or IPA installation was triggered.**
+
+## Follow-up: Amagi 1080p and cross-service write contention
+
+Read-only inspection of the existing iOS telemetry reports at `playtorrio/diagnostics/ios/night-mode/2026/11/21/` provided detailed event-level information **without interrupting the running matrix**.
+
+**Unbeaten:** The matrix opened `nltv:us:Unbeaten.us` source index 0 on `d1t5afz6qed3xk.cloudfront.net`. It changed to a fallback `unbeaten-tcl.amagi.tv` and successfully decoded 1920 × 1080 video with 11 native tracks. Candidate `candidate_1_0.json` confirmed five-minute sustained playback, final position 315954 ms, and `requestedSourceVerified=false`. Do **not** attribute this 1080p success to CloudFront. Historical telemetry confirmed live playlist updates and buffer-free timeline movement beyond 300 seconds on the actual Amagi host.
+
+**NFL failure details from native event traces:** reports around 13:31 and 13:32 UTC show `nltv:us:NFLChannel.us` changing to `jmp2.uk`, valid playlist/variant responses (HTTP 200, media sequences advancing, five segments observed), while native decoded track count remained zero and position stayed at zero. Codes included native HTTP authorization, manifest and segment failures. Successful manifest retrieval and a moving playlist sequence do **not** mean the native HLS decode pipeline succeeded.
+
+**Uploader collision confirmed by architecture inspection:** During the matrix, `IosAudioTelemetry.upload` independently wrote private source/debug reports every ~30–35 seconds on the same Torriodb `main` branch as `GithubDiagnosticControl.publishMatrixFile`, heartbeat and command receipts. Both used GitHub's Contents API, allowing concurrent commits to race. Exact HTTP errors for the two recorded matrix failures were not logged, so this is a strong architectural explanation, not proof each failure was an HTTP 409.
+
+- Commit `a10a6120`: serialized `GithubDiagnosticControl` writes and retried 409/transient failures. Linux/Windows quality gate succeeded.
+- Commit `11e7afee`: added a shared Torriodb upload queue across the diagnostic controller **and** native iOS telemetry uploader, plus bounded retries and tests. Lightweight CI validation was started.
+- Both fixes are **uninstalled source changes**; build 262 remains in service. Do not claim that changing repository code repairs the active IPA.
+
+For build 262, continue the matrix, avoid unnecessary command writes, read per-candidate JSON for actual playback verdicts, and reconcile the independent event traces when a matrix status write fails. No iOS release or new manual installation was requested.

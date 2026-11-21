@@ -26,15 +26,24 @@ abstract final class IosRemotePlaybackVerification {
         last['trackCount'] is num && (last['trackCount'] as num) > 0;
     final moved = progress != null &&
         progress >= (sampleMs * 0.25).clamp(250, 3000);
+    final sameIdentity =
+        (before['mediaId'] == null || after['mediaId'] == null ||
+            before['mediaId'] == after['mediaId']) &&
+        (before['season'] == null || after['season'] == null ||
+            before['season'] == after['season']) &&
+        (before['episode'] == null || after['episode'] == null ||
+            before['episode'] == after['episode']);
     return <String, Object?>{
       'accepted': true,
-      'verified': active && moved && liveDecoded,
+      'verified': active && moved && liveDecoded && sameIdentity,
+      'mediaIdentityUnchanged': sameIdentity,
       'isLive': live,
       'playerActive': active,
       'nativeVideoEvidence': live ? liveDecoded : null,
       'positionAdvanceMs': progress,
       'sampleMs': sampleMs,
-      'reason': !active ? 'not_playing_or_buffering' :
+      'reason': !sameIdentity ? 'media_identity_changed' :
+          !active ? 'not_playing_or_buffering' :
           !liveDecoded ? 'native_video_not_verified' :
           !moved ? 'timeline_not_advancing' : 'playback_progress_verified',
       'before': <String, Object?>{

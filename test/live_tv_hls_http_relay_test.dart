@@ -12,7 +12,8 @@ Future<String> fetchText(HttpClient client, Uri uri) async {
 }
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+  // This suite uses a real localhost HttpServer and HttpClient. Do not
+  // initialize TestWidgetsFlutterBinding: it overrides HTTP with status 400.
 
   test('Redirected HLS variants, keys, segments and headers survive relay',
       () async {

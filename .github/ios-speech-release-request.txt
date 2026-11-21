@@ -243,3 +243,16 @@ Prevention: new .github/scripts/check_ios_remote_source_integrity.py validates s
 Publishing safety: prior GitHub Release HTTP 403 fallback and optional dedicated token logic remain unchanged.
 Scope: iOS 15 arm64 ad-hoc signed TrollStore-compatible IPA ONLY. No Android, Windows or desktop packages. Preserve installed iPad Build 262 and active native 50x3 matrix; no physical-device commands issued.
 Owner instruction: Trigger signed iOS GitHub build and immediately LEAVE. Do not poll, inspect or wait for the triggered build.
+
+OWNER AUTHORIZED IOS-ONLY BUILD #68 TYPE SIGNATURE COMPILATION REPAIR
+Requested SGT: 2026-11-22 05:59:14
+Repository: mghazalyh/ptv3
+Branch: parity-floating-player-both
+Source HEAD before trigger: 5131ffca58b8968019fd73f6ccbb6a3bb99730e7
+Failed iOS Run #68: https://github.com/mghazalyh/ptv3/actions/runs/44948758473
+Root cause: two Dart argument_type_not_assignable errors in test/ios_remote_live_visual_scan_test.dart. Visual probe mock closures declared a required maxFrames named parameter while LiveVisualProbe typed contract treated maxFrames as optional. These errors caused first-stage Flutter analyzer/test build failure.
+Fix: require maxFrames in LiveVisualProbe contract; explicitly type mock frame observer callbacks, null check and avoid redundant non-null assertions.
+Guards: maintain early Dart controller structural check, remote visual Dart analyzer and targeted test suite before full Flutter suite, native compilation, signing and release publishing.
+Validation: source-only preflight triggered separately for corrected source; iOS release workflow has its own hard fail-fast compile and test gates. Signed build completion not assumed.
+Scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY, existing repo and Flutter architecture, no Windows/Android/desktop builds, no physical iPad or native matrix commands.
+Instruction: Trigger iOS-only GitHub release build once and LEAVE immediately. Do not poll the newly triggered job.

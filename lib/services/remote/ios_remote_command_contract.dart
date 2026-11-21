@@ -69,6 +69,30 @@ abstract final class IosRemoteCommandContract {
       'optional': <String>['verifyNative'],
       'returns': 'asynchronous scan execution state',
     },
+    'live_visual_scan': {
+      'readOnly': false,
+      'category': 'live_tv_visual_inspection',
+      'requiresIdleDevice': true,
+      'required': <String>['runId', 'channels'],
+      'optional': <String>['contentHint', 'framesPerChannel', 'maxSources'],
+      'limits': 'up to 15 channels, 2 frames/channel, 3 sources/channel',
+      'returns': 'run status and bounded private decoded-frame evidence paths',
+      'neverClaims': 'broadcast classification is not performed on device',
+    },
+    'live_visual_scan_status': {
+      'readOnly': true,
+      'category': 'live_tv_visual_inspection',
+      'required': <String>[],
+      'optional': <String>[],
+      'returns': 'scan state, sampled channels and private evidence filenames',
+    },
+    'live_visual_scan_cancel': {
+      'readOnly': false,
+      'category': 'live_tv_visual_inspection',
+      'required': <String>[],
+      'optional': <String>[],
+      'returns': 'nonblocking cancellation request for a visual scan',
+    },
     'live_scan_status': {
       'readOnly': true,
       'category': 'testing',
@@ -153,5 +177,9 @@ abstract final class IosRemoteCommandContract {
     ],
     'transport': 'existing_torriodb_device_scoped',
     'nativeTesting': 'foreground_and_device_idle_only',
+    'broadcastInspection': 'actual_decoded_frames_not_metadata',
+    'contentClassification': 'external_chatgpt_image_inspection_required',
+    'visualEvidencePath':
+        'playtorrio/control/ios/visual/<deviceId>/<runId>/frame_<n>_<n>.json',
   };
 }

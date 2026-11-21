@@ -36,6 +36,37 @@ void main() {
     expect(result.toString(), isNot(contains('https://')));
   });
 
+  test('Untrusted provider manifest data cannot leak private values', () {
+    final addon = InstalledAddon(
+      baseUrl: 'https://user:password@tv.example/private/path?token=hidden',
+      manifest: AddonManifest.fromJson({
+        'id': 'https://evil.example/private?id=identifierSecret',
+        'name': 'Provider token=manifestSecret',
+        'version': '1.0.0',
+        'types': ['movie', 'series', 'https://evil.example/secret', 'tv'],
+        'resources': [
+          'stream',
+          {'name': 'catalog?token=resourceSecret', 'idPrefixes': ['privateSecret']},
+          'meta',
+        ],
+      }),
+    );
+    final item = (IosRemoteDiagnosticInventory.addons([addon])['addons']
+        as List).single as Map;
+    expect(item['host'], 'tv.example');
+    expect(item['name'], '[redacted]');
+    expect(item['id'], '[redacted]');
+    expect(item['types'], ['movie', 'series', 'tv']);
+    expect(item['resources'], ['stream', 'meta']);
+    final exported = item.toString();
+    for (final sensitive in [
+      'identifierSecret', 'manifestSecret', 'resourceSecret',
+      'privateSecret', 'password', 'hidden', 'evil.example',
+    ]) {
+      expect(exported, isNot(contains(sensitive)));
+    }
+  });
+
   test('Snapshot excludes media URLs and titles', () {
     final result = IosRemoteDiagnosticInventory.device(
       buildRun: '300', buildCommit: 'abc',

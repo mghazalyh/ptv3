@@ -6,11 +6,11 @@ import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
-import '../../../models/stream/stream_model.dart';
-import '../player_settings.dart';
-import 'live_source_manager.dart';
-import 'live_stream_detector.dart';
-import 'live_native_channel_verifier.dart';
+import '../../models/stream/stream_model.dart';
+import '../player/player_settings.dart';
+import '../player/live_tv/live_source_manager.dart';
+import '../player/live_tv/live_stream_detector.dart';
+import '../player/live_tv/live_native_channel_verifier.dart';
 
 /// Called only by the opt-in content inspection command. Never uploads bytes
 /// itself, mutates the visible player or changes the existing matrix verifier.

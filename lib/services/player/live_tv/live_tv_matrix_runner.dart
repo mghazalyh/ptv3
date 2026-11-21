@@ -230,7 +230,7 @@ class LiveTvMatrixRunner {
                 if (prelim) {
                   var elapsed = 0;
                   var previousPosition = pos as int;
-                  var finalPosition = pos;
+                  Object? finalPosition = pos;
                   var finalHost = last['activeSourceHost'];
                   var stable = true;
                   var sustainedSamples = 0;

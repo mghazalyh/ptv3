@@ -60,7 +60,7 @@ void main() {
         expect(maxFrames, 2);
         expect(onFrame, isNotNull);
         await onFrame!(png, 2500);
-        await onFrame(png, 6000);
+        await onFrame!(png, 6000);
         return nativeSuccess();
       },
       encodeFrame: (Uint8List frame) async {

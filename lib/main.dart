@@ -42,13 +42,16 @@ import './services/discord/discord_rpc_service.dart';
 import './services/player/night_mode_diagnostics.dart';
 import './services/player/ios_audio_telemetry.dart';
 import './services/remote/lan_remote_service.dart';
+import './services/remote/lan_cast_request.dart';
 import './services/remote/github_diagnostic_control.dart';
 import './services/remote/github_stremio_addon_probe.dart';
 import './services/player/live_tv/live_tv_experiment_policy.dart';
 import './services/player/live_tv/live_tv_matrix_runner.dart';
 import './services/stream/stream_service.dart';
 import './services/metadata/metadata_service.dart';
+import './models/movie/movie.dart';
 import './models/movie/movie_detail.dart';
+import './pages/player/watch_screen.dart';
 import './pages/player/player_screen.dart';
 import './widgets/updater/update_dialog.dart';
 
@@ -132,6 +135,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     LanRemoteService.instance.onNavigationCommand = _handleRemoteNavigation;
+    LanRemoteService.instance.onCastRequest = _handleLanCastRequest;
     if (Platform.isIOS) {
       GithubDiagnosticControl.instance.onCommand = _dispatchGithubDiagnostic;
       GithubDiagnosticControl.instance.start();
@@ -175,6 +179,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   void dispose() {
     _homeSyncTimer?.cancel();
     LanRemoteService.instance.onNavigationCommand = null;
+    LanRemoteService.instance.onCastRequest = null;
     if (Platform.isIOS) GithubDiagnosticControl.instance.onCommand = null;
     // Receiver sockets close when the application is disposed.
     unawaited(LanRemoteService.instance.stopHosting());
@@ -462,6 +467,157 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
       debugPrint('[GithubDiagnosticControl] Dispatch: ${error.runtimeType}');
       return <String, Object?>{
         'accepted': false, 'errorClass': error.runtimeType.toString()};
+    }
+  }
+
+  /// Paired iPhone handoff supplies *identity*, never a resolved stream URL.
+  /// Re-resolve through the iPad's own installed Stremio addons and source
+  /// preferences, so the sender cannot redirect playback to an arbitrary URL.
+  Future<Map<String, Object?>> _handleLanCastRequest(
+      LanCastRequest request) async {
+    if (!Platform.isIOS || !mounted || !_lifecycleState.toString()
+        .contains('resumed')) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'ipad_not_foreground',
+      };
+    }
+    final navigator = navigatorKey.currentState;
+    if (navigator == null) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'navigator_unavailable',
+      };
+    }
+    try {
+      if (request.type == 'tv') {
+        final valid = AddonManager.instance.activeStreamAddons.any((addon) =>
+            addon.manifest.supportsRequest(
+                'stream', 'tv', request.mediaId));
+        if (!valid) {
+          return <String, Object?>{
+            'accepted': false, 'reason': 'tv_addon_not_installed',
+          };
+        }
+        final sources = await StreamService.fetchStreams(
+          type: 'tv', id: request.mediaId, title: request.title,
+        ).take(36).toList().timeout(const Duration(seconds: 22));
+        final playable = sources.where(
+            StreamService.isEligibleLiveStreamSource).toList();
+        if (playable.isEmpty) {
+          return <String, Object?>{
+            'accepted': false, 'reason': 'no_direct_live_sources',
+          };
+        }
+        if (!mounted) return {'accepted': false, 'reason': 'not_mounted'};
+        navigator.popUntil((route) => route.isFirst);
+        navigator.push(MaterialPageRoute<void>(builder: (_) =>
+            PlayerScreen(
+              source: playable.first,
+              availableSources: playable,
+              title: request.title,
+              detail: MovieDetail(
+                id: request.mediaId,
+                name: request.title,
+                type: 'tv',
+                behaviorHints: const <String, dynamic>{'isLive': true},
+              ),
+            )));
+        return <String, Object?>{
+          'accepted': true, 'launched': true, 'type': 'tv',
+        };
+      }
+
+      final metaAddons = AddonManager.instance.activeAddons.where((addon) =>
+          addon.manifest.supportsRequest(
+              'meta', request.type, request.mediaId)).toList();
+      final selected = metaAddons.where((addon) =>
+          addon.baseUrl == request.addonBaseUrl).toList();
+      final baseUrl = selected.isNotEmpty
+          ? selected.first.baseUrl : metaAddons.isNotEmpty
+          ? metaAddons.first.baseUrl : 'https://v3-cinemeta.strem.io';
+      final resolved = await MetadataService.resolveCatalogMeta(
+        baseUrl: baseUrl,
+        type: request.type,
+        id: request.mediaId,
+        title: request.title,
+        sourceSupportsMeta: metaAddons.any(
+            (addon) => addon.baseUrl == baseUrl),
+        compatibleMetaProviders: metaAddons
+            .map((addon) => addon.baseUrl).toList(),
+      ).timeout(const Duration(seconds: 18));
+      final detail = resolved?.detail ?? MetadataService.previewForCatalog(
+        Movie(
+          id: request.mediaId, type: request.type, name: request.title,
+          addonBaseUrl: baseUrl,
+        ),
+      );
+      final isEpisode = request.type == 'series' || request.type == 'anime';
+      final episodes = detail.videos;
+      final requestedEpisodeId = request.episodeId;
+      final episode = isEpisode
+          ? (requestedEpisodeId != null
+              ? episodes.where((ep) =>
+                    ep.id == requestedEpisodeId &&
+                    (request.season == null ||
+                        ep.season == request.season) &&
+                    (request.episode == null ||
+                        ep.episode == request.episode)).firstOrNull
+              : episodes.isEmpty ? null : episodes.first)
+          : null;
+      if (isEpisode && episode == null) {
+        return <String, Object?>{
+          'accepted': false, 'reason': 'episode_not_in_verified_metadata',
+        };
+      }
+      final streamId = episode?.id ?? detail.id;
+      final sources = await StreamService.fetchStreams(
+        type: request.type, id: streamId, title: detail.name,
+        year: int.tryParse(detail.year ?? ''),
+        season: episode?.season, episode: episode?.episode,
+      ).take(100).toList().timeout(const Duration(seconds: 22));
+      final profile = WatchSourcePreferencesService.current.value
+          .forEpisode(episode != null);
+      final eligible = WatchSourceEngine.process(
+        sources, profile,
+        verified: const <String, bool>{},
+        title: detail.name,
+        year: int.tryParse(detail.year ?? ''),
+        season: episode?.season,
+        episode: episode?.episode,
+      );
+      if (!mounted) return {'accepted': false, 'reason': 'not_mounted'};
+      navigator.popUntil((route) => route.isFirst);
+      if (eligible.isNotEmpty) {
+        navigator.push(MaterialPageRoute<void>(builder: (_) =>
+            PlayerScreen(
+              source: eligible.first,
+              availableSources: eligible,
+              title: detail.name,
+              detail: detail,
+              episode: episode,
+            )));
+        return <String, Object?>{
+          'accepted': true, 'launched': true,
+          'type': request.type,
+          'episodeId': episode?.id,
+        };
+      }
+      // Honor cached-only/source-language preferences. Never silently
+      // play an unverified or disallowed source; show the normal chooser.
+      navigator.push(MaterialPageRoute<void>(builder: (_) =>
+          WatchScreen(
+            detail: detail,
+            type: request.type,
+            selectedEpisode: episode,
+          )));
+      return <String, Object?>{
+        'accepted': true, 'launched': false,
+        'sourceSelectionRequired': true,
+      };
+    } catch (error) {
+      debugPrint('[LAN Cast] Media handoff failed: ${error.runtimeType}');
+      return <String, Object?>{
+        'accepted': false, 'reason': 'media_resolution_failed',
+      };
     }
   }
 

@@ -50,6 +50,7 @@ abstract final class IosRemoteSafeSettings {
             };
           }
           await PlayerSettings.setSubFontSize(value);
+          break;
         case 'subtitleScale':
           if (value is! num || value < 0.5 || value > 3) {
             return <String, Object?>{
@@ -57,16 +58,19 @@ abstract final class IosRemoteSafeSettings {
             };
           }
           await PlayerSettings.setSubScale(value.toDouble());
+          break;
         case 'subtitleBold':
           if (value is! bool) return <String, Object?>{
             'accepted': false, 'reason': 'invalid_setting_value',
           };
           await PlayerSettings.setSubBold(value);
+          break;
         case 'subtitleItalic':
           if (value is! bool) return <String, Object?>{
             'accepted': false, 'reason': 'invalid_setting_value',
           };
           await PlayerSettings.setSubItalic(value);
+          break;
         case 'subtitlePosition':
           if (value is! num || value < 0 || value > 100) {
             return <String, Object?>{
@@ -74,6 +78,7 @@ abstract final class IosRemoteSafeSettings {
             };
           }
           await PlayerSettings.setSubPos(value.toDouble());
+          break;
       }
       final checked = inspect();
       final settings = checked['settings'] as Map<String, Object?>;

@@ -159,8 +159,10 @@ class _CatalogPageState extends State<CatalogPage> {
           _items.length < 2000 && pages < 30) {
         if (_isLoading) {
           await Future<void>.delayed(const Duration(milliseconds: 400));
+          enqueue(_items);
           continue;
         }
+        enqueue(_items);
         final priorCount = _items.length;
         await _loadItems();
         if (cancelled()) break;

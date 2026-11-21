@@ -23,13 +23,10 @@ abstract final class PlayOnIpadSheet {
     if (!canOffer(context)) return;
     final type = LanCastRequest.normalizeType(movie.type);
     if (type == null) return;
-    final base = Uri.tryParse(movie.addonBaseUrl);
     final request = LanCastRequest(
       type: type,
       mediaId: movie.id,
       title: movie.name,
-      addonBaseUrl: base?.scheme == 'https'
-          ? movie.addonBaseUrl : null,
       episodeId: episode?.id,
       season: episode?.season,
       episode: episode?.episode,
@@ -126,6 +123,12 @@ class _CastSheetContentState extends State<_CastSheetContent> {
                 Text('Season ${widget.request.season ?? "?"} · '
                     'Episode ${widget.request.episode}',
                   style: const TextStyle(color: Colors.white70)),
+              if ((widget.request.type == 'series' ||
+                      widget.request.type == 'anime') &&
+                  widget.request.episodeId == null)
+                const Text('Starts the first episode. Long-press a specific '
+                    'episode to choose that episode instead.',
+                  style: TextStyle(color: Colors.white70)),
               const SizedBox(height: 14),
               Text(session == null
                   ? 'Pair your iPhone with the iPad in Remote Control first.'

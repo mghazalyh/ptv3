@@ -7,7 +7,6 @@ void main() {
       'type': 'series', 'mediaId': 'tt0944947',
       'title': 'A Show', 'episodeId': 'tt0944947:2:3',
       'season': 2, 'episode': 3,
-      'addonBaseUrl': 'https://v3-cinemeta.strem.io',
     });
     expect(item, isNotNull);
     expect(item!.episodeId, 'tt0944947:2:3');
@@ -21,7 +20,7 @@ void main() {
       'title': 'Cine Romantico',
     };
     expect(LanCastRequest.parse({...base, 'addonBaseUrl':
-      'http://user:password@localhost/private'}), isNull);
+      'https://some.addon/secret'}), isNull);
     expect(LanCastRequest.parse({...base, 'mediaId':
       '../../etc/passwd'}), isNull);
     expect(LanCastRequest.parse({...base, 'type': 'shell'}), isNull);

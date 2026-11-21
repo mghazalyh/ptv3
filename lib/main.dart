@@ -529,10 +529,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
       final metaAddons = AddonManager.instance.activeAddons.where((addon) =>
           addon.manifest.supportsRequest(
               'meta', request.type, request.mediaId)).toList();
-      final selected = metaAddons.where((addon) =>
-          addon.baseUrl == request.addonBaseUrl).toList();
-      final baseUrl = selected.isNotEmpty
-          ? selected.first.baseUrl : metaAddons.isNotEmpty
+      final baseUrl = metaAddons.isNotEmpty
           ? metaAddons.first.baseUrl : 'https://v3-cinemeta.strem.io';
       final resolved = await MetadataService.resolveCatalogMeta(
         baseUrl: baseUrl,

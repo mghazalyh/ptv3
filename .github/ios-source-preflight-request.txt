@@ -1,0 +1,5 @@
+preflight_requested_at_utc=2026-11-21T15:11:09.660Z
+source_sha=6873029e6f90e392dbd809363e658b83b55661bb
+type=ios-source-tests-only
+no_ipa_build=true
+no_platform_package=true

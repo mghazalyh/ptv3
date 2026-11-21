@@ -52,6 +52,8 @@ jobs:
           flutter test test/live_tv_matrix_runner_test.dart
           flutter test test/github_diagnostic_control_test.dart
           flutter test test/torriodb_write_queue_test.dart
+          flutter test test/lan_cast_request_test.dart
+          flutter test test/live_channel_health_scanner_test.dart
           flutter test test/ios_source_audio_diagnostics_test.dart
 
       - name: Analyze shared components before any native release build
@@ -95,6 +97,12 @@ jobs:
             lib/models/movie/video.dart \
             lib/services/metadata/metadata_service.dart \
             lib/pages/home/home_page.dart \
+            lib/pages/catalog/catalog_page.dart \
+            lib/services/remote/lan_remote_service.dart \
+            lib/services/remote/lan_cast_request.dart \
+            lib/widgets/remote/play_on_ipad_sheet.dart \
+            lib/pages/remote/remote_control_page.dart \
+            lib/services/player/live_tv/live_channel_health_scanner.dart \
             lib/pages/history/watched_history_page.dart \
             lib/services/continue_watching/watched_history_timeline.dart \
             lib/pages/details/details_page.dart \

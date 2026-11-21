@@ -299,7 +299,7 @@ class LanRemoteService {
           return;
         }
         final result = await handler(command)
-            .timeout(const Duration(seconds: 32));
+            .timeout(const Duration(seconds: 55));
         await _write(response, result['accepted'] == true ? 200 : 422,
             result);
         return;
@@ -430,7 +430,7 @@ class LanRemoteService {
       LanRemoteSession session, LanCastRequest request) async {
     final response = await _request(session.peer, 'POST', '/cast',
         token: session.token, body: request.toJson(),
-        responseTimeout: const Duration(seconds: 36));
+        responseTimeout: const Duration(seconds: 60));
     if (response['accepted'] != true) {
       throw StateError('iPad did not accept the media request.');
     }

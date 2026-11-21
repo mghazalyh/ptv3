@@ -1288,7 +1288,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
 
   Widget _buildPlayButton({required bool fullWidth}) {
     return GestureDetector(
-      onLongPress: PlayOnIpadSheet.supported ? () => _showOnIpad(
+      onLongPress: PlayOnIpadSheet.canOffer(context) ? () => _showOnIpad(
         _currentSeasonEpisodes.isNotEmpty
             ? _currentSeasonEpisodes.first
             : (_detail?.videos.isNotEmpty == true
@@ -2176,7 +2176,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap ?? () {},
-        onLongPress: PlayOnIpadSheet.supported
+        onLongPress: PlayOnIpadSheet.canOffer(context)
             ? widget.onLongPress : null,
         child: AnimatedScale(
           scale: _hovered ? 1.03 : 1.0,
@@ -2219,7 +2219,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                             ),
                           ),
                         ),
-                        if (PlayOnIpadSheet.supported)
+                        if (PlayOnIpadSheet.canOffer(context))
                           const Positioned(bottom: 6, right: 7,
                             child: Text('Hold · iPad', style: TextStyle(
                               fontSize: 11, fontWeight: FontWeight.w800,

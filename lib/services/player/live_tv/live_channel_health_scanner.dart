@@ -118,6 +118,6 @@ class LiveChannelHealthScanner {
       }
     }
     await Future.wait(List.generate(
-        concurrency.clamp(1, 6), (_) => worker()));
+        concurrency.clamp(1, 6).toInt(), (_) => worker()));
   }
 }

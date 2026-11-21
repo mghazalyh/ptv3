@@ -146,7 +146,7 @@ class _MovieCardState extends State<MovieCard> {
           });
         },
         onTap: _activateCard,
-        onLongPress: PlayOnIpadSheet.supported
+        onLongPress: PlayOnIpadSheet.canOffer(context)
             ? () => PlayOnIpadSheet.show(context, movie: widget.movie)
             : null,
         child: AnimatedScale(
@@ -171,7 +171,7 @@ class _MovieCardState extends State<MovieCard> {
                       similarityPercent: movie.similarityPercent,
                       recommendationSource: movie.recommendationSource,
                     ),
-                    if (PlayOnIpadSheet.supported)
+                    if (PlayOnIpadSheet.canOffer(context))
                       Positioned(
                         left: 7, right: 7, bottom: 8,
                         child: IgnorePointer(child: Container(

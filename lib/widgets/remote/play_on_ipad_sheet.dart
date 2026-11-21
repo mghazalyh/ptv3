@@ -13,11 +13,14 @@ abstract final class PlayOnIpadSheet {
   static bool get supported => !kIsWeb &&
       defaultTargetPlatform == TargetPlatform.iOS;
 
+  static bool canOffer(BuildContext context) =>
+      supported && MediaQuery.sizeOf(context).shortestSide < 600;
+
   static Future<void> show(BuildContext context, {
     required Movie movie,
     Video? episode,
   }) async {
-    if (!supported) return;
+    if (!canOffer(context)) return;
     final type = LanCastRequest.normalizeType(movie.type);
     if (type == null) return;
     final base = Uri.tryParse(movie.addonBaseUrl);

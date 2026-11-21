@@ -66,6 +66,9 @@ jobs:
             lib/services/remote/ios_remote_media_discovery.dart \
             lib/services/remote/ios_remote_live_health_history.dart \
             lib/services/remote/ios_remote_live_scan.dart \
+            lib/services/remote/ios_remote_live_frame_probe.dart \
+            lib/services/remote/ios_remote_live_visual_scan.dart \
+            lib/services/remote/ios_remote_visual_frame_encoder.dart \
             lib/services/remote/ios_remote_app_observability.dart \
             lib/services/remote/ios_remote_safe_settings.dart \
             lib/services/remote/ios_remote_playback_verification.dart \
@@ -114,6 +117,7 @@ jobs:
             test/ios_remote_playback_verification_test.dart
             test/ios_remote_live_health_history_test.dart
             test/ios_remote_live_scan_test.dart
+            test/ios_remote_live_visual_scan_test.dart
             test/ios_remote_command_contract_test.dart
             test/ios_remote_crash_evidence_test.dart
             test/github_stremio_addon_probe_test.dart

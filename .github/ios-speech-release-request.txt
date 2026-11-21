@@ -133,3 +133,12 @@ Fix: Resolve HLS child playlists and segments against their final redirect desti
 Tests: Master and variant redirect playback probes, final HTTP 414 URI diagnostics, redirect-loop rejection.
 Unverified: Real iPad broadcast playback, since Build 257 was last seen at 2026-11-21T10:08:34Z and has not acknowledged a new command.
 User instruction: Push this marker, trigger iOS only, and immediately leave without polling GitHub Actions.
+
+OWNER-AUTHORIZED IOS-ONLY HLS TEST FIX
+Requested SGT: 2026-11-21 18:36:50
+Failed GitHub Actions run: 44893511984 (iOS primary test step)
+Cause: Two new HLS regression fixtures used double-escaped literal backslash-n delimiters, producing invalid HLS bodies and incorrect expectations.
+Fix: Convert 10 double-escaped HLS line delimiters to actual newline escape sequences in test/live_tv_hls_probe_test.dart. Preserve production HTTP/HLS parsing and redirect behavior unchanged.
+Prior CI: Live TV analyzer and preexisting focused tests passed; only two newly added redirect tests failed. Local Flutter unavailable; CI to validate updated test fixtures.
+Scope: iOS-only TrollStore IPA. No Android or desktop build.
+Instruction: Push once to trigger the iOS workflow; end immediately without polling or waiting.

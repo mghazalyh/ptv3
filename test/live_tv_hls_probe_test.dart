@@ -196,8 +196,8 @@ void main() {
       }
       if (request.url.path == '/live/master.m3u8') {
         return http.Response(
-          '#EXTM3U\\n#EXT-X-STREAM-INF:BANDWIDTH=400000\\n'
-          'variants/720.m3u8\\n', 200);
+          '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=400000\n'
+          'variants/720.m3u8\n', 200);
       }
       if (request.url.path == '/live/variants/720.m3u8') {
         return http.Response('', 307, headers: const {
@@ -206,8 +206,8 @@ void main() {
       }
       if (request.url.path == '/hls/media.m3u8') {
         return http.Response(
-          '#EXTM3U\\n#EXT-X-MEDIA-SEQUENCE:88\\n'
-          '#EXTINF:6,\\nsegment.ts\\n', 200);
+          '#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:88\n'
+          '#EXTINF:6,\nsegment.ts\n', 200);
       }
       if (request.url.path == '/hls/segment.ts') {
         final bytes = List<int>.filled(376, 0)
@@ -245,8 +245,8 @@ void main() {
     LiveSourceManager.probeClientOverride = MockClient((request) async {
       if (request.url.path == '/master.m3u8') {
         return http.Response(
-          '#EXTM3U\\n#EXT-X-STREAM-INF:BANDWIDTH=1000\\n'
-          'child.m3u8\\n', 200);
+          '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\n'
+          'child.m3u8\n', 200);
       }
       if (request.url.path == '/child.m3u8') {
         return http.Response('', 302,

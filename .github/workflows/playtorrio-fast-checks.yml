@@ -42,6 +42,7 @@ jobs:
           flutter test test/lan_cast_request_test.dart
           flutter test test/live_channel_health_scanner_test.dart
           flutter test test/live_verified_source_preference_test.dart
+          flutter test test/live_verified_source_learning_gate_test.dart
           flutter test test/ios_source_audio_diagnostics_test.dart
 
       - name: Analyze shared components before any native release build

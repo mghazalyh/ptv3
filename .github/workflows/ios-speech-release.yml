@@ -215,6 +215,17 @@ jobs:
           flutter test test/github_diagnostic_control_test.dart
           flutter test test/github_stremio_addon_probe_test.dart
 
+      # The next IPA must not package untested staged features. These
+      # source-level regressions run before any native iOS archive/sign step.
+      - name: Gate native release on Live TV scan, source learning and iPhone cast
+        run: |
+          flutter analyze --no-pub --no-fatal-infos lib/services/player/live_tv lib/services/remote/lan_cast_request.dart lib/services/remote/lan_remote_service.dart lib/widgets/remote/play_on_ipad_sheet.dart lib/pages/catalog/catalog_page.dart lib/main.dart
+          flutter test test/live_channel_health_scanner_test.dart
+          flutter test test/live_verified_source_preference_test.dart
+          flutter test test/live_verified_source_learning_gate_test.dart
+          flutter test test/lan_cast_request_test.dart
+          flutter test test/torriodb_write_queue_test.dart
+
       - name: Analyze iPhone and iPad LAN remote integration
         run: flutter analyze --no-pub --no-fatal-infos lib/main.dart lib/services/remote/lan_remote_service.dart lib/pages/remote/remote_control_page.dart lib/widgets/movie/movie_card.dart lib/widgets/home/continue_watching_slider.dart lib/widgets/movie/movie_slider_section.dart lib/widgets/common/liquid_dock.dart lib/pages/player/player_screen.dart lib/pages/settings/settings_page.dart
 

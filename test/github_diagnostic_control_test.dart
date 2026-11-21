@@ -86,4 +86,100 @@ void main() {
     expect(uploaded.last['result'], <String, dynamic>{'accepted': true});
     expect(jsonEncode(uploaded), isNot(contains('TEST_PRIVATE_TOKEN')));
   });
+  test('Matrix uploads recover from GitHub 409 using a fresh SHA',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    var puts = 0;
+    var reads = 0;
+    final sentShas = <String?>[];
+    final controller = GithubDiagnosticControl.forTesting(
+      tokenProvider: () async => 'TEST_PRIVATE_TOKEN',
+      client: MockClient((request) async {
+        if (request.method == 'GET') {
+          reads++;
+          return http.Response(jsonEncode({
+            'sha': reads == 1 ? 'old-blob-sha' : 'new-blob-sha',
+            'content': base64Encode(utf8.encode('{}')),
+          }), 200);
+        }
+        if (request.method == 'PUT') {
+          puts++;
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          sentShas.add(body['sha'] as String?);
+          return http.Response('{}', puts == 1 ? 409 : 200);
+        }
+        return http.Response('', 404);
+      }),
+    )..forceTestPlatform = true;
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    controller.enabled.value = true;
+    await controller.publishMatrixFile('matrix_retry_001', 'status',
+        <String, Object?>{'phase': 'running'});
+    expect(puts, 2);
+    expect(reads, 2);
+    expect(sentShas, <String?>['old-blob-sha', 'new-blob-sha']);
+  });
+
+  test('Concurrent matrix, receipt and heartbeat writes are serialized',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    var inFlight = 0;
+    var peakInFlight = 0;
+    var writes = 0;
+    final controller = GithubDiagnosticControl.forTesting(
+      tokenProvider: () async => 'TEST_PRIVATE_TOKEN',
+      client: MockClient((request) async {
+        if (request.method == 'GET') return http.Response('{}', 404);
+        if (request.method == 'PUT') {
+          inFlight++;
+          if (inFlight > peakInFlight) peakInFlight = inFlight;
+          await Future<void>.delayed(const Duration(milliseconds: 15));
+          writes++;
+          inFlight--;
+          return http.Response('{}', 201);
+        }
+        return http.Response('', 404);
+      }),
+    )..forceTestPlatform = true;
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    controller.enabled.value = true;
+    await Future.wait([
+      controller.publishMatrixFile(
+          'matrix_queue_001', 'candidate_0_0', {'accepted': true}),
+      controller.publishMatrixFile(
+          'matrix_queue_001', 'candidate_0_1', {'accepted': false}),
+      controller.publishMatrixFile(
+          'matrix_queue_001', 'status', {'phase': 'running'}),
+    ]);
+    expect(writes, 3);
+    expect(peakInFlight, 1);
+  });
+
+  test('A failed upload does not poison the later upload queue', () async {
+    SharedPreferences.setMockInitialValues({});
+    var puts = 0;
+    final controller = GithubDiagnosticControl.forTesting(
+      tokenProvider: () async => 'TEST_PRIVATE_TOKEN',
+      client: MockClient((request) async {
+        if (request.method == 'GET') return http.Response('{}', 404);
+        if (request.method == 'PUT') {
+          puts++;
+          return http.Response('{}', puts == 1 ? 400 : 201);
+        }
+        return http.Response('', 404);
+      }),
+    )..forceTestPlatform = true;
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    controller.enabled.value = true;
+    await expectLater(controller.publishMatrixFile(
+        'matrix_queue_001', 'candidate_0_0', {'accepted': true}),
+        throwsA(isA<StateError>()));
+    await controller.publishMatrixFile(
+        'matrix_queue_001', 'candidate_0_1', {'accepted': false});
+    expect(puts, 2);
+  });
+
 }

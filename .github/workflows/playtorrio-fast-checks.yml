@@ -50,6 +50,7 @@ jobs:
           flutter test test/live_tv_hls_probe_test.dart
           flutter test test/live_tv_experiment_policy_test.dart
           flutter test test/live_tv_matrix_runner_test.dart
+          flutter test test/github_diagnostic_control_test.dart
 
       - name: Analyze shared components before any native release build
         run: |

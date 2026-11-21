@@ -62,6 +62,9 @@ class GithubDiagnosticControl {
   bool _started = false;
   bool _polling = false;
   bool _initialized = false;
+  // The command poller and foreground matrix can publish at the same time.
+  // Serializing their GitHub Contents API writes prevents same-branch races.
+  Future<void> _pendingWrite = Future<void>.value();
   String? _deviceId;
   String? _lastCommand;
   DateTime? _lastStatusAt;
@@ -186,21 +189,56 @@ class GithubDiagnosticControl {
   }
 
   Future<void> _writeFile(
+      String token, String path, Map<String, Object?> body) {
+    // Do not race heartbeat, command receipts and matrix candidate uploads
+    // against each other on the same Torriodb branch. Keep the queue healthy
+    // after one upload fails so later evidence can still be published.
+    final queued = _pendingWrite.then(
+        (_) => _writeFileWithRetry(token, path, body));
+    _pendingWrite = queued.catchError((Object error) {
+      debugPrint('[GithubDiagnosticControl] Queued upload failed: '
+          '${error.runtimeType}');
+    });
+    return queued;
+  }
+
+  Future<void> _writeFileWithRetry(
       String token, String path, Map<String, Object?> body) async {
-    final existing = await _readFile(token, path);
-    final request = <String, Object?>{
-      'branch': branch,
-      'message': 'diagnostics(ios): unattended diagnostic receipt',
-      'content': base64Encode(utf8.encode(jsonEncode(body))),
-      if (existing.sha != null) 'sha': existing.sha,
-    };
-    final response = await _client.put(
-      Uri.https('api.github.com', '/repos/$repository/contents/$path'),
-      headers: {..._headers(token), 'Content-Type': 'application/json'},
-      body: jsonEncode(request),
-    ).timeout(const Duration(seconds: 15));
-    if (response.statusCode != 201 && response.statusCode != 200) {
-      throw StateError('GitHub write HTTP ${response.statusCode}');
+    final encoded = base64Encode(utf8.encode(jsonEncode(body)));
+    for (var attempt = 0; attempt < 4; attempt++) {
+      // A retry must re-read the SHA; blindly reusing the prior SHA causes
+      // permanent 409 conflicts when another device updates the same file.
+      final existing = await _readFile(token, path);
+      final request = <String, Object?>{
+        'branch': branch,
+        'message': 'diagnostics(ios): unattended diagnostic receipt',
+        'content': encoded,
+        if (existing.sha != null) 'sha': existing.sha,
+      };
+      final response = await _client.put(
+        Uri.https('api.github.com', '/repos/$repository/contents/$path'),
+        headers: {..._headers(token), 'Content-Type': 'application/json'},
+        body: jsonEncode(request),
+      ).timeout(const Duration(seconds: 15));
+      if (response.statusCode == 201 || response.statusCode == 200) return;
+
+      final code = response.statusCode;
+      final retryable = code == 409 || code == 429 ||
+          code == 502 || code == 503 || code == 504 ||
+          (code == 403 && response.headers['retry-after'] != null);
+      if (!retryable || attempt == 3) {
+        throw StateError('GitHub write HTTP $code');
+      }
+      // Backoff is bounded because an iPad matrix must not stall forever.
+      // Never print response bodies, headers, URLs or credentials.
+      final retryAfter = int.tryParse(
+          response.headers['retry-after'] ?? '') ?? 0;
+      final wait = retryAfter > 0
+          ? Duration(seconds: retryAfter.clamp(1, 4).toInt())
+          : Duration(milliseconds: 250 * (attempt + 1));
+      debugPrint('[GithubDiagnosticControl] Retrying GitHub write '
+          'after HTTP $code');
+      await Future<void>.delayed(wait);
     }
   }
 

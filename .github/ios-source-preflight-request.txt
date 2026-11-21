@@ -1,6 +1,6 @@
-requested_source_head=ac4bb4c14ba979b7dbcbfc3fe86abc67c9a1fcaa
+requested_source_head=a5c79bc9e1377beeef047eda1df82b8fe1ffad81
 type=ios-source-tests-only
 no_ipa_build=true
 no_platform_package=true
-scope=durable_command_receipts_and_interrupted_execution_regressions_full_flutter_suite
-requested_utc=2026-11-21T19:17:23.963Z
+scope=remote_engineering_expansion_full_flutter_suite
+requested_utc=2026-11-21T19:37:08.948Z

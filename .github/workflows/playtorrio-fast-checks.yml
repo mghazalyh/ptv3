@@ -51,6 +51,8 @@ jobs:
           flutter test test/live_tv_experiment_policy_test.dart
           flutter test test/live_tv_matrix_runner_test.dart
           flutter test test/github_diagnostic_control_test.dart
+          flutter test test/torriodb_write_queue_test.dart
+          flutter test test/ios_source_audio_diagnostics_test.dart
 
       - name: Analyze shared components before any native release build
         run: |

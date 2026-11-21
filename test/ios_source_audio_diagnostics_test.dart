@@ -135,4 +135,25 @@ void main() {
     expect(await telemetry.upload(), false);
     expect(calls, 0);
   });
+  test('iOS performance upload retries GitHub branch contention', () async {
+    SharedPreferences.setMockInitialValues({});
+    var writes = 0;
+    final telemetry = IosAudioTelemetry.forTesting(
+      client: MockClient((request) async {
+        expect(request.method, 'PUT');
+        writes++;
+        if (writes == 1) return http.Response('{}', 409);
+        return http.Response('{}', 201);
+      }),
+      tokenProvider: () async => 'TEST_ONLY_ACCESS_TOKEN',
+    )..forceTestPlatform = true;
+    addTearDown(telemetry.dispose);
+    await telemetry.initialize();
+    await telemetry.setEnabled(true);
+    telemetry.beginSourceSession(
+      title: 'Live Test', mediaId: 'nltv:us:LiveTest.us', type: 'tv');
+    expect(await telemetry.upload(reason: 'playback_sample'), true);
+    expect(writes, 2);
+  });
+
 }

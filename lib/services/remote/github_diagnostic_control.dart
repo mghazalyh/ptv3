@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../my_list/github_library_cloud.dart';
 import '../player/ios_audio_telemetry.dart';
+import 'torriodb_write_queue.dart';
 
 typedef DiagnosticCommandHandler = Future<Map<String, Object?>> Function(
     String action, Map<String, dynamic> args);
@@ -62,9 +63,6 @@ class GithubDiagnosticControl {
   bool _started = false;
   bool _polling = false;
   bool _initialized = false;
-  // The command poller and foreground matrix can publish at the same time.
-  // Serializing their GitHub Contents API writes prevents same-branch races.
-  Future<void> _pendingWrite = Future<void>.value();
   String? _deviceId;
   String? _lastCommand;
   DateTime? _lastStatusAt;
@@ -190,16 +188,10 @@ class GithubDiagnosticControl {
 
   Future<void> _writeFile(
       String token, String path, Map<String, Object?> body) {
-    // Do not race heartbeat, command receipts and matrix candidate uploads
-    // against each other on the same Torriodb branch. Keep the queue healthy
-    // after one upload fails so later evidence can still be published.
-    final queued = _pendingWrite.then(
-        (_) => _writeFileWithRetry(token, path, body));
-    _pendingWrite = queued.catchError((Object error) {
-      debugPrint('[GithubDiagnosticControl] Queued upload failed: '
-          '${error.runtimeType}');
-    });
-    return queued;
+    // Telemetry uses the same Torriodb branch. Coordinate both uploaders,
+    // not merely the command/heartbeat/matrix writes inside this controller.
+    return TorriodbWriteQueue.instance.run<void>(
+        () => _writeFileWithRetry(token, path, body));
   }
 
   Future<void> _writeFileWithRetry(

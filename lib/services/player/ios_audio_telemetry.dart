@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/stream/stream_model.dart';
 import '../my_list/github_library_cloud.dart';
+import '../remote/torriodb_write_queue.dart';
 import 'audio_language_priority.dart';
 import 'device_diagnostic_inventory.dart';
 import '../stream/source_content_identity.dart';
@@ -757,20 +758,46 @@ class IosAudioTelemetry {
     final uri = Uri.https('api.github.com',
         '/repos/$repository/contents/$remote');
     try {
-      final response = await _client.put(uri,
-        headers: <String, String>{
-          'Accept': 'application/vnd.github+json',
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-          'User-Agent': 'PlayTorrio-iOS-audio-diagnostics',
-          'X-GitHub-Api-Version': '2022-11-28',
+      // Live TV matrix and iOS performance traces write to the same private
+      // GitHub branch. Queue both services to avoid competing Contents API
+      // commits; a 409 can still come from another authorized GitHub writer.
+      final uploadBody = jsonEncode(<String, String>{
+        'message': 'diagnostics(ios): named source and audio language trace',
+        'branch': branch,
+        'content': base64Encode(utf8.encode(jsonEncode(report))),
+      });
+      final response = await TorriodbWriteQueue.instance.run<http.Response>(
+        () async {
+          for (var attempt = 0; attempt < 4; attempt++) {
+            final result = await _client.put(uri,
+              headers: <String, String>{
+                'Accept': 'application/vnd.github+json',
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+                'User-Agent': 'PlayTorrio-iOS-audio-diagnostics',
+                'X-GitHub-Api-Version': '2022-11-28',
+              },
+              body: uploadBody,
+            ).timeout(const Duration(seconds: 15));
+            if (result.statusCode == 201) return result;
+            final retryable = result.statusCode == 409 ||
+                result.statusCode == 429 || result.statusCode == 502 ||
+                result.statusCode == 503 || result.statusCode == 504 ||
+                (result.statusCode == 403 &&
+                    result.headers['retry-after'] != null);
+            if (!retryable || attempt == 3) return result;
+            final retryAfter = int.tryParse(
+                result.headers['retry-after'] ?? '') ?? 0;
+            final delay = retryAfter > 0
+                ? Duration(seconds: retryAfter.clamp(1, 4).toInt())
+                : Duration(milliseconds: 250 * (attempt + 1));
+            debugPrint('[IosAudioTelemetry] Retrying private upload '
+                'after HTTP ${result.statusCode}');
+            await Future<void>.delayed(delay);
+          }
+          throw StateError('Unreachable diagnostic upload state');
         },
-        body: jsonEncode(<String, String>{
-          'message': 'diagnostics(ios): named source and audio language trace',
-          'branch': branch,
-          'content': base64Encode(utf8.encode(jsonEncode(report))),
-        }),
-      ).timeout(const Duration(seconds: 15));
+      );
       if (response.statusCode != 201) {
         status.value = 'Private upload failed (HTTP ${response.statusCode}); check GitHub permissions';
         return false;

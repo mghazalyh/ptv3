@@ -112,3 +112,7 @@ IOS-ONLY RETRIGGER: HLS SEGMENT FIXTURE
 Requested SGT: 2026-11-21 17:06:42
 Prior Build 255 / Run #55 failure: test/live_tv_hls_probe_test.dart expected an ok segment from List<int>.toString() bytes, which is a text list rather than MPEG-TS. Replace with transport stream binary bytes (188-byte sync pattern), assert segmentKind=mpegts. Preserve production HLS validation; do not weaken it.
 Trigger existing iOS speech release and leave without waiting/polling.
+
+IOS-ONLY RETRIGGER — STREMIO ADDON URL ENCODING TEST FIX
+SGT: 2026-11-21 17:17:59
+Previous iOS Run #56 failed at test/github_stremio_addon_probe_test.dart:62. Uri.parse correctly keeps encoded colons (nltv%3Aus%3ANFLChannel.us.json) in the request path; test incorrectly expected raw colons. Assert the percent-encoded path; preserve production code. Trigger existing iOS-only release workflow and exit immediately without waiting or polling.

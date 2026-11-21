@@ -60,7 +60,7 @@ void main() {
     expect(requests, hasLength(2));
     expect(requests.first.url.path, '/config/sample/manifest.json');
     expect(requests.last.url.path,
-        '/config/sample/stream/tv/nltv:us:NFLChannel.us.json');
+        '/config/sample/stream/tv/nltv%3Aus%3ANFLChannel.us.json');
     expect(requests.every((r) =>
         r.headers['accept'] == 'application/json'), true);
     expect(jsonEncode(result), isNot(contains('NEVER_LOG_THIS')));

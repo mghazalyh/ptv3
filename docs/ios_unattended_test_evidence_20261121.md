@@ -101,3 +101,36 @@ through the existing diagnostic inbox, not scheduled monitoring.
 * Do not automatically trigger IPA builds or non-iOS platform builds.
 * Do not create scheduled test tasks, an always-on monitor, or unrelated
   user-facing network activity without a fresh manual test request.
+
+## Later read-only physical matrix snapshot (21 November 2026)
+
+At approximately 23:50 Singapore time, the same installed build 262 and
+uninterrupted run `matrix262_full50_20261121133315` reported:
+* Phase: **running**; 26/150 channel rounds, 62 source attempts,
+  18 legacy sustained playback sessions, 33 observed hostnames and
+  six upload errors.
+* The GitHub matrix directory contained 59 candidate files at that point.
+  The difference from 62 attempts is **missing or in-flight evidence**,
+  not three extra playback failures.
+* FTF Sports: sources 0, 1 and 2 each showed distinct requested-source
+  native 1280x720 video, active tracks, progressive timeline and 300-second
+  playback, without a recorded source switch.
+* Racer Select: sources 0 and 1 showed independently verified 1920x1080,
+  300-second native video; requesting source 2 eventually played source 0,
+  so its success is strictly a **failover** result.
+* ACC Digital Network: source 0 reached stable 1080p only via source 1;
+  independently requested sources 1 and 2 both achieved 1080p sustained
+  native video for 300 seconds. Credit sources 1 and 2, not original 0.
+* GREAT! Movies, Cheers, Swerve Combat, Made in Hollywood, the sampled
+  NFL Network source and Charge lacked decoded moving video in their recorded
+  candidate observations. No channel-wide or provider-wide blacklist follows
+  from these samples.
+
+There were no remote player commands, channel navigations, policy changes,
+matrix restarts, new device probes or IPA actions in this continuation.
+
+New GitHub-only code now includes Torriodb transient upload retry
+improvements and separate candidate upload coverage counters. Neither
+changes the already installed build 262 or retroactively repairs its
+missing candidate uploads. Physical acceptance remains required after
+an explicitly authorized future iOS-only IPA.

@@ -62,6 +62,13 @@ jobs:
             lib/services/remote/ios_media_diagnostic_request.dart \
             lib/services/player/ios_native_process_metrics.dart \
             lib/services/remote/ios_remote_diagnostic_inventory.dart \
+            lib/services/remote/ios_remote_command_contract.dart \
+            lib/services/remote/ios_remote_media_discovery.dart \
+            lib/services/remote/ios_remote_live_health_history.dart \
+            lib/services/remote/ios_remote_live_scan.dart \
+            lib/services/remote/ios_remote_app_observability.dart \
+            lib/services/remote/ios_remote_safe_settings.dart \
+            lib/services/remote/ios_remote_playback_verification.dart \
             lib/widgets/remote/unattended_test_indicator.dart \
             lib/services/remote/github_diagnostic_control.dart \
             lib/services/remote/torriodb_write_queue.dart \
@@ -102,6 +109,11 @@ jobs:
             test/lan_cast_request_test.dart
             test/torriodb_write_queue_test.dart
             test/github_diagnostic_control_test.dart
+            test/ios_remote_media_discovery_test.dart
+            test/ios_remote_playback_verification_test.dart
+            test/ios_remote_live_health_history_test.dart
+            test/ios_remote_live_scan_test.dart
+            test/ios_remote_command_contract_test.dart
             test/github_stremio_addon_probe_test.dart
             test/source_content_identity_test.dart
             test/watch_source_preferences_test.dart

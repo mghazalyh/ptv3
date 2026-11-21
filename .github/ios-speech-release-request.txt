@@ -180,3 +180,16 @@ Features: dismissible Live TV test indicator; remote diagnostic plans with progr
 Existing unattended matrix: Build 262 remains installed; matrix262_full50_20261121133315 must not be interrupted or remotely navigated by the build request.
 Current source-only preflight may still be running. iOS release workflow performs its own test/analyzer gates before building and signing.
 Owner request: Trigger GitHub iOS IPA workflow immediately, then leave without waiting for or polling the build result.
+
+
+OWNER-AUTHORIZED IOS-ONLY BUILD #63 ANALYZER FIX RETRIGGER
+Requested SGT: 2026-11-22 01:35:52
+Repository: mghazalyh/ptv3
+Branch: parity-floating-player-both
+Verified source HEAD: d450a10e60c8a5fde5d39f744c517cbd21a21dc2
+Failed previous iOS workflow run: https://github.com/mghazalyh/ptv3/actions/runs/44924953143
+Root cause: fatal Dart analyzer warnings for unused import in lib/main.dart and unnecessary cast in lib/services/remote/ios_adhoc_diagnostic_plan.dart.
+Fix commits: ba924fc76f2c919e265187e9db87db45c3b8d832 and 841017dd93ea5c76769d86e0effda969e344c51c.
+Source-only preflight: run 44928930159 passed iOS analyzer and targeted critical regressions; unrelated broad full-suite test stage failed.
+Scope: iOS 15 arm64 signed TrollStore IPA only; preserve existing workflow and signing. Do not trigger Windows, Android or desktop packages. Do not change or interrupt physical iPad native matrix.
+Owner command: Fix the GitHub build, trigger the iOS-only GitHub job and immediately leave without polling or waiting for the new run.

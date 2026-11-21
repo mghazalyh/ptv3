@@ -226,6 +226,7 @@ jobs:
           flutter test test/live_unattended_native_probe_request_test.dart
           flutter test test/unattended_test_activity_test.dart
           flutter test test/unattended_test_indicator_widget_test.dart
+          flutter test test/ios_remote_diagnostic_inventory_test.dart
           flutter test test/lan_cast_request_test.dart
           flutter test test/torriodb_write_queue_test.dart
 

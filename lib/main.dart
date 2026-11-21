@@ -44,6 +44,7 @@ import './services/player/ios_audio_telemetry.dart';
 import './services/remote/lan_remote_service.dart';
 import './services/remote/lan_cast_request.dart';
 import './services/remote/unattended_test_activity.dart';
+import './services/remote/ios_remote_diagnostic_inventory.dart';
 import './widgets/remote/unattended_test_indicator.dart';
 import './services/remote/github_diagnostic_control.dart';
 import './services/remote/github_stremio_addon_probe.dart';
@@ -274,6 +275,30 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     try {
       final navigator = navigatorKey.currentState;
       switch (action) {
+        case 'diagnostic_capabilities':
+          return IosRemoteDiagnosticInventory.capabilities();
+        case 'addon_inventory':
+          return IosRemoteDiagnosticInventory.addons(
+            AddonManager.instance.addons);
+        case 'test_status':
+          return <String, Object?>{
+            'accepted': true,
+            'onDevice': UnattendedTestActivity.instance.snapshot.value.toJson(),
+            'matrix': _liveMatrix.status(),
+          };
+        case 'diagnostic_snapshot':
+          final player = LanRemoteService.instance.playerStatus?.call() ??
+              const <String, Object?>{};
+          return IosRemoteDiagnosticInventory.device(
+            buildRun: IosAudioTelemetry.buildRun,
+            buildCommit: IosAudioTelemetry.buildCommit,
+            foreground: _lifecycleState == AppLifecycleState.resumed,
+            diagnosticsEnabled: GithubDiagnosticControl.instance.enabled.value,
+            navigatorReady: navigator != null,
+            playerActive: player.isNotEmpty,
+            playerPlaying: player['playing'] == true,
+            matrix: _liveMatrix.status(),
+          );
         case 'live_experiment_status':
           return LiveTvExperimentStore.instance.status();
         case 'apply_live_experiment':
@@ -542,11 +567,17 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
         };
       }
       final selected = sourceCandidates[request.sourceIndex];
-      final native = await LiveNativeChannelVerifier.probe(
-        channelId: request.channelId,
-        source: selected,
-        isCancelled: () => !idle(),
-      );
+      UnattendedTestActivity.instance.beginNativeProbe(request.channelId);
+      late final LiveNativeSourceResult native;
+      try {
+        native = await LiveNativeChannelVerifier.probe(
+          channelId: request.channelId,
+          source: selected,
+          isCancelled: () => !idle(),
+        );
+      } finally {
+        UnattendedTestActivity.instance.endNativeProbe();
+      }
       // Upload only decoder facts, source host and outcomes. Never export
       // signed URLs, raw media errors, subtitles, headers or tokens.
       return <String, Object?>{

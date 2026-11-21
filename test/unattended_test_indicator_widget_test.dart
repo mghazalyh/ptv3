@@ -40,6 +40,19 @@ void main() {
     expect(find.text('LIVE TV TEST RUNNING'), findsNothing);
   });
 
+  testWidgets('Native decoder test has its own truthful label',
+      (tester) async {
+    final notifier = ValueNotifier<UnattendedTestSnapshot>(
+      const UnattendedTestSnapshot(phase: 'running', runId: 'nltv:Test'),
+    );
+    addTearDown(notifier.dispose);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: UnattendedTestIndicator(activity: notifier),
+    )));
+    expect(find.text('NATIVE SOURCE TEST RUNNING'), findsOneWidget);
+    expect(find.text('0 / 0'), findsNothing);
+  });
+
   testWidgets('Cancel requested is labelled stopping, not completed',
       (tester) async {
     final notifier = ValueNotifier<UnattendedTestSnapshot>(

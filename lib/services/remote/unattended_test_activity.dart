@@ -90,4 +90,17 @@ class UnattendedTestActivity {
           '${error.runtimeType}');
     }
   }
+
+  void beginNativeProbe(String channelId) {
+    snapshot.value = UnattendedTestSnapshot(
+      phase: 'running',
+      runId: channelId,
+    );
+  }
+
+  void endNativeProbe() {
+    if (snapshot.value.isRunning && snapshot.value.totalChannels == 0) {
+      snapshot.value = const UnattendedTestSnapshot();
+    }
+  }
 }

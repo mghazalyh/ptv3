@@ -19,6 +19,15 @@ void main() {
     }
   });
 
+  test('A single native probe advertises progress and clears on completion', () {
+    final activity = UnattendedTestActivity.instance;
+    activity.beginNativeProbe('nltv:us:Test.us');
+    expect(activity.snapshot.value.isVisible, true);
+    expect(activity.snapshot.value.totalChannels, 0);
+    activity.endNativeProbe();
+    expect(activity.snapshot.value.isVisible, false);
+  });
+
   test('Malformed counts cannot produce false progress or crash', () {
     final parsed = UnattendedTestSnapshot.fromMatrix({
       'phase': 'running', 'channelsDone': -12,

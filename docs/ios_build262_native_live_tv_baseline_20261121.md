@@ -105,3 +105,38 @@ Observed candidate:
 5. Reconcile source failover attribution, especially when different stream URLs share a hostname.
 6. Only use scoped, expiring, rollback-capable runtime policies for already-installed behavior. Do not promise that new Dart code will reach this IPA without an installation.
 7. Preserve movie/series/Torrentio/TorBox behavior and the existing GitHub-only iOS release workflow. **Do not trigger another iOS build**.
+
+## Follow-up, 21:51 SGT: three control-source results are published
+
+Evidence root: `mghazalyh/torriodb/playtorrio/control/ios/matrix/8e223bb3c7c337facbbccd69aaeb762f/matrix262_full50_20261121133315/`.
+
+All three Cine Romántico candidates sustained five minutes (300 seconds) of native 1280 x 720 video, with 11 native tracks, nonbuffering active playback and ongoing timeline progression. This validates that the installed iPad MPV decoder and installed addon can play video through the `jmp2.uk` delivery path.
+
+| Candidate | Requested host | Active/final host | Final position | Sustained video | Requested-source verified by build 262 |
+| --- | --- | --- | ---: | --- | --- |
+| 0_0 | jmp2.uk | jmp2.uk | 317033 ms | true | true |
+| 0_1 | jmp2.uk | jmp2.uk | 337633 ms | true | true |
+| 0_2 | d1si3n1st4nkgb.cloudfront.net | jmp2.uk | 318266 ms | true | **false** |
+
+The second candidate recorded one native TLS error but still decoded video for five minutes. This shows native error events are not sufficient evidence of playback failure. The third candidate proves successful backup playback; it does **not** prove the original CloudFront source played. Because build 262 lacks source-index attribution, the two same-host results may still contain undetected same-host switching. Consult the source-index fix in uninstalled `26335478`.
+
+At the last observed iPad status after these candidates, `sourcesDone=3`, `verifiedSources=3`, `distinctSourceHosts=2`, `uploadFailures=2`, `phase=running`. The status document lagged behind a completed candidate when a GitHub write failed, then caught up. The candidate JSON files, not stale aggregate counters, are the primary ground truth.
+
+### Torriodb GitHub write contention and source-only repair
+
+Device status and command receipts and per-candidate matrix files are all committed to the same Torriodb main branch. Two matrix status uploads failed around concurrent activity; an exact HTTP failure status was not recorded, so branch races are a plausible diagnosis rather than a proven exclusive cause.
+
+Source commit `a10a6120b7a0239546fec58c5d43495bd3e315a1` introduces:
+* A per-controller queue to serialize its GitHub Contents API writes;
+* Bounded retry for 409 conflicts and transient upstream service errors;
+* New file SHA read before each retry;
+* Coverage for write conflicts, concurrent uploads and queue recovery;
+* Inclusion of the controller tests in the lightweight GitHub quality gate.
+
+This correction is **not installed on iOS build 262**. It does not justify a new IPA against the owner's instruction. Operational mitigation on build 262 is to minimize concurrent Torriodb command writes while matrix evidence uploads continue.
+
+### Planned supported runtime A/B/A experiment
+
+An existing saved PlayTorrio matrix monitor was updated to preserve the baseline first 50 channel rounds, then (only with appropriate fresh device evidence and no conflicting owner policy) apply a bounded relay-prefer/default-addon-header trial for second-repeat rounds, finally roll back to defaults for the third repeat. All transitions must check actual command receipts, preserve native-source attribution, and record intervention timing; hourly scheduling cannot guarantee an exact round boundary. If the sample fails, the experiment must be canceled. The previous failed NFL browser-header+preferred-relay trial should not be repeated.
+
+**No new iOS build or IPA installation was triggered.**

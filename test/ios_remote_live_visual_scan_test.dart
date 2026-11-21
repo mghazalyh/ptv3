@@ -58,9 +58,12 @@ void main() {
       }) async {
         expect(channelId, 'nltv:us:OpaqueChannel.us');
         expect(maxFrames, 2);
-        expect(onFrame, isNotNull);
-        await onFrame!(png, 2500);
-        await onFrame!(png, 6000);
+        final observe = onFrame;
+        if (observe == null) {
+          throw StateError('Expected a native video frame observer');
+        }
+        await observe(png, 2500);
+        await observe(png, 6000);
         return nativeSuccess();
       },
       encodeFrame: (Uint8List frame) async {
@@ -113,7 +116,11 @@ void main() {
         onFrame,
         required int maxFrames,
       }) async {
-        await onFrame!(png, 2000);
+        final observe = onFrame;
+        if (observe == null) {
+          throw StateError('Expected a native video frame observer');
+        }
+        await observe(png, 2000);
         return const LiveNativeSourceResult(
           renderedVideo: true, timelineAdvanceMs: 0,
           buffering: true, videoWidth: 1280, videoHeight: 720,

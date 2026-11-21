@@ -198,39 +198,58 @@ class GithubDiagnosticControl {
       String token, String path, Map<String, Object?> body) async {
     final encoded = base64Encode(utf8.encode(jsonEncode(body)));
     for (var attempt = 0; attempt < 4; attempt++) {
-      // A retry must re-read the SHA; blindly reusing the prior SHA causes
-      // permanent 409 conflicts when another device updates the same file.
-      final existing = await _readFile(token, path);
-      final request = <String, Object?>{
-        'branch': branch,
-        'message': 'diagnostics(ios): unattended diagnostic receipt',
-        'content': encoded,
-        if (existing.sha != null) 'sha': existing.sha,
-      };
-      final response = await _client.put(
-        Uri.https('api.github.com', '/repos/$repository/contents/$path'),
-        headers: {..._headers(token), 'Content-Type': 'application/json'},
-        body: jsonEncode(request),
-      ).timeout(const Duration(seconds: 15));
-      if (response.statusCode == 201 || response.statusCode == 200) return;
+      try {
+        // Always re-read the SHA, including after an ambiguous PUT timeout:
+        // the previous write may have reached GitHub before the socket failed.
+        final existing = await _readFile(token, path);
+        final request = <String, Object?>{
+          'branch': branch,
+          'message': 'diagnostics(ios): unattended diagnostic receipt',
+          'content': encoded,
+          if (existing.sha != null) 'sha': existing.sha,
+        };
+        final response = await _client.put(
+          Uri.https('api.github.com', '/repos/$repository/contents/$path'),
+          headers: {..._headers(token), 'Content-Type': 'application/json'},
+          body: jsonEncode(request),
+        ).timeout(const Duration(seconds: 15));
+        if (response.statusCode == 201 || response.statusCode == 200) return;
 
-      final code = response.statusCode;
-      final retryable = code == 409 || code == 429 ||
-          code == 502 || code == 503 || code == 504 ||
-          (code == 403 && response.headers['retry-after'] != null);
-      if (!retryable || attempt == 3) {
-        throw StateError('GitHub write HTTP $code');
+        final code = response.statusCode;
+        final retryable = code == 409 || code == 429 ||
+            code == 502 || code == 503 || code == 504 ||
+            (code == 403 && response.headers['retry-after'] != null);
+        if (!retryable || attempt == 3) {
+          throw StateError('GitHub write HTTP $code');
+        }
+        final retryAfter =
+            int.tryParse(response.headers['retry-after'] ?? '') ?? 0;
+        final delay = retryAfter > 0
+            ? Duration(seconds: retryAfter.clamp(1, 4).toInt())
+            : Duration(milliseconds: 250 * (attempt + 1));
+        debugPrint('[GithubDiagnosticControl] Retrying GitHub write '
+            'after HTTP $code');
+        await Future<void>.delayed(delay);
+        continue;
+      } on TimeoutException {
+        if (attempt == 3) rethrow;
+      } on IOException {
+        if (attempt == 3) rethrow;
+      } on http.ClientException {
+        if (attempt == 3) rethrow;
+      } on StateError catch (error) {
+        // Never retry invalid credentials, malformed data or ordinary 4xx
+        // failures; only transient GET failures are eligible here.
+        final message = error.message.toString();
+        final transientRead = RegExp(
+            r'^GitHub read HTTP (429|500|502|503|504)$').hasMatch(message);
+        if (!transientRead || attempt == 3) rethrow;
       }
-      // Backoff is bounded because an iPad matrix must not stall forever.
-      // Never print response bodies, headers, URLs or credentials.
-      final retryAfter = int.tryParse(
-          response.headers['retry-after'] ?? '') ?? 0;
-      final wait = retryAfter > 0
-          ? Duration(seconds: retryAfter.clamp(1, 4).toInt())
-          : Duration(milliseconds: 250 * (attempt + 1));
-      debugPrint('[GithubDiagnosticControl] Retrying GitHub write '
-          'after HTTP $code');
-      await Future<void>.delayed(wait);
+      // Do not log URL, response body, credentials or provider headers.
+      debugPrint('[GithubDiagnosticControl] Retrying transient upload '
+          'transport failure');
+      await Future<void>.delayed(
+          Duration(milliseconds: 250 * (attempt + 1)));
     }
   }
 

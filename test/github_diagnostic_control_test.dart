@@ -121,6 +121,83 @@ void main() {
     expect(sentShas, <String?>['old-blob-sha', 'new-blob-sha']);
   });
 
+  test('Matrix upload retries transient GET transport loss', () async {
+    SharedPreferences.setMockInitialValues({});
+    var reads = 0;
+    var writes = 0;
+    final controller = GithubDiagnosticControl.forTesting(
+      tokenProvider: () async => 'TEST_PRIVATE_TOKEN',
+      client: MockClient((request) async {
+        if (request.method == 'GET') {
+          reads++;
+          if (reads == 1) throw http.ClientException('connection dropped');
+          return http.Response('{}', 404);
+        }
+        if (request.method == 'PUT') {
+          writes++;
+          return http.Response('{}', 201);
+        }
+        return http.Response('', 404);
+      }),
+    )..forceTestPlatform = true;
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    controller.enabled.value = true;
+    await controller.publishMatrixFile(
+        'matrix_retry_002', 'candidate_0_0', {'accepted': true});
+    expect(reads, 2);
+    expect(writes, 1);
+  });
+
+  test('Matrix upload retries ambiguous PUT failure with fresh GET',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    var reads = 0;
+    var writes = 0;
+    final controller = GithubDiagnosticControl.forTesting(
+      tokenProvider: () async => 'TEST_PRIVATE_TOKEN',
+      client: MockClient((request) async {
+        if (request.method == 'GET') {
+          reads++;
+          return http.Response('{}', 404);
+        }
+        if (request.method == 'PUT') {
+          writes++;
+          if (writes == 1) throw http.ClientException('connection reset');
+          return http.Response('{}', 201);
+        }
+        return http.Response('', 404);
+      }),
+    )..forceTestPlatform = true;
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    controller.enabled.value = true;
+    await controller.publishMatrixFile(
+        'matrix_retry_003', 'candidate_0_0', {'accepted': true});
+    expect(reads, 2);
+    expect(writes, 2);
+  });
+
+  test('Authentication failures do not retry matrix uploads', () async {
+    SharedPreferences.setMockInitialValues({});
+    var reads = 0;
+    final controller = GithubDiagnosticControl.forTesting(
+      tokenProvider: () async => 'TEST_PRIVATE_TOKEN',
+      client: MockClient((request) async {
+        reads++;
+        return http.Response('{}', 401);
+      }),
+    )..forceTestPlatform = true;
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    controller.enabled.value = true;
+    await expectLater(
+        controller.publishMatrixFile(
+            'matrix_retry_004', 'candidate_0_0', {'accepted': true}),
+        throwsA(isA<StateError>()));
+    expect(reads, 1);
+  });
+
   test('Concurrent matrix, receipt and heartbeat writes are serialized',
       () async {
     SharedPreferences.setMockInitialValues({});

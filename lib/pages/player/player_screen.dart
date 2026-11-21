@@ -30,6 +30,7 @@ import '../../services/simkl/simkl_service.dart';
 import '../../services/player/player_settings.dart';
 import '../../services/player/live_tv/live_stream_detector.dart';
 import '../../services/player/live_tv/live_playback_coordinator.dart';
+import '../../services/player/live_tv/live_source_manager.dart';
 import '../../services/player/live_tv/live_signal_health.dart';
 import '../../services/player/live_tv/live_programme_metadata.dart';
 import '../../widgets/player/live_tv_overlay.dart';
@@ -867,6 +868,14 @@ class _PlayerScreenState extends State<PlayerScreen>
       final proxyReqHeaders = _currentSource.behaviorHints?['proxyHeaders']?['request'];
       if (proxyReqHeaders is Map) {
         playerHeaders.addAll(Map<String, String>.from(proxyReqHeaders));
+      }
+      // Match LiveSourceManager's experimental header selection on the
+      // initial opening; VOD continues to use its established headers.
+      if (_liveTv != null) {
+        playerHeaders
+          ..clear()
+          ..addAll(LiveSourceManager.requestHeaders(
+            _currentSource, channelId: widget.detail?.id));
       }
 
       final cleanUri = Uri.parse(sanitizedUrlStr);

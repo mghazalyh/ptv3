@@ -44,7 +44,10 @@ import './services/player/ios_audio_telemetry.dart';
 import './services/remote/lan_remote_service.dart';
 import './services/remote/github_diagnostic_control.dart';
 import './services/remote/github_stremio_addon_probe.dart';
+import './services/player/live_tv/live_tv_experiment_policy.dart';
+import './services/player/live_tv/live_tv_matrix_runner.dart';
 import './services/stream/stream_service.dart';
+import './services/metadata/metadata_service.dart';
 import './models/movie/movie_detail.dart';
 import './pages/player/player_screen.dart';
 import './widgets/updater/update_dialog.dart';
@@ -66,7 +69,10 @@ void main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await EnvService.initialize();
   await GitHubLibraryCloud.instance.initialize();
-  if (Platform.isIOS) await GithubDiagnosticControl.instance.initialize();
+  if (Platform.isIOS) {
+    await GithubDiagnosticControl.instance.initialize();
+    await LiveTvExperimentStore.instance.initialize();
+  }
   await DockSettings.initialize();
   await WatchSourcePreferencesService.initialize();
   await TorriodbPortableSync.instance.refresh(force: true);
@@ -119,6 +125,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   Timer? _homeSyncTimer;
   DateTime? _lastUpdateCheckAt;
   AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
+  final LiveTvMatrixRunner _liveMatrix = LiveTvMatrixRunner();
 
   @override
   void initState() {
@@ -176,6 +183,77 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   }
 
 
+  /// Discover only real TV channels published by enabled, installed Stremio
+  /// addons. No command-supplied URL or arbitrary host is ever fetched.
+  Future<Map<String, Object?>> _discoverLiveChannels(
+      Map<String, dynamic> args) async {
+    final wantedHost = args['addonHost']?.toString().toLowerCase() ?? '';
+    final pages = (args['pages'] is int ? args['pages'] as int : 3)
+        .clamp(1, 6).toInt();
+    final limit = (args['limit'] is int ? args['limit'] as int : 100)
+        .clamp(50, 150).toInt();
+    final found = <String, String>{};
+    final usedHosts = <String>{};
+    var catalogCount = 0;
+    for (final addon in AddonManager.instance.activeCatalogAddons) {
+      final host = Uri.tryParse(addon.baseUrl)?.host.toLowerCase() ?? '';
+      if (wantedHost.isNotEmpty && wantedHost != host) continue;
+      final tvCatalogs = addon.manifest.catalogs.where((catalog) =>
+          catalog.type == 'tv' && catalog.isHomeEligible);
+      for (final catalog in tvCatalogs) {
+        if (found.length >= limit) break;
+        catalogCount++;
+        for (var page = 0; page < (catalog.supportsSkip ? pages : 1);
+            page++) {
+          if (found.length >= limit) break;
+          try {
+            final entries = await MetadataService.fetchCatalog(
+              baseUrl: addon.baseUrl, type: 'tv',
+              catalogId: catalog.id,
+              skip: page == 0 ? null : page * 100,
+              forceRefresh: true,
+            ).timeout(const Duration(seconds: 18));
+            if (entries.isEmpty) break;
+            usedHosts.add(host);
+            for (final entry in entries) {
+              final id = entry.id.trim();
+              final title = entry.name.trim();
+              if (id.length < 4 || id.length > 180 ||
+                  title.isEmpty || title.length > 120 ||
+                  !(id.startsWith('nltv:') || id.startsWith('iptv:')) ||
+                  !addon.manifest.supportsRequest('stream', 'tv', id)) {
+                continue;
+              }
+              found.putIfAbsent(id, () => title);
+              if (found.length >= limit) break;
+            }
+          } catch (error) {
+            debugPrint('[LiveMatrix] Installed catalog probe: ' +
+                error.runtimeType.toString());
+            break;
+          }
+        }
+      }
+    }
+    // The known-good Roku backup should be present as a regression control.
+    const control = 'nltv:us:CineRomantico.us';
+    if (!found.containsKey(control) && found.isNotEmpty &&
+        AddonManager.instance.activeStreamAddons.any((addon) =>
+            addon.manifest.supportsRequest('stream', 'tv', control))) {
+      if (found.length >= limit) found.remove(found.keys.last);
+      found[control] = 'Cine Romántico';
+    }
+    return <String, Object?>{
+      'accepted': found.isNotEmpty,
+      'count': found.length,
+      'catalogsChecked': catalogCount,
+      'installedAddonHosts': usedHosts.toList(),
+      'channels': found.entries.map((entry) => <String, String>{
+        'id': entry.key, 'title': entry.value,
+      }).toList(),
+    };
+  }
+
   /// Execute cloud commands with the same in-app controls as the paired LAN
   /// remote, plus channel discovery and native playback diagnostic actions.
   /// The owner enables unattended access once; no per-command prompt appears.
@@ -184,6 +262,59 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     try {
       final navigator = navigatorKey.currentState;
       switch (action) {
+        case 'live_experiment_status':
+          return LiveTvExperimentStore.instance.status();
+        case 'apply_live_experiment':
+          return await LiveTvExperimentStore.instance.apply(args);
+        case 'rollback_live_experiment':
+          return await LiveTvExperimentStore.instance.rollback();
+        case 'live_matrix_status':
+          return _liveMatrix.status();
+        case 'cancel_live_matrix':
+          return _liveMatrix.cancel();
+        case 'discover_live_matrix':
+          return await _discoverLiveChannels(args);
+        case 'start_live_matrix_catalog':
+          final discovered = await _discoverLiveChannels(args);
+          if ((discovered['count'] as int? ?? 0) < 50) {
+            return <String, Object?>{
+              'accepted': false,
+              'reason': 'insufficient_installed_tv_catalog',
+              'channelCount': discovered['count'],
+            };
+          }
+          return _dispatchGithubDiagnostic('start_live_matrix',
+              <String, dynamic>{
+                'runId': args['runId'],
+                'channels': discovered['channels'],
+                if (args.containsKey('seed')) 'seed': args['seed'],
+                if (args.containsKey('sampleSeconds'))
+                  'sampleSeconds': args['sampleSeconds'],
+                if (args.containsKey('sustainSeconds'))
+                  'sustainSeconds': args['sustainSeconds'],
+                if (args.containsKey('maxSources'))
+                  'maxSources': args['maxSources'],
+              });
+        case 'start_live_matrix':
+          return await _liveMatrix.start(args,
+            open: (id, title, sourceIndex) =>
+                _dispatchGithubDiagnostic('open_channel', <String, dynamic>{
+                  'channelId': id,
+                  'title': title,
+                  'sourceIndex': sourceIndex,
+                }),
+            inspect: () async {
+              final handler = GithubDiagnosticControl.instance.onPlayerCommand;
+              if (handler == null) {
+                return <String, Object?>{'accepted': false,
+                    'reason': 'no_active_player'};
+              }
+              return handler('probe_live', <String, dynamic>{});
+            },
+            publish: (runId, key, payload) =>
+                GithubDiagnosticControl.instance
+                    .publishMatrixFile(runId, key, payload),
+          );
         case 'state':
           return <String, Object?>{
             'player': LanRemoteService.instance.playerStatus?.call() ??
@@ -299,7 +430,8 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
           )));
           return <String, Object?>{
             'accepted': true, 'channelTitle': title,
-            'sourceCount': candidates.length, 'selectedIndex': index};
+            'sourceCount': candidates.length, 'selectedIndex': index,
+            'sourceHost': Uri.tryParse(candidates[index].url ?? '')?.host};
         case 'batch':
           final entries = args['commands'];
           if (entries is! List || entries.isEmpty || entries.length > 20) {

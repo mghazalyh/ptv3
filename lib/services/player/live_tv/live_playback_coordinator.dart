@@ -12,6 +12,7 @@ import 'live_recovery_policy.dart';
 import 'live_signal_health.dart';
 import 'live_source_manager.dart';
 import 'live_stream_detector.dart';
+import 'live_tv_experiment_policy.dart';
 
 typedef LiveStatusCallback = void Function(String message, bool reconnecting);
 typedef LiveSourceCallback = void Function(StreamSource source);
@@ -92,6 +93,10 @@ class LivePlaybackCoordinator {
   final Set<String> _hlsRelayAttemptedUrls = <String>{};
   LiveHlsHttpRelay? _hlsRelay;
   bool _usingHlsRelay = false;
+  int _experimentRevision = -1;
+  String _experimentId = '';
+  bool _experimentHadVideo = false;
+  int _experimentAttemptBaseline = 0;
 
   bool get isActive => _started && !_disposed;
   int get recoveryAttempts => _policy.attempts;
@@ -237,9 +242,34 @@ class LivePlaybackCoordinator {
     ));
   }
 
+  void _syncExperiment() {
+    final store = LiveTvExperimentStore.instance;
+    final experiment = store.forChannel(channelId);
+    final id = experiment?.id ?? '';
+    if (_experimentRevision == store.revision && _experimentId == id) return;
+    _experimentRevision = store.revision;
+    _experimentId = id;
+    if (experiment != null) {
+      _experimentHadVideo = _policy.everPlayed && _nativeVideoReady &&
+          _player.state.playing && !_player.state.buffering;
+      _experimentAttemptBaseline = _policy.attempts;
+    } else {
+      _experimentHadVideo = false;
+    }
+    _policy.updateThresholds(
+      startupGrace: Duration(seconds: experiment?.startupGraceSeconds ?? 14),
+      stall: Duration(seconds: experiment?.stallSeconds ?? 13),
+      feed: Duration(seconds: experiment?.feedSeconds ?? 9),
+    );
+    _event(experiment == null
+        ? 'live_experiment_defaults_restored'
+        : 'live_experiment_policy_applied');
+  }
+
   void start() {
     if (_started || _disposed) return;
     _started = true;
+    _syncExperiment();
     // Constructor-time timestamp includes initial native open latency.
     _policy.reset(DateTime.now(),
       position: _player.state.position,
@@ -334,6 +364,7 @@ class LivePlaybackCoordinator {
     return <String, Object?>{
       'active': isActive,
       'channel': title,
+      'channelId': channelId,
       'sourceAddon': _source.addonName,
       'sourceQuality': _source.quality ?? 'unknown',
       'sourceCount': _sources.sourceCount,
@@ -342,6 +373,10 @@ class LivePlaybackCoordinator {
       'nativeFailureCounts': Map<String, int>.from(_nativeFailureCounts),
       'httpRelayActive': _usingHlsRelay,
       'httpRelayAttempted': _hlsRelayAttemptedUrls.contains(_source.url),
+      'activeSourceHost': Uri.tryParse(_source.url ?? '')?.host,
+      'experimentId': _experimentId,
+      'experimentRevision': _experimentRevision,
+      'playing': _player.state.playing,
       'videoDimensionsReady': _nativeVideoReady,
       'videoWidth': _nativeVideoWidth,
       'videoHeight': _nativeVideoHeight,
@@ -401,6 +436,7 @@ class LivePlaybackCoordinator {
     if (_disposed || !_started || !_foreground || _opening) return;
     final at = DateTime.now();
     try {
+      _syncExperiment();
       await _probeNativeVideo();
       if (_disposed || _opening) return;
       final event = _policy.observe(
@@ -560,6 +596,7 @@ class LivePlaybackCoordinator {
     if (_disposed || !_foreground || _opening) return;
     final now = DateTime.now();
     if (!force && !_policy.canAttempt(now)) return;
+    _syncExperiment();
     _opening = true;
     _lastRecoveryStartedAt = now;
     final generation = ++_generation;
@@ -580,7 +617,10 @@ class LivePlaybackCoordinator {
           _nativeTlsFailedUrls.contains(_source.url) &&
           !_hlsRelayAttemptedUrls.contains(_source.url) &&
           LiveStreamDetector.isHlsUrl(_source.url);
-      if (overrideSource == null && !pendingNativeTlsRecovery &&
+      final experiment = LiveTvExperimentStore.instance.forChannel(channelId);
+      if (overrideSource == null &&
+          (experiment?.failoverEnabled ?? true) &&
+          !pendingNativeTlsRecovery &&
           LivePlaybackAcceptance.shouldAttemptBackup(
         attempts: _policy.attempts,
         hasConfirmedPlayback: _policy.everPlayed,
@@ -631,7 +671,10 @@ class LivePlaybackCoordinator {
           isHlsLive: LiveStreamDetector.isHlsUrl(selected.url));
       try {
         final dynamic platform = _player.platform;
-        final cache = _policy.recommendedCacheSeconds.toString();
+        final cache = (experiment?.cacheSeconds == null ||
+            experiment!.cacheSeconds == 0
+            ? _policy.recommendedCacheSeconds
+            : experiment.cacheSeconds).toString();
         await platform.setProperty('cache-secs', cache);
         await platform.setProperty('demuxer-readahead-secs', cache);
       } catch (_) {
@@ -640,19 +683,26 @@ class LivePlaybackCoordinator {
       // Match initial PlayerScreen header resolution on every reconnect.
       // In particular preserve CDN Referer, Origin and User-Agent that may
       // otherwise be lost during failover on iPadOS.
-      final headers = LiveSourceManager.requestHeaders(selected);
+      final headers = LiveSourceManager.requestHeaders(
+           selected, channelId: channelId);
       var mediaUrl = selected.url!;
       var relayed = false;
       final probe = _sources.latestProbeFor(selected);
-      if (shouldUseHlsRelay(
+      if (experiment?.relayMode != 'never' &&
+          (experiment?.relayMode == 'prefer'
+              ? Platform.isIOS && LiveStreamDetector.isHlsUrl(selected.url) &&
+                  probe?.outcome == 'ok' &&
+                  !_hlsRelayAttemptedUrls.contains(selected.url)
+              : shouldUseHlsRelay(
         isIos: Platform.isIOS,
         isHls: LiveStreamDetector.isHlsUrl(selected.url),
         hasUsablePlaylist: probe?.outcome == 'ok',
         nativeTlsFailure: _nativeTlsFailedUrls.contains(selected.url),
         everPlayed: _policy.everPlayed,
         alreadyAttempted: _hlsRelayAttemptedUrls.contains(selected.url),
-        recoveryAttempts: _policy.attempts,
-      )) {
+        recoveryAttempts: _policy.attempts -
+            (experiment?.relayAfterAttempts ?? 2) + 2,
+      ))) {
         try {
           final relay = _hlsRelay ??= LiveHlsHttpRelay();
           mediaUrl = (await relay.expose(
@@ -700,6 +750,16 @@ class LivePlaybackCoordinator {
       // This only means Media.open returned. A real recovered event is
       // emitted later, after unbuffered media timeline progression.
       _unverifiedConsecutive++;
+      if (_experimentHadVideo &&
+          _policy.attempts - _experimentAttemptBaseline >= 3) {
+        final restored = await LiveTvExperimentStore.instance
+            .rollbackOnRegression(
+                channelId: channelId,
+                hadConfirmedVideo: true,
+                failedAttempts: _policy.attempts -
+                    _experimentAttemptBaseline);
+        if (restored) _syncExperiment();
+      }
       _event('live_reconnect_opened');
       _event('live_startup_unverified');
       if (_unverifiedConsecutive >= 3 &&
@@ -717,6 +777,16 @@ class LivePlaybackCoordinator {
       _usingHlsRelay = false;
       _sources.failed(selected, DateTime.now());
       _policy.reopenFailed(DateTime.now());
+      if (_experimentHadVideo &&
+          _policy.attempts - _experimentAttemptBaseline >= 3) {
+        final restored = await LiveTvExperimentStore.instance
+            .rollbackOnRegression(
+                channelId: channelId,
+                hadConfirmedVideo: true,
+                failedAttempts: _policy.attempts -
+                    _experimentAttemptBaseline);
+        if (restored) _syncExperiment();
+      }
       _event('live_reconnect_failed', selected);
       if (_policy.attempts >= 3 && _policy.attempts % 3 == 0) {
         LivePlaybackTelemetry.uploadRepeatedFailure();

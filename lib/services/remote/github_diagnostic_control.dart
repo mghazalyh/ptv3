@@ -204,6 +204,197 @@ class GithubDiagnosticControl {
     }
   }
 
+  /// Persist one sanitized matrix observation in private Torriodb.
+  /// Only in-app runner output can reach this method; callers cannot provide
+  /// an arbitrary path or URL. Result files are deliberately small.
+  Future<void> publishMatrixFile(String runId, String key,
+      Map<String, Object?> result) async {
+    await initialize();
+    if (!enabled.value || _deviceId == null) {
+      throw StateError('Remote diagnostics not enabled');
+    }
+    if (!RegExp(r'^[A-Za-z0-9_-]{8,50}
+    await initialize();
+    if ((!Platform.isIOS && !forceTestPlatform) ||
+        !enabled.value || _polling || commandPath == null) return;
+    _polling = true;
+    try {
+      final token = await _token();
+      if (token == null || token.isEmpty) {
+        status.value = 'GitHub Library credentials unavailable';
+        return;
+      }
+      final now = DateTime.now().toUtc();
+      if (_lastStatusAt == null ||
+          now.difference(_lastStatusAt!) >= statusInterval) {
+        try {
+          await _writeFile(token, devicePath!, <String, Object?>{
+            'schema': 1,
+            'deviceId': _deviceId,
+            'platform': 'ios',
+            'buildCommit': IosAudioTelemetry.buildCommit,
+            'buildRun': IosAudioTelemetry.buildRun,
+            'state': 'ready',
+            'enabled': enabled.value,
+            'observedAtUtc': now.toIso8601String(),
+          });
+          _lastStatusAt = now;
+        } catch (error) {
+          debugPrint('[GithubDiagnosticControl] Heartbeat: ${error.runtimeType}');
+        }
+      }
+      final command = (await _readFile(token, commandPath!)).document;
+      if (command == null) return;
+      if (!validCommand(command, deviceId: _deviceId!, now: now)) return;
+      final id = command['id'] as String;
+      if (_lastCommand == id) return;
+      _lastCommand = id;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_preferenceLastCommand, id);
+      final action = command['action'] as String;
+      Map<String, Object?> result;
+      String outcome = 'completed';
+      try {
+        final payload = command['args'];
+        final args = payload is Map
+            ? Map<String, dynamic>.from(payload)
+            : <String, dynamic>{};
+        result = await onCommand?.call(action, args) ??
+            <String, Object?>{'accepted': false, 'reason': 'no_handler'};
+      } catch (error) {
+        outcome = 'failed';
+        result = <String, Object?>{'errorClass': error.runtimeType.toString()};
+        debugPrint('[GithubDiagnosticControl] Action failed: ${error.runtimeType}');
+      }
+      // Only fixed app-state results should be returned by the handler.
+      await _writeFile(token, receiptPath!, <String, Object?>{
+        'schema': 1,
+        'deviceId': _deviceId,
+        'commandId': id,
+        'action': action,
+        'state': outcome,
+        'completedAtUtc': DateTime.now().toUtc().toIso8601String(),
+        'result': result,
+      });
+      _lastStatusAt = DateTime.now().toUtc();
+      status.value = 'Last diagnostic command: $action ($outcome)';
+    } catch (error) {
+      status.value = 'Diagnostic polling failed: ${error.runtimeType}';
+      debugPrint('[GithubDiagnosticControl] Poll failed: ${error.runtimeType}');
+    } finally {
+      _polling = false;
+    }
+  }
+
+  void dispose() {
+    _timer?.cancel();
+    _timer = null;
+    _started = false;
+    onCommand = null;
+    _client.close();
+    status.dispose();
+    enabled.dispose();
+  }
+}
+).hasMatch(runId) ||
+        !(key == 'status' ||
+            RegExp(r'^candidate_[0-9]+_[0-9]+
+    await initialize();
+    if ((!Platform.isIOS && !forceTestPlatform) ||
+        !enabled.value || _polling || commandPath == null) return;
+    _polling = true;
+    try {
+      final token = await _token();
+      if (token == null || token.isEmpty) {
+        status.value = 'GitHub Library credentials unavailable';
+        return;
+      }
+      final now = DateTime.now().toUtc();
+      if (_lastStatusAt == null ||
+          now.difference(_lastStatusAt!) >= statusInterval) {
+        try {
+          await _writeFile(token, devicePath!, <String, Object?>{
+            'schema': 1,
+            'deviceId': _deviceId,
+            'platform': 'ios',
+            'buildCommit': IosAudioTelemetry.buildCommit,
+            'buildRun': IosAudioTelemetry.buildRun,
+            'state': 'ready',
+            'enabled': enabled.value,
+            'observedAtUtc': now.toIso8601String(),
+          });
+          _lastStatusAt = now;
+        } catch (error) {
+          debugPrint('[GithubDiagnosticControl] Heartbeat: ${error.runtimeType}');
+        }
+      }
+      final command = (await _readFile(token, commandPath!)).document;
+      if (command == null) return;
+      if (!validCommand(command, deviceId: _deviceId!, now: now)) return;
+      final id = command['id'] as String;
+      if (_lastCommand == id) return;
+      _lastCommand = id;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_preferenceLastCommand, id);
+      final action = command['action'] as String;
+      Map<String, Object?> result;
+      String outcome = 'completed';
+      try {
+        final payload = command['args'];
+        final args = payload is Map
+            ? Map<String, dynamic>.from(payload)
+            : <String, dynamic>{};
+        result = await onCommand?.call(action, args) ??
+            <String, Object?>{'accepted': false, 'reason': 'no_handler'};
+      } catch (error) {
+        outcome = 'failed';
+        result = <String, Object?>{'errorClass': error.runtimeType.toString()};
+        debugPrint('[GithubDiagnosticControl] Action failed: ${error.runtimeType}');
+      }
+      // Only fixed app-state results should be returned by the handler.
+      await _writeFile(token, receiptPath!, <String, Object?>{
+        'schema': 1,
+        'deviceId': _deviceId,
+        'commandId': id,
+        'action': action,
+        'state': outcome,
+        'completedAtUtc': DateTime.now().toUtc().toIso8601String(),
+        'result': result,
+      });
+      _lastStatusAt = DateTime.now().toUtc();
+      status.value = 'Last diagnostic command: $action ($outcome)';
+    } catch (error) {
+      status.value = 'Diagnostic polling failed: ${error.runtimeType}';
+      debugPrint('[GithubDiagnosticControl] Poll failed: ${error.runtimeType}');
+    } finally {
+      _polling = false;
+    }
+  }
+
+  void dispose() {
+    _timer?.cancel();
+    _timer = null;
+    _started = false;
+    onCommand = null;
+    _client.close();
+    status.dispose();
+    enabled.dispose();
+  }
+}
+).hasMatch(key))) {
+      throw const FormatException('Invalid matrix output path');
+    }
+    if (jsonEncode(result).length > 12000) {
+      throw const FormatException('Matrix result too large');
+    }
+    final token = await _token();
+    if (token == null || token.isEmpty) {
+      throw StateError('Torriodb credentials unavailable');
+    }
+    await _writeFile(token,
+        '$root/matrix/$_deviceId/$runId/$key.json', result);
+  }
+
   Future<void> pollNow() async {
     await initialize();
     if ((!Platform.isIOS && !forceTestPlatform) ||

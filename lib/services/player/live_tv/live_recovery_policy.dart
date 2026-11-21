@@ -17,9 +17,19 @@ class LiveRecoveryPolicy {
     this.feedThreshold = const Duration(seconds: 9),
   });
 
-  final Duration startupGrace;
-  final Duration stallThreshold;
-  final Duration feedThreshold;
+  void updateThresholds({
+    required Duration startupGrace,
+    required Duration stall,
+    required Duration feed,
+  }) {
+    this.startupGrace = startupGrace;
+    stallThreshold = stall;
+    feedThreshold = feed;
+  }
+
+  Duration startupGrace;
+  Duration stallThreshold;
+  Duration feedThreshold;
 
   DateTime? _startedAt;
   DateTime? _lastMotionAt;

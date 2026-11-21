@@ -9,6 +9,7 @@ import '../../../models/stream/stream_model.dart';
 import '../../addon/addon_manager.dart';
 import '../player_settings.dart';
 import 'live_stream_detector.dart';
+import 'live_tv_experiment_policy.dart';
 
 typedef LiveSourceRefresh = Future<List<StreamSource>> Function();
 
@@ -206,7 +207,8 @@ class LiveSourceManager {
   }
 
   /// Identical headers for initial probing and MPV reconnection.
-  static Map<String, String> requestHeaders(StreamSource source) {
+  static Map<String, String> requestHeaders(StreamSource source,
+      {String? channelId}) {
     final headers = PlayerSettings.resolveStreamHeaders(
         source.url ?? '', source.headers);
     final proxy = source.behaviorHints?['proxyHeaders'];
@@ -216,6 +218,20 @@ class LiveSourceManager {
           headers[entry.key.toString()] = entry.value.toString();
         }
       }
+    }
+    final mode = channelId == null ? null :
+        LiveTvExperimentStore.instance.forChannel(channelId)?.headerMode;
+    if (mode == 'browser') {
+      headers['User-Agent'] =
+          'Mozilla/5.0 (iPad; CPU OS 15_0 like Mac OS X) '
+          'AppleWebKit/605.1.15 (KHTML, like Gecko) '
+          'Version/15.0 Mobile/15E148 Safari/604.1';
+      headers.putIfAbsent('Accept', () => '*/*');
+    } else if (mode == 'minimal') {
+      const retained = <String>{
+        'referer', 'origin', 'user-agent', 'cookie', 'authorization',
+      };
+      headers.removeWhere((name, _) => !retained.contains(name.toLowerCase()));
     }
     return headers;
   }
@@ -282,7 +298,13 @@ class LiveSourceManager {
             !(_health[e.key]?.blockedUntil?.isAfter(at) ?? false))
         .map((e) => e.value)
         .toList();
-    candidates.sort((a, b) => _score(b).compareTo(_score(a)));
+    final order = LiveTvExperimentStore.instance
+        .forChannel(channelId)?.sourceOrder ?? 'ranked';
+    if (order == 'ranked') {
+      candidates.sort((a, b) => _score(b).compareTo(_score(a)));
+    } else if (order == 'reversed') {
+      return candidates.reversed.toList();
+    }
     return candidates;
   }
 
@@ -355,7 +377,7 @@ class LiveSourceManager {
         elapsedMs: timer.elapsedMilliseconds, headerCount: 0));
       return false;
     }
-    final headers = requestHeaders(source);
+    final headers = requestHeaders(source, channelId: channelId);
     try {
       final response = await (probeClientOverride?.head(uri, headers: headers) ??
           http.head(uri, headers: headers)).timeout(const Duration(seconds: 4));
@@ -402,7 +424,7 @@ class LiveSourceManager {
     final uri = Uri.tryParse(source.url ?? '');
     if (uri == null) return null;
     final timer = Stopwatch()..start();
-    final headers = requestHeaders(source);
+    final headers = requestHeaders(source, channelId: channelId);
     try {
       final fetched = await _fetchHls(
           uri, headers, const Duration(seconds: 6));
@@ -515,7 +537,7 @@ class LiveSourceManager {
     final started = Stopwatch()..start();
     final client = probeClientOverride ?? http.Client();
     final closeClient = probeClientOverride == null;
-    final headers = requestHeaders(source);
+    final headers = requestHeaders(source, channelId: channelId);
     try {
       final request = http.Request('GET', _lastSegmentUri!)
         ..headers.addAll(headers)

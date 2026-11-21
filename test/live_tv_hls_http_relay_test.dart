@@ -79,17 +79,21 @@ void main() {
       'Referer': 'https://player.example/',
     });
     expect(local.host, InternetAddress.loopbackIPv4.address);
+    expect(local.path.endsWith('.m3u8'), isTrue);
     final master = await fetchText(client, local);
     expect(master, startsWith('#EXTM3U\n'));
     expect(master, isNot(contains('video/media.m3u8')));
     final variant = Uri.parse(master.split('\n')
         .firstWhere((line) => line.startsWith('http://')));
+    expect(variant.path.endsWith('.m3u8'), isTrue);
     final nested = await fetchText(client, variant);
     expect(nested, contains('#EXT-X-KEY:METHOD=AES-128,URI="http://'));
     final keyMatch = RegExp(r'URI="([^"]+)"').firstMatch(nested)!;
     final keyUri = Uri.parse(keyMatch.group(1)!);
     final segmentUri = Uri.parse(nested.split('\n')
         .firstWhere((line) => line.startsWith('http://')));
+    expect(keyUri.path.endsWith('.bin'), isTrue);
+    expect(segmentUri.path.endsWith('.ts'), isTrue);
 
     final keyRequest = await client.getUrl(keyUri);
     final keyResponse = await keyRequest.close();

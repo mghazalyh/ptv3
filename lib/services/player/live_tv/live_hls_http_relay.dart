@@ -73,11 +73,22 @@ class LiveHlsHttpRelay {
     while (_targets.length > 8192) {
       _targets.remove(_targets.keys.first);
     }
+    final basename = target.pathSegments.isNotEmpty
+        ? target.pathSegments.last.toLowerCase() : '';
+    final suffix = basename.contains('.')
+        ? basename.split('.').last : '';
+    const permitted = <String>{
+      'm3u8', 'm3u', 'ts', 'm4s', 'mp4', 'aac', 'mp3', 'm4a',
+      'vtt', 'webvtt', 'ac3', 'eac3', 'bin', 'key',
+    };
+    final extension = permitted.contains(suffix) ? suffix : 'ts';
+    // FFmpeg HLS demuxers inspect segment extensions even for media fetched
+    // from HTTP. Keep a safe local suffix while hiding the upstream URL.
     return Uri(
       scheme: 'http',
       host: InternetAddress.loopbackIPv4.address,
       port: _server!.port,
-      pathSegments: <String>['live-hls', _secret, id],
+      pathSegments: <String>['live-hls', _secret, '$id.$extension'],
     );
   }
 
@@ -94,7 +105,8 @@ class LiveHlsHttpRelay {
         response.statusCode = HttpStatus.methodNotAllowed;
         return;
       }
-      final target = _targets[parts[2]];
+      final token = parts[2].split('.').first;
+      final target = _targets[token];
       if (target == null) {
         response.statusCode = HttpStatus.notFound;
         return;

@@ -28,7 +28,7 @@ abstract final class IosRemoteDiagnosticInventory {
       'command_contracts', 'media_discover', 'media_search_addons',
       'media_resolve', 'live_channels', 'live_health_rank',
       'live_scan_status', 'player_verify', 'app_inspect',
-      'app_screenshot', 'settings_inspect',
+      'app_screenshot', 'crash_evidence', 'settings_inspect',
     ],
     'boundedTests': const [
       'probe_native_channel', 'live_scan', 'live_scan_cancel',

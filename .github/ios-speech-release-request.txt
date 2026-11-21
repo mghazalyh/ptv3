@@ -158,3 +158,13 @@ Regression tests: new localhost relay playlist, redirect, key, segment, HTTP 403
 Complete prebuild GitHub checks: https://github.com/mghazalyh/ptv3/actions/runs/44901846875 ; Linux analyzer and full critical regression tests passed; Windows shared compatibility passed. Do not waste an installation on unvalidated fixtures.
 Build scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY, via .github/workflows/ios-speech-release.yml. Do not trigger Android or Windows packaging.
 User instruction: Trigger this final consolidated iOS build once and immediately end work. Do not poll, await, monitor, or inspect the newly triggered GitHub Actions run.
+
+OWNER-AUTHORIZED FINAL MANUAL INSTALLATION CANDIDATE — GITHUB-ONLY LIVE TV EXPERIMENT ENGINE
+Requested UTC: 2026-11-21T12:59:32.646Z
+Source HEAD: f0c7b15bd20fac6f80a4e61212556a119cf9e4fd
+Validated prebuild CI: https://github.com/mghazalyh/ptv3/actions/runs/44906088119 (Linux and Windows success)
+Scope: iOS 15 arm64 ad-hoc signed TrollStore IPA ONLY; no desktop or Android release.
+Features: Torriodb-backed bounded Live TV policies and rollback; relay/header/recovery/source-order strategies; source and channel diagnostics; installed Stremio TV catalog discovery; >=50 distinct real channels, three independent rounds, every advertised source up to cap, native video and sustained-playback verification, source host diversity and private evidence files.
+Isolation: No VOD, torrent, movie or series behavior modifications outside existing shared-player regression coverage.
+Limitations: New runtime controls cannot run on the already installed Build 260; real iPad validation of this implementation can only begin after the single future manual installation. Configuration is not arbitrary Dart/native hot reload.
+Owner requirement: This should be the only requested future manual IPA installation. Trigger existing .github/workflows/ios-speech-release.yml once, then STOP immediately; do not inspect the new job.

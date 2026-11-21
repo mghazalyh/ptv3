@@ -5,6 +5,8 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import 'lan_cast_request.dart';
+
 /// LAN remote messages never contain media URLs, tokens, or library data.
 enum LanRemoteCommand {
   up, down, left, right, select, back, home, playPause, seekBack, seekForward,
@@ -77,6 +79,9 @@ class LanRemoteService {
   void Function(LanRemoteCommand)? onNavigationCommand;
   bool Function(LanRemoteCommand)? onPlayerCommand;
   Map<String, Object?> Function()? playerStatus;
+  Future<Map<String, Object?>> Function(LanCastRequest)? onCastRequest;
+  final ValueNotifier<LanRemoteSession?> activeSession =
+      ValueNotifier<LanRemoteSession?>(null);
   String? get pairingCode => _pin;
   String get deviceName => _deviceName;
 
@@ -282,6 +287,23 @@ class LanRemoteService {
         });
         return;
       }
+      if (request.method == 'POST' && request.uri.path == '/cast') {
+        final command = LanCastRequest.parse(await _readJson(request));
+        if (command == null) {
+          await _write(response, 400, {'error': 'Invalid media identity.'});
+          return;
+        }
+        final handler = onCastRequest;
+        if (handler == null) {
+          await _write(response, 503, {'error': 'Receiver is not ready.'});
+          return;
+        }
+        final result = await handler(command)
+            .timeout(const Duration(seconds: 32));
+        await _write(response, result['accepted'] == true ? 200 : 422,
+            result);
+        return;
+      }
       if (request.method == 'POST' && request.uri.path == '/command') {
         final payload = await _readJson(request);
         final name = payload['command'];
@@ -334,7 +356,8 @@ class LanRemoteService {
 
   Future<Map<String, dynamic>> _request(
       LanRemotePeer peer, String method, String path, {
-      Map<String, Object?>? body, String? token}) async {
+      Map<String, Object?>? body, String? token,
+      Duration responseTimeout = const Duration(seconds: 5)}) async {
     if (!LanRemoteProtocol.validLanAddress(peer.address) ||
         peer.port != LanRemoteProtocol.httpPort) {
       throw const FormatException('Enter a private Wi-Fi IPv4 address.');
@@ -354,9 +377,9 @@ class LanRemoteService {
         request.write(jsonEncode(body));
       }
       final response = await request.close()
-          .timeout(const Duration(seconds: 5));
+          .timeout(responseTimeout);
       final text = await utf8.decoder.bind(response).join()
-          .timeout(const Duration(seconds: 5));
+          .timeout(responseTimeout);
       final payload = jsonDecode(text);
       if (payload is! Map<String, dynamic>) {
         throw const FormatException('Invalid response');
@@ -401,6 +424,17 @@ class LanRemoteService {
       LanRemoteSession session, LanRemoteCommand command) async {
     await _request(session.peer, 'POST', '/command',
         token: session.token, body: {'command': command.name});
+  }
+
+  Future<Map<String, dynamic>> sendCast(
+      LanRemoteSession session, LanCastRequest request) async {
+    final response = await _request(session.peer, 'POST', '/cast',
+        token: session.token, body: request.toJson(),
+        responseTimeout: const Duration(seconds: 36));
+    if (response['accepted'] != true) {
+      throw StateError('iPad did not accept the media request.');
+    }
+    return response;
   }
 
   Future<Map<String, dynamic>> readState(LanRemoteSession session) {

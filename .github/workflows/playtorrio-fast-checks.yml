@@ -3,24 +3,11 @@ run-name: "PlayTorrio checks · ${{ github.ref_name }} · ${{ github.sha }}"
 
 # Run ordinary development checks on inexpensive standard Linux runners.
 # Documentation-only edits and explicit release requests cause no extra CI.
+# Manual-only until non-iOS CI is explicitly authorized again.
+# Normal source commits MUST NOT start Linux or Windows runners.
 on:
-  push:
-    branches:
-      - parity-floating-player-both
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - '.github/release-request.txt'
-      - '.github/ios-speech-release-request.txt'
-      - '.github/ios-release-archive-request.txt'
-      - '.github/release-recovery-request.json'
-      - '.github/workflows/playtorrio-recover-release.yml'
-  pull_request:
-    branches:
-      - parity-floating-player-both
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
+  workflow_dispatch:
+
 permissions:
   contents: read
 concurrency:
@@ -54,6 +41,7 @@ jobs:
           flutter test test/torriodb_write_queue_test.dart
           flutter test test/lan_cast_request_test.dart
           flutter test test/live_channel_health_scanner_test.dart
+          flutter test test/live_verified_source_preference_test.dart
           flutter test test/ios_source_audio_diagnostics_test.dart
 
       - name: Analyze shared components before any native release build

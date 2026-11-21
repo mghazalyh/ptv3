@@ -13,6 +13,7 @@ import 'live_signal_health.dart';
 import 'live_source_manager.dart';
 import 'live_stream_detector.dart';
 import 'live_tv_experiment_policy.dart';
+import 'live_verified_source_preference.dart';
 
 typedef LiveStatusCallback = void Function(String message, bool reconnecting);
 typedef LiveSourceCallback = void Function(StreamSource source);
@@ -629,6 +630,14 @@ class LivePlaybackCoordinator {
     if (_disposed || !_foreground || _opening) return;
     final now = DateTime.now();
     if (!force && !_policy.canAttempt(now)) return;
+    // The previously verified URL has just failed real native playback.
+    // Remove that exact URL preference before selecting a fresh backup.
+    if (!force && const <String>{
+      'buffering', 'starvation', 'no_video', 'live_ended',
+      'playlist_ended', 'playlist_stale',
+    }.contains(reason)) {
+      LiveVerifiedSourcePreference.invalidate(channelId, _source);
+    }
     _syncExperiment();
     _opening = true;
     _lastRecoveryStartedAt = now;

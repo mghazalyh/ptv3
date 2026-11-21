@@ -8,6 +8,7 @@ import '../../stream/stream_service.dart';
 import 'live_native_channel_verifier.dart';
 import 'live_source_manager.dart';
 import 'live_stream_detector.dart';
+import 'live_verified_source_preference.dart';
 
 /// These states must distinguish network connectivity from native decoding.
 enum LiveChannelHealth {
@@ -214,6 +215,9 @@ abstract final class LiveChannelHealthScanner {
         );
         if (native.cancelled || isCancelled()) return preflight;
         if (native.sustainedStart) {
+          LiveVerifiedSourcePreference.remember(
+            channelId: channel.id, verifiedSource: source,
+          );
           return LiveChannelHealthResult(
             index == 0
                 ? LiveChannelHealth.verified
@@ -232,6 +236,9 @@ abstract final class LiveChannelHealthScanner {
             startupMs: native.startupMs,
           );
         }
+        // A source that just failed native decoding must not retain a
+        // preference from an earlier successful scan.
+        LiveVerifiedSourcePreference.invalidate(channel.id, source);
         if (native.renderedVideo) sawRenderedButUnstable = true;
       } catch (error) {
         debugPrint('[LiveHealthScan] MPV candidate: ' +

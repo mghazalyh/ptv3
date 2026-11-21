@@ -17,6 +17,8 @@ import '../../services/player/audio_language_priority.dart';
 import '../../services/player/debrid_source_readiness.dart';
 import '../../services/player/ios_audio_telemetry.dart';
 import '../../services/player/player_debug_telemetry.dart';
+import '../../services/player/live_tv/live_stream_detector.dart';
+import '../../services/player/live_tv/live_verified_source_preference.dart';
 import '../../services/player/windows_playback_telemetry.dart';
 import '../../services/stream/watch_source_preferences.dart';
 import '../../services/stream/source_content_identity.dart';
@@ -507,6 +509,16 @@ class _WatchScreenState extends State<WatchScreen>
         }
       }).toList();
       if (filtered.isNotEmpty) list = filtered;
+    }
+    // The native channel scan may have decoded an exact source already.
+    // Prefer that same addon + URL, not merely its CDN hostname.
+    // Never change movie/series/episode rankings or override user filters.
+    if (LiveStreamDetector.isLiveChannel(
+        mediaType: widget.type,
+        mediaId: widget.detail.id,
+        hasEpisode: widget.selectedEpisode != null)) {
+      return LiveVerifiedSourcePreference.prioritize(
+          widget.detail.id, list);
     }
     return list;
   }

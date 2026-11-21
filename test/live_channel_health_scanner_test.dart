@@ -4,12 +4,14 @@ import 'package:playtorrio/models/stream/stream_model.dart';
 import 'package:playtorrio/services/player/live_tv/live_channel_health_scanner.dart';
 import 'package:playtorrio/services/player/live_tv/live_source_manager.dart';
 import 'package:playtorrio/services/player/live_tv/live_native_channel_verifier.dart';
+import 'package:playtorrio/services/player/live_tv/live_verified_source_preference.dart';
 
 void main() {
   tearDown(() {
     LiveChannelHealthScanner.resolveOverride = null;
     LiveChannelHealthScanner.probeOverride = null;
     LiveNativeChannelVerifier.probeOverride = null;
+    LiveVerifiedSourcePreference.clearForTesting();
   });
 
   final channel = Movie(
@@ -120,6 +122,13 @@ void main() {
     expect(result.nativeVerified, true);
     expect(result.videoWidth, 1920);
     expect(result.playableSourceIndex, 0);
+    // A native decoded-video success, not a successful HTTP range request,
+    // is allowed to promote that exact StreamSource for actual playback.
+    final unrelated = StreamSource(
+      url: 'https://example.test/unrelated.m3u8', addonName: 'TV');
+    final ordered = LiveVerifiedSourcePreference.prioritize(
+        channel.id, [unrelated, candidate]);
+    expect(ordered.first.url, candidate.url);
   });
 
   test('First source fails but a decoded backup is explicitly lower ranked',
@@ -165,6 +174,10 @@ void main() {
     expect(result.health, LiveChannelHealth.poor);
     expect(result.nativeChecked, true);
     expect(result.nativeVerified, false);
+    final unrelated = StreamSource(
+      url: 'https://example.test/other.m3u8', addonName: 'TV');
+    expect(LiveVerifiedSourcePreference.prioritize(
+      channel.id, [unrelated, candidate]).first.url, unrelated.url);
   });
 
   test('A rendered but stalled channel is unstable, not verified', () async {

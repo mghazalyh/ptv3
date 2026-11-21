@@ -17,6 +17,9 @@ void main() {
   test('Command inventory separates read-only and playback controls', () {
     final info = IosRemoteDiagnosticInventory.capabilities();
     expect(info['schema'], 2);
+    expect(info['receiptSchema'], 2);
+    expect(info['receiptDelivery'], 'persisted_retry_until_uploaded');
+    expect(info['interruptedExecution'], 'uncertain_without_replay');
     expect(info['readOnly'], contains('test_status'));
     expect(info['boundedTests'], contains('probe_native_channel'));
     expect(info['playbackChanging'], contains('open_channel'));

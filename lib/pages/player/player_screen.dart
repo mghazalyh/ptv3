@@ -3587,7 +3587,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           final raw = args['arguments'];
           if (raw is! List || raw.isEmpty || raw.length > 12 ||
               raw.any((x) => x is! String ||
-                  (x as String).length > 320)) {
+                  x.length > 320)) {
             return <String, Object?>{
               'accepted': false, 'reason': 'invalid_native_command'};
           }

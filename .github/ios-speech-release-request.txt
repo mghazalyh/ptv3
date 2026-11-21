@@ -83,3 +83,9 @@ Tests: test/github_diagnostic_control_test.dart and test/live_tv_hls_probe_test.
 Privacy: GitHub token remains on-device. Remote receipts and diagnostics omit raw signed media URLs, playlist bodies and header values.
 Trigger: THIS FILE PUSH TRIGGERS ios-speech-release.yml.
 Instruction: Trigger the GitHub iOS build and leave without waiting/polling.
+
+IOS BUILD 252 ANALYZER FIX RETRIGGER
+Requested SGT: 2026-11-21 10:04:03
+Failure: iOS Speech run 52 (44852727090), fast checks run 681 (44852727056).
+Root cause: Flutter analyzer unnecessary_cast in lib/pages/player/player_screen.dart at line 3590, fatal warning. Replace redundant (x as String).length with promoted x.length in native_command argument validation.
+Preserve Build 252 diagnostics and GitHub remote-control features; run iOS release and checks; do not wait or poll after push.

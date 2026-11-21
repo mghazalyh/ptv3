@@ -53,7 +53,6 @@ import './services/player/device_diagnostic_inventory.dart';
 import './services/player/ios_native_process_metrics.dart';
 import './models/movie/video.dart';
 import './models/stream/stream_model.dart';
-import './services/remote/ios_adhoc_diagnostic_plan.dart';
 import './services/remote/ios_adhoc_diagnostic_coordinator.dart';
 import './widgets/remote/unattended_test_indicator.dart';
 import './services/remote/github_diagnostic_control.dart';

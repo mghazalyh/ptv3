@@ -37,10 +37,21 @@ class LiveMatrixChannel {
 /// private result file; playback is proven by native tracks plus timeline
 /// progress across samples and five minutes of sustained availability.
 class LiveTvMatrixRunner {
-  LiveTvMatrixRunner({LiveMatrixWait? wait})
-      : _wait = wait ?? Future<void>.delayed;
+  LiveTvMatrixRunner({
+    LiveMatrixWait? wait,
+    this.onStatusChanged,
+  }) : _wait = wait ?? Future<void>.delayed;
 
   final LiveMatrixWait _wait;
+  final ValueChanged<Map<String, Object?>>? onStatusChanged;
+
+  void _notifyStatus() {
+    try {
+      onStatusChanged?.call(status());
+    } catch (error) {
+      debugPrint('[LiveMatrix] Progress observer: ${error.runtimeType}');
+    }
+  }
   Future<void>? _job;
   bool _cancelled = false;
   String? _runId;
@@ -76,6 +87,7 @@ class LiveTvMatrixRunner {
     'requestedSourcesVerified': _requestedSourcesVerified,
     'failoverPlaybackSessions': _failoverPlaybackSessions,
     'uploadFailures': _uploadFailures,
+    'cancelRequested': _cancelled,
     'lastChannel': _lastChannel,
     'lastFailure': _lastFailure,
   };
@@ -85,6 +97,7 @@ class LiveTvMatrixRunner {
 
   Map<String, Object?> cancel() {
     _cancelled = true;
+    _notifyStatus();
     return status();
   }
 
@@ -153,6 +166,7 @@ class LiveTvMatrixRunner {
       _observedHosts.clear();
       _lastChannel = null;
       _lastFailure = null;
+      _notifyStatus();
       _job = _run(expanded, sampleSeconds, sustainSeconds, maxSources,
           open, inspect, publish);
       return status();
@@ -170,6 +184,7 @@ class LiveTvMatrixRunner {
       await publish(_runId!, key, result);
     } catch (error) {
       _uploadFailures++;
+      _notifyStatus();
       debugPrint('[LiveMatrix] Result upload: ' +
           error.runtimeType.toString());
     }
@@ -188,6 +203,7 @@ class LiveTvMatrixRunner {
       for (var index = 0; index < channels.length && !_cancelled; index++) {
         final channel = channels[index];
         _lastChannel = channel.id;
+        _notifyStatus();
         var sourceCount = 1;
         for (var sourceIndex = 0;
             sourceIndex < sourceCount && sourceIndex < maxSources &&
@@ -346,6 +362,7 @@ class LiveTvMatrixRunner {
           }
           if (_cancelled) break;
           _sourcesDone++;
+          _notifyStatus();
           await _publishSafe(publish,
               'candidate_' + index.toString() + '_' + sourceIndex.toString(),
               result);
@@ -353,13 +370,17 @@ class LiveTvMatrixRunner {
         }
         if (_cancelled) break;
         _channelsDone++;
+        _notifyStatus();
       }
       _phase = _cancelled ? 'cancelled' : 'completed';
+      _notifyStatus();
     } catch (error) {
       _phase = 'failed';
       _lastFailure = error.runtimeType.toString();
+      _notifyStatus();
     } finally {
       await _publishSafe(publish, 'status', status());
+      _notifyStatus();
     }
   }
 }

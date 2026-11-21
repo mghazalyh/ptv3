@@ -69,6 +69,27 @@ void main() {
     expect(published['candidate_0_0']?['sustainedPlayback'], true);
   });
 
+  test('Progress callback exposes real source and channel updates', () async {
+    final progress = <Map<String, Object?>>[];
+    final runner = LiveTvMatrixRunner(
+      wait: (_) async {},
+      onStatusChanged: (status) =>
+          progress.add(Map<String, Object?>.from(status)),
+    );
+    final started = await runner.start(plan(), open: (a, b, c) async =>
+      {'accepted': false, 'sourceCount': 1},
+      inspect: () async => {},
+      publish: (a, b, c) async {},
+    );
+    expect(started['accepted'], true);
+    await runner.whenComplete;
+    expect(progress.first['phase'], 'running');
+    expect(progress.any((entry) => entry['sourcesDone'] == 1), true);
+    expect(progress.any((entry) => entry['channelsDone'] == 1), true);
+    expect(progress.last['phase'], 'completed');
+    expect(progress.last['channelsDone'], 50);
+  });
+
   test('Does not count HTTP reachability as decoded video', () async {
     final runner = LiveTvMatrixRunner(wait: (_) async {});
     final result = await runner.start(plan(),

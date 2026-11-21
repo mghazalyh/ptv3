@@ -43,6 +43,8 @@ import './services/player/night_mode_diagnostics.dart';
 import './services/player/ios_audio_telemetry.dart';
 import './services/remote/lan_remote_service.dart';
 import './services/remote/lan_cast_request.dart';
+import './services/remote/unattended_test_activity.dart';
+import './widgets/remote/unattended_test_indicator.dart';
 import './services/remote/github_diagnostic_control.dart';
 import './services/remote/github_stremio_addon_probe.dart';
 import './services/player/live_tv/live_tv_experiment_policy.dart';
@@ -131,7 +133,9 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   Timer? _homeSyncTimer;
   DateTime? _lastUpdateCheckAt;
   AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
-  final LiveTvMatrixRunner _liveMatrix = LiveTvMatrixRunner();
+  final LiveTvMatrixRunner _liveMatrix = LiveTvMatrixRunner(
+    onStatusChanged: UnattendedTestActivity.instance.updateMatrix,
+  );
 
   @override
   void initState() {
@@ -831,6 +835,16 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
           theme: AppThemeService.createThemeData(palette),
           scrollBehavior: const MaterialScrollBehavior().copyWith(
             overscroll: false,
+          ),
+          builder: (context, child) => Stack(
+            fit: StackFit.expand,
+            children: [
+              child ?? const SizedBox.shrink(),
+              if (Platform.isIOS)
+                Positioned(top: 0, left: 0, right: 0,
+                  child: UnattendedTestIndicator(
+                    activity: UnattendedTestActivity.instance.snapshot)),
+            ],
           ),
           home: const HomePage(),
         );

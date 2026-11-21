@@ -748,8 +748,9 @@ jobs:
           name: PlayTorrio-iOS15-SpeechSync-v1.1.15-run-${{ github.run_number }}
           path: packages/ios15
       - name: Send current-feature iOS 15 TrollStore release link
-        # The signed IPA has already been published and verified. Telegram is
-        # an optional notification and must never invalidate an iOS release.
+        # The signed IPA was verified and uploaded as a run artifact. A
+        # permanent release link is only used if GitHub Releases succeeded.
+        # Telegram is optional and must not invalidate a signed build.
         continue-on-error: true
         run: |
           set -euo pipefail

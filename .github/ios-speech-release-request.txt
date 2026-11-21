@@ -206,3 +206,14 @@ Release workflow: .github/workflows/ios-speech-release.yml
 Scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY; no Windows, Android or desktop packaging.
 Preserve unattended physical iPad matrix and private Torriodb controller; do not issue device playback commands.
 Owner command: Trigger this one iOS build and leave immediately. Do not poll, wait for or inspect the newly triggered job.
+
+OWNER AUTHORIZED PLAYTORRIO EXPANDED CHATGPT REMOTE ENGINEERING IOS RELEASE
+Requested SGT: 2026-11-22 03:41:42
+Repository: mghazalyh/ptv3
+Branch: parity-floating-player-both
+Source HEAD before build trigger: 9a1bc42be1c656e45373141466d727f56f002b20
+Scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY; no Windows/Android/desktop builds.
+Work: versioned machine-readable operation contracts; TMDB movie/series discovery with year, language, genre and sort filtering; installed Stremio addon search; exact TMDB to Stremio media resolution and remote playback; Live TV search and precise channel switching; persisted native matrix health history and rankings; foreground unattended bounded HTTP/native channel scans; Flutter route inspection and app capture; safe subtitle settings; app-aware player source, audio and subtitle selection; measured playback verification; bounded recovery and resumed VOD position; sanitized Flutter exception and previous-session crash hints; durable command receipt retries and conservative interruption handling.
+Tests: new deterministic remote media, command contract, Live TV health history, native scan, playback verification and crash evidence regressions plus existing suite. Source-only preflight requested separately. The signed iOS release workflow itself gates on the complete deterministic Flutter suite before native build and signing.
+Safety: preserve existing Torriodb transport, Stremio resource semantics, MPV playback, active iPad Build 262 and live native matrix. No disruptive device commands issued.
+User instruction: Trigger the iOS-only GitHub build now and LEAVE immediately without waiting, polling or inspecting its status.

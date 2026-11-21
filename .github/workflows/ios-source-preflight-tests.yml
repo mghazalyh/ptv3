@@ -69,6 +69,7 @@ jobs:
             lib/services/remote/ios_remote_app_observability.dart \
             lib/services/remote/ios_remote_safe_settings.dart \
             lib/services/remote/ios_remote_playback_verification.dart \
+            lib/services/remote/ios_remote_crash_evidence.dart \
             lib/widgets/remote/unattended_test_indicator.dart \
             lib/services/remote/github_diagnostic_control.dart \
             lib/services/remote/torriodb_write_queue.dart \
@@ -114,6 +115,7 @@ jobs:
             test/ios_remote_live_health_history_test.dart
             test/ios_remote_live_scan_test.dart
             test/ios_remote_command_contract_test.dart
+            test/ios_remote_crash_evidence_test.dart
             test/github_stremio_addon_probe_test.dart
             test/source_content_identity_test.dart
             test/watch_source_preferences_test.dart

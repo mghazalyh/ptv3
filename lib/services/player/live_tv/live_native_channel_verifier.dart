@@ -11,7 +11,12 @@ import '../player_settings.dart';
 import 'live_source_manager.dart';
 import 'live_stream_detector.dart';
 
-/// A callback for explicit owner-requested, native decoded frame sampling.\n/// Bytes remain transient; the caller controls image sanitization and export.\ntypedef LiveNativeFrameObserver = Future<bool> Function(\n    Uint8List frame, int positionMs);\n\n/// A bounded, single-source real decoder test. HTTP 200/206 is NEVER a pass.
+/// A callback for explicit owner-requested, native decoded frame sampling.
+/// Bytes remain transient; the caller controls image sanitization and export.
+typedef LiveNativeFrameObserver = Future<bool> Function(
+    Uint8List frame, int positionMs);
+
+/// A bounded, single-source real decoder test. HTTP 200/206 is NEVER a pass.
 /// The video output must be initialized for media_kit to decode actual frames.
 @immutable
 class LiveNativeSourceResult {
@@ -34,7 +39,8 @@ class LiveNativeSourceResult {
   final int? videoHeight;
   final int? trackCount;
   final int? startupMs;
-  /// Successfully delivered callback frames, not a content classification.\n  final int capturedFrameCount;
+  /// Successfully delivered callback frames, not a content classification.
+  final int capturedFrameCount;
   final bool cancelled;
 
   bool get sustainedStart =>
@@ -207,7 +213,33 @@ abstract final class LiveNativeChannelVerifier {
             videoWidth > 0 && videoHeight > 0 && trackCount > 0) {
           startupMs = clock.elapsedMilliseconds;
         }
-        // Visual evidence is opt-in. Capture only after the decoder reports\n        // real video dimensions, native tracks and a moving timeline.\n        if (frameLimit > framesObserved && firstFrameRendered &&\n            videoWidth > 0 && videoHeight > 0 && trackCount > 0 &&\n            !stalled && movementMs >= nextFramePositionMs &&\n            !isCancelled()) {\n          try {\n            final bytes = await player.screenshot()\n                .timeout(const Duration(seconds: 3));\n            if (bytes != null && bytes.isNotEmpty &&\n                bytes.length <= 8 * 1024 * 1024) {\n              final stored = await onFrame!(bytes, currentPosition)\n                  .timeout(const Duration(seconds: 5));\n              if (stored) {\n                framesObserved++;\n                nextFramePositionMs += 3000;\n              } else {\n                nextFramePositionMs += 1000;\n              }\n            }\n          } catch (error) {\n            debugPrint('[LiveNativeScan] Visual frame: ' +\n                error.runtimeType.toString());\n            nextFramePositionMs += 1000;\n          }\n        }\n        if (firstFrameRendered && movementMs >= 5000 &&
+        // Visual evidence is opt-in. Capture only after the decoder reports
+        // real video dimensions, native tracks and a moving timeline.
+        if (frameLimit > framesObserved && firstFrameRendered &&
+            videoWidth > 0 && videoHeight > 0 && trackCount > 0 &&
+            !stalled && movementMs >= nextFramePositionMs &&
+            !isCancelled()) {
+          try {
+            final bytes = await player.screenshot()
+                .timeout(const Duration(seconds: 3));
+            if (bytes != null && bytes.isNotEmpty &&
+                bytes.length <= 8 * 1024 * 1024) {
+              final stored = await onFrame!(bytes, currentPosition)
+                  .timeout(const Duration(seconds: 5));
+              if (stored) {
+                framesObserved++;
+                nextFramePositionMs += 3000;
+              } else {
+                nextFramePositionMs += 1000;
+              }
+            }
+          } catch (error) {
+            debugPrint('[LiveNativeScan] Visual frame: ' +
+                error.runtimeType.toString());
+            nextFramePositionMs += 1000;
+          }
+        }
+        if (firstFrameRendered && movementMs >= 5000 &&
             videoWidth > 0 && videoHeight > 0 &&
             trackCount > 0 && !stalled) {
           return LiveNativeSourceResult(

@@ -550,6 +550,114 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     };
   }
 
+  bool _remoteDeviceIdle() {
+    if (!Platform.isIOS || !mounted ||
+        _lifecycleState != AppLifecycleState.resumed ||
+        _liveMatrix.status()['phase'] == 'running') return false;
+    final navigator = navigatorKey.currentState;
+    if (navigator == null || navigator.canPop()) return false;
+    try {
+      final player = LanRemoteService.instance.playerStatus?.call();
+      return player == null || player.isEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Map<String, Object?>> _verifyRemotePlayback(
+      Map<String, dynamic> args) async {
+    if (args.keys.any((key) => key != 'sampleMs') ||
+        args['sampleMs'] != null && args['sampleMs'] is! int) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'invalid_playback_verification',
+      };
+    }
+    final sample = (args['sampleMs'] is int
+        ? args['sampleMs'] as int : 3000).clamp(1000, 10000).toInt();
+    final handler = GithubDiagnosticControl.instance.onPlayerCommand;
+    if (handler == null) return <String, Object?>{
+      'accepted': false, 'reason': 'no_active_player',
+    };
+    if (_lifecycleState != AppLifecycleState.resumed) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'app_not_foreground',
+      };
+    }
+    final before = await handler('state', <String, dynamic>{});
+    if (before['accepted'] != true) return before;
+    await Future<void>.delayed(Duration(milliseconds: sample));
+    if (!mounted || _lifecycleState != AppLifecycleState.resumed) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'app_left_foreground',
+      };
+    }
+    final after = await handler('state', <String, dynamic>{});
+    if (after['accepted'] != true) return after;
+    return IosRemotePlaybackVerification.compare(
+      before, after, sampleMs: sample,
+    );
+  }
+
+  Future<Map<String, Object?>> _recoverRemotePlayback(
+      Map<String, dynamic> args) async {
+    if (_liveMatrix.status()['phase'] == 'running') return <String, Object?>{
+      'accepted': false, 'reason': 'matrix_in_progress',
+    };
+    const allowed = <String>{'strategy'};
+    final strategy = args['strategy'] ?? 'auto';
+    if (args.keys.any((key) => !allowed.contains(key)) ||
+        !const {'auto', 'restart', 'resume', 'retry_live'}.contains(strategy)) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'invalid_recovery_strategy',
+      };
+    }
+    final handler = GithubDiagnosticControl.instance.onPlayerCommand;
+    if (handler == null) return <String, Object?>{
+      'accepted': false, 'reason': 'no_active_player',
+    };
+    final before = await handler('state', <String, dynamic>{});
+    if (before['accepted'] != true) return before;
+    final live = before['isLive'] == true;
+    if (!live && strategy == 'retry_live') return <String, Object?>{
+      'accepted': false, 'reason': 'not_live',
+    };
+    Map<String, Object?> attempted;
+    var method = 'play';
+    if (live) {
+      method = 'retry_live';
+      attempted = await handler('retry_live', <String, dynamic>{});
+    } else if (strategy == 'restart') {
+      method = 'restart_media';
+      attempted = await handler('restart_media', <String, dynamic>{});
+      final position = before['positionMs'];
+      if (attempted['accepted'] == true &&
+          position is num && position > 1000) {
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+        await handler('seek_ms', <String, dynamic>{
+          'positionMs': position.toInt(),
+        });
+      }
+    } else {
+      attempted = await handler('play', <String, dynamic>{});
+    }
+    if (attempted['accepted'] != true) return <String, Object?>{
+      'accepted': false,
+      'reason': 'recovery_action_failed',
+      'method': method,
+      'attempt': attempted,
+    };
+    final verification = await _verifyRemotePlayback(
+        <String, dynamic>{'sampleMs': 4000});
+    return <String, Object?>{
+      'accepted': true,
+      'method': method,
+      'actionExecuted': true,
+      'recoveryVerified': verification['verified'] == true,
+      'verification': verification,
+      'previousPositionMs': before['positionMs'],
+    };
+  }
+
   /// Execute cloud commands with the same in-app controls as the paired LAN
   /// remote, plus channel discovery and native playback diagnostic actions.
   /// The owner enables unattended access once; no per-command prompt appears.

@@ -48,6 +48,8 @@ import './services/remote/github_stremio_addon_probe.dart';
 import './services/player/live_tv/live_tv_experiment_policy.dart';
 import './services/player/live_tv/live_tv_matrix_runner.dart';
 import './services/player/live_tv/live_verified_source_preference.dart';
+import './services/player/live_tv/live_native_channel_verifier.dart';
+import './services/player/live_tv/live_unattended_native_probe_request.dart';
 import './services/stream/stream_service.dart';
 import './services/metadata/metadata_service.dart';
 import './models/movie/movie.dart';
@@ -357,6 +359,8 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
               'accepted': false, 'reason': 'no_active_player'};
           }
           return await handler(name, args);
+        case 'probe_native_channel':
+          return await _probeNativeChannel(args);
         case 'probe_addon':
           // Resolve only an installed Stremio TV addon. Never permit a
           // remote command to supply an arbitrary URL or hostname to fetch.
@@ -468,6 +472,103 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
       debugPrint('[GithubDiagnosticControl] Dispatch: ${error.runtimeType}');
       return <String, Object?>{
         'accepted': false, 'errorClass': error.runtimeType.toString()};
+    }
+  }
+
+  /// An unattended one-source native iOS decoder test, without changing
+  /// the navigator, the active Player, source preferences or local settings.
+  /// Never run alongside the foreground Live TV matrix or a visible route.
+  Future<Map<String, Object?>> _probeNativeChannel(
+      Map<String, dynamic> args) async {
+    final request = LiveUnattendedNativeProbeRequest.parse(args);
+    if (request == null) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'invalid_native_probe_request',
+      };
+    }
+
+    bool idle() {
+      if (!Platform.isIOS || !mounted ||
+          _lifecycleState != AppLifecycleState.resumed ||
+          _liveMatrix.status()['phase'] == 'running') return false;
+      final navigator = navigatorKey.currentState;
+      if (navigator == null || navigator.canPop()) return false;
+      try {
+        final player = LanRemoteService.instance.playerStatus?.call();
+        if (player != null && player.isNotEmpty) return false;
+      } catch (_) {
+        return false;
+      }
+      return true;
+    }
+
+    // Return immediately without starting even a hidden MPV Player if the
+    // user is watching, viewing See All or the running matrix owns playback.
+    if (!idle()) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'device_busy_or_not_foreground',
+      };
+    }
+
+    try {
+      final matches = AddonManager.instance.activeStreamAddons.where((addon) =>
+          Uri.tryParse(addon.baseUrl)?.host.toLowerCase() ==
+              request.addonHost &&
+          addon.manifest.supportsRequest('stream', 'tv', request.channelId))
+          .toList();
+      if (matches.length != 1) {
+        return <String, Object?>{
+          'accepted': false,
+          'reason': 'exact_installed_addon_not_found',
+        };
+      }
+      final sourceCandidates = await StreamService.fetchLiveStreamsFromAddon(
+          matches.single, request.channelId)
+          .timeout(const Duration(seconds: 20));
+      if (!idle()) {
+        return <String, Object?>{
+          'accepted': false, 'reason': 'device_became_busy',
+        };
+      }
+      if (request.sourceIndex >= sourceCandidates.length) {
+        return <String, Object?>{
+          'accepted': false,
+          'reason': 'source_index_unavailable',
+          'sourceCount': sourceCandidates.length,
+        };
+      }
+      final selected = sourceCandidates[request.sourceIndex];
+      final native = await LiveNativeChannelVerifier.probe(
+        channelId: request.channelId,
+        source: selected,
+        isCancelled: () => !idle(),
+      );
+      // Upload only decoder facts, source host and outcomes. Never export
+      // signed URLs, raw media errors, subtitles, headers or tokens.
+      return <String, Object?>{
+        'accepted': !native.cancelled,
+        'reason': native.cancelled ? 'probe_cancelled' : 'completed',
+        'channelId': request.channelId,
+        'addonHost': request.addonHost,
+        'sourceIndex': request.sourceIndex,
+        'sourceCount': sourceCandidates.length,
+        'sourceHost': Uri.tryParse(selected.url ?? '')?.host,
+        'renderedVideo': native.renderedVideo,
+        'nativeVerified': native.sustainedStart,
+        'timelineAdvanceMs': native.timelineAdvanceMs,
+        'buffering': native.buffering,
+        'videoWidth': native.videoWidth,
+        'videoHeight': native.videoHeight,
+        'trackCount': native.trackCount,
+        'startupMs': native.startupMs,
+      };
+    } catch (error) {
+      debugPrint('[NativeProbe] Failed: ${error.runtimeType}');
+      return <String, Object?>{
+        'accepted': false,
+        'reason': 'native_probe_unavailable',
+        'errorClass': error.runtimeType.toString(),
+      };
     }
   }
 

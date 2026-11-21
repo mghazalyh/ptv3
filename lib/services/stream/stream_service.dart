@@ -65,6 +65,19 @@ class StreamService {
       LiveStreamDetector.isHttpMedia(source.url) &&
       (source.infoHash?.trim().isEmpty ?? true);
 
+  /// Resolve native diagnostic candidates from this specific installed addon
+  /// only, never from an arbitrary command-supplied URL or local scraper.
+  static Future<List<StreamSource>> fetchLiveStreamsFromAddon(
+      InstalledAddon addon, String channelId) async {
+    if (!addon.isStreamsActive ||
+        !isLiveStreamRequest(type: 'tv', id: channelId) ||
+        !addon.manifest.supportsRequest('stream', 'tv', channelId)) {
+      return const <StreamSource>[];
+    }
+    final sources = await _fetchFromAddon(addon, 'tv', channelId);
+    return sources.where(isEligibleLiveStreamSource).toList(growable: false);
+  }
+
   static void _registerBuiltInScrapers() {
     if (P2pSettingsService.isP2pEnabled.value) {
       ScraperManager.instance.registerScraper(KnabenScraper());

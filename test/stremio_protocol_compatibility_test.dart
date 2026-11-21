@@ -167,6 +167,40 @@ void main() {
     expect(items.single.id, 'tt12');
   });
 
+  test('Unattended native probe resolves only one enabled TV addon', () async {
+    final manifest = AddonManifest.fromJson({
+      'id': 'example.tv', 'name': 'Direct TV', 'version': '1.0.0',
+      'resources': [
+        {'name': 'stream', 'types': ['tv'], 'idPrefixes': ['nltv:']}
+      ],
+      'types': ['tv'], 'catalogs': [],
+    });
+    final installed = InstalledAddon(
+        baseUrl: 'https://installed.example', manifest: manifest);
+    final requests = <String>[];
+    StreamService.streamGetOverride = (uri) async {
+      requests.add(uri.toString());
+      return http.Response(jsonEncode({'streams': [
+        {'url': 'https://cdn.example/direct.m3u8'},
+        {'infoHash': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},
+        {'url': 'magnet:?xt=urn:btih:aaaaaaaa'},
+      ]}), 200);
+    };
+    final live = await StreamService.fetchLiveStreamsFromAddon(
+        installed, 'nltv:us:Example.us');
+    expect(live, hasLength(1));
+    expect(live.single.url, 'https://cdn.example/direct.m3u8');
+    expect(requests.single,
+        'https://installed.example/stream/tv/nltv%3Aus%3AExample.us.json');
+    expect(await StreamService.fetchLiveStreamsFromAddon(
+        installed, 'tt12345'), isEmpty);
+    expect(requests, hasLength(1));
+    installed.enableStreams = false;
+    expect(await StreamService.fetchLiveStreamsFromAddon(
+        installed, 'nltv:us:Example.us'), isEmpty);
+    expect(requests, hasLength(1));
+  });
+
   test('stream requests only contact resource-compatible addons', () async {
     final manifest = AddonManifest.fromJson({
       'id': 'example.streams',

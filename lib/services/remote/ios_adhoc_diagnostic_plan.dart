@@ -33,7 +33,8 @@ abstract final class IosAdhocDiagnosticPlan {
     'diagnostic_media_sources',
     'command_contracts', 'media_discover', 'media_search_addons',
     'media_resolve', 'live_channels', 'live_health_rank',
-    'live_scan_status', 'player_verify', 'app_inspect',
+    'live_scan_status', 'live_visual_scan_status',
+    'player_verify', 'app_inspect',
     'app_screenshot', 'crash_evidence', 'settings_inspect',
   };
 
@@ -52,7 +53,8 @@ abstract final class IosAdhocDiagnosticPlan {
     'start_live_matrix_catalog',
     'cancel_live_matrix',
     'media_play_resolved', 'live_channel_switch',
-    'live_scan', 'live_scan_cancel', 'player_recover',
+    'live_scan', 'live_scan_cancel',
+    'live_visual_scan', 'live_visual_scan_cancel', 'player_recover',
     'app_navigate', 'settings_update',
   };
 

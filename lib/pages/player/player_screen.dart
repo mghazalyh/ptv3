@@ -3514,6 +3514,10 @@ class _PlayerScreenState extends State<PlayerScreen>
         case 'state':
           return <String, Object?>{
             'accepted': true, 'title': _currentTitle,
+            'mediaId': widget.detail?.id,
+            'mediaType': widget.detail?.type,
+            'season': _currentEpisode?.season,
+            'episode': _currentEpisode?.episode,
             'playing': _player.state.playing,
             'positionMs': _player.state.position.inMilliseconds,
             'bufferedMs': _player.state.buffer.inMilliseconds,
@@ -3523,6 +3527,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             'sourceAddon': _currentSource.addonName,
             'quality': _currentSource.quality ?? 'unknown',
             'sourceCount': widget.availableSources.length,
+            'sourceIndex': widget.availableSources.indexOf(_currentSource),
             if (_liveTv != null)
               'live': await _liveTv!.diagnosticState(),
           };
@@ -3698,6 +3703,60 @@ class _PlayerScreenState extends State<PlayerScreen>
           final dynamic native = _player.platform;
           await native.command(List<String>.from(raw));
           return <String, Object?>{'accepted': true};
+        case 'select_source':
+          final requested = args['sourceIndex'];
+          if (requested is! int || requested < 0 ||
+              requested >= widget.availableSources.length) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_source_index',
+              'sourceCount': widget.availableSources.length,
+            };
+          }
+          if (_isLoading) return <String, Object?>{
+            'accepted': false, 'reason': 'player_still_loading',
+          };
+          if (_liveTv != null) {
+            final ok = await _liveTv!.diagnosticRetry(
+                sourceIndex: requested);
+            return <String, Object?>{
+              'accepted': ok,
+              'requestedSourceIndex': requested,
+              'verificationRequired': true,
+            };
+          }
+          final selected = widget.availableSources[requested];
+          if (identical(selected, _currentSource)) {
+            return <String, Object?>{
+              'accepted': true, 'alreadySelected': true,
+              'selectedIndex': requested,
+            };
+          }
+          final episode = _currentEpisode;
+          if (episode != null) {
+            await _switchStream(
+              selected, episode, preserveExactPosition: true,
+            );
+          } else {
+            final resume = _player.state.position;
+            Navigator.of(context).pushReplacement(MaterialPageRoute(
+              settings: const RouteSettings(name: '/remote/player'),
+              builder: (_) => PlayerScreen(
+                source: selected,
+                availableSources: widget.availableSources,
+                title: widget.title,
+                detail: widget.detail,
+                backdropUrl: widget.backdropUrl,
+                logoUrl: widget.logoUrl,
+                initialPosition: resume > Duration.zero ? resume : null,
+              ),
+            ));
+          }
+          return <String, Object?>{
+            'accepted': true,
+            'requestedSourceIndex': requested,
+            'selectedAddon': selected.addonName,
+            'verificationRequired': true,
+          };
         case 'select_audio_track':
           final requested = args['trackId'];
           if (requested is! int || requested < 0 || requested > 1000) {

@@ -73,6 +73,15 @@ jobs:
           touch .env
           flutter pub get
 
+      # The complete offline suite must pass before downloading native
+      # frameworks, compiling iOS, signing, publishing, or notifying users.
+      # Live third-party provider smoke tests are deliberately separate and
+      # are never used as a substitute for deterministic regression coverage.
+      - name: Gate iOS release on the complete deterministic Flutter suite
+        run: |
+          set -euo pipefail
+          flutter test --no-pub test
+
       - name: Enforce iOS Night Mode native packaging parity
         run: python3 .github/scripts/verify_ios_night_mode_release_workflows.py --self-test
 

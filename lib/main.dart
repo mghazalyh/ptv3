@@ -51,6 +51,7 @@ import './services/remote/ios_remote_command_contract.dart';
 import './services/remote/ios_remote_media_discovery.dart';
 import './services/remote/ios_remote_live_health_history.dart';
 import './services/remote/ios_remote_live_scan.dart';
+import './services/remote/ios_remote_live_visual_scan.dart';
 import './services/remote/ios_remote_app_observability.dart';
 import './services/remote/ios_remote_safe_settings.dart';
 import './services/remote/ios_remote_crash_evidence.dart';
@@ -610,7 +611,8 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   }
 
   bool _remoteDeviceIdle() {
-    if (!Platform.isIOS || !mounted ||
+    if (IosRemoteLiveScan.instance.isRunning ||
+        !Platform.isIOS || !mounted ||
         _lifecycleState != AppLifecycleState.resumed ||
         _liveMatrix.status()['phase'] == 'running') return false;
     final navigator = navigatorKey.currentState;
@@ -841,9 +843,26 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
                   'sourceIndex': args['sourceIndex'],
               });
         case 'live_scan':
+          if (IosRemoteLiveVisualScan.instance.isRunning) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'visual_scan_in_progress',
+            };
+          }
           return IosRemoteLiveScan.instance.start(
             args, deviceIdle: _remoteDeviceIdle,
           );
+        case 'live_visual_scan':
+          return IosRemoteLiveVisualScan.instance.start(
+            args,
+            deviceIdle: _remoteDeviceIdle,
+            publish: (runId, key, evidence) =>
+                GithubDiagnosticControl.instance
+                    .publishVisualFile(runId, key, evidence),
+          );
+        case 'live_visual_scan_status':
+          return IosRemoteLiveVisualScan.instance.status();
+        case 'live_visual_scan_cancel':
+          return IosRemoteLiveVisualScan.instance.cancel();
         case 'live_scan_status':
           return IosRemoteLiveScan.instance.status();
         case 'live_scan_cancel':
@@ -984,6 +1003,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
             'accepted': true,
             'onDevice': UnattendedTestActivity.instance.snapshot.value.toJson(),
             'matrix': _liveMatrix.status(),
+            'visualScan': IosRemoteLiveVisualScan.instance.status(),
           };
         case 'diagnostic_snapshot':
           final player = LanRemoteService.instance.playerStatus?.call() ??

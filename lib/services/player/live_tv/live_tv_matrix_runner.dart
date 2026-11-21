@@ -40,10 +40,12 @@ class LiveTvMatrixRunner {
   LiveTvMatrixRunner({
     LiveMatrixWait? wait,
     this.onStatusChanged,
+    this.onCandidateFinished,
   }) : _wait = wait ?? Future<void>.delayed;
 
   final LiveMatrixWait _wait;
   final ValueChanged<Map<String, Object?>>? onStatusChanged;
+  final ValueChanged<Map<String, Object?>>? onCandidateFinished;
 
   void _notifyStatus() {
     try {
@@ -374,6 +376,11 @@ class LiveTvMatrixRunner {
           }
           if (_cancelled) break;
           _sourcesDone++;
+          try {
+            onCandidateFinished?.call(Map<String, Object?>.from(result));
+          } catch (error) {
+            debugPrint('[LiveMatrix] Candidate observer: ${error.runtimeType}');
+          }
           _notifyStatus();
           await _publishSafe(publish,
               'candidate_' + index.toString() + '_' + sourceIndex.toString(),

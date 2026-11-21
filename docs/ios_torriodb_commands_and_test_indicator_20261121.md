@@ -140,3 +140,88 @@ changing app code, as long as the individual commands already exist.
 Completely new native methods still require a later installation.
 The additional addon-inventory privacy filter from commit `cf2e945d`
 was reverted in `7ba96bad`.
+
+
+
+## Next iOS test agent: full-fidelity diagnostics staged on source branch
+
+The next authorized iOS IPA introduces these reusable Torriodb actions.
+They are **not installed in physical build 262**; its running matrix is
+not interrupted.
+
+| Action | Function |
+| --- | --- |
+| `diagnostic_plan` | Start a nonblocking plan with 80 steps, 300 executions, waitMs, repeat, previous-result conditions, assertions and failure policy |
+| `diagnostic_plan_status` | Active/completed plan phase, execution counts, last result, cancellation state |
+| `diagnostic_plan_cancel` | Cancel future plan steps or a pending wait without cancelling the separate Live TV matrix |
+| `diagnostic_media_sources` | Inspect installed Stremio movie, exact series episode or TV sources without opening playback |
+| `diagnostic_open_media` | Open a selected real addon source through normal PlayerScreen with correct movie/episode identity |
+| `diagnostic_open_reference` | Open provided HTTP/HTTPS or infoHash reference stream with explicit headers |
+| `diagnostic_http_probe` | On-device DNS, request and response timings, redirects, HTTP status, headers and bounded response excerpt |
+| `device_inventory` | Device identity, iOS hardware, displays and environment |
+| `diagnostic_process_metrics` | Native getrusage CPU, memory high-water, faults, context switches, battery and thermal metrics |
+| `diagnostic_journal_status` | Rolling journal size and write/fragment counters |
+| `diagnostic_journal_tail` | Latest bounded local journal records |
+| `diagnostic_export` | Resumable byte-range upload of current, previous or screenshot capture evidence |
+
+The `player` subcommand gains `native_snapshot` (up to 64 libmpv
+properties), `sources` (paged raw source inventory) and
+`capture_frame` (native player PNG screenshot). Existing
+`native_get`, `native_set` and `native_command` stay available.
+
+The journal stores **raw** libmpv messages and matrix candidate
+observations locally in two rolling 12-MiB JSONL segments.
+Large diagnostic events are losslessly fragmented with numbered base64
+parts; a native screenshot can be stored up to 8 MiB.
+Exports are written to Torriodb at
+`playtorrio/control/ios/artifacts/<device-id>/<run-id>/`, with
+`nextOffset` to resume after upload failure.
+
+### Example: nonblocking observational plan
+
+```json
+{
+  "action": "diagnostic_plan",
+  "args": {
+    "runId": "ipad_evidence_20261122_a",
+    "stopOnFailure": false,
+    "steps": [
+      {"action": "diagnostic_process_metrics"},
+      {"action": "diagnostic_journal_status"},
+      {"action": "diagnostic_http_probe",
+       "args": {"url": "https://example.org/", "method": "HEAD"}},
+      {"action": "diagnostic_process_metrics", "waitMs": 5000}
+    ]
+  }
+}
+```
+
+The start receipt is immediate; a later `diagnostic_plan_status` reads
+progress and `diagnostic_plan_cancel` stops subsequent steps.
+Plans cannot change playback while a native Live TV matrix runs.
+
+### Example: journal and screenshot export
+
+```json
+{
+  "action": "diagnostic_export",
+  "args": {
+    "runId": "ipad_evidence_20261122_a",
+    "segment": "current",
+    "offset": 0,
+    "maxChunks": 8
+  }
+}
+```
+
+For screenshot evidence, execute `player` with
+`{"command":"capture_frame"}` then export segment `capture`.
+Repeat with the returned `nextOffset` until `complete` is true.
+The outer Torriodb envelope still requires exact deviceId, a fresh
+command ID, and fresh createdAtUtc per existing protocol.
+
+These are data-driven uses of precompiled native and Dart functionality,
+not arbitrary shell execution or dynamic iPadOS native module loading.
+Additional native frameworks, codecs, changed Swift code, entitlements
+and new Flutter UI still require an authorized IPA installation.
+No iOS build, signing or installation is triggered by these changes.

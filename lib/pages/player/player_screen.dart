@@ -35,6 +35,7 @@ import '../../services/player/live_tv/live_signal_health.dart';
 import '../../services/player/live_tv/live_programme_metadata.dart';
 import '../../widgets/player/live_tv_overlay.dart';
 import '../../services/player/ios_audio_telemetry.dart';
+import '../../services/remote/ios_diagnostic_journal.dart';
 import '../../services/remote/lan_remote_service.dart';
 import '../../services/remote/github_diagnostic_control.dart';
 import '../../services/player/audio_language_priority.dart';
@@ -475,7 +476,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Native MPV/libavfilter details arrive independently of player errors.
       _player.stream.log.listen((log) {
         if (_liveTv != null) _liveTv!.onNativeLog(log.text);
-        if (Platform.isIOS) IosAudioTelemetry.instance.captureNativeLog(log.text);
+        if (Platform.isIOS) IosAudioTelemetry.instance.captureNativeLog(
+            log.text, prefix: log.prefix);
         if (Platform.isWindows) {
           WindowsPlaybackTelemetry.instance.captureNativeAudioLog(
             prefix: log.prefix, message: log.text);
@@ -3571,19 +3573,97 @@ class _PlayerScreenState extends State<PlayerScreen>
             'accepted': false, 'reason': 'still_loading'};
           if (!_showDiagnostics) _toggleDiagnostics();
           return <String, Object?>{'accepted': true};
+        case 'capture_frame':
+          try {
+            final bytes = await _player.screenshot();
+            if (bytes == null || bytes.isEmpty) {
+              return <String, Object?>{
+                'accepted': false, 'reason': 'frame_unavailable'};
+            }
+            final capture = await IosDiagnosticJournal.instance.saveCapture(bytes);
+            if (capture['accepted'] == true) {
+              unawaited(IosDiagnosticJournal.instance.record(
+                  'player.frame_capture', capture));
+            }
+            return capture;
+          } catch (error) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'frame_capture_failed',
+              'errorClass': error.runtimeType.toString(),
+            };
+          }
+        case 'native_snapshot':
+          final raw = args['properties'];
+          final Object? requested = raw ?? const <String>[
+            'path', 'stream-open-filename', 'demuxer', 'file-format',
+            'video-format', 'audio-format', 'video-params/w',
+            'video-params/h', 'video-params/pixelformat',
+            'video-params/colormatrix', 'video-codec', 'audio-codec',
+            'hwdec-current', 'track-list/count', 'aid', 'sid', 'vid',
+            'cache-buffering-state', 'demuxer-cache-duration',
+            'demuxer-cache-time', 'demuxer-cache-state',
+            'vo-delayed-frame-count', 'drop-frame-count',
+            'mistimed-frame-count', 'estimated-vf-fps', 'avsync',
+            'audio-delay', 'sub-delay', 'network-timeout', 'user-agent',
+          ];
+          if (requested is! List || requested.isEmpty ||
+              requested.length > 64 ||
+              requested.any((item) => item is! String ||
+                  !RegExp(r'^[a-zA-Z0-9_./-]{1,100}$').hasMatch(item))) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_native_properties'};
+          }
+          final dynamic native = _player.platform;
+          final values = <String, Object?>{};
+          for (final property in requested.cast<String>()) {
+            try {
+              final value = await native.getProperty(property);
+              final text = value?.toString();
+              values[property] = text == null ? null
+                  : text.length > 4096 ? text.substring(0, 4096) : text;
+            } catch (error) {
+              values[property] = 'error:${error.runtimeType}';
+            }
+          }
+          final observation = <String, Object?>{
+            'accepted': true, 'properties': values,
+            'playing': _player.state.playing,
+            'buffering': _player.state.buffering,
+            'positionMs': _player.state.position.inMilliseconds,
+            'bufferedMs': _player.state.buffer.inMilliseconds,
+            'sourceAddon': _currentSource.addonName,
+          };
+          unawaited(IosDiagnosticJournal.instance.record(
+              'player.native_snapshot', observation));
+          return observation;
+        case 'sources':
+          final start = args['offset'] is int
+              ? (args['offset'] as int).clamp(0, 10000).toInt() : 0;
+          return <String, Object?>{
+            'accepted': true,
+            'total': widget.availableSources.length,
+            'offset': start,
+            'sources': widget.availableSources.skip(start).take(12)
+                .map((source) => <String, Object?>{
+                  'addon': source.addonName,
+                  'name': source.name,
+                  'title': source.title,
+                  'url': source.url,
+                  'headers': source.headers,
+                  'infoHash': source.infoHash,
+                  'fileIdx': source.fileIdx,
+                }).toList(),
+          };
         case 'native_get':
           final key = args['property']?.toString() ?? '';
           if (key.isEmpty || key.length > 100) return <String, Object?>{
             'accepted': false, 'reason': 'invalid_property'};
           final dynamic native = _player.platform;
           final value = await native.getProperty(key);
-          // Native values can be signed media URLs; never echo those to Git.
           final printable = value?.toString() ?? '';
-          final safe = printable.contains('://') || printable.contains('?')
-              ? '<redacted>' : printable;
           return <String, Object?>{
-            'accepted': true, 'value': safe.length > 160
-                ? safe.substring(0, 160) : safe};
+            'accepted': true, 'value': printable.length > 4096
+                ? printable.substring(0, 4096) : printable};
         case 'native_set':
           final key = args['property']?.toString() ?? '';
           final raw = args['value'];

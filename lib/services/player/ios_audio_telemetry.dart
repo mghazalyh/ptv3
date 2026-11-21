@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -9,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/stream/stream_model.dart';
 import '../my_list/github_library_cloud.dart';
 import '../remote/torriodb_write_queue.dart';
+import '../remote/ios_diagnostic_journal.dart';
 import 'audio_language_priority.dart';
 import 'device_diagnostic_inventory.dart';
 import '../stream/source_content_identity.dart';
@@ -518,7 +520,13 @@ class IosAudioTelemetry {
     return null;
   }
 
-  void captureNativeLog(String message) {
+  void captureNativeLog(String message, {String? prefix}) {
+    if (Platform.isIOS || forceTestPlatform) {
+      unawaited(IosDiagnosticJournal.instance.record('mpv.log', {
+        if (prefix != null) 'prefix': prefix,
+        'message': message,
+      }));
+    }
     if (!isActive) return;
     final code = classify(message);
     if (code != null) captureCode(code);

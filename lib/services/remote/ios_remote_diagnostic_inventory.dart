@@ -16,6 +16,10 @@ abstract final class IosRemoteDiagnosticInventory {
       'test_status', 'addon_inventory', 'state',
       'live_matrix_status', 'live_experiment_status',
       'discover_live_matrix', 'probe_addon',
+      'diagnostic_journal_status', 'diagnostic_journal_tail',
+      'device_inventory', 'diagnostic_process_metrics',
+      'diagnostic_http_probe',
+      'diagnostic_media_sources', 'diagnostic_plan_status',
     ],
     'boundedTests': const [
       'probe_native_channel', 'start_live_matrix_catalog',
@@ -24,10 +28,20 @@ abstract final class IosRemoteDiagnosticInventory {
     'playbackChanging': const ['open_channel', 'remote', 'player'],
     'indicator': 'dismissible_and_remotely_toggleable',
     'uiOnly': const ['test_indicator'],
-    'declarativePlans': const ['diagnostic_plan'],
+    'declarativePlans': const [
+      'diagnostic_plan', 'diagnostic_plan_cancel',
+      'diagnostic_plan_status',
+    ],
+    'artifactExports': const ['diagnostic_export'],
+    'remoteMediaTesting': const [
+      'diagnostic_media_sources', 'diagnostic_open_media',
+      'diagnostic_open_reference',
+    ],
     'planLimits': const {
-      'maxSteps': 20,
-      'maxExecutions': 30,
+      'maxSteps': 80,
+      'maxExecutions': 300,
+      'maxRepeatPerStep': 25,
+      'maxWaitMsPerExecution': 60000,
       'requiresOptInForPlaybackCommands': true,
     },
   };

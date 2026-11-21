@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 typedef IosAdhocCommand = Future<Map<String, Object?>> Function(
@@ -8,8 +9,8 @@ typedef IosAdhocCommand = Future<Map<String, Object?>> Function(
 /// Plans are validated in full before execution, then checked again before
 /// every state-changing step to avoid interfering with a running TV matrix.
 abstract final class IosAdhocDiagnosticPlan {
-  static const maxSteps = 20;
-  static const maxExecutions = 30;
+  static const maxSteps = 80;
+  static const maxExecutions = 300;
 
   static const _observationalActions = <String>{
     'diagnostic_capabilities',
@@ -22,10 +23,21 @@ abstract final class IosAdhocDiagnosticPlan {
     'discover_live_matrix',
     'probe_addon',
     'test_indicator',
+    'diagnostic_journal_status',
+    'diagnostic_journal_tail',
+    'device_inventory',
+    'diagnostic_process_metrics',
+    'diagnostic_http_probe',
+    'diagnostic_plan_status',
+    'diagnostic_plan_cancel',
+    'diagnostic_media_sources',
   };
 
   static const _controllingActions = <String>{
     'capture_telemetry',
+    'diagnostic_export',
+    'diagnostic_open_media',
+    'diagnostic_open_reference',
     'apply_live_experiment',
     'rollback_live_experiment',
     'open_channel',
@@ -74,6 +86,8 @@ abstract final class IosAdhocDiagnosticPlan {
     Map<String, dynamic> request, {
     required IosAdhocCommand dispatch,
     required bool Function() matrixRunning,
+    bool Function()? isCancelled,
+    void Function(Map<String, Object?>)? onStep,
   }) async {
     try {
       if (request.keys.any((key) => !const <String>{
@@ -93,12 +107,13 @@ abstract final class IosAdhocDiagnosticPlan {
       }
 
       final steps = <({String action, Map<String, dynamic> args,
-          Map<String, Object?> expected, int repeat, bool readOnly})>[];
+          Map<String, Object?> expected, Map<String, Object?> when,
+          int waitMs, int repeat, bool readOnly})>[];
       var plannedExecutions = 0;
       for (final raw in rawSteps) {
         if (raw is! Map ||
             raw.keys.any((key) => !const <String>{
-              'action', 'args', 'expect', 'repeat',
+              'action', 'args', 'expect', 'when', 'waitMs', 'repeat',
             }.contains(key))) {
           return {'accepted': false, 'reason': 'invalid_plan_step'};
         }
@@ -106,10 +121,14 @@ abstract final class IosAdhocDiagnosticPlan {
         final rawArgs = raw['args'];
         final rawExpect = raw['expect'];
         final repeat = raw['repeat'] ?? 1;
+        final rawWhen = raw['when'];
+        final rawWaitMs = raw['waitMs'] ?? 0;
         if (action is! String || !isSupported(action) ||
             rawArgs != null && rawArgs is! Map ||
             rawExpect != null && rawExpect is! Map ||
-            repeat is! int || repeat < 1 || repeat > 3) {
+            rawWhen != null && rawWhen is! Map ||
+            rawWaitMs is! int || rawWaitMs < 0 || rawWaitMs > 60000 ||
+            repeat is! int || repeat < 1 || repeat > 25) {
           return {'accepted': false, 'reason': 'unsupported_plan_step'};
         }
         final args = rawArgs == null
@@ -136,12 +155,23 @@ abstract final class IosAdhocDiagnosticPlan {
                 entry.value is Map || entry.value is List)) {
           return {'accepted': false, 'reason': 'invalid_assertion'};
         }
+        final when = rawWhen == null
+            ? <String, Object?>{}
+            : Map<String, Object?>.from(rawWhen as Map);
+        if (when.length > 8 ||
+            when.entries.any((entry) =>
+                !RegExp(r'^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*){0,3}$')
+                    .hasMatch(entry.key) ||
+                entry.value is Map || entry.value is List)) {
+          return {'accepted': false, 'reason': 'invalid_condition'};
+        }
         plannedExecutions += repeat;
         if (plannedExecutions > maxExecutions) {
           return {'accepted': false, 'reason': 'too_many_executions'};
         }
         steps.add((action: action, args: args,
-            expected: expected, repeat: repeat, readOnly: readOnly));
+            expected: expected, when: when, waitMs: rawWaitMs as int,
+            repeat: repeat, readOnly: readOnly));
       }
 
       if (dryRun) {
@@ -164,9 +194,40 @@ abstract final class IosAdhocDiagnosticPlan {
 
       final results = <Map<String, Object?>>[];
       var failed = 0;
+      Map<String, Object?>? previousResponse;
+      bool cancelled() => isCancelled?.call() == true;
+      Map<String, Object?> cancellation() => <String, Object?>{
+        'accepted': false,
+        'reason': 'plan_cancelled',
+        'executed': results.where((result) =>
+            result['skipped'] != true).length,
+        'failed': failed,
+        'results': results,
+      };
       for (var i = 0; i < steps.length; i++) {
         final step = steps[i];
+        if (cancelled()) return cancellation();
+        if (step.when.isNotEmpty &&
+            (previousResponse == null || step.when.entries.any((entry) =>
+                _lookup(previousResponse!, entry.key) != entry.value))) {
+          final skipped = <String, Object?>{
+            'index': i, 'action': step.action,
+            'skipped': true, 'reason': 'condition_not_met',
+          };
+          results.add(skipped);
+          try { onStep?.call(skipped); } catch (_) {}
+          continue;
+        }
         for (var iteration = 0; iteration < step.repeat; iteration++) {
+          if (cancelled()) return cancellation();
+          var remaining = step.waitMs;
+          while (remaining > 0) {
+            if (cancelled()) return cancellation();
+            final slice = remaining < 250 ? remaining : 250;
+            await Future<void>.delayed(Duration(milliseconds: slice));
+            remaining -= slice;
+          }
+          if (cancelled()) return cancellation();
           if (!step.readOnly && matrixRunning()) {
             return <String, Object?>{
               'accepted': false,
@@ -185,6 +246,7 @@ abstract final class IosAdhocDiagnosticPlan {
               'errorClass': error.runtimeType.toString(),
             };
           }
+          previousResponse = response;
           final unmet = <String>[];
           for (final e in step.expected.entries) {
             if (_lookup(response, e.key) != e.value) {
@@ -193,14 +255,16 @@ abstract final class IosAdhocDiagnosticPlan {
           }
           final passed = response['accepted'] != false && unmet.isEmpty;
           if (!passed) failed++;
-          results.add(<String, Object?>{
+          final observation = <String, Object?>{
             'index': i,
             'repeat': iteration,
             'action': step.action,
             'passed': passed,
             if (unmet.isNotEmpty) 'unmetAssertions': unmet,
             'result': _boundedResult(response),
-          });
+          };
+          results.add(observation);
+          try { onStep?.call(observation); } catch (_) {} 
           if (!passed && stopOnFailure) {
             return <String, Object?>{
               'accepted': false,

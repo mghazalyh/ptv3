@@ -2,6 +2,57 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:playtorrio/services/remote/ios_adhoc_diagnostic_plan.dart';
 
 void main() {
+  test('Conditional steps skip based on previous device response', () async {
+    final called = <String>[];
+    final result = await IosAdhocDiagnosticPlan.run({
+      'steps': [
+        {'action': 'live_matrix_status'},
+        {'action': 'diagnostic_journal_status',
+         'when': {'phase': 'completed'}},
+      ],
+    }, matrixRunning: () => false, dispatch: (a, b) async {
+      called.add(a);
+      return {'accepted': true, 'phase': 'running'};
+    });
+    expect(result['accepted'], true);
+    expect(called, ['live_matrix_status']);
+    expect((result['results'] as List).last['skipped'], true);
+  });
+
+  test('Conditional plans can execute when previous result matches',
+      () async {
+    final called = <String>[];
+    final result = await IosAdhocDiagnosticPlan.run({
+      'steps': [
+        {'action': 'live_matrix_status'},
+        {'action': 'diagnostic_journal_status',
+         'when': {'phase': 'completed'}},
+      ],
+    }, matrixRunning: () => false, dispatch: (a, b) async {
+      called.add(a);
+      return {'accepted': true, 'phase': 'completed'};
+    });
+    expect(result['accepted'], true);
+    expect(called, ['live_matrix_status', 'diagnostic_journal_status']);
+  });
+
+  test('Cancellation interrupts a delayed observation', () async {
+    var cancelled = false;
+    var calls = 0;
+    final pending = IosAdhocDiagnosticPlan.run({
+      'steps': [{'action': 'state', 'waitMs': 500}],
+    }, matrixRunning: () => false,
+       isCancelled: () => cancelled,
+       dispatch: (a, b) async {
+         calls++;
+         return {'accepted': true};
+       });
+    cancelled = true;
+    final result = await pending;
+    expect(result['reason'], 'plan_cancelled');
+    expect(calls, 0);
+  });
+
   test('Dry-run validates actions without executing anything', () async {
     var called = 0;
     final result = await IosAdhocDiagnosticPlan.run({

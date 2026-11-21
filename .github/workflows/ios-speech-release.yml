@@ -227,6 +227,12 @@ jobs:
           flutter test test/unattended_test_activity_test.dart
           flutter analyze --no-pub --no-fatal-infos lib/services/remote/ios_adhoc_diagnostic_plan.dart
           flutter test test/ios_adhoc_diagnostic_plan_test.dart
+          flutter analyze --no-pub --no-fatal-infos lib/services/remote/ios_adhoc_diagnostic_coordinator.dart lib/services/remote/ios_diagnostic_journal.dart lib/services/remote/ios_network_diagnostic_probe.dart lib/services/remote/ios_media_diagnostic_request.dart lib/services/player/ios_native_process_metrics.dart
+          flutter test test/ios_adhoc_diagnostic_coordinator_test.dart
+          flutter test test/ios_diagnostic_journal_test.dart
+          flutter test test/ios_network_diagnostic_probe_test.dart
+          flutter test test/ios_media_diagnostic_request_test.dart
+          flutter test test/ios_native_process_metrics_test.dart
           flutter test test/unattended_test_indicator_widget_test.dart
           flutter test test/ios_remote_diagnostic_inventory_test.dart
           flutter test test/lan_cast_request_test.dart

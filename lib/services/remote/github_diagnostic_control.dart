@@ -194,6 +194,20 @@ class GithubDiagnosticControl {
         () => _writeFileWithRetry(token, path, body));
   }
 
+  Future<String?> _readExistingSha(String token, String path) async {
+    final response = await _client.get(_uri(path), headers: _headers(token))
+        .timeout(const Duration(seconds: 12));
+    if (response.statusCode == 404) return null;
+    if (response.statusCode != 200) {
+      throw StateError('GitHub read HTTP ${response.statusCode}');
+    }
+    final wrapper = jsonDecode(response.body);
+    if (wrapper is! Map) {
+      throw const FormatException('Invalid GitHub blob metadata');
+    }
+    return wrapper['sha']?.toString();
+  }
+
   Future<void> _writeFileWithRetry(
       String token, String path, Map<String, Object?> body) async {
     final encoded = base64Encode(utf8.encode(jsonEncode(body)));
@@ -201,12 +215,12 @@ class GithubDiagnosticControl {
       try {
         // Always re-read the SHA, including after an ambiguous PUT timeout:
         // the previous write may have reached GitHub before the socket failed.
-        final existing = await _readFile(token, path);
+        final previousSha = await _readExistingSha(token, path);
         final request = <String, Object?>{
           'branch': branch,
           'message': 'diagnostics(ios): unattended diagnostic receipt',
           'content': encoded,
-          if (existing.sha != null) 'sha': existing.sha,
+          if (previousSha != null) 'sha': previousSha,
         };
         final response = await _client.put(
           Uri.https('api.github.com', '/repos/$repository/contents/$path'),
@@ -274,6 +288,28 @@ class GithubDiagnosticControl {
     }
     await _writeFile(token,
         '$root/matrix/$_deviceId/$runId/$key.json', result);
+  }
+
+  /// Immutable byte-range artifact chunks for resumable engineering exports.
+  Future<void> publishJournalFile(String runId, String key,
+      Map<String, Object?> payload) async {
+    await initialize();
+    if (!enabled.value || _deviceId == null) {
+      throw StateError('Remote diagnostics not enabled');
+    }
+    if (!RegExp(r'^[A-Za-z0-9_-]{8,50}$').hasMatch(runId) ||
+        !RegExp(r'^chunk_(current|previous|capture)_[0-9]{8}$').hasMatch(key)) {
+      throw const FormatException('Invalid diagnostic artifact path');
+    }
+    if (utf8.encode(jsonEncode(payload)).length > 100000) {
+      throw const FormatException('Diagnostic artifact too large');
+    }
+    final token = await _token();
+    if (token == null || token.isEmpty) {
+      throw StateError('Torriodb credentials unavailable');
+    }
+    await _writeFile(token,
+        '$root/artifacts/$_deviceId/$runId/$key.json', payload);
   }
 
   Future<void> pollNow() async {

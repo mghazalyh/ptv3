@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -45,7 +46,15 @@ import './services/remote/lan_remote_service.dart';
 import './services/remote/lan_cast_request.dart';
 import './services/remote/unattended_test_activity.dart';
 import './services/remote/ios_remote_diagnostic_inventory.dart';
+import './services/remote/ios_diagnostic_journal.dart';
+import './services/remote/ios_network_diagnostic_probe.dart';
+import './services/remote/ios_media_diagnostic_request.dart';
+import './services/player/device_diagnostic_inventory.dart';
+import './services/player/ios_native_process_metrics.dart';
+import './models/movie/video.dart';
+import './models/stream/stream_model.dart';
 import './services/remote/ios_adhoc_diagnostic_plan.dart';
+import './services/remote/ios_adhoc_diagnostic_coordinator.dart';
 import './widgets/remote/unattended_test_indicator.dart';
 import './services/remote/github_diagnostic_control.dart';
 import './services/remote/github_stremio_addon_probe.dart';
@@ -136,8 +145,21 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   DateTime? _lastUpdateCheckAt;
   AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
   final LiveTvMatrixRunner _liveMatrix = LiveTvMatrixRunner(
-    onStatusChanged: UnattendedTestActivity.instance.updateMatrix,
+    onCandidateFinished: (candidate) {
+      unawaited(IosDiagnosticJournal.instance.record(
+          'live.matrix.candidate', candidate));
+    },
+    onStatusChanged: (status) {
+      UnattendedTestActivity.instance.updateMatrix(status);
+      unawaited(IosDiagnosticJournal.instance.record(
+          'live.matrix.status', status));
+    },
   );
+
+  void _onRemoteDiagnosticsEnabled() {
+    IosDiagnosticJournal.instance.enabled =
+        GithubDiagnosticControl.instance.enabled.value;
+  }
 
   @override
   void initState() {
@@ -147,6 +169,9 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     LanRemoteService.instance.onCastRequest = _handleLanCastRequest;
     if (Platform.isIOS) {
       GithubDiagnosticControl.instance.onCommand = _dispatchGithubDiagnostic;
+      GithubDiagnosticControl.instance.enabled.addListener(
+          _onRemoteDiagnosticsEnabled);
+      _onRemoteDiagnosticsEnabled();
       GithubDiagnosticControl.instance.start();
     }
     // Pick up changes made on another device without reloading the Home page.
@@ -189,7 +214,11 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     _homeSyncTimer?.cancel();
     LanRemoteService.instance.onNavigationCommand = null;
     LanRemoteService.instance.onCastRequest = null;
-    if (Platform.isIOS) GithubDiagnosticControl.instance.onCommand = null;
+    if (Platform.isIOS) {
+      GithubDiagnosticControl.instance.enabled.removeListener(
+          _onRemoteDiagnosticsEnabled);
+      GithubDiagnosticControl.instance.onCommand = null;
+    }
     // Receiver sockets close when the application is disposed.
     unawaited(LanRemoteService.instance.stopHosting());
     WidgetsBinding.instance.removeObserver(this);
@@ -268,6 +297,229 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     };
   }
 
+  Future<Map<String, Object?>> _diagnosticMediaRequest(
+      Map<String, dynamic> args, {required bool open}) async {
+    try {
+      if (open && _liveMatrix.status()['phase'] == 'running') {
+        return <String, Object?>{
+          'accepted': false, 'reason': 'matrix_in_progress'};
+      }
+      final media = IosMediaDiagnosticRequest.parse(args);
+      final sources = await StreamService.fetchStreams(
+        type: media.type, id: media.streamId, title: media.title,
+        year: media.year, season: media.season, episode: media.episode,
+      ).timeout(const Duration(seconds: 30),
+          onTimeout: (sink) => sink.close()).take(media.maxSources).toList();
+      final results = sources.asMap().entries.map((entry) {
+        final source = entry.value;
+        return <String, Object?>{
+          'index': entry.key,
+          'addon': source.addonName,
+          'name': source.name,
+          'title': source.title,
+          'url': source.url,
+          'infoHash': source.infoHash,
+          'fileIdx': source.fileIdx,
+          'headers': source.headers,
+          'quality': source.quality,
+          'codec': source.codec,
+          'isHDR': source.isHDR,
+        };
+      }).toList();
+      unawaited(IosDiagnosticJournal.instance.record(
+          'media.sources_resolved', <String, Object?>{
+        ...media.toJson(),
+        'count': sources.length,
+        'selected': media.sourceIndex,
+        'providers': sources.map((source) => source.addonName).toList(),
+        'sources': results,
+      }));
+      if (!open) {
+        // Keep command receipts bounded; an exact source may be inspected via
+        // sourceIndex after this discovery, or the full trace via the journal.
+        return <String, Object?>{
+          'accepted': true, ...media.toJson(), 'sourceCount': sources.length,
+          'sources': results.skip(media.sourceIndex).take(12).toList(),
+          'returnedCount': min(12,
+              max(0, results.length - media.sourceIndex)),
+        };
+      }
+      if (media.sourceIndex >= sources.length) {
+        return <String, Object?>{
+          'accepted': false, 'reason': 'invalid_source_index',
+          'sourceCount': sources.length};
+      }
+      final navigator = navigatorKey.currentState;
+      if (navigator == null || !mounted) {
+        return <String, Object?>{
+          'accepted': false, 'reason': 'navigator_unavailable'};
+      }
+      final episode = media.type == 'series'
+          ? Video(id: media.streamId, title: media.title,
+              season: media.season, episode: media.episode)
+          : null;
+      final detail = MovieDetail(
+        id: media.id, type: media.type, name: media.title,
+        year: media.year?.toString(),
+        videos: episode == null ? const [] : [episode],
+        behaviorHints: media.type == 'tv'
+            ? const <String, dynamic>{'isLive': true}
+            : const <String, dynamic>{},
+      );
+      navigator.popUntil((route) => route.isFirst);
+      navigator.push(MaterialPageRoute(builder: (_) => PlayerScreen(
+        source: sources[media.sourceIndex],
+        availableSources: sources,
+        title: media.title,
+        detail: detail,
+        episode: episode,
+      )));
+      return <String, Object?>{
+        'accepted': true,
+        'sourceCount': sources.length,
+        'selectedIndex': media.sourceIndex,
+        'selectedAddon': sources[media.sourceIndex].addonName,
+        'resourceId': media.streamId,
+      };
+    } catch (error) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'media_diagnostic_failed',
+        'errorClass': error.runtimeType.toString(),
+        'error': error.toString(),
+      };
+    }
+  }
+
+  Future<Map<String, Object?>> _openReferenceMedia(
+      Map<String, dynamic> args) async {
+    if (_liveMatrix.status()['phase'] == 'running') {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'matrix_in_progress'};
+    }
+    if (args.keys.any((key) => !const <String>{
+        'url', 'title', 'headers', 'infoHash', 'fileIdx',
+      }.contains(key))) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'invalid_reference_options'};
+    }
+    final url = args['url'];
+    final infoHash = args['infoHash'];
+    final title = args['title'] ?? 'Diagnostic reference media';
+    final rawHeaders = args['headers'];
+    if (url is! String && infoHash is! String ||
+        url is String && url.length > 4096 ||
+        infoHash is String &&
+            (infoHash.isEmpty || infoHash.length > 120) ||
+        title is! String || title.isEmpty || title.length > 200 ||
+        rawHeaders != null && rawHeaders is! Map) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'invalid_reference_media'};
+    }
+    if (url is String) {
+      final uri = Uri.tryParse(url);
+      if (uri == null || !const {'https', 'http'}.contains(uri.scheme) ||
+          uri.host.isEmpty) {
+        return <String, Object?>{
+          'accepted': false, 'reason': 'invalid_reference_url'};
+      }
+    }
+    final headers = <String, String>{};
+    if (rawHeaders is Map) {
+      if (rawHeaders.length > 20) {
+        return <String, Object?>{
+          'accepted': false, 'reason': 'too_many_headers'};
+      }
+      for (final item in rawHeaders.entries) {
+        if (item.key is! String || item.value is! String) {
+          return <String, Object?>{
+            'accepted': false, 'reason': 'invalid_reference_headers'};
+        }
+        headers[item.key as String] = item.value as String;
+      }
+    }
+    final navigator = navigatorKey.currentState;
+    if (navigator == null || !mounted) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'navigator_unavailable'};
+    }
+    final source = StreamSource(
+      name: 'Remote diagnostic source',
+      url: url is String ? url : null,
+      infoHash: infoHash is String ? infoHash : null,
+      fileIdx: args['fileIdx'] is int ? args['fileIdx'] as int : null,
+      addonName: 'PlayTorrio Diagnostic',
+      headers: headers,
+    );
+    unawaited(IosDiagnosticJournal.instance.record(
+      'media.reference_open', <String, Object?>{
+        'url': source.url, 'infoHash': source.infoHash,
+        'headers': headers, 'title': title,
+      }));
+    navigator.popUntil((route) => route.isFirst);
+    navigator.push(MaterialPageRoute(builder: (_) => PlayerScreen(
+      source: source,
+      availableSources: [source],
+      title: title,
+      detail: MovieDetail(
+        id: 'diagnostic:reference', type: 'movie', name: title),
+    )));
+    return <String, Object?>{'accepted': true, 'title': title};
+  }
+
+  /// Publish a few exact journal byte ranges per command and report a
+  /// restartable nextOffset. No changes are made to the on-device matrix.
+  Future<Map<String, Object?>> _exportDiagnostics(
+      Map<String, dynamic> args) async {
+    final runId = args['runId'];
+    final rawOffset = args['offset'] ?? 0;
+    final rawChunks = args['maxChunks'] ?? 4;
+    final segment = args['segment'] ?? 'current';
+    if (runId is! String ||
+        !RegExp(r'^[A-Za-z0-9_-]{8,50}$').hasMatch(runId) ||
+        rawOffset is! int || rawOffset < 0 ||
+        rawChunks is! int || rawChunks < 1 || rawChunks > 8 ||
+        segment is! String ||
+        !const <String>{'current', 'previous', 'capture'}.contains(segment)) {
+      return <String, Object?>{
+        'accepted': false, 'reason': 'invalid_export_request',
+      };
+    }
+    var offset = rawOffset;
+    var published = 0;
+    var complete = false;
+    for (var n = 0; n < rawChunks; n++) {
+      final chunk = await IosDiagnosticJournal.instance.readChunk(
+        segment: segment, offset: offset,
+      );
+      if (chunk['accepted'] != true) {
+        return <String, Object?>{
+          ...chunk, 'nextOffset': offset, 'publishedChunks': published,
+        };
+      }
+      try {
+        await GithubDiagnosticControl.instance.publishJournalFile(
+          runId, 'chunk_${segment}_${offset.toString().padLeft(8, '0')}',
+          chunk,
+        );
+      } catch (error) {
+        return <String, Object?>{
+          'accepted': false, 'reason': 'artifact_upload_failed',
+          'errorClass': error.runtimeType.toString(),
+          'nextOffset': offset, 'publishedChunks': published,
+        };
+      }
+      published++;
+      offset = chunk['nextOffset'] as int;
+      complete = chunk['complete'] == true;
+      if (complete) break;
+    }
+    return <String, Object?>{
+      'accepted': true, 'runId': runId,
+      'segment': segment, 'publishedChunks': published,
+      'nextOffset': offset, 'complete': complete,
+    };
+  }
+
   /// Execute cloud commands with the same in-app controls as the paired LAN
   /// remote, plus channel discovery and native playback diagnostic actions.
   /// The owner enables unattended access once; no per-command prompt appears.
@@ -282,13 +534,25 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
           return IosRemoteDiagnosticInventory.addons(
             AddonManager.instance.addons);
         case 'diagnostic_plan':
-          return await IosAdhocDiagnosticPlan.run(
+          return await IosAdhocDiagnosticCoordinator.instance.start(
             args,
             matrixRunning: () =>
                 _liveMatrix.status()['phase'] == 'running',
             dispatch: (action, parameters) =>
                 _dispatchGithubDiagnostic(action, parameters),
+            onStep: (step) {
+              unawaited(IosDiagnosticJournal.instance.record(
+                  'diagnostic.plan_step', step));
+            },
+            onFinished: (outcome) {
+              unawaited(IosDiagnosticJournal.instance.record(
+                  'diagnostic.plan_finished', outcome));
+            },
           );
+        case 'diagnostic_plan_status':
+          return IosAdhocDiagnosticCoordinator.instance.status();
+        case 'diagnostic_plan_cancel':
+          return IosAdhocDiagnosticCoordinator.instance.cancel();
         case 'test_indicator':
           if (args.length != 1 || args['visible'] is! bool) {
             return <String, Object?>{
@@ -300,6 +564,40 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
           return <String, Object?>{
             'accepted': true,
             'onDevice': UnattendedTestActivity.instance.snapshot.value.toJson(),
+          };
+        case 'diagnostic_media_sources':
+          return await _diagnosticMediaRequest(args, open: false);
+        case 'diagnostic_open_media':
+          return await _diagnosticMediaRequest(args, open: true);
+        case 'diagnostic_open_reference':
+          return await _openReferenceMedia(args);
+        case 'diagnostic_http_probe':
+          final result = await IosNetworkDiagnosticProbe.run(args);
+          unawaited(IosDiagnosticJournal.instance.record(
+              'http.probe', result));
+          return result;
+        case 'diagnostic_journal_status':
+          return IosDiagnosticJournal.instance.status();
+        case 'diagnostic_journal_tail':
+          final count = args['count'];
+          final segment = args['segment'];
+          return IosDiagnosticJournal.instance.tail(
+            count: count is int ? count : 10,
+            segment: segment is String ? segment : 'current',
+          );
+        case 'diagnostic_export':
+          return _exportDiagnostics(args);
+        case 'diagnostic_process_metrics':
+          final metrics = await IosNativeProcessMetrics.capture();
+          unawaited(IosDiagnosticJournal.instance.record(
+              'device.process_metrics', metrics));
+          return metrics;
+        case 'device_inventory':
+          final inventory = await DeviceDiagnosticInventory.instance.capture();
+          unawaited(IosDiagnosticJournal.instance.record(
+              'device.inventory', inventory));
+          return <String, Object?>{
+            'accepted': true, 'inventory': inventory,
           };
         case 'test_status':
           return <String, Object?>{

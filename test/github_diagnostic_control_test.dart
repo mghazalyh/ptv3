@@ -9,6 +9,39 @@ import 'package:playtorrio/services/remote/github_diagnostic_control.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('Resumable journal uploads use stable artifact paths', () async {
+    SharedPreferences.setMockInitialValues({});
+    final requests = <String>[];
+    final controller = GithubDiagnosticControl.forTesting(
+      tokenProvider: () async => 'TEST_TOKEN',
+      client: MockClient((req) async {
+        if (req.method == 'GET') return http.Response('{}', 404);
+        if (req.method == 'PUT') {
+          requests.add(req.url.path);
+          return http.Response('{}', 201);
+        }
+        return http.Response('{}', 404);
+      }),
+    )..forceTestPlatform = true;
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    controller.enabled.value = true;
+    await controller.publishJournalFile(
+      'new_diagnostic_run',
+      'chunk_current_00000000',
+      {'dataBase64': 'YWJj', 'bytes': 3},
+    );
+    expect(requests, hasLength(1));
+    expect(requests.single, contains('/artifacts/'));
+    expect(requests.single, contains('chunk_current_00000000.json'));
+    expect(
+      () => controller.publishJournalFile('run',
+          'chunk_current_00000000', {}),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+
   test('Private device-scoped commands reject stale and mistargeted payloads', () {
     final now = DateTime.utc(2026, 11, 21, 2, 0);
     final command = <String, dynamic>{

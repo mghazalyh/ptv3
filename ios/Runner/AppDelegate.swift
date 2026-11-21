@@ -54,12 +54,50 @@ import Darwin
       binaryMessenger: engineBridge.applicationRegistrar.messenger()
     )
     diagnosticChannel.setMethodCallHandler { call, callback in
-      guard call.method == "snapshot" else {
+      switch call.method {
+      case "snapshot":
+        callback(Self.deviceDiagnosticSnapshot())
+      case "processMetrics":
+        callback(Self.processDiagnosticMetrics())
+      default:
         callback(FlutterMethodNotImplemented)
-        return
       }
-      callback(Self.deviceDiagnosticSnapshot())
     }
+  }
+
+  /// Process-level counters are cumulative. Dart can derive CPU utilization
+  /// between samples without relying on unsupported iPadOS process APIs.
+  private static func processDiagnosticMetrics() -> [String: Any] {
+    let process = ProcessInfo.processInfo
+    UIDevice.current.isBatteryMonitoringEnabled = true
+    var result: [String: Any] = [
+      "timestampUnixMs": Int64(Date().timeIntervalSince1970 * 1000),
+      "systemUptimeSeconds": process.systemUptime,
+      "thermalState": process.thermalState.rawValue,
+      "lowPowerModeEnabled": process.isLowPowerModeEnabled,
+      "batteryLevel": UIDevice.current.batteryLevel,
+      "batteryState": UIDevice.current.batteryState.rawValue,
+      "physicalMemoryBytes": process.physicalMemory,
+      "processorCount": process.processorCount,
+      "activeProcessorCount": process.activeProcessorCount
+    ]
+    var usage = rusage()
+    if getrusage(RUSAGE_SELF, &usage) == 0 {
+      result["processUserCpuUs"] =
+        Int64(usage.ru_utime.tv_sec) * 1_000_000 +
+        Int64(usage.ru_utime.tv_usec)
+      result["processSystemCpuUs"] =
+        Int64(usage.ru_stime.tv_sec) * 1_000_000 +
+        Int64(usage.ru_stime.tv_usec)
+      result["processMaxResidentBytes"] = Int64(usage.ru_maxrss)
+      result["processVoluntaryContextSwitches"] = Int64(usage.ru_nvcsw)
+      result["processInvoluntaryContextSwitches"] = Int64(usage.ru_nivcsw)
+      result["processMajorPageFaults"] = Int64(usage.ru_majflt)
+      result["processMinorPageFaults"] = Int64(usage.ru_minflt)
+    } else {
+      result["usageError"] = "getrusage_failed"
+    }
+    return result
   }
 
   private static func deviceDiagnosticSnapshot() -> [String: Any] {

@@ -134,3 +134,32 @@ improvements and separate candidate upload coverage counters. Neither
 changes the already installed build 262 or retroactively repairs its
 missing candidate uploads. Physical acceptance remains required after
 an explicitly authorized future iOS-only IPA.
+
+
+
+## Passive build 262 evidence for the next diagnostic IPA
+
+Read-only Torriodb inspection of the running full native matrix
+`matrix262_full50_20261121133315` observed 28/150 completed rounds,
+68 source attempts, 21 legacy sustained playback sessions, 38 distinct
+source hosts and six upload errors. These are **interim**, not final,
+numbers. 65 candidate files were visible at the same instant. The
+three-file difference from source attempts is a timing observation,
+not proof of three playback failures.
+
+* NFL Network candidate source 0 had native manifest, TLS and HTTP
+  errors, while candidate 1 sustained after failover; original requested
+  source 1 must not be counted verified.
+* Fubo Sports Network source 0 had repeated native HTTP auth, HLS
+  segment and manifest failures. Other candidates decoded 1080p but
+  did not sustain, with active host/source changing during recovery.
+* RightNow TV sources 0 and 1 both sustained native 720p playback on
+  the requested source, with differing decoded track counts.
+* Made in Hollywood source 0 buffered with no decoded frames,
+  including an attempted HTTP relay; this is not a whole-channel
+  blacklist decision.
+
+These gaps motivated full raw native logs, per-request HTTP/DNS/redirect
+diagnostics, frame captures, process metrics, exact source attribution
+and resumable evidence uploads. New instrumentation is staged in
+source only; physical build 262 and the running matrix were left intact.

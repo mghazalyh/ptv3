@@ -668,6 +668,147 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
       switch (action) {
         case 'diagnostic_capabilities':
           return IosRemoteDiagnosticInventory.capabilities();
+        case 'command_contracts':
+          return IosRemoteCommandContract.manifest();
+        case 'media_discover':
+          return await IosRemoteMediaDiscovery.discover(args);
+        case 'media_search_addons':
+          return await IosRemoteMediaDiscovery.searchAddons(args);
+        case 'media_resolve':
+          return await IosRemoteMediaDiscovery.resolve(args);
+        case 'media_play_resolved':
+          if (_liveMatrix.status()['phase'] == 'running') {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'matrix_in_progress',
+            };
+          }
+          if (args.keys.any((key) => !const <String>{
+              'type', 'tmdbId', 'title', 'year', 'sourceIndex',
+              'season', 'episode',
+            }.contains(key))) return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_media_play_request',
+            };
+          final resolved = await IosRemoteMediaDiscovery.resolve(
+            <String, dynamic>{
+              for (final key in const ['type', 'tmdbId', 'title', 'year'])
+                if (args.containsKey(key)) key: args[key],
+            });
+          if (resolved['accepted'] != true) return resolved;
+          return _diagnosticMediaRequest(<String, dynamic>{
+            'type': resolved['type'],
+            'id': resolved['id'],
+            'title': resolved['title'],
+            if (resolved['year'] != null) 'year': resolved['year'],
+            if (args['sourceIndex'] != null)
+              'sourceIndex': args['sourceIndex'],
+            if (args['season'] != null) 'season': args['season'],
+            if (args['episode'] != null) 'episode': args['episode'],
+          }, open: true);
+        case 'live_channels':
+          return _discoverLiveChannels(args);
+        case 'live_health_rank':
+          return IosRemoteLiveHealthHistory.instance.rank(args);
+        case 'live_channel_switch':
+          if (_liveMatrix.status()['phase'] == 'running') {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'matrix_in_progress',
+            };
+          }
+          final query = args['query'];
+          if (args.keys.any((key) =>
+                  key != 'query' && key != 'sourceIndex') ||
+              query is! String || query.trim().length < 2 ||
+              query.length > 100) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_channel_search',
+            };
+          }
+          final matches = await _discoverLiveChannels(
+              <String, dynamic>{'query': query, 'limit': 150});
+          final channels = matches['channels'];
+          if (channels is! List || channels.isEmpty) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'channel_not_found',
+            };
+          }
+          if (channels.length != 1) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'ambiguous_channel',
+              'matches': channels.take(15).toList(),
+              'count': channels.length,
+            };
+          }
+          final exact = channels.single as Map;
+          return _dispatchGithubDiagnostic('open_channel',
+              <String, dynamic>{
+                'channelId': exact['id'],
+                'title': exact['title'],
+                if (args['sourceIndex'] != null)
+                  'sourceIndex': args['sourceIndex'],
+              });
+        case 'live_scan':
+          return IosRemoteLiveScan.instance.start(
+            args, deviceIdle: _remoteDeviceIdle,
+          );
+        case 'live_scan_status':
+          return IosRemoteLiveScan.instance.status();
+        case 'live_scan_cancel':
+          return IosRemoteLiveScan.instance.cancel();
+        case 'player_verify':
+          return _verifyRemotePlayback(args);
+        case 'player_recover':
+          return _recoverRemotePlayback(args);
+        case 'app_inspect':
+          return IosRemoteAppObservability.instance.inspect(
+            foreground: _lifecycleState == AppLifecycleState.resumed,
+            navigatorReady: navigator != null,
+            playerActive: LanRemoteService.instance.playerStatus?.call()
+                .isNotEmpty == true,
+            matrixRunning: _liveMatrix.status()['phase'] == 'running',
+          );
+        case 'app_screenshot':
+          return IosRemoteAppObservability.instance.capture();
+        case 'app_navigate':
+          if (_liveMatrix.status()['phase'] == 'running') {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'matrix_in_progress',
+            };
+          }
+          final destination = args['destination'];
+          if (navigator == null ||
+              !const {'home', 'back', 'search'}.contains(destination) ||
+              args.keys.any((key) =>
+                  key != 'destination' && key != 'query')) {
+            return <String, Object?>{
+              'accepted': false, 'reason': 'invalid_navigation',
+            };
+          }
+          if (destination == 'home') {
+            navigator.popUntil((route) => route.isFirst);
+          } else if (destination == 'back') {
+            if (navigator.canPop()) navigator.pop();
+          } else {
+            final query = args['query'];
+            if (query is! String || query.trim().length < 2 ||
+                query.length > 120) {
+              return <String, Object?>{
+                'accepted': false, 'reason': 'invalid_search_query',
+              };
+            }
+            navigator.push(MaterialPageRoute(
+              settings: const RouteSettings(name: '/remote/search'),
+              builder: (_) => DiscoverPage(
+                query: query.trim(), isGenre: false,
+              ),
+            ));
+          }
+          return <String, Object?>{
+            'accepted': true, 'destination': destination,
+          };
+        case 'settings_inspect':
+          return IosRemoteSafeSettings.inspect();
+        case 'settings_update':
+          return IosRemoteSafeSettings.update(args);
         case 'addon_inventory':
           return IosRemoteDiagnosticInventory.addons(
             AddonManager.instance.addons);
@@ -769,7 +910,13 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
         case 'discover_live_matrix':
           return await _discoverLiveChannels(args);
         case 'start_live_matrix_catalog':
-          final discovered = await _discoverLiveChannels(args);
+          final discovered = await _discoverLiveChannels(
+              <String, dynamic>{
+                for (final key in const <String>[
+                  'query', 'addonHost', 'pages', 'limit',
+                ])
+                  if (args.containsKey(key)) key: args[key],
+              });
           if ((discovered['count'] as int? ?? 0) < 50) {
             return <String, Object?>{
               'accepted': false,

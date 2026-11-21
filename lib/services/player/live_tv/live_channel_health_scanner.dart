@@ -5,37 +5,112 @@ import 'package:flutter/foundation.dart';
 import '../../../models/movie/movie.dart';
 import '../../../models/stream/stream_model.dart';
 import '../../stream/stream_service.dart';
+import 'live_native_channel_verifier.dart';
 import 'live_source_manager.dart';
 import 'live_stream_detector.dart';
 
-/// An HTTP-based catalogue preflight, not a native decoded-video test.
-/// Only the on-device MPV matrix may claim playback verification.
-enum LiveChannelHealth { checking, likelyReachable, poor, unknown }
+/// These states must distinguish network connectivity from native decoding.
+enum LiveChannelHealth {
+  checking,
+  verified,
+  unstable,
+  likelyReachable,
+  poor,
+  unknown,
+}
 
 class LiveChannelHealthResult {
-  const LiveChannelHealthResult(this.health, this.sourcesChecked,
-      this.reason, {this.checkedAt});
+  const LiveChannelHealthResult(
+    this.health,
+    this.sourcesChecked,
+    this.reason, {
+    this.checkedAt,
+    this.sources = const <StreamSource>[],
+    this.nativeChecked = false,
+    this.nativeAttempts = 0,
+    this.playableSourceIndex,
+    this.videoWidth,
+    this.videoHeight,
+    this.startupMs,
+  });
+
   final LiveChannelHealth health;
   final int sourcesChecked;
   final String reason;
   final DateTime? checkedAt;
 
+  /// In-memory only. Stream URLs, headers and tokens are never uploaded.
+  final List<StreamSource> sources;
+  final bool nativeChecked;
+  final int nativeAttempts;
+  final int? playableSourceIndex;
+  final int? videoWidth;
+  final int? videoHeight;
+  final int? startupMs;
+
   String get label => switch (health) {
     LiveChannelHealth.checking => 'Checking',
-    LiveChannelHealth.likelyReachable => 'Likely healthy',
+    LiveChannelHealth.verified => 'Working',
+    LiveChannelHealth.unstable =>
+      playableSourceIndex != null && playableSourceIndex! > 0
+          ? 'Works via backup'
+          : 'Unstable',
+    LiveChannelHealth.likelyReachable => 'Reachable',
     LiveChannelHealth.poor => 'Poor',
     LiveChannelHealth.unknown => 'Unverified',
   };
+
+  bool get nativeVerified =>
+      (health == LiveChannelHealth.verified ||
+       (health == LiveChannelHealth.unstable &&
+        playableSourceIndex != null)) &&
+      nativeChecked;
 }
 
-class LiveChannelHealthScanner {
-  LiveChannelHealthScanner._();
-
+/// Source resolution / HLS reachability followed by actual iOS decoding.
+/// Stage one is fast and concurrent. Stage two is sequential and muted.
+abstract final class LiveChannelHealthScanner {
   @visibleForTesting
   static Future<List<StreamSource>> Function(Movie)? resolveOverride;
   @visibleForTesting
   static Future<LiveSourceProbe?> Function(
       String, StreamSource)? probeOverride;
+
+  /// A stable sort: never scramble equally ranked channels, and never put
+  /// an HTTP-only success ahead of confirmed decoded video.
+  static List<Movie> sortedByHealth(
+    Iterable<Movie> channels,
+    Map<String, LiveChannelHealthResult> results,
+  ) {
+    final indexed = <({Movie movie, int index})>[];
+    var index = 0;
+    for (final movie in channels) {
+      indexed.add((movie: movie, index: index++));
+    }
+    indexed.sort((a, b) {
+      final ar = results[a.movie.id];
+      final br = results[b.movie.id];
+      final byHealth = healthPriority(ar?.health)
+          .compareTo(healthPriority(br?.health));
+      if (byHealth != 0) return byHealth;
+      if (ar?.nativeVerified == true && br?.nativeVerified == true) {
+        final byStartup = (ar?.startupMs ?? 999999)
+            .compareTo(br?.startupMs ?? 999999);
+        if (byStartup != 0) return byStartup;
+      }
+      return a.index.compareTo(b.index);
+    });
+    return indexed.map((entry) => entry.movie).toList();
+  }
+
+  static int healthPriority(LiveChannelHealth? health) => switch (health) {
+    LiveChannelHealth.verified => 0,
+    LiveChannelHealth.unstable => 1,
+    LiveChannelHealth.likelyReachable => 2,
+    LiveChannelHealth.unknown => 3,
+    LiveChannelHealth.poor => 4,
+    LiveChannelHealth.checking || null => 5,
+  };
 
   static Future<LiveChannelHealthResult> inspect(Movie channel) async {
     if (!LiveStreamDetector.isLiveChannel(
@@ -45,18 +120,24 @@ class LiveChannelHealthScanner {
     }
     var checked = 0;
     try {
-      final sources = await (resolveOverride?.call(channel) ??
+      final all = await (resolveOverride?.call(channel) ??
           StreamService.fetchStreams(
             type: 'tv', id: channel.id, title: channel.name,
           ).take(12).toList()).timeout(const Duration(seconds: 22));
+      final sources = all.where((source) =>
+        LiveStreamDetector.isHttpMedia(source.url) &&
+        !(source.infoHash?.trim().isNotEmpty ?? false),
+      ).take(4).toList(growable: false);
+
       if (sources.isEmpty) {
         return LiveChannelHealthResult(
-            LiveChannelHealth.poor, 0, 'no_stream_sources',
-            checkedAt: DateTime.now());
+          LiveChannelHealth.poor, 0, 'no_http_stream_sources',
+          checkedAt: DateTime.now(),
+        );
       }
+
       var inconclusive = false;
-      for (final source in sources.take(4)) {
-        if (!LiveStreamDetector.isHttpMedia(source.url)) continue;
+      for (final source in sources) {
         checked++;
         if (!LiveStreamDetector.isHlsUrl(source.url)) {
           inconclusive = true;
@@ -73,33 +154,107 @@ class LiveChannelHealthScanner {
           if (probe?.outcome == 'ok' &&
               (probe?.httpStatus == 200 || probe?.httpStatus == 206)) {
             return LiveChannelHealthResult(
-                LiveChannelHealth.likelyReachable,
-                checked, 'segment_reachable_not_decoded',
-                checkedAt: DateTime.now());
+              LiveChannelHealth.likelyReachable,
+              checked, 'segment_reachable_not_decoded',
+              checkedAt: DateTime.now(),
+              sources: sources,
+            );
           }
           if (probe == null || probe.outcome == 'network_error' ||
-              probe.outcome == 'timeout' || probe.outcome == 'invalid_manifest') {
+              probe.outcome == 'timeout' ||
+              probe.outcome == 'invalid_manifest') {
             inconclusive = true;
           }
         } catch (error) {
-          debugPrint('[LiveHealthScan] Candidate probe: ${error.runtimeType}');
+          debugPrint('[LiveHealthScan] HTTP candidate: ' +
+              error.runtimeType.toString());
           inconclusive = true;
         }
       }
       return LiveChannelHealthResult(
-          inconclusive || checked == 0
-              ? LiveChannelHealth.unknown : LiveChannelHealth.poor,
-          checked, inconclusive ? 'inconclusive_http' : 'sources_failed_http',
-          checkedAt: DateTime.now());
+        inconclusive ? LiveChannelHealth.unknown : LiveChannelHealth.poor,
+        checked, inconclusive ? 'inconclusive_http' : 'sources_failed_http',
+        checkedAt: DateTime.now(),
+        sources: sources,
+      );
     } catch (error) {
-      debugPrint('[LiveHealthScan] Channel inspect: ${error.runtimeType}');
+      debugPrint('[LiveHealthScan] Discovery: ' +
+          error.runtimeType.toString());
       return LiveChannelHealthResult(
-          LiveChannelHealth.unknown, checked, 'discovery_unavailable',
-          checkedAt: DateTime.now());
+        LiveChannelHealth.unknown, checked, 'discovery_unavailable',
+        checkedAt: DateTime.now(),
+      );
     }
   }
 
-  /// Four workers cap network load and let the list update continuously.
+  /// Only a real iOS MPV picture, native tracks and an advancing unbuffered
+  /// timeline can receive a high confidence grade. A reachable HTTP segment
+  /// can never be promoted by itself.
+  static Future<LiveChannelHealthResult> verifyNative(
+    Movie channel,
+    LiveChannelHealthResult preflight, {
+    required bool Function() isCancelled,
+  }) async {
+    if (!LiveNativeChannelVerifier.isSupported ||
+        isCancelled() || preflight.sources.isEmpty) {
+      return preflight;
+    }
+
+    var attempts = 0;
+    var sawRenderedButUnstable = false;
+    for (var index = 0; index < preflight.sources.length; index++) {
+      if (isCancelled()) return preflight;
+      final source = preflight.sources[index];
+      attempts++;
+      try {
+        final native = await LiveNativeChannelVerifier.probe(
+          channelId: channel.id,
+          source: source,
+          isCancelled: isCancelled,
+        );
+        if (native.cancelled || isCancelled()) return preflight;
+        if (native.sustainedStart) {
+          return LiveChannelHealthResult(
+            index == 0
+                ? LiveChannelHealth.verified
+                : LiveChannelHealth.unstable,
+            preflight.sourcesChecked,
+            index == 0
+                ? 'native_video_verified'
+                : 'native_backup_verified',
+            checkedAt: DateTime.now(),
+            sources: preflight.sources,
+            nativeChecked: true,
+            nativeAttempts: attempts,
+            playableSourceIndex: index,
+            videoWidth: native.videoWidth,
+            videoHeight: native.videoHeight,
+            startupMs: native.startupMs,
+          );
+        }
+        if (native.renderedVideo) sawRenderedButUnstable = true;
+      } catch (error) {
+        debugPrint('[LiveHealthScan] MPV candidate: ' +
+            error.runtimeType.toString());
+      }
+    }
+
+    return LiveChannelHealthResult(
+      sawRenderedButUnstable
+          ? LiveChannelHealth.unstable
+          : LiveChannelHealth.poor,
+      preflight.sourcesChecked,
+      sawRenderedButUnstable
+          ? 'native_rendered_but_stalled'
+          : 'native_no_playable_sources',
+      checkedAt: DateTime.now(),
+      sources: preflight.sources,
+      nativeChecked: true,
+      nativeAttempts: attempts,
+    );
+  }
+
+  /// Four HTTP workers cap network load and report every result independently.
   static Future<void> scan(
     List<Movie> channels, {
     required bool Function() isCancelled,

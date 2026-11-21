@@ -9,6 +9,7 @@ import '../../services/metadata/tmdb_discover_service.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/movie/movie_card.dart';
 import '../../services/player/live_tv/live_channel_health_scanner.dart';
+import '../../services/player/live_tv/live_native_channel_verifier.dart';
 import '../../services/player/live_tv/live_stream_detector.dart';
 
 class CatalogPage extends StatefulWidget {
@@ -23,7 +24,8 @@ class CatalogPage extends StatefulWidget {
   State<CatalogPage> createState() => _CatalogPageState();
 }
 
-class _CatalogPageState extends State<CatalogPage> {
+class _CatalogPageState extends State<CatalogPage>
+    with WidgetsBindingObserver {
   final List<Movie> _items = [];
   bool _isLoading = false;
   bool _hasMore = false;
@@ -32,9 +34,13 @@ class _CatalogPageState extends State<CatalogPage> {
   int _requestSerial = 0;
   final Map<String, LiveChannelHealthResult> _health = {};
   bool _scanRunning = false;
+  bool _nativeScanRunning = false;
+  bool _foreground = true;
   int _scanEpoch = 0;
   int _scannedCount = 0;
   int _scanTotal = 0;
+  int _nativeScannedCount = 0;
+  int _nativeScanTotal = 0;
   bool get _isLiveCatalog =>
       Movie.canonicalType(widget.section.contentType) == 'tv' ||
       Movie.canonicalType(widget.section.contentType) == 'channel' ||
@@ -81,6 +87,7 @@ class _CatalogPageState extends State<CatalogPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _items.addAll(widget.section.movies);
     _remoteOffset = _items.length;
     _hasMore = _canPage || _canRelatedPage;
@@ -99,7 +106,22 @@ class _CatalogPageState extends State<CatalogPage> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    if (!_foreground) {
+      _scanEpoch++;
+      if (mounted) {
+        setState(() {
+          _scanRunning = false;
+          _nativeScanRunning = false;
+        });
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scanEpoch++;
     _requestSerial++;
     _scrollController.dispose();
@@ -109,12 +131,15 @@ class _CatalogPageState extends State<CatalogPage> {
   }
 
   Future<void> _startLiveScan() async {
-    if (!_isLiveCatalog || _scanRunning || !mounted) return;
+    if (!_isLiveCatalog || _scanRunning ||
+        _nativeScanRunning || !mounted || !_foreground) return;
     final epoch = ++_scanEpoch;
     setState(() {
       _scanRunning = true;
       _scannedCount = 0;
       _scanTotal = _items.length;
+      _nativeScannedCount = 0;
+      _nativeScanTotal = 0;
       _health.clear();
     });
     final pending = <Movie>[];
@@ -132,7 +157,8 @@ class _CatalogPageState extends State<CatalogPage> {
     enqueue(_items);
     var cursor = 0;
     var pagingFinished = false;
-    bool cancelled() => !mounted || epoch != _scanEpoch;
+    bool cancelled() => !mounted || epoch != _scanEpoch ||
+        !_foreground || ModalRoute.of(context)?.isCurrent != true;
     Future<void> worker() async {
       while (!cancelled()) {
         if (cursor >= pending.length) {
@@ -177,6 +203,38 @@ class _CatalogPageState extends State<CatalogPage> {
       await Future.wait(workers);
       if (mounted && epoch == _scanEpoch) {
         setState(() => _scanRunning = false);
+      }
+    }
+
+    // Only after every eligible catalog page has completed its HTTP
+    // quickscan do we sort the grid. Then verify decoded native video on
+    // the iPad, one muted Player at a time, upgrading trustworthy results.
+    if (cancelled() || !LiveNativeChannelVerifier.isSupported) return;
+    setState(() {
+      _nativeScanRunning = true;
+      _nativeScannedCount = 0;
+      _nativeScanTotal = pending.length;
+    });
+    try {
+      for (final movie in pending) {
+        if (cancelled()) break;
+        final prior = _health[movie.id];
+        if (prior == null) continue;
+        final verified = await LiveChannelHealthScanner.verifyNative(
+          movie, prior, isCancelled: cancelled,
+        );
+        if (cancelled()) break;
+        setState(() {
+          _health[movie.id] = verified;
+          _nativeScannedCount++;
+        });
+      }
+    } catch (error) {
+      debugPrint('[LiveHealthScan] Native batch: ' +
+          error.runtimeType.toString());
+    } finally {
+      if (mounted && epoch == _scanEpoch) {
+        setState(() => _nativeScanRunning = false);
       }
     }
   }
@@ -396,10 +454,17 @@ class _CatalogPageState extends State<CatalogPage> {
     final topPadding = MediaQuery.of(context).padding.top;
     final sizing = MovieCardSizing.fromWidth(MediaQuery.sizeOf(context).width);
     final isDesktop = MediaQuery.sizeOf(context).width >= 800;
-    final visibleItems = _isSnapshot && _searchQuery.isNotEmpty
+    final filteredItems = _isSnapshot && _searchQuery.isNotEmpty
         ? _items.where((item) => item.name.toLowerCase()
             .contains(_searchQuery.toLowerCase())).toList()
         : _items;
+    // Do not reorder on every HTTP callback: wait for the quickscan first.
+    // Confirmed native decoding always outranks merely reachable segments.
+    final visibleItems = _isLiveCatalog && !_scanRunning
+        ? LiveChannelHealthScanner.sortedByHealth(filteredItems, _health)
+        : filteredItems;
+    final nativeVerifiedCount =
+        _health.values.where((result) => result.nativeVerified).length;
     
     // Calculate safe top padding for grid based on if genres are available
     final hasGenres = _canPage &&
@@ -412,7 +477,28 @@ class _CatalogPageState extends State<CatalogPage> {
       body: Stack(
         children: [
           // ── Main Content Grid ──
-          if (_items.isEmpty && _isLoading)
+          if (_isLiveCatalog && _scanRunning)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const CircularProgressIndicator(
+                    color: Color(0xFF7C5CFF)),
+                  const SizedBox(height: 20),
+                  Text('Quick-scanning Live TV: $_scannedCount / $_scanTotal',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Checking the full channel catalog. Healthiest channels '
+                    'will be sorted first when this pass finishes.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70)),
+                ]),
+              ),
+            )
+          else if (_items.isEmpty && _isLoading)
             const Center(
               child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
             )
@@ -470,19 +556,24 @@ class _CatalogPageState extends State<CatalogPage> {
                             horizontal: 6, vertical: 5),
                         decoration: BoxDecoration(
                           color: _health[visibleItems[index].id]?.health ==
-                              LiveChannelHealth.likelyReachable
+                              LiveChannelHealth.verified
                               ? const Color(0xDE0B6040)
                               : _health[visibleItems[index].id]?.health ==
-                                  LiveChannelHealth.poor
-                                  ? const Color(0xDE9A2831)
-                                  : const Color(0xE02D3044),
+                                  LiveChannelHealth.unstable
+                                  ? const Color(0xDDAF7414)
+                                  : _health[visibleItems[index].id]?.health ==
+                                      LiveChannelHealth.poor
+                                      ? const Color(0xDE9A2831)
+                                      : const Color(0xE02D3044),
                           borderRadius: BorderRadius.circular(7),
                         ),
                         child: Text(
                           (_health[visibleItems[index].id] ??
                               const LiveChannelHealthResult(
                                 LiveChannelHealth.checking, 0, 'pending'))
-                              .label + ' · HTTP check',
+                              .label +
+                              (_health[visibleItems[index].id]?.nativeChecked ==
+                                      true ? ' · MPV' : ' · HTTP only'),
                           textAlign: TextAlign.center,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -597,9 +688,17 @@ class _CatalogPageState extends State<CatalogPage> {
                                 color: Color(0xFFAEA0FF), size: 18),
                             const SizedBox(width: 9),
                             Expanded(child: Text(
-                              'Channel scan: $_scannedCount / $_scanTotal '
-                              '${_scanRunning ? "checking" : "checked"} · '
-                              'HTTP only, not confirmed video',
+                              _scanRunning
+                                  ? 'Quick scan: $_scannedCount / $_scanTotal '
+                                    '· gathering channels'
+                                  : _nativeScanRunning
+                                      ? 'Native playback: '
+                                        '$_nativeScannedCount / $_nativeScanTotal '
+                                        '· $nativeVerifiedCount verified '
+                                        '· healthiest first'
+                                      : 'Sorted healthiest first · '
+                                        '$nativeVerifiedCount native verified '
+                                        '· others HTTP only',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(color: Colors.white70,
@@ -607,7 +706,7 @@ class _CatalogPageState extends State<CatalogPage> {
                             )),
                             IconButton(
                               tooltip: 'Rescan Live TV channels',
-                              onPressed: _scanRunning
+                              onPressed: _scanRunning || _nativeScanRunning
                                   ? null : () => unawaited(_startLiveScan()),
                               icon: const Icon(Icons.refresh_rounded,
                                   color: Colors.white70, size: 19),

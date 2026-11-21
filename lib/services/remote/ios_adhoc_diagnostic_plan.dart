@@ -170,7 +170,7 @@ abstract final class IosAdhocDiagnosticPlan {
           return {'accepted': false, 'reason': 'too_many_executions'};
         }
         steps.add((action: action, args: args,
-            expected: expected, when: when, waitMs: rawWaitMs as int,
+            expected: expected, when: when, waitMs: rawWaitMs,
             repeat: repeat, readOnly: readOnly));
       }
 

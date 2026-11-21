@@ -78,6 +78,19 @@ abstract final class LivePlaybackTelemetry {
     int? playlistSequence,
     int? playlistTargetSeconds,
     int? playlistDiscontinuities,
+    String? probePhase,
+    String? probeOutcome,
+    int? probeHttpStatus,
+    int? probeElapsedMs,
+    int? probeBytes,
+    String? probeMimeKind,
+    int? probeHeaderCount,
+    bool? probeIsMaster,
+    int? probeSegmentCount,
+    int? nativeTrackCount,
+    String? nativeFormat,
+    int? nativeProbeErrors,
+    int? nativeErrorCount,
   }) {
     if (!PlayerDiagnosticCodes.events.contains(event)) return;
     final uri = Uri.tryParse(source.url ?? '');
@@ -116,6 +129,19 @@ abstract final class LivePlaybackTelemetry {
       playlistSequence: playlistSequence,
       playlistTargetSeconds: playlistTargetSeconds,
       playlistDiscontinuities: playlistDiscontinuities,
+      probePhase: probePhase,
+      probeOutcome: probeOutcome,
+      probeHttpStatus: probeHttpStatus,
+      probeElapsedMs: probeElapsedMs,
+      probeBytes: probeBytes,
+      probeMimeKind: probeMimeKind,
+      probeHeaderCount: probeHeaderCount,
+      probeIsMaster: probeIsMaster,
+      probeSegmentCount: probeSegmentCount,
+      nativeTrackCount: nativeTrackCount,
+      nativeFormat: nativeFormat,
+      nativeProbeErrors: nativeProbeErrors,
+      nativeErrorCount: nativeErrorCount,
     );
   }
 

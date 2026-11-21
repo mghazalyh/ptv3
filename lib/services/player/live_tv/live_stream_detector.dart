@@ -9,16 +9,14 @@ abstract final class LiveStreamDetector {
     bool hasEpisode = false,
   }) {
     final type = (mediaType ?? '').trim().toLowerCase();
-    if (hasEpisode || type == 'movie' || type == 'series' ||
-        type == 'anime') {
-      return false;
-    }
+    if (hasEpisode) return false;
+    final id = (mediaId ?? '').trim().toLowerCase();
+    // These IDs are reserved for broadcast channels. A navigation screen may
+    // label one as 'movie' before its Stremio tv metadata finishes loading.
+    if (id.startsWith('nltv:') || id.startsWith('iptv:')) return true;
+    if (type == 'movie' || type == 'series' || type == 'anime') return false;
     if (type == 'tv') return true;
-    if (metaHints?['isLive'] == true || streamHints?['isLive'] == true) {
-      return true;
-    }
-    final id = (mediaId ?? '').toLowerCase();
-    return id.startsWith('nltv:') || id.startsWith('iptv:');
+    return metaHints?['isLive'] == true || streamHints?['isLive'] == true;
   }
 
   static bool isHlsUrl(String? value) {

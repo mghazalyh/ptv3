@@ -351,6 +351,19 @@ class IosAudioTelemetry {
     int? playlistSequence,
     int? playlistTargetSeconds,
     int? playlistDiscontinuities,
+    String? probePhase,
+    String? probeOutcome,
+    int? probeHttpStatus,
+    int? probeElapsedMs,
+    int? probeBytes,
+    String? probeMimeKind,
+    int? probeHeaderCount,
+    bool? probeIsMaster,
+    int? probeSegmentCount,
+    int? nativeTrackCount,
+    String? nativeFormat,
+    int? nativeProbeErrors,
+    int? nativeErrorCount,
   }) {
     if (!isActive) return;
     if (!event.startsWith('live_') ||
@@ -400,6 +413,32 @@ class IosAudioTelemetry {
         'playlistDiscontinuities': playlistDiscontinuities.clamp(0, 100000),
       if (failureClass != null)
         'failureClass': _safeText(failureClass, limit: 70),
+      if (probePhase != null)
+        'probePhase': _safeText(probePhase, limit: 20),
+      if (probeOutcome != null)
+        'probeOutcome': _safeText(probeOutcome, limit: 40),
+      if (probeHttpStatus != null)
+        'probeHttpStatus': probeHttpStatus.clamp(0, 599),
+      if (probeElapsedMs != null)
+        'probeElapsedMs': probeElapsedMs.clamp(0, 60000),
+      if (probeBytes != null)
+        'probeBytes': probeBytes.clamp(0, 1048576),
+      if (probeMimeKind != null)
+        'probeMimeKind': _safeText(probeMimeKind, limit: 20),
+      if (probeHeaderCount != null)
+        'probeHeaderCount': probeHeaderCount.clamp(0, 50),
+      if (probeIsMaster != null)
+        'probeIsMaster': probeIsMaster,
+      if (probeSegmentCount != null)
+        'probeSegmentCount': probeSegmentCount.clamp(0, 100000),
+      if (nativeTrackCount != null)
+        'nativeTrackCount': nativeTrackCount.clamp(0, 100),
+      if (nativeFormat != null)
+        'nativeFormat': _safeText(nativeFormat, limit: 20),
+      if (nativeProbeErrors != null)
+        'nativeProbeErrors': nativeProbeErrors.clamp(0, 100000),
+      if (nativeErrorCount != null)
+        'nativeErrorCount': nativeErrorCount.clamp(0, 100000),
     };
     _liveTvSummary.clear();
     _liveTvSummary.addAll(snapshot);

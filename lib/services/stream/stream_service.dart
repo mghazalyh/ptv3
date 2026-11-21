@@ -32,6 +32,7 @@ import '../p2p/p2p_settings_service.dart';
 import '../player/player_debug_telemetry.dart';
 import '../player/windows_playback_telemetry.dart';
 import 'source_content_identity.dart';
+import '../player/live_tv/live_stream_detector.dart';
 
 /// Service that fetches playback streams from all installed Stremio addons
 /// and built-in scrapers.
@@ -45,6 +46,24 @@ class StreamService {
   static Future<List<StreamSource>> fetchAddonStreamsForTesting(
       InstalledAddon addon, String type, String id) =>
       _fetchFromAddon(addon, type, id);
+
+  /// A Stremio tv channel is never an on-demand title match.
+  /// Canonical channel IDs override a mislabeled navigation media type.
+  static bool isLiveStreamRequest({
+    required String type,
+    required String id,
+    int? season,
+    int? episode,
+  }) {
+    if (season != null || episode != null) return false;
+    final cleanId = id.trim().toLowerCase();
+    return type.trim().toLowerCase() == 'tv' ||
+        cleanId.startsWith('nltv:') || cleanId.startsWith('iptv:');
+  }
+
+  static bool isEligibleLiveStreamSource(StreamSource source) =>
+      LiveStreamDetector.isHttpMedia(source.url) &&
+      (source.infoHash?.trim().isEmpty ?? true);
 
   static void _registerBuiltInScrapers() {
     if (P2pSettingsService.isP2pEnabled.value) {
@@ -82,20 +101,33 @@ class StreamService {
   }) {
     final controller = StreamController<StreamSource>();
 
-    final addons = AddonManager.instance.activeStreamAddons;
+    final isLive = isLiveStreamRequest(
+      type: type, id: id, season: season, episode: episode);
+    final requestType = isLive ? 'tv' : type;
+    final addons = AddonManager.instance.activeStreamAddons
+        .where((addon) => !isLive ||
+            addon.manifest.supportsRequest('stream', 'tv', id))
+        .toList();
 
-    _registerBuiltInScrapers();
+    if (!isLive) _registerBuiltInScrapers();
 
-    int pending = addons.length + 1; // addons + local scrapers
+    int pending = addons.length + (isLive ? 0 : 1);
     var rejected = 0;
     void accept(StreamSource source) {
-      final identity = SourceContentIdentity.assess(source, title: title,
-          year: year, season: season, episode: episode);
+      if (isLive && !isEligibleLiveStreamSource(source)) {
+        rejected++;
+        PlayerDebugTelemetry.record('live_source_rejected', failure: true);
+        return;
+      }
+      final identity = isLive
+          ? SourceIdentityVerdict.verified
+          : SourceContentIdentity.assess(source, title: title,
+              year: year, season: season, episode: episode);
       WindowsPlaybackTelemetry.instance.captureSourceCandidate(
           stage: 'discovered_source', source: source,
           title: title, mediaId: id, type: type,
           year: year, season: season, episode: episode,
-          verdict: identity.name);
+          verdict: isLive ? 'live_channel_resource' : identity.name);
       if (identity == SourceIdentityVerdict.rejected) {
         rejected++;
         return;
@@ -112,20 +144,22 @@ class StreamService {
     final isImdb = id.startsWith('tt');
     final cleanImdbId = isImdb ? id.split(':')[0] : null;
 
-    ScraperManager.instance.scrapeAll(
-      type: type,
-      title: title,
-      year: year,
-      season: season,
-      episode: episode,
-      imdbId: cleanImdbId,
-    ).listen(accept, onDone: () {
-      pending--;
-      finish();
-    });
+    if (!isLive) {
+      ScraperManager.instance.scrapeAll(
+        type: type,
+        title: title,
+        year: year,
+        season: season,
+        episode: episode,
+        imdbId: cleanImdbId,
+      ).listen(accept, onDone: () {
+        pending--;
+        finish();
+      });
+    }
 
     for (final addon in addons) {
-      _fetchFromAddon(addon, type, id).then((sources) {
+      _fetchFromAddon(addon, requestType, id).then((sources) {
         if (!controller.isClosed) {
           for (final source in sources) {
             accept(source);
@@ -137,6 +171,7 @@ class StreamService {
       });
     }
 
+    finish(); // Completes empty Live TV requests without eligible addons.
     return controller.stream;
   }
 
@@ -156,6 +191,31 @@ class StreamService {
   }) {
     final controller = StreamController<StreamSource>();
     final normalizedTarget = targetAddonName.trim().toLowerCase();
+    if (isLiveStreamRequest(
+        type: type, id: id, season: season, episode: episode)) {
+      final eligible = AddonManager.instance.activeStreamAddons.where((addon) {
+        final name = addon.manifest.name.toLowerCase();
+        return addon.manifest.supportsRequest('stream', 'tv', id) &&
+            (name == normalizedTarget || name.contains(normalizedTarget) ||
+                normalizedTarget.contains(name));
+      }).toList();
+      if (eligible.isEmpty) {
+        return fetchStreams(type: 'tv', id: id, title: title);
+      }
+      _fetchFromAddon(eligible.first, 'tv', id).then((sources) {
+        if (!controller.isClosed) {
+          for (final source in sources) {
+            if (isEligibleLiveStreamSource(source)) controller.add(source);
+          }
+        }
+      }).catchError((Object error) {
+        PlayerDebugTelemetry.record('addon_stream_request_failed',
+            failure: true);
+      }).whenComplete(() {
+        if (!controller.isClosed) controller.close();
+      });
+      return controller.stream;
+    }
 
     final isArabicAnime = id.startsWith('arabic_anime:') ||
         normalizedTarget == 'arabicanime' ||

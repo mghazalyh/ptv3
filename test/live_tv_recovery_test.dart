@@ -25,7 +25,16 @@ void main() {
           mediaType: 'movie', streamHints: {'isLive': true}), isFalse);
       expect(LiveStreamDetector.isLiveChannel(
           mediaType: 'series', mediaId: 'nltv:us:Channel.us'),
+          isTrue);
+      expect(LiveStreamDetector.isLiveChannel(
+          mediaType: 'movie', mediaId: 'nltv:us:Channel.us'),
+          isTrue);
+      expect(LiveStreamDetector.isLiveChannel(
+          mediaType: 'movie', mediaId: 'tt1234567'),
           isFalse);
+      expect(LiveStreamDetector.isLiveChannel(
+          mediaType: 'series', mediaId: 'nltv:us:Channel.us',
+          hasEpisode: true), isFalse);
       expect(LiveStreamDetector.isLiveChannel(
           mediaType: 'tv', hasEpisode: true), isFalse);
       expect(LiveStreamDetector.isLiveChannel(

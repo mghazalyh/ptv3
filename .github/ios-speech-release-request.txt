@@ -62,3 +62,13 @@ Tests: test/live_tv_recovery_test.dart, test/live_tv_quality_of_life_test.dart, 
 VOD isolation: No change to movies and series source recovery, subtitles, seek/resume, autoplay or progress sync.
 Trigger: THIS file push triggers .github/workflows/ios-speech-release.yml, iOS only.
 User instruction: Trigger GitHub iOS workflow and leave immediately. Do not poll or wait for build result.
+
+OWNER-AUTHORIZED IOS LIVE TV SOURCE-ISOLATION, HLS STARTUP AND DEEP DIAGNOSTICS
+Requested SGT: 2026-11-21, 09:06:39
+Branch: parity-floating-player-both
+Scope: iOS ONLY. No Windows release. Trigger ios-speech-release.yml and leave without polling.
+Fix 1: Stremio channel source requests only use eligible /stream/tv channel addons. Block built-in title-matched VOD torrents and invalid HTTP candidates from all Live TV routing paths.
+Fix 2: Restore iOS HLS startup without FFmpeg generic streamed reconnect flags while preserving other streams and VOD settings.
+Fix 3: HEAD and HLS manifest validation use the same resolved headers as MPV playback. HTTP, manifest, timeout, MIME, native track, format, error callback and fallback diagnostics are opt-in, bounded and sanitized.
+Regression protection: Live TV source identity, movie/episode classification, native playback policy, headers, HTTP diagnostics and telemetry tests. Workflow verifies and analyzes changes before building IPA.
+User instruction: Trigger the iOS-only GitHub job and leave. Do not wait for completion or poll.

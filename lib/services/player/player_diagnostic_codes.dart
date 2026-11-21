@@ -38,6 +38,11 @@ abstract final class PlayerDiagnosticCodes {
     'live_network_changed',
     'live_session_resumed',
     'live_source_exhausted',
+    'live_hls_safe_options',
+    'live_playlist_probe_failed',
+    'live_playlist_probe_recovered',
+    'live_native_error_signaled',
+    'live_native_end_signaled',
     'playback_first_frame_slow',
     // Privacy-safe addon outcomes: no user identifiers, URLs or titles.
     'addon_catalog_ready',

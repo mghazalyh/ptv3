@@ -735,6 +735,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Do not write authenticated resolver URLs or TorBox tokens to logs.
 
     try {
+      if (_liveTv != null &&
+          !StreamService.isEligibleLiveStreamSource(_currentSource)) {
+        PlayerDebugTelemetry.record('live_source_rejected', failure: true);
+        throw StateError('A Live TV channel requires a direct HTTP stream');
+      }
       // The source provider explicitly says this debrid item is still
       // downloading. Skip its 29-second progress/status video entirely.
       if (DebridSourceReadiness.isExplicitlyPending(_currentSource) &&
@@ -888,7 +893,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       _speechMediaHeaders = isTorrentStream
           ? null
           : Map<String, String>.from(playerHeaders);
-      await PlayerSettings.applyPreOpenProperties(_player, isLive: isLive, isTorrent: isTorrentStream);
+      await PlayerSettings.applyPreOpenProperties(_player,
+          isLive: isLive,
+          isTorrent: isTorrentStream,
+          isHlsLive: isLive && LiveStreamDetector.isHlsUrl(sanitizedUrlStr));
 
       // Set native MPV properties for referer and user-agent directly on the player for web streams
       if (!isTorrentStream) {

@@ -79,6 +79,11 @@ class LivePlaybackCoordinator {
   DateTime? _lastRecoveryStartedAt;
   DateTime? _firstVideoAt;
   DateTime? _lastTelemetryAt;
+  String? _lastPlaylistProbeIssue;
+  int? _nativeTrackCount;
+  String? _nativeFormat;
+  int _nativeProbeErrors = 0;
+  int _nativeErrorCount = 0;
 
   bool get isActive => _started && !_disposed;
   int get recoveryAttempts => _policy.attempts;
@@ -98,6 +103,18 @@ class LivePlaybackCoordinator {
         (await native.getProperty('video-params/h'))?.toString() ?? '',
       );
       if (_disposed || _opening || generation != _generation) return;
+      try {
+        _nativeTrackCount = int.tryParse(
+            (await native.getProperty('track-list/count'))?.toString() ?? '');
+        final format = (await native.getProperty('file-format'))
+            ?.toString().toLowerCase() ?? '';
+        _nativeFormat = format.contains('hls') ? 'hls' :
+            format.contains('mpegts') ? 'mpegts' :
+            format.contains('mp4') ? 'mp4' :
+            format.isEmpty ? 'unknown' : 'other';
+      } catch (_) {
+        _nativeProbeErrors++;
+      }
       if (width != null && height != null &&
           width > 0 && height > 0 && width <= 16384 && height <= 16384) {
         _nativeVideoWidth = width;
@@ -106,7 +123,8 @@ class LivePlaybackCoordinator {
         _event('live_video_ready');
       }
     } catch (_) {
-      // Video params are not available until the native decoder starts.
+      _nativeProbeErrors++;
+      // Native failures are classified, not uploaded verbatim.
     } finally {
       _checkingVideo = false;
     }
@@ -125,6 +143,7 @@ class LivePlaybackCoordinator {
       bufferEnd: _player.state.buffer,
       feedAge: _policy.feedAge(now),
     );
+    final probe = _sources.latestProbeFor(reportedSource ?? _source);
     LivePlaybackTelemetry.observation(
       event: code,
       source: reportedSource ?? _source,
@@ -165,6 +184,19 @@ class LivePlaybackCoordinator {
       playlistSequence: _previousPlaylist?.mediaSequence,
       playlistTargetSeconds: _previousPlaylist?.targetDurationSeconds,
       playlistDiscontinuities: _previousPlaylist?.discontinuities,
+      probePhase: probe?.phase,
+      probeOutcome: probe?.outcome,
+      probeHttpStatus: probe?.httpStatus,
+      probeElapsedMs: probe?.elapsedMs,
+      probeBytes: probe?.bodyBytes,
+      probeMimeKind: probe?.mimeKind,
+      probeHeaderCount: probe?.headerCount,
+      probeIsMaster: probe?.isMaster,
+      probeSegmentCount: probe?.segmentCount,
+      nativeTrackCount: _nativeTrackCount,
+      nativeFormat: _nativeFormat,
+      nativeProbeErrors: _nativeProbeErrors,
+      nativeErrorCount: _nativeErrorCount,
     );
   }
 
@@ -211,12 +243,15 @@ class LivePlaybackCoordinator {
 
   void onNativeError() {
     if (_disposed) return;
+    _nativeErrorCount++;
+    _event('live_native_error_signaled');
     start();
     unawaited(_recover('native_error'));
   }
 
   void onNativeCompleted() {
     if (_disposed) return;
+    _event('live_native_end_signaled');
     start();
     unawaited(_recover('live_ended'));
   }
@@ -338,9 +373,19 @@ class LivePlaybackCoordinator {
     final original = _source;
     try {
       final current = await _sources.inspectPlaylist(original);
-      if (_disposed || _opening || original.url != _source.url ||
-          current == null) {
+      if (_disposed || _opening || original.url != _source.url) return;
+      final diagnostic = _sources.latestProbeFor(original);
+      if (current == null) {
+        if (diagnostic != null && diagnostic.outcome != 'ok' &&
+            _lastPlaylistProbeIssue != diagnostic.outcome) {
+          _lastPlaylistProbeIssue = diagnostic.outcome;
+          _event('live_playlist_probe_failed');
+        }
         return;
+      }
+      if (_lastPlaylistProbeIssue != null) {
+        _lastPlaylistProbeIssue = null;
+        _event('live_playlist_probe_recovered');
       }
       final at = DateTime.now();
       if (current.ended) {
@@ -434,7 +479,9 @@ class LivePlaybackCoordinator {
       // Never seek to a stale position for a live stream.
       final volume = _player.state.volume;
       final previousAudioId = _player.state.track.audio.id;
-      await PlayerSettings.applyPreOpenProperties(_player, isLive: true);
+      await PlayerSettings.applyPreOpenProperties(_player,
+          isLive: true,
+          isHlsLive: LiveStreamDetector.isHlsUrl(selected.url));
       try {
         final dynamic platform = _player.platform;
         final cache = _policy.recommendedCacheSeconds.toString();
@@ -446,22 +493,15 @@ class LivePlaybackCoordinator {
       // Match initial PlayerScreen header resolution on every reconnect.
       // In particular preserve CDN Referer, Origin and User-Agent that may
       // otherwise be lost during failover on iPadOS.
-      final headers = PlayerSettings.resolveStreamHeaders(
-        selected.url!, selected.headers,
-      );
-      final extra = selected.behaviorHints?['proxyHeaders'];
-      if (extra is Map && extra['request'] is Map) {
-        for (final entry in (extra['request'] as Map).entries) {
-          if (entry.value != null) {
-            headers[entry.key.toString()] = entry.value.toString();
-          }
-        }
-      }
+      final headers = LiveSourceManager.requestHeaders(selected);
       // Each native media open resets video readiness. Old decoder metadata
       // must never make a new, dead source look healthy.
       _nativeVideoReady = false;
       _nativeVideoWidth = null;
       _nativeVideoHeight = null;
+      _nativeTrackCount = null;
+      _nativeFormat = null;
+      _lastPlaylistProbeIssue = null;
       await _player.open(
         Media(selected.url!, httpHeaders: headers),
         play: true,

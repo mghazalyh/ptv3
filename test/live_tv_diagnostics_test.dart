@@ -86,6 +86,19 @@ void main() {
       playlistTargetSeconds: 6,
       playlistDiscontinuities: 1,
       failureClass: 'buffer_starvation',
+      probePhase: 'playlist',
+      probeOutcome: 'http_status',
+      probeHttpStatus: 403,
+      probeElapsedMs: 410,
+      probeBytes: 90,
+      probeMimeKind: 'html',
+      probeHeaderCount: 2,
+      probeIsMaster: false,
+      probeSegmentCount: 0,
+      nativeTrackCount: 0,
+      nativeFormat: 'unknown',
+      nativeProbeErrors: 3,
+      nativeErrorCount: 1,
     );
     expect(telemetry.capturedLiveTvSummary['channelTitle'], 'Cine Romantico');
     expect(telemetry.capturedLiveTvSummary['programmeTitle'], 'The Great Escape');
@@ -104,6 +117,12 @@ void main() {
     expect(summary['playlistSequence'], 12345);
     expect(summary['videoWidth'], 1280);
     expect(summary['verifiedPlayback'], false);
+    expect(summary['probeHttpStatus'], 403);
+    expect(summary['probeOutcome'], 'http_status');
+    expect(summary['probeHeaderCount'], 2);
+    expect(summary['nativeTrackCount'], 0);
+    expect(summary['nativeProbeErrors'], 3);
+    expect(summary['nativeErrorCount'], 1);
     final trace = (report['sourceTrace'] as List).cast<Map<String, dynamic>>();
     expect(trace.last['action'], 'live_health_sample');
     expect(trace.last['channelTitle'], 'Cine Romantico');

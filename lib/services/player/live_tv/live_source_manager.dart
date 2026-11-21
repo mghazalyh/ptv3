@@ -1,13 +1,42 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:http/http.dart' as http;
 
 import '../../../models/stream/stream_model.dart';
 import '../../addon/addon_manager.dart';
+import '../player_settings.dart';
 import 'live_stream_detector.dart';
 
 typedef LiveSourceRefresh = Future<List<StreamSource>> Function();
+
+/// Privacy-safe HTTP/HLS probe categories. No request URL, playlist text,
+/// token, header value, response body, or raw exception is ever stored.
+class LiveSourceProbe {
+  const LiveSourceProbe({
+    required this.phase,
+    required this.outcome,
+    required this.elapsedMs,
+    required this.headerCount,
+    this.httpStatus,
+    this.bodyBytes,
+    this.mimeKind,
+    this.isMaster,
+    this.segmentCount,
+  });
+
+  final String phase;
+  final String outcome;
+  final int elapsedMs;
+  final int headerCount;
+  final int? httpStatus;
+  final int? bodyBytes;
+  final String? mimeKind;
+  final bool? isMaster;
+  final int? segmentCount;
+}
 
 class _LiveSourceHealth {
   int failures = 0;
@@ -28,6 +57,45 @@ class LiveSourceManager {
     addSources(<StreamSource>[initial, ...initialSources]);
   }
 
+  @visibleForTesting
+  static http.Client? probeClientOverride;
+
+  LiveSourceProbe? _lastProbe;
+  String? _lastProbeSource;
+
+  LiveSourceProbe? latestProbeFor(StreamSource source) =>
+      source.url == _lastProbeSource ? _lastProbe : null;
+
+  void _captureProbe(StreamSource source, LiveSourceProbe probe) {
+    _lastProbeSource = source.url; // In memory only; not serialized.
+    _lastProbe = probe;
+  }
+
+  static String _mimeKind(String? raw) {
+    final kind = (raw ?? '').toLowerCase();
+    if (kind.contains('mpegurl') || kind.contains('m3u')) return 'hls';
+    if (kind.contains('html')) return 'html';
+    if (kind.contains('json')) return 'json';
+    if (kind.contains('video')) return 'video';
+    if (kind.contains('octet-stream')) return 'binary';
+    return 'other';
+  }
+
+  /// Identical headers for initial probing and MPV reconnection.
+  static Map<String, String> requestHeaders(StreamSource source) {
+    final headers = PlayerSettings.resolveStreamHeaders(
+        source.url ?? '', source.headers);
+    final proxy = source.behaviorHints?['proxyHeaders'];
+    if (proxy is Map && proxy['request'] is Map) {
+      for (final entry in (proxy['request'] as Map).entries) {
+        if (entry.value != null) {
+          headers[entry.key.toString()] = entry.value.toString();
+        }
+      }
+    }
+    return headers;
+  }
+
   final String channelId;
   final String addonName;
   final LiveSourceRefresh? _refreshOverride;
@@ -35,7 +103,8 @@ class LiveSourceManager {
   final Map<String, _LiveSourceHealth> _health = <String, _LiveSourceHealth>{};
 
   String? keyOf(StreamSource source) {
-    if (!LiveStreamDetector.isHttpMedia(source.url)) return null;
+    if (!LiveStreamDetector.isHttpMedia(source.url) ||
+        (source.infoHash?.trim().isNotEmpty ?? false)) return null;
     return source.url!.trim();
   }
 
@@ -153,23 +222,38 @@ class LiveSourceManager {
   /// when GET is valid, so only explicit absent/HTML responses are rejected.
   Future<bool> seemsPlayable(StreamSource source) async {
     final uri = Uri.tryParse(source.url ?? '');
-    if (uri == null || !LiveStreamDetector.isHttpMedia(source.url)) {
+    final timer = Stopwatch()..start();
+    if (uri == null || !LiveStreamDetector.isHttpMedia(source.url) ||
+        (source.infoHash?.trim().isNotEmpty ?? false) ||
+        uri.path.toLowerCase().endsWith('.html')) {
+      _captureProbe(source, LiveSourceProbe(
+        phase: 'head', outcome: 'unsupported_source',
+        elapsedMs: timer.elapsedMilliseconds, headerCount: 0));
       return false;
     }
-    if (uri.path.toLowerCase().endsWith('.html')) return false;
+    final headers = requestHeaders(source);
     try {
-      final response = await http.head(uri, headers: source.headers ?? const {})
-          .timeout(const Duration(seconds: 4));
-      if (response.statusCode == 404 || response.statusCode == 410) {
-        return false;
-      }
-      final mime = response.headers['content-type']?.toLowerCase() ?? '';
-      if (response.statusCode == 200 && mime.contains('text/html')) {
-        return false;
-      }
-    } catch (_) {
-      // HEAD unsupported or geographically unavailable: let MPV decide.
+      final response = await (probeClientOverride?.head(uri, headers: headers) ??
+          http.head(uri, headers: headers)).timeout(const Duration(seconds: 4));
+      final mime = _mimeKind(response.headers['content-type']);
+      final rejected = response.statusCode == 404 || response.statusCode == 410 ||
+          (response.statusCode == 200 && mime == 'html');
+      _captureProbe(source, LiveSourceProbe(
+        phase: 'head', outcome: rejected ? 'rejected' : 'provisional',
+        httpStatus: response.statusCode, mimeKind: mime,
+        elapsedMs: timer.elapsedMilliseconds, headerCount: headers.length));
+      return !rejected;
+    } on TimeoutException {
+      _captureProbe(source, LiveSourceProbe(
+        phase: 'head', outcome: 'timeout',
+        elapsedMs: timer.elapsedMilliseconds, headerCount: headers.length));
+    } catch (error) {
+      debugPrint('[LiveTV] HEAD probe failed: ${error.runtimeType}');
+      _captureProbe(source, LiveSourceProbe(
+        phase: 'head', outcome: 'network_error',
+        elapsedMs: timer.elapsedMilliseconds, headerCount: headers.length));
     }
+    // HEAD unsupported: never reject a working GET-only stream.
     return true;
   }
 
@@ -177,16 +261,46 @@ class LiveSourceManager {
     if (!LiveStreamDetector.isHlsUrl(source.url)) return null;
     final uri = Uri.tryParse(source.url ?? '');
     if (uri == null) return null;
+    final timer = Stopwatch()..start();
+    final headers = requestHeaders(source);
     try {
-      final response = await http.get(
-        uri, headers: source.headers ?? const <String, String>{},
-      ).timeout(const Duration(seconds: 6));
-      if (response.statusCode != 200 ||
-          response.bodyBytes.length > 262144) {
+      final response = await (probeClientOverride?.get(uri, headers: headers) ??
+          http.get(uri, headers: headers)).timeout(const Duration(seconds: 6));
+      final bytes = response.bodyBytes.length;
+      final mime = _mimeKind(response.headers['content-type']);
+      if (response.statusCode != 200 || bytes > 262144) {
+        _captureProbe(source, LiveSourceProbe(
+          phase: 'playlist',
+          outcome: response.statusCode != 200 ? 'http_status' : 'oversized',
+          httpStatus: response.statusCode, bodyBytes: bytes,
+          mimeKind: mime, elapsedMs: timer.elapsedMilliseconds,
+          headerCount: headers.length));
         return null;
       }
-      return LivePlaylistSnapshot.parse(response.body);
-    } catch (_) {
+      final snapshot = LivePlaylistSnapshot.parse(response.body);
+      _captureProbe(source, LiveSourceProbe(
+        phase: 'playlist',
+        outcome: snapshot == null ? 'invalid_manifest' : 'ok',
+        httpStatus: response.statusCode, bodyBytes: bytes,
+        mimeKind: mime, isMaster: snapshot?.isMaster,
+        segmentCount: snapshot == null ? null :
+            response.body.split('\n').where((line) {
+              final clean = line.trim();
+              return clean.isNotEmpty && !clean.startsWith('#');
+            }).length,
+        elapsedMs: timer.elapsedMilliseconds,
+        headerCount: headers.length));
+      return snapshot;
+    } on TimeoutException {
+      _captureProbe(source, LiveSourceProbe(
+        phase: 'playlist', outcome: 'timeout',
+        elapsedMs: timer.elapsedMilliseconds, headerCount: headers.length));
+      return null;
+    } catch (error) {
+      debugPrint('[LiveTV] Playlist probe failed: ${error.runtimeType}');
+      _captureProbe(source, LiveSourceProbe(
+        phase: 'playlist', outcome: 'network_error',
+        elapsedMs: timer.elapsedMilliseconds, headerCount: headers.length));
       return null;
     }
   }

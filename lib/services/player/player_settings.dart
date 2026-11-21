@@ -252,20 +252,30 @@ abstract final class PlayerSettings {
   }
 
   /// Configures network stream continuity with strict separation between Live IPTV and VOD.
-  static Future<void> applyStreamContinuity(Player player, {bool isLive = false}) async {
+  @visibleForTesting
+  static String streamLavfOptions({
+    required bool isLive,
+    required bool isHlsLive,
+    required bool isIOS,
+  }) {
+    // The iOS Live TV watchdog handles HLS recovery. Do not force generic
+    // streamed reconnect flags while FFmpeg opens HLS playlists and segments.
+    if (!isLive || (isIOS && isHlsLive)) return '';
+    return 'reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,'
+        'reconnect_on_http_error=500,502,503,504,reconnect_delay_max=5';
+  }
+
+  static Future<void> applyStreamContinuity(Player player, {
+    bool isLive = false,
+    bool isHlsLive = false,
+  }) async {
     try {
       final dynamic platform = player.platform;
       if (platform == null) return;
-      if (isLive) {
-        // Live IPTV stream continuity: reconnect on dropouts at the protocol layer
-        await platform.setProperty(
-          'stream-lavf-o',
-          'reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_on_http_error=500,502,503,504,reconnect_delay_max=5',
-        );
-      } else {
-        // VOD / HLS / Movies / Episodes: DO NOT set reconnect=1 because FFmpeg treats HLS segments
-        // as unseekable streams when reconnect=1 is active. Keeping it clean enables full HLS seeking!
-        await platform.setProperty('stream-lavf-o', '');
+      await platform.setProperty('stream-lavf-o', streamLavfOptions(
+        isLive: isLive, isHlsLive: isHlsLive, isIOS: Platform.isIOS));
+      if (isLive && isHlsLive && Platform.isIOS) {
+        IosAudioTelemetry.instance.captureCode('live_hls_safe_options');
       }
     } catch (e) {
       debugPrint('[PlayerSettings] applyStreamContinuity warning: $e');
@@ -274,7 +284,11 @@ abstract final class PlayerSettings {
 
   /// Pre-Open Properties: Demuxer, hardware decoder, cache buffer, and FFmpeg flags
   /// that MUST be configured before opening media.
-  static Future<void> applyPreOpenProperties(Player player, {bool isLive = false, bool isTorrent = false}) async {
+  static Future<void> applyPreOpenProperties(Player player, {
+    bool isLive = false,
+    bool isTorrent = false,
+    bool isHlsLive = false,
+  }) async {
     try {
       final dynamic platform = player.platform;
       if (platform == null) return;
@@ -391,7 +405,7 @@ abstract final class PlayerSettings {
       await platform.setProperty('network-timeout', '30');
 
       // Network Stream Continuity (Live IPTV vs VOD separation)
-      await applyStreamContinuity(player, isLive: isLive);
+      await applyStreamContinuity(player, isLive: isLive, isHlsLive: isHlsLive);
 
       // Native HLS & image-disguised (.jpg/.png) stream probing
       await platform.setProperty('hls-bitrate', 'max');

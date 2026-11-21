@@ -139,3 +139,11 @@ flutter test test/live_tv_diagnostics_test.dart
 Field acceptance should test real iPadOS HLS streams, slow startup, audio-only
 responses, CDN headers, expired signed links, zero-buffer stalls and successful
 fallback while verifying that movies/series remain unchanged.
+
+## Physical-device Build 250 follow-up
+
+* Live `tv` stream requests now only contact installed Stremio addon resources that advertise support for the requested channel ID. Built-in title-matched torrent/HTTP scrapers cannot supply a live channel; targeted fetch and player initialization enforce the same rule.
+* iOS HLS Live TV avoids generic FFmpeg streamed-reconnect flags that may interfere with playlist/segment initialization. The existing bounded supervisor handles failures. VOD and Windows playback settings are unchanged.
+* Live HEAD and HLS manifest probes use the same resolved request headers as MPV reconnection, including Stremio proxy-request headers. HEAD acceptance remains provisional and must not be confused with actual video readiness.
+* Opt-in iOS diagnostics now categorize probe phase, outcome, HTTP status, MIME family, response bytes, elapsed milliseconds, header count, HLS master/media distinction and segment count. Native diagnostics also categorize track count, media format, property access errors and error callbacks. No raw URL, signed query, playlist content, header values or native exceptions are uploaded.
+* Physical-device validation is required: passing a unit test or an HTTP HEAD/playlist probe does not prove that an HLS segment decoded or the correct programme is playing.

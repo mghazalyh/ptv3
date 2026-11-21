@@ -31,6 +31,10 @@ abstract final class IosAdhocDiagnosticPlan {
     'diagnostic_plan_status',
     'diagnostic_plan_cancel',
     'diagnostic_media_sources',
+    'command_contracts', 'media_discover', 'media_search_addons',
+    'media_resolve', 'live_channels', 'live_health_rank',
+    'live_scan_status', 'player_verify', 'app_inspect',
+    'app_screenshot', 'settings_inspect',
   };
 
   static const _controllingActions = <String>{
@@ -47,13 +51,18 @@ abstract final class IosAdhocDiagnosticPlan {
     'start_live_matrix',
     'start_live_matrix_catalog',
     'cancel_live_matrix',
+    'media_play_resolved', 'live_channel_switch',
+    'live_scan', 'live_scan_cancel', 'player_recover',
+    'app_navigate', 'settings_update',
   };
 
   static bool isReadOnly(String action, Map<String, dynamic> args) {
     if (_observationalActions.contains(action)) return true;
     if (action == 'player') {
-      return args['command'] == 'state' ||
-          args['command'] == 'probe_live';
+      return const <String>{
+        'state', 'probe_live', 'sources', 'audio_tracks',
+        'subtitle_tracks',
+      }.contains(args['command']);
     }
     return false;
   }

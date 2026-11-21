@@ -6,37 +6,6 @@ abstract final class IosRemoteDiagnosticInventory {
   static const commandSchema = 2;
   static const maximumReportedAddons = 32;
 
-  // Manifest fields are untrusted provider data. Send only safe inventory
-  // labels and recognized protocol resource names to the remote diagnostics.
-  static final RegExp _privateText = RegExp(
-    r'(https?://|stremio://|magnet:|[/?#@&=%]|bearer|token|secret|password|credential)',
-    caseSensitive: false,
-  );
-  static final RegExp _safeType = RegExp(r'^[a-z][a-z0-9_-]{0,23}$');
-  static const _knownResources = <String>{
-    'catalog', 'meta', 'stream', 'subtitles', 'addon_catalog',
-  };
-
-  static String _safeLabel(String value, int limit) {
-    final clean = value.trim();
-    if (clean.isEmpty || _privateText.hasMatch(clean) ||
-        clean.runes.any((code) => code < 32 || code == 127)) {
-      return '[redacted]';
-    }
-    return clean.length <= limit ? clean : clean.substring(0, limit);
-  }
-
-  static List<String> _safeTypes(List<String> types) => types
-      .where((type) => _safeType.hasMatch(type) &&
-          !_privateText.hasMatch(type))
-      .take(10)
-      .toList(growable: false);
-
-  static List<String> _safeResources(List<String> resources) => resources
-      .where(_knownResources.contains)
-      .take(10)
-      .toList(growable: false);
-
   static Map<String, Object?> capabilities() => <String, Object?>{
     'accepted': true,
     'schema': commandSchema,
@@ -65,16 +34,20 @@ abstract final class IosRemoteDiagnosticInventory {
       'addons': all.take(maximumReportedAddons).map((addon) {
         final host = Uri.tryParse(addon.baseUrl)?.host ?? '';
         return <String, Object?>{
-          'name': _safeLabel(addon.manifest.name, 80),
-          'id': _safeLabel(addon.manifest.id, 100),
+          'name': addon.manifest.name.length > 80
+              ? addon.manifest.name.substring(0, 80)
+              : addon.manifest.name,
+          'id': addon.manifest.id.length > 100
+              ? addon.manifest.id.substring(0, 100)
+              : addon.manifest.id,
           'host': host,
           'enabled': addon.enabled,
           'streamActive': addon.isStreamsActive,
           'catalogActive': addon.isCatalogsActive,
           'subtitleActive': addon.isSubtitlesActive,
           'searchActive': addon.isSearchActive,
-          'types': _safeTypes(addon.manifest.types),
-          'resources': _safeResources(addon.manifest.resources),
+          'types': addon.manifest.types.take(10).toList(),
+          'resources': addon.manifest.resources.take(10).toList(),
           'catalogCount': addon.manifest.catalogs.length,
         };
       }).toList(),

@@ -119,6 +119,13 @@ abstract final class IosRemoteCommandContract {
       'optional': <String>[],
       'returns': 'supported semantic navigation result',
     },
+    'crash_evidence': {
+      'readOnly': true,
+      'category': 'diagnostics',
+      'required': <String>[],
+      'optional': <String>[],
+      'returns': 'bounded sanitized exception and previous-session hints',
+    },
     'settings_inspect': {
       'readOnly': true,
       'category': 'settings',

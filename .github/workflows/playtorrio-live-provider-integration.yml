@@ -1,0 +1,43 @@
+name: PlayTorrio live provider integration diagnostics (non-release)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  external-provider-smoke:
+    name: Real upstream availability, separate from deterministic release tests
+    runs-on: macos-15-intel
+    timeout-minutes: 35
+    steps:
+      - name: Checkout PlayTorrio source
+        uses: actions/checkout@v4
+
+      - name: Setup pinned Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: |
+          touch .env
+          flutter pub get
+
+      - name: Run explicit real-provider smoke tests
+        run: |
+          set -euo pipefail
+          flutter test --no-pub --dart-define=PLAYTORRIO_LIVE_PROVIDER_TESTS=true \
+            test/anime_extractors_test.dart \
+            test/vadapav_and_stremio_scheme_test.dart \
+            test/services/movy_scraper_test.dart
+
+      - name: Report provider status classification
+        if: always()
+        run: |
+          echo "Real network smoke tests are diagnostic and may fail due to" >> "$GITHUB_STEP_SUMMARY"
+          echo "provider outages, DNS, HTTP authorization or changed external APIs." >> "$GITHUB_STEP_SUMMARY"
+          echo "Any failure remains visible in this dedicated workflow." >> "$GITHUB_STEP_SUMMARY"
+          echo "A passing unit suite does not certify live provider availability." >> "$GITHUB_STEP_SUMMARY"

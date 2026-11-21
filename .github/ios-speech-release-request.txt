@@ -230,3 +230,16 @@ Source scope: existing latest parity-floating-player-both source including isola
 Signing scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY. Do not trigger Windows, Android or desktop.
 Validation: existing mandatory complete Flutter test suite and native analyzer gates remain active. No use of unverified release URLs when publication fails.
 Owner instruction: Trigger GitHub iOS-only build once, immediately leave. Do not check, poll or wait for the new GitHub Actions job.
+
+OWNER-AUTHORIZED IOS-ONLY BUILD #67 DART SOURCE CORRUPTION FIX AND REGRESSION-GUARD RELEASE
+Requested SGT: 2026-11-22 04:54:44
+Repository: mghazalyh/ptv3
+Branch: parity-floating-player-both
+Source HEAD before trigger: 011ea71e25a095f45c2b65058984a5ad4496f330
+Failed iOS run: https://github.com/mghazalyh/ptv3/actions/runs/44946224599
+Root cause: malformed generated visual-evidence method in lib/services/remote/github_diagnostic_control.dart (duplicate class tail and truncated raw RegExp). This caused cascading Dart compiler failures in the complete Flutter suite, not native signing or GitHub release publication.
+Fix: reconstructed controller from last known clean commit, added exactly one well-formed bounded private visual evidence upload, re-fetched and verified file contents and lexical balance, repaired nullable visual frame test callback.
+Prevention: new .github/scripts/check_ios_remote_source_integrity.py validates single declarations and balanced source; iOS workflow now runs the structural guard, Flutter analysis and focused remote/visual tests BEFORE the full suite. Source-only preflight separately requested.
+Publishing safety: prior GitHub Release HTTP 403 fallback and optional dedicated token logic remain unchanged.
+Scope: iOS 15 arm64 ad-hoc signed TrollStore-compatible IPA ONLY. No Android, Windows or desktop packages. Preserve installed iPad Build 262 and active native 50x3 matrix; no physical-device commands issued.
+Owner instruction: Trigger signed iOS GitHub build and immediately LEAVE. Do not poll, inspect or wait for the triggered build.

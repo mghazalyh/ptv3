@@ -217,3 +217,16 @@ Work: versioned machine-readable operation contracts; TMDB movie/series discover
 Tests: new deterministic remote media, command contract, Live TV health history, native scan, playback verification and crash evidence regressions plus existing suite. Source-only preflight requested separately. The signed iOS release workflow itself gates on the complete deterministic Flutter suite before native build and signing.
 Safety: preserve existing Torriodb transport, Stremio resource semantics, MPV playback, active iPad Build 262 and live native matrix. No disruptive device commands issued.
 User instruction: Trigger the iOS-only GitHub build now and LEAVE immediately without waiting, polling or inspecting its status.
+
+OWNER AUTHORIZED IOS-ONLY BUILD #66 GITHUB RELEASE HTTP 403 REPAIR RETRIGGER
+Requested SGT: 2026-11-22 04:25:38
+Repository: mghazalyh/ptv3
+Branch: parity-floating-player-both
+Verified source HEAD before release trigger: ee2bcd9c06b4c34913938c99efc760e97e447e5c
+Failed iOS Build #66: https://github.com/mghazalyh/ptv3/actions/runs/44942300594
+Failure classification: macOS build, complete Flutter tests, signing, ZIP verification, and Actions IPA artifact upload all succeeded. GitHub Releases publication returned HTTP 403 Resource not accessible by integration.
+Workflow repair: explicit publish-job contents/write and actions/read permissions, optional IOS_RELEASE_TOKEN for integration policy restrictions, safe idempotent bounded release publication retries, release-asset size verification, truthful fallback to signed Actions artifact if Releases API denies publishing, conditional correct Telegram delivery links.
+Source scope: existing latest parity-floating-player-both source including isolated metadata-independent visual inspection; no change to the active iPad Build 262 or its native matrix.
+Signing scope: iOS 15 arm64 signed TrollStore-compatible IPA ONLY. Do not trigger Windows, Android or desktop.
+Validation: existing mandatory complete Flutter test suite and native analyzer gates remain active. No use of unverified release URLs when publication fails.
+Owner instruction: Trigger GitHub iOS-only build once, immediately leave. Do not check, poll or wait for the new GitHub Actions job.

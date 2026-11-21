@@ -84,7 +84,7 @@ void main() {
   test(
     'SubtitleCat scraper, source fetch and translation (live opt-in only)',
     () async {
-      final savedOverrides = HttpOverrides.global;
+      final savedOverrides = HttpOverrides.current;
       try {
         // Flutter's test HTTP overrides deliberately prevent external calls.
         // Lift them only for an explicitly enabled provider integration run.

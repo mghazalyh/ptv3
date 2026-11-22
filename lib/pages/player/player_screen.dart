@@ -5498,7 +5498,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           debugPrint('[SportsSurf] Stop button: ${error.runtimeType}');
                         }
                       },
-                      icon: const Icon(Icons.stop_circle_outline, size: 20),
+                      icon: const Icon(Icons.stop_circle, size: 20),
                       label: const Text('STOP SURFING · STAY HERE'),
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xD9A92323),

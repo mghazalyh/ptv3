@@ -195,7 +195,7 @@ class _TorriodbLiveOverlayState extends State<TorriodbLiveOverlay> {
     switch (type) {
       case 'text':
         final size = (node['fontSize'] is num
-            ? (node['fontSize'] as num).toDouble().clamp(10.0, 36.0)
+            ? (node['fontSize'] as num).toDouble().clamp(10.0, 36.0).toDouble()
             : 14.0);
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
@@ -236,7 +236,7 @@ class _TorriodbLiveOverlayState extends State<TorriodbLiveOverlay> {
         final min = (node['min'] as num).toDouble();
         final max = (node['max'] as num).toDouble();
         final value = (_sliders[key] ?? (node['value'] as num).toDouble())
-            .clamp(min, max);
+            .clamp(min, max).toDouble();
         return Column(mainAxisSize: MainAxisSize.min, children: [
           Text('$label: ${value.toStringAsFixed(0)}',
             style: const TextStyle(color: Colors.white)),
@@ -251,7 +251,7 @@ class _TorriodbLiveOverlayState extends State<TorriodbLiveOverlay> {
         return const Divider(color: Colors.white38);
       case 'space':
         return SizedBox(height: (node['height'] is num
-            ? (node['height'] as num).toDouble().clamp(0.0, 100.0) : 8.0));
+            ? (node['height'] as num).toDouble().clamp(0.0, 100.0).toDouble() : 8.0));
       case 'row':
       case 'column':
         final children = node['children'] as List? ?? const [];
@@ -288,7 +288,7 @@ class _TorriodbLiveOverlayState extends State<TorriodbLiveOverlay> {
     final items = panel['items'] as List? ?? const [];
     final screen = MediaQuery.sizeOf(context);
     final boundedWidth = width.clamp(120.0, screen.width - 2 * margin > 120
-        ? screen.width - 2 * margin : 120.0);
+        ? screen.width - 2 * margin : 120.0).toDouble();
     Widget surface = Material(
       color: _color(panel['background'], const Color(0xDF151A27)),
       borderRadius: BorderRadius.circular(14),

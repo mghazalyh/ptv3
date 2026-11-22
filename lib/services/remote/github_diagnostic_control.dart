@@ -62,6 +62,7 @@ class GithubDiagnosticControl {
   void Function(Map<String, dynamic>?)? onUiConfiguration;
   String? _lastUiSha;
   DateTime? _lastUiCheckAt;
+  bool _uiPolling = false;
   DiagnosticCommandHandler? onPlayerCommand;
   bool forceTestPlatform = false;
 
@@ -459,6 +460,23 @@ class GithubDiagnosticControl {
     status.value = 'Last diagnostic command: $action (${receipt['state']})';
   }
 
+  Future<void> _refreshUiConfiguration(String token, DateTime now) async {
+    if (_uiPolling || uiConfigurationPath == null) return;
+    _uiPolling = true;
+    try {
+      final ui = await _readFile(token, uiConfigurationPath!);
+      if (_lastUiSha != ui.sha) {
+        onUiConfiguration?.call(ui.document);
+        _lastUiSha = ui.sha;
+      }
+      _lastUiCheckAt = now;
+    } catch (error) {
+      debugPrint('[GithubDiagnosticControl] UI: ${error.runtimeType}');
+    } finally {
+      _uiPolling = false;
+    }
+  }
+
   Future<void> pollNow() async {
     await initialize();
     if ((!Platform.isIOS && !forceTestPlatform) ||
@@ -492,21 +510,12 @@ class GithubDiagnosticControl {
           debugPrint('[GithubDiagnosticControl] Heartbeat: ${error.runtimeType}');
         }
       }
-      // UI configuration can change independently of the command mailbox.
-      // A bad or missing overlay must never block ordinary remote commands.
+      // Read the UI independently: its network latency must never delay
+      // channel switching, playback verification, or command receipts.
       if (onUiConfiguration != null && uiConfigurationPath != null &&
-          (_lastUiCheckAt == null ||
-           now.difference(_lastUiCheckAt!) >= pollInterval)) {
-        try {
-          final ui = await _readFile(token, uiConfigurationPath!);
-          if (_lastUiSha != ui.sha) {
-            onUiConfiguration?.call(ui.document);
-            _lastUiSha = ui.sha;
-          }
-          _lastUiCheckAt = now;
-        } catch (error) {
-          debugPrint('[GithubDiagnosticControl] UI configuration: ${error.runtimeType}');
-        }
+          !_uiPolling && (_lastUiCheckAt == null ||
+          now.difference(_lastUiCheckAt!) >= pollInterval)) {
+        unawaited(_refreshUiConfiguration(token, now));
       }
       final command = (await _readFile(token, commandPath!)).document;
       if (command == null) return;

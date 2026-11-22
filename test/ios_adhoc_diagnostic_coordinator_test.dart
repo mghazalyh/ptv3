@@ -73,4 +73,53 @@ void main() {
     expect(agent.status()['phase'], 'failed');
     expect(agent.status()['failedCommands'], 1);
   });
+
+  test('Sports surf stop keeps the current channel and skips future switches', () async {
+    final agent = IosAdhocDiagnosticCoordinator();
+    final firstOpened = Completer<void>();
+    final opened = <String>[];
+
+    final response = await agent.start({
+      'runId': 'sports_surf_local_stop_20261122',
+      'allowPlaybackChanges': true,
+      'steps': [
+        {'action': 'open_channel',
+          'args': {'channelId': 'nltv:us:FirstSports.us'}},
+        {'action': 'open_channel', 'waitMs': 15000,
+          'args': {'channelId': 'nltv:us:SecondSports.us'}},
+      ],
+    }, matrixRunning: () => false, dispatch: (action, args) async {
+      final id = args['channelId'];
+      if (id is String) opened.add(id);
+      if (!firstOpened.isCompleted) firstOpened.complete();
+      return {'accepted': true};
+    });
+
+    expect(response['phase'], 'running');
+    expect(agent.sportsSurfing.value, isTrue);
+    await firstOpened.future;
+    expect(agent.stopSportsSurfing(), isTrue);
+    expect(agent.sportsSurfing.value, isFalse);
+    await agent.whenComplete;
+    expect(agent.status()['phase'], 'cancelled');
+    expect(opened, ['nltv:us:FirstSports.us']);
+    expect(agent.stopSportsSurfing(), isFalse);
+  });
+
+  test('Sports stop does not cancel an unrelated diagnostic plan', () async {
+    final agent = IosAdhocDiagnosticCoordinator();
+    final pending = Completer<Map<String, Object?>>();
+    final response = await agent.start({
+      'runId': 'plan_not_sports_20261122',
+      'steps': [{'action': 'state'}],
+    }, matrixRunning: () => false,
+      dispatch: (_, __) => pending.future);
+    expect(response['phase'], 'running');
+    expect(agent.sportsSurfing.value, isFalse);
+    expect(agent.stopSportsSurfing(), isFalse);
+    expect(agent.status()['phase'], 'running');
+    pending.complete({'accepted': true});
+    await agent.whenComplete;
+    expect(agent.status()['phase'], 'completed');
+  });
 }

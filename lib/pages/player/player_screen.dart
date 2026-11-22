@@ -38,6 +38,7 @@ import '../../services/player/ios_audio_telemetry.dart';
 import '../../services/remote/ios_diagnostic_journal.dart';
 import '../../services/remote/lan_remote_service.dart';
 import '../../services/remote/github_diagnostic_control.dart';
+import '../../services/remote/ios_adhoc_diagnostic_coordinator.dart';
 import '../../services/player/audio_language_priority.dart';
 import '../../services/player/playback_autoselection.dart';
 import '../../services/player/episode_completion_policy.dart';
@@ -5464,6 +5465,50 @@ class _PlayerScreenState extends State<PlayerScreen>
                     if (segment != null) _handleDismissSkipSegment(segment);
                   },
                 ),
+              ),
+            ),
+
+          // A persistent stop button remains visible even when player
+          // controls hide. It cancels only this in-app surfing sequence;
+          // the current native TV playback stays open.
+          if (Platform.isIOS &&
+              (widget.detail?.id.startsWith('nltv:') == true ||
+                  widget.detail?.id.startsWith('iptv:') == true))
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + 76,
+              right: 16,
+              child: ValueListenableBuilder<bool>(
+                valueListenable:
+                    IosAdhocDiagnosticCoordinator.instance.sportsSurfing,
+                builder: (context, surfing, _) {
+                  if (!surfing) return const SizedBox.shrink();
+                  return Semantics(
+                    button: true,
+                    label: 'Stop channel surfing and keep this channel',
+                    child: FilledButton.icon(
+                      key: const ValueKey('stop_sports_surfing'),
+                      onPressed: () {
+                        try {
+                          final stopped = IosAdhocDiagnosticCoordinator
+                              .instance.stopSportsSurfing();
+                          if (!stopped) {
+                            debugPrint('[SportsSurf] No active sports surf to stop');
+                          }
+                        } catch (error) {
+                          debugPrint('[SportsSurf] Stop button: ${error.runtimeType}');
+                        }
+                      },
+                      icon: const Icon(Icons.stop_circle_outline, size: 20),
+                      label: const Text('STOP SURFING · STAY HERE'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xD9A92323),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
 

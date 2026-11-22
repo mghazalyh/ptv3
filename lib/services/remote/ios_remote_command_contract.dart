@@ -5,6 +5,21 @@ abstract final class IosRemoteCommandContract {
   static const schema = 1;
 
   static const operations = <String, Map<String, Object?>>{
+    'ui_config_status': {
+      'readOnly': true,
+      'category': 'remote_flutter_ui',
+      'required': <String>[],
+      'optional': <String>[],
+      'returns': 'loaded Torriodb declarative UI schema and supported actions',
+    },
+    'adaptive_stop': {
+      'readOnly': false,
+      'changesPlayback': false,
+      'category': 'remote_flutter_ui',
+      'required': <String>[],
+      'optional': <String>[],
+      'returns': 'disables owner adaptive surfing while leaving video playing',
+    },
     'media_discover': {
       'readOnly': true,
       'category': 'discovery',

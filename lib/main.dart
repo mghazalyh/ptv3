@@ -79,6 +79,7 @@ import './models/movie/movie_detail.dart';
 import './pages/player/watch_screen.dart';
 import './pages/player/player_screen.dart';
 import './widgets/updater/update_dialog.dart';
+import './widgets/remote/torriodb_live_overlay.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -181,6 +182,8 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     LanRemoteService.instance.onCastRequest = _handleLanCastRequest;
     if (Platform.isIOS) {
       GithubDiagnosticControl.instance.onCommand = _dispatchGithubDiagnostic;
+      GithubDiagnosticControl.instance.onUiConfiguration =
+          TorriodbLiveOverlayStore.instance.apply;
       GithubDiagnosticControl.instance.enabled.addListener(
           _onRemoteDiagnosticsEnabled);
       _onRemoteDiagnosticsEnabled();
@@ -237,6 +240,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
       GithubDiagnosticControl.instance.enabled.removeListener(
           _onRemoteDiagnosticsEnabled);
       GithubDiagnosticControl.instance.onCommand = null;
+      GithubDiagnosticControl.instance.onUiConfiguration = null;
     }
     // Receiver sockets close when the application is disposed.
     unawaited(LanRemoteService.instance.stopHosting());
@@ -948,6 +952,8 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
                   'diagnostic.plan_finished', outcome));
             },
           );
+        case 'adaptive_stop':
+          return GithubDiagnosticControl.instance.stopAdaptiveSurf();
         case 'diagnostic_plan_status':
           return IosAdhocDiagnosticCoordinator.instance.status();
         case 'diagnostic_plan_cancel':
@@ -1597,6 +1603,8 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
                       activity: UnattendedTestActivity.instance.snapshot,
                       onDismiss: () => UnattendedTestActivity.instance
                           .setIndicatorEnabled(false))),
+                if (Platform.isIOS)
+                  TorriodbLiveOverlay(onAction: _dispatchGithubDiagnostic),
               ],
             ),
           ),

@@ -35,6 +35,7 @@ class TorriodbLiveOverlayStore {
 
   @visibleForTesting
   static bool isValid(Map<String, dynamic>? source) {
+    try {
     if (source == null) return true;
     if (source['schema'] != 1 || source['enabled'] is! bool) return false;
     final panels = source['panels'];
@@ -102,6 +103,10 @@ class TorriodbLiveOverlayStore {
           !items.every((item) => validNode(item, 0))) return false;
     }
     return true;
+    } catch (error) {
+      debugPrint('[TorriodbLiveOverlay] Invalid document: ${error.runtimeType}');
+      return false;
+    }
   }
 
   void apply(Map<String, dynamic>? value) {

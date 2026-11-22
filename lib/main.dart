@@ -954,6 +954,16 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
           );
         case 'adaptive_stop':
           return GithubDiagnosticControl.instance.stopAdaptiveSurf();
+        case 'ui_config_status':
+          final document = TorriodbLiveOverlayStore.instance.document.value;
+          return <String, Object?>{
+            'accepted': true,
+            'schema': 1,
+            'loaded': document != null,
+            'enabled': document?['enabled'] == true,
+            'panels': (document?['panels'] as List?)?.length ?? 0,
+            'supportedActions': TorriodbLiveOverlayStore.actions.toList(),
+          };
         case 'diagnostic_plan_status':
           return IosAdhocDiagnosticCoordinator.instance.status();
         case 'diagnostic_plan_cancel':

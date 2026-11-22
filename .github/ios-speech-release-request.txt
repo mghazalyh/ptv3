@@ -269,3 +269,16 @@ Follow-up repair: restored HttpOverrides via documented HttpOverrides.current ge
 Prevention: release and source preflight now execute the deterministic SubtitleCat test early and retain the mandatory complete offline Flutter test suite. Preserve GitHub release 403 fallback behavior.
 Scope: iOS 15 ARM64 signed TrollStore-compatible IPA ONLY. Do not build Windows or desktop. Physical iPad Build 262 and cancelled native matrix remain untouched.
 Owner instruction: once iOS-only GitHub build is triggered, LEAVE without polling or waiting for the new run.
+
+=== OWNER REQUEST: iOS SPORT SURF 15s AND STOP-ON-CHANNEL ===
+Requested at UTC: 2026-11-22T00:05:33.893Z
+Source HEAD before release trigger: 6f5cb9489f3528adbdd623404f83e345633ef4d9
+Scope: iOS 15 ARM64 TrollStore-signed IPA only, no Windows or desktop.
+Changes: Local persistent player-screen Stop Surfing / Stay Here button,
+instant cancellation of the current sports_surf_ diagnostic plan while
+leaving the selected live-TV channel playing, and coordinator regression tests.
+15-second sports surf command already accepted by physical Build 270 via Torriodb.
+Do not include remote control data or personal playback state in the release.
+Retain mandatory deterministic source-integrity, Dart analysis and full Flutter tests.
+Owner instruction: trigger iOS GitHub build once and leave, do not poll.
+=== END SPORT SURF REQUEST ===

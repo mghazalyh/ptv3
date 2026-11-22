@@ -13,6 +13,28 @@ class IosAdhocDiagnosticCoordinator {
   static final IosAdhocDiagnosticCoordinator instance =
       IosAdhocDiagnosticCoordinator();
 
+  /// Visible only while a sports-channel surfing plan is running.
+  /// The player can stop surfing locally without a GitHub round trip.
+  final ValueNotifier<bool> sportsSurfing = ValueNotifier<bool>(false);
+
+  bool get isSportsSurfing =>
+      isRunning && _runId?.startsWith('sports_surf_') == true;
+
+  /// Stop changing channels, leaving the currently opened player untouched.
+  /// This does not cancel unrelated diagnostic plans or stop playback.
+  bool stopSportsSurfing() {
+    try {
+      if (!isSportsSurfing) return false;
+      final result = cancel();
+      if (result['accepted'] != true) return false;
+      debugPrint('[SportsSurf] Owner stopped on the current channel');
+      return true;
+    } catch (error) {
+      debugPrint('[SportsSurf] Could not stop surfing: ${error.runtimeType}');
+      return false;
+    }
+  }
+
   Future<void>? _job;
   String? _runId;
   String _phase = 'idle';
@@ -56,6 +78,7 @@ class IosAdhocDiagnosticCoordinator {
     }
     _cancelled = true;
     _phase = 'cancelling';
+    sportsSurfing.value = false;
     return status();
   }
 
@@ -104,6 +127,7 @@ class IosAdhocDiagnosticCoordinator {
     _reason = null;
     _startedAt = DateTime.now().toUtc();
     _finishedAt = null;
+    sportsSurfing.value = runId.startsWith('sports_surf_');
 
     _job = _execute(rawPlan, dispatch, matrixRunning, onStep, onFinished);
     return status();
@@ -150,6 +174,7 @@ class IosAdhocDiagnosticCoordinator {
     }
     _reason = result['reason']?.toString();
     _finishedAt = DateTime.now().toUtc();
+    sportsSurfing.value = false;
     try {
       onFinished?.call(status());
     } catch (_) {}

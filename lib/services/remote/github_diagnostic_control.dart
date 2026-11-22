@@ -59,6 +59,9 @@ class GithubDiagnosticControl {
   final Random _random = Random.secure();
 
   DiagnosticCommandHandler? onCommand;
+  void Function(Map<String, dynamic>?)? onUiConfiguration;
+  String? _lastUiSha;
+  DateTime? _lastUiCheckAt;
   DiagnosticCommandHandler? onPlayerCommand;
   bool forceTestPlatform = false;
 
@@ -74,6 +77,10 @@ class GithubDiagnosticControl {
   String? get commandPath => _deviceId == null
       ? null
       : '$root/commands/${_deviceId!}.json';
+  String? get uiConfigurationPath => _deviceId == null
+      ? null : '$root/ui/${_deviceId!}.json';
+  String? get adaptiveSurfPath => _deviceId == null
+      ? null : '$root/adaptive_surf/${_deviceId!}/config.json';
   String? get receiptPath => _deviceId == null
       ? null
       : '$root/receipts/${_deviceId!}.json';
@@ -138,6 +145,34 @@ class GithubDiagnosticControl {
       unawaited(pollNow());
     } else {
       _lastStatusAt = null;
+    }
+  }
+
+  /// Stop the external adaptive GitHub controller from an in-player button.
+  /// The active workflow checks this config before issuing further commands.
+  Future<Map<String, Object?>> stopAdaptiveSurf() async {
+    await initialize();
+    if (!enabled.value || adaptiveSurfPath == null) return <String, Object?>{
+      'accepted': false, 'reason': 'remote_diagnostics_disabled'};
+    try {
+      final token = await _token();
+      if (token == null || token.isEmpty) return <String, Object?>{
+        'accepted': false, 'reason': 'credentials_unavailable'};
+      final file = await _readFile(token, adaptiveSurfPath!);
+      final config = file.document;
+      if (config == null) return <String, Object?>{
+        'accepted': false, 'reason': 'adaptive_plan_not_configured'};
+      if (config['enabled'] == false) return <String, Object?>{
+        'accepted': true, 'alreadyStopped': true};
+      final revised = <String, Object?>{...config, 'enabled': false};
+      await _writeFile(token, adaptiveSurfPath!, revised);
+      return <String, Object?>{
+        'accepted': true, 'stopped': true,
+        'runId': config['runId']?.toString()};
+    } catch (error) {
+      debugPrint('[GithubDiagnosticControl] Stop surf: ${error.runtimeType}');
+      return <String, Object?>{'accepted': false,
+        'errorClass': error.runtimeType.toString()};
     }
   }
 
@@ -457,6 +492,22 @@ class GithubDiagnosticControl {
           debugPrint('[GithubDiagnosticControl] Heartbeat: ${error.runtimeType}');
         }
       }
+      // UI configuration can change independently of the command mailbox.
+      // A bad or missing overlay must never block ordinary remote commands.
+      if (onUiConfiguration != null && uiConfigurationPath != null &&
+          (_lastUiCheckAt == null ||
+           now.difference(_lastUiCheckAt!) >= pollInterval)) {
+        try {
+          final ui = await _readFile(token, uiConfigurationPath!);
+          if (_lastUiSha != ui.sha) {
+            onUiConfiguration?.call(ui.document);
+            _lastUiSha = ui.sha;
+          }
+          _lastUiCheckAt = now;
+        } catch (error) {
+          debugPrint('[GithubDiagnosticControl] UI configuration: ${error.runtimeType}');
+        }
+      }
       final command = (await _readFile(token, commandPath!)).document;
       if (command == null) return;
       if (!validCommand(command, deviceId: _deviceId!, now: now)) return;
@@ -516,6 +567,7 @@ class GithubDiagnosticControl {
     _timer = null;
     _started = false;
     onCommand = null;
+    onUiConfiguration = null;
     _client.close();
     status.dispose();
     enabled.dispose();

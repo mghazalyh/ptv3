@@ -282,3 +282,11 @@ Do not include remote control data or personal playback state in the release.
 Retain mandatory deterministic source-integrity, Dart analysis and full Flutter tests.
 Owner instruction: trigger iOS GitHub build once and leave, do not poll.
 === END SPORT SURF REQUEST ===
+
+OWNER-AUTHORIZED iOS-ONLY TORRIODB DECLARATIVE UI RELEASE
+Requested SGT: 2026-11-22 09:04:46
+Branch: parity-floating-player-both
+Scope: only signed iOS 15 TrollStore IPA; no Windows, Android, Linux, macOS desktop, or paired build.
+Changes: iOS Torriodb live-configurable Flutter overlay, including arbitrary declarative panel positions, text, button/toggle/slider widgets, visibility and native control dispatch. Adds stop-adaptive-surf without exiting video. Remote ui_config_status introspection. Device-scoped overlay JSON lives at playtorrio/control/ios/ui/8e223bb3c7c337facbbccd69aaeb762f.json in Torriodb and will update live on later config commits. Related Torriodb adaptive controller fixes: delayed receipt recovery, 51-channel checkpointing, automatic pass pruning and continuous loop handoffs.
+Validation: Run source integrity, Flutter analyzer, complete Flutter test suite including torriodb_live_overlay_test.dart, then native iOS signing and IPA archival.
+Owner command: Implement and trigger iOS-only native build once and leave without polling the job.
